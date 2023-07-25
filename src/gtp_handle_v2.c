@@ -192,6 +192,36 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	return teid;
 }
 
+static gtp_session_t *
+gtpc_retransmit_detected(gtp_srv_worker_t *w)
+{
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_ie_f_teid_t *ie_f_teid = NULL;
+	gtp_session_t *s = NULL;
+	gtp_teid_t *teid;
+	uint8_t *cp;
+
+	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
+	if (!cp)
+		return NULL;
+
+	ie_f_teid = (gtp_ie_f_teid_t *) cp;
+	teid = gtp_teid_get(&ctx->gtpc_teid_tab, ie_f_teid);
+	if (teid) {
+		/* same SQN too ?*/
+		if (gtph->teid_presence)
+			s = (gtph->sqn == teid->sqn) ? teid->session : NULL;
+		else if (gtph->sqn_only == teid->sqn)
+			s = teid->session;
+
+		gtp_teid_put(teid);
+		return s;
+	}
+
+	return NULL;
+}
 
 /*
  *	GTP-C Protocol helpers
@@ -223,13 +253,25 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
 	gtp_conn_t *c;
-	gtp_session_t *s;
+	gtp_session_t *s = NULL;
 	gtp_apn_t *apn;
-	bool new_conn = false;
+	bool new_conn = false, retransmit = false;
 	uint64_t imsi;
 	uint8_t *cp;
 	char apn_str[64];
 	int ret;
+
+	/* Retransmission detection: Operating in a tranparent
+	 * way in order to preserve transitivity of messages, so
+	 * that if we get a retransmission, simply retransmit this
+	 * to remote previously elected pGW.
+	 *
+	 * TODO: maybe implements a flood detection by maintaining a dyn
+	 *       map keeping track of remote sGW request-rate by
+	 *       message type in order to detect any changing trend */
+	s = gtpc_retransmit_detected(w);
+	if (s)
+		retransmit = true;
 
 	/* At least F-TEID present for create session */
 	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
@@ -287,7 +329,8 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	gtp_ie_imsi_rewrite(apn, cp);
 
 	/* Create a new session object */
-	s = gtp_session_alloc(c, apn);
+	if (!retransmit)
+		s = gtp_session_alloc(c, apn);
 
 	/* Performing session translation */
 	teid = gtpc_session_xlat(w, s);
@@ -297,10 +340,18 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 		goto end;
 	}
 
+	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
+			    , imsi, apn_str, ntohl(teid->id)
+			    , (retransmit) ? " (retransmit)" : "");
+	if (retransmit) {
+		gtp_sqn_masq(w, teid);
+		goto end;
+	}
+
+	/* Create a vSQN */
 	gtp_vsqn_alloc(w, teid);
 	gtp_sqn_masq(w, teid);
 
-	/* Create a vSQN */
 	/* Set addr tunnel endpoint */
 	teid->sgw_addr = *((struct sockaddr_in *) addr);
 
@@ -319,9 +370,6 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 				    , __FUNCTION__
 				    , apn->name);
 	}
-
-	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}"
-			    , imsi, apn_str, ntohl(teid->id));
 
   end:
 	if (!new_conn)
@@ -441,6 +489,8 @@ gtpc_delete_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 		return NULL;
 	}
 
+	log_message(LOG_INFO, "Delete-Session-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
+
 	/* IMSI rewrite if needed */
 	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
@@ -543,6 +593,8 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 				    , ntohl(h->teid));
 		return NULL;
 	}
+
+	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
 
 	/* IMSI rewrite if needed */
 	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
@@ -695,6 +747,8 @@ gtpc_delete_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 				    , ntohl(h->teid));
 		return NULL;
 	}
+
+	log_message(LOG_INFO, "Delete-Bearer-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
 
 	/* IMSI rewrite if needed */
 	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
