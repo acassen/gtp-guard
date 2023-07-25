@@ -350,8 +350,8 @@ gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid)
 	uint32_t vsqn;
 
 	/* 3bytes counter circle */
-	if (*sqn >= 0x00ffffff)
-		*sqn = 0;
+	if (!*sqn || *sqn >= 0x00ffffff)
+		*sqn = 0x0f;
 	__sync_add_and_fetch(sqn, 1);
 	vsqn = *sqn << 8;
 
