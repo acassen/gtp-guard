@@ -773,7 +773,54 @@ gtpc_delete_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 
 	/* Flag related TEID */
 	teid->action = GTP_ACTION_DELETE_BEARER;
-	gtp_session_set_delete_bearer(ctx, s, bearer_id->id);
+	gtp_session_set_delete_bearer(ctx, s, bearer_id);
+
+	return teid;
+}
+
+static gtp_teid_t *
+gtpc_delete_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_ie_cause_t *ie_cause = NULL;
+	gtp_teid_t *teid = NULL;
+	gtp_session_t *s;
+	uint8_t *cp;
+
+	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	if (!teid) {
+		/* No TEID present try by SQN */
+		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohl(h->sqn));
+		if (!teid) {
+			log_message(LOG_INFO, "%s(): unknown SQN:0x%.8x or TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohl(h->sqn)
+					    , ntohl(h->teid));
+			return NULL;
+		}
+	}
+
+	/* Recovery xlat */
+	gtpc_session_xlat_recovery(w);
+
+	/* SQN masq */
+	gtp_sqn_restore(w, teid->peer_teid);
+
+	/* TEID set */
+	h->teid = teid->id;
+	s = teid->session;
+
+	/* Test cause code, destroy if == success.
+	 * 3GPP.TS.29.274 8.4 */
+	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		ie_cause = (gtp_ie_cause_t *) cp;
+		if (ie_cause->value >= 16 && ie_cause->value <= 63) {
+			gtp_session_destroy_bearer(ctx, s);
+		}
+	}
 
 	return teid;
 }
@@ -954,6 +1001,7 @@ static const struct {
 	[GTP_MODIFY_BEARER_REQUEST_TYPE]	= { gtpc_modify_bearer_request_hdl },
 	[GTP_MODIFY_BEARER_RESPONSE_TYPE]	= { gtpc_modify_bearer_response_hdl },
 	[GTP_DELETE_BEARER_REQUEST]		= { gtpc_delete_bearer_request_hdl },
+	[GTP_DELETE_BEARER_RESPONSE]		= { gtpc_delete_bearer_response_hdl },
 	/* Generic request xlat */
 	[GTP_CHANGE_NOTIFICATION_REQUEST_REQUEST] = { gtpc_generic_xlat_request_hdl },
 	[GTP_RESUME_NOTIFICATION]		= { gtpc_generic_xlat_request_hdl },
@@ -971,7 +1019,6 @@ static const struct {
 	[GTP_BEARER_RESSOURCE_FAILURE_IND]	= { gtpc_generic_xlat_response_hdl },
 	[GTP_CREATE_BEARER_RESPONSE]		= { gtpc_generic_xlat_response_hdl },
 	[GTP_UPDATE_BEARER_RESPONSE]		= { gtpc_generic_xlat_response_hdl },
-	[GTP_DELETE_BEARER_RESPONSE]		= { gtpc_generic_xlat_response_hdl },
 	[GTP_UPDATE_PDN_CONNECTION_SET_RESPONSE] = { gtpc_generic_xlat_response_hdl },
 };
 

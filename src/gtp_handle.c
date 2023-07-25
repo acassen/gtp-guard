@@ -95,11 +95,6 @@ gtpc_handle_post(gtp_srv_worker_t *w, gtp_teid_t *teid)
 		return 0;
 	}
 
-	if (teid->action == GTP_ACTION_DELETE_BEARER) {
-		gtp_session_destroy_bearer(ctx, s);
-		teid->action = 0;
-	}
-
 	gtp_teid_put(teid);
 	return 0;
 }

@@ -36,6 +36,7 @@
 #include "rbtree.h"
 #include "json_writer.h"
 #include "vty.h"
+#include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
 #include "gtp_dlock.h"

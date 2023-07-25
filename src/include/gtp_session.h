@@ -88,7 +88,7 @@ extern gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *);
 extern int gtp_session_gtpu_teid_destroy(gtp_ctx_t *, gtp_teid_t *);
 extern int gtp_session_gtpc_teid_destroy(gtp_ctx_t *, gtp_teid_t *);
 extern int gtp_session_destroy(gtp_ctx_t *, gtp_session_t *);
-extern int gtp_session_set_delete_bearer(gtp_ctx_t *, gtp_session_t *, uint8_t);
+extern int gtp_session_set_delete_bearer(gtp_ctx_t *, gtp_session_t *, gtp_ie_eps_bearer_id_t *);
 extern int gtp_session_destroy_bearer(gtp_ctx_t *, gtp_session_t *);
 extern int gtp_sessions_init(void);
 extern int gtp_sessions_destroy(void);

@@ -375,20 +375,16 @@ gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 }
 
 int
-gtp_session_set_delete_bearer(gtp_ctx_t *ctx, gtp_session_t *s, uint8_t bearer_id)
+gtp_session_set_delete_bearer(gtp_ctx_t *ctx, gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
 {
 	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t;
 
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry(t, &s->gtpu_teid, next) {
-		/* FIXME: if instance 0 : flag all teid to DELETE_BEARER
-		 *        if instance 1 : only flag related bearer_id 
-		 * => delete in delete_bearer response.
-		 */
-		if (t->bearer_id == bearer_id) {
+		if ((ebi->h.instance == 0) ||
+		    (ebi->h.instance == 1 && t->bearer_id == ebi->id))
 			t->action = GTP_ACTION_DELETE_BEARER;
-		}
 	}
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 
@@ -400,6 +396,7 @@ gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t, *_t;
+	bool destroy_session = false;
 
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next) {
@@ -407,7 +404,13 @@ gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
 			__gtp_session_gtpu_teid_destroy(ctx, t);
 		}
 	}
+
+	if (list_empty(&s->gtpu_teid))
+		destroy_session = true;
 	pthread_mutex_unlock(&c->gtp_session_mutex);
+
+	if (destroy_session)
+		return __gtp_session_destroy(ctx, s);
 
 	return 0;
 }
