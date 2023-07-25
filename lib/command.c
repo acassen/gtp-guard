@@ -72,7 +72,7 @@ static cmd_node_t config_node = {
 };
 
 /* Default motd string. */
-static const char *default_motd = "\r\n Welcome to GTP Proxy VTY\r\n\r\n";
+static const char *default_motd = "\r\n Welcome to GTP-Guard VTY\r\n\r\n";
 
 
 /* Utility function to concatenate argv argument into a single string
@@ -1975,7 +1975,7 @@ DEFUN(show_version,
       show_version_cmd,
       "show version",
       SHOW_STR
-      "Displays GTP Proxy version\n")
+      "Displays GTP-Guard version\n")
 {
 	vty_out(vty, "%s (%s).%s", VERSION_STRING, host.name?host.name:"",
 		VTY_NEWLINE);

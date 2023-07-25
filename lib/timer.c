@@ -202,3 +202,9 @@ set_time_now(void)
 
 	return time_now;
 }
+
+struct tm *
+time_now_to_calendar(struct tm *t)
+{
+	return localtime_r(&time_now.tv_sec, t);
+}

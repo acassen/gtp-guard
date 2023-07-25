@@ -58,7 +58,7 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 /* Local data */
-static uint32_t gtp_session_id = 0;
+static uint32_t gtp_session_id;
 static rb_root_cached_t gtp_session_timer = RB_ROOT_CACHED;
 RB_TIMER_LESS(gtp_session, n);
 pthread_mutex_t gtp_session_timer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -70,25 +70,6 @@ pthread_mutex_t gtp_session_expiration_mutex;
 /*
  *	Session handling
  */
-void
-gtp_session_dump(gtp_session_t *s)
-{
-	gtp_teid_t *t;
-	list_head_t *l;
-
-	printf("#=#=# GTP Sesion DUMP #=#=#\n");
-	printf(" GTP-C TEID :\n");
-	l = &s->gtpc_teid;
-	list_for_each_entry(t, l, next)
-		printf("  . sqn:0x%.8x vsqn:0x%.8x vteid:0x%.8x, teid:0x%.8x, ipaddr:%u.%u.%u.%u\n"
-			, t->sqn, t->vsqn, t->vid, ntohl(t->id), NIPQUAD(t->ipv4));
-	printf(" GTP-U TEID :\n");
-	l = &s->gtpu_teid;
-	list_for_each_entry(t, l, next)
-		printf("  . sqn:0x%.8x vsqn:0x%.8x vteid:0x%.8x, teid:0x%.8x, ipaddr:%u.%u.%u.%u\n"
-			, t->sqn, t->vsqn, t->vid, ntohl(t->id), NIPQUAD(t->ipv4));
-}
-
 int
 gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
 {
@@ -127,6 +108,7 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 	list_head_t *l = &c->gtp_sessions;
 	time_t timeout = 0;
 	gtp_session_t *s;
+	struct tm *t;
 
 	/* Walk the line */
 	pthread_mutex_lock(&c->gtp_session_mutex);
@@ -136,8 +118,11 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 			snprintf(s->tmp_str, 63, "%ld secs", timeout);
 		}
 
-		vty_out(vty, " session-id:0x%.8x apn:%s expire(%s)%s"
+		t = &s->creation_time;
+		vty_out(vty, " session-id:0x%.8x apn:%s creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d expire:%s%s"
 			   , s->id, s->apn->name
+			   , t->tm_mday, t->tm_mon+1, t->tm_year+1900
+			   , t->tm_hour, t->tm_min, t->tm_sec
 			   , (s->sands.tv_sec) ? s->tmp_str : "never"
 			   , VTY_NEWLINE);
 		gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
@@ -164,7 +149,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 		}
 
 		if (!apn) {
-			vty_out(vty, "| %.15ld | %10s |  session-id:0x%.8x #teid:%.2d expiration:%.10s |%s"
+			vty_out(vty, "| %.15ld | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
 				   , c->imsi, s->apn->name, s->id, s->refcnt
 				   , (s->sands.tv_sec) ? s->tmp_str : "never"
 				   , VTY_NEWLINE);
@@ -172,7 +157,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 			continue;
 		}
 
-		vty_out(vty, "|                 | %10s |  session-id:0x%.8x #teid:%.2d expiration:%.10s |%s"
+		vty_out(vty, "|                 | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
 			   , (apn == s->apn) ? "" : s->apn->name
 			   , s->id, s->refcnt
 			   , (s->sands.tv_sec) ? s->tmp_str : "never"
@@ -182,7 +167,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 
 	/* Footer */
-	vty_out(vty, "+-----------------+------------+------------------------------------------------------+%s"
+	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
 }
@@ -260,6 +245,7 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn)
 	INIT_LIST_HEAD(&new->next);
 	new->apn = apn;
 	new->conn = c;
+	time_now_to_calendar(&new->creation_time);
 	/* This is a local session id, simply monotonically incremented */
 	__sync_add_and_fetch(&gtp_session_id, 1);
 	new->id = gtp_session_id;
@@ -577,9 +563,9 @@ DEFUN(show_gtp_session_summary,
       "GTP Session summary\n")
 {
 	/* Header */
-	vty_out(vty, "+-----------------+------------+------------------------------------------------------+%s"
-		     "|      IMSI       |    APN     |                GTP Session Informations              |%s"
-		     "+-----------------+------------+------------------------------------------------------+%s"
+	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"
+		     "|      IMSI       |    APN     |                GTP Session Informations                |%s"
+		     "+-----------------+------------+--------------------------------------------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 
 	gtp_conn_vty(vty, gtp_session_summary_vty, 0);

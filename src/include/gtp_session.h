@@ -71,6 +71,7 @@ typedef struct _gtp_session {
 
 	/* Expiration handling */
 	char			tmp_str[64];
+	struct tm		creation_time;
 	timeval_t		sands;
 	rb_node_t		n;
 
