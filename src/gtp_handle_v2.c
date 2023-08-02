@@ -568,7 +568,9 @@ gtpc_delete_session_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *a
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp_ie_cause_t *) cp;
-		if (ie_cause->value >= 16 && ie_cause->value <= 63) {
+		if ((ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
+		     ie_cause->value <= GTP_CAUSE_CONTEXT_NOT_FOUND) ||
+		    ie_cause->value == GTP_CAUSE_INVALID_PEER) {
 			teid->session->action = GTP_ACTION_DELETE_SESSION;
 		}
 	}
@@ -696,7 +698,8 @@ gtpc_modify_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp_ie_cause_t *) cp;
-		if (ie_cause->value >= 16 && ie_cause->value <= 63) {
+		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
+		    ie_cause->value <= 63) {
 			oteid = teid->old_teid;
 			if (oteid) {
 				gtp_teid_bind(oteid->peer_teid, teid);
@@ -817,7 +820,8 @@ gtpc_delete_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp_ie_cause_t *) cp;
-		if (ie_cause->value >= 16 && ie_cause->value <= 63) {
+		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
+		    ie_cause->value <= GTP_CAUSE_CONTEXT_NOT_FOUND) {
 			gtp_session_destroy_bearer(ctx, s);
 		}
 	}
