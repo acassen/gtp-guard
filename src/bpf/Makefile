@@ -80,5 +80,5 @@ $(TARGETS): %.bpf: %.c
 	    -Wno-tautological-compare \
 	    -Wno-unknown-warning-option \
 	    -Wno-address-of-packed-member \
-	    -O2 -emit-llvm -c $< -o ${@:.bpf=.ll}
+	    -O2 -emit-llvm -g -c $< -o ${@:.bpf=.ll}
 	@$(LLC) -march=bpf -filetype=obj -o $@ ${@:.bpf=.ll}

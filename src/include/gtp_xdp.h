@@ -31,7 +31,7 @@ enum {
 	XDPFWD_RULE_LIST
 };
 
-#define XDPFWD_MAP_CNT 2
+#define XDPFWD_MAP_CNT 3
 #define IPIP_MAP_CNT 2
 
 typedef struct _xdp_exported_maps {

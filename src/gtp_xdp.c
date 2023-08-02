@@ -59,6 +59,7 @@ extern data_t *daemon_data;
 /* Local data */
 xdp_exported_maps_t xdpfwd_exported_maps[XDPFWD_MAP_CNT] = {
 	{ "/sys/fs/bpf/xdpfwd_teid_xlat"	, false} ,
+	{ "/sys/fs/bpf/xdpfwd_ip_frag"		, false} ,
 	{ "/sys/fs/bpf/xdpfwd_iptnl_info"	, false}
 };
 

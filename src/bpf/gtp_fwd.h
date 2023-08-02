@@ -76,13 +76,14 @@ struct gtp_teid_rule {
 #define IP_OFFSET       0x1FFF          /* "Fragment Offset" part       */
 
 struct ip_frag_key {
-	__u32		src_addr;
+	__u32		saddr;
+	__u32		daddr;
 	__u16		id;
+	__u8		protocol;
 };
 
 struct gtp_teid_frag {
-	__be32		 teid;
-	__be32		 dst_addr;
+	__be32		dst_addr;
 	struct bpf_timer timer;
 };
 
