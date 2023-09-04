@@ -498,6 +498,14 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 				swap_src_dst_mac(ethh);
 				return XDP_TX;
 			}
+
+			/* If we have a miss in frag tracking hashmap then this
+			 * fragment is orphaned, 2 portentials reasons here :
+			 * 1. Ordering issue a remote sending endpoint
+			 * 2. Malicious injection
+			 * Due to second reason, we simply drop this instead
+			 * of releasing it to kernel netstack */
+			return XDP_DROP;
 		}
 	}
 
@@ -528,7 +536,7 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 			frag.dst_addr = rule->dst_addr;
 			ret = bpf_map_update_elem(&ip_frag, &frag_key, &frag, BPF_NOEXIST);
 			if (ret < 0)
-				return XDP_PASS;
+				return XDP_DROP;
 
 			gtpu_ip_frag_timer_set(&frag_key);
 		}

@@ -173,8 +173,8 @@ DEFUN(no_pdn_xdp_gtpu,
 {
 	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
 
-        if (!strlen(opts->filename)) {
-                vty_out(vty, "No XDP program is currently configured. Ignoring%s"
+        if (!opts->filename[0]) {
+                vty_out(vty, "%% No XDP program is currently configured. Ignoring%s"
                            , VTY_NEWLINE);
                 return CMD_WARNING;
         }
@@ -264,7 +264,7 @@ DEFUN(show_gtp_uplane,
 	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
         int ret;
 
-        if (!strlen(opts->filename)) {
+        if (!opts->filename[0]) {
                 vty_out(vty, "%% No XDP program is currently configured. Ignoring%s"
                            , VTY_NEWLINE);
                 return CMD_WARNING;
