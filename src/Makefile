@@ -20,7 +20,7 @@
 #
 
 CC	 = gcc
-INCLUDES = -Iinclude -I../lib
+INCLUDES = -Iinclude -I../lib -I../libbpf/src -I../libbpf/src/uapi
 CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Wall -Wunused -Wstrict-prototypes -D_GNU_SOURCE
 #DEFS	 = -D_DEBUG_
 DEFS	 =
@@ -28,7 +28,7 @@ COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 
 OBJS = 	main.o gtp_data.o gtp_vty.o gtp_if.o gtp_switch.o gtp_switch_vty.o \
 	gtp_handle.o gtp_handle_v1.o gtp_handle_v2.o gtp_conn.o gtp_dlock.o \
-	gtp_session.o gtp_teid.o gtp_resolv.o gtp_disk.o gtp_bpf.o gtp_xdp.o \
+	gtp_session.o gtp_teid.o gtp_resolv.o gtp_disk.o gtp_xdp.o \
 	gtp_utils.o gtp_request.o gtp_dpd.o
 
 HEADERS = $(OBJS:.o=.h)

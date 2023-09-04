@@ -32,6 +32,7 @@
 #include <arpa/inet.h>
 #include <linux/if_link.h>
 #include <linux/if_ether.h>
+#include <libbpf.h>
 
 /* local includes */
 #include "memory.h"
@@ -49,226 +50,203 @@
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_xdp.h"
 
 /* Extern data */
 extern data_t *daemon_data;
 
-
 /* Local data */
-xdp_exported_maps_t xdpfwd_exported_maps[XDPFWD_MAP_CNT] = {
-	{ "/sys/fs/bpf/xdpfwd_teid_xlat"	, false} ,
-	{ "/sys/fs/bpf/xdpfwd_ip_frag"		, false} ,
-	{ "/sys/fs/bpf/xdpfwd_iptnl_info"	, false}
-};
+static const char *pin_basedir = "/sys/fs/bpf";
+static xdp_exported_maps_t xdpfwd_maps[XDPFWD_MAP_CNT];
+
+/* Local defines */
+#define STRERR_BUFSIZE	128
 
 
 /*
  *	XDP related
  */
-
-/* Verify BPF-filesystem is mounted on given file path */
-static int
-gtp_xdp_bpf_fs_check_path(const char *path)
+static void
+gtp_bpf_cleanup_maps(struct bpf_object *obj, gtp_bpf_opts_t *opts)
 {
-        struct statfs st_fs;
-        char *dname, *dir;
-        int err = 0;
+	char errmsg[STRERR_BUFSIZE];
+	struct bpf_map *map;
+	vty_t *vty = opts->vty;
 
-        if (path == NULL)
-                return -EINVAL;
+	bpf_object__for_each_map(map, obj) {
+		char buf[GTP_PATH_MAX];
+		int len, err;
 
-        dname = strdup(path);
-        if (dname == NULL)
-                return -ENOMEM;
+		len = snprintf(buf, GTP_PATH_MAX, "%s/%d/%s"
+						, pin_basedir
+						, opts->ifindex
+						, bpf_map__name(map));
+		if (len < 0) {
+			vty_out(vty, "%% eBPF: error preparing path for map(%s)%s"
+				   , bpf_map__name(map), VTY_NEWLINE);
+			return;
+		} else if (len > GTP_PATH_MAX) {
+			vty_out(vty, "%% eBPF error, pathname too long to store map(%s)%s"
+				   , bpf_map__name(map), VTY_NEWLINE);
+			return;
+		}
 
-        dir = dirname(dname);
-        if (statfs(dir, &st_fs)) {
-                log_message(LOG_INFO, "ERR: failed to statfs %s: errno:%d (%m)\n"
-                                    , dir, errno);
-                err = -errno;
-        }
-        free(dname);
-
-        if (!err && st_fs.f_type != BPF_FS_MAGIC) {
-                log_message(LOG_INFO, "%s(): specified path %s is not on BPF FS\n\n"
-                                      " You need to mount the BPF filesystem type like:\n"
-                                      "  mount -t bpf bpf /sys/fs/bpf/\n\n"
-                                    , __FUNCTION__
-                                    , path);
-                err = -EINVAL;
-        }
-
-        return err;
+		if (access(buf, F_OK) != -1) {
+			vty_out(vty, "eBPF: unpinning previous map in %s%s"
+				   , buf, VTY_NEWLINE);
+			err = bpf_map__unpin(map, buf);
+			if (err) {
+				libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+				vty_out(vty, "%% eBPF error:%d (%s)%s"
+					   , err, errmsg, VTY_NEWLINE);
+				continue;
+			}
+		}
+	}
 }
 
-/* Load existing map via filesystem, if possible */
-static int
-gtp_xdp_load_map_file(const char *file, struct bpf_map_data *map_data)
+static struct bpf_object *
+gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 {
-        int fd;
+	struct bpf_object *bpf_obj;
+	char errmsg[STRERR_BUFSIZE];
+	vty_t *vty = opts->vty;
+	int err;
 
-        if (gtp_xdp_bpf_fs_check_path(file) < 0) {
-                return -1;
-        }
-
-        fd = bpf_obj_get(file);
-        if (fd > 0) {           /* Great: map file already existed use it */
-                // FIXME: Verify map size etc is the same before returning it!
-                // data available via map->def.XXX and fdinfo
-                log_message(LOG_INFO, "%s(): Loaded bpf-map:%s from file:%s"
-                                    , __FUNCTION__
-                                    , map_data->name
-                                    , file);
-                return fd;
-        }
-
-        return -1;
-}
-
-/* This callback gets invoked for every map in ELF file */
-int
-xdpfwd_pre_load_maps_via_sysfs(struct bpf_map_data *map_data, int idx)
-{
-	char *path = xdpfwd_exported_maps[idx].path;
-	int fd;
-
-	fd = gtp_xdp_load_map_file(path, map_data);
-	if (fd > 0) {
-		/* Makes bpf_load.c skip creating map */
-		map_data->fd = fd;
-		xdpfwd_exported_maps[idx].loaded = true;
-		return 0;
+	/* open eBPF file */
+	bpf_obj = bpf_object__open(opts->filename);
+	if (!bpf_obj) {
+		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
+		vty_out(vty, "%% eBPF: error opening bpf file err:%d (%s)%s"
+			   , errno, errmsg, VTY_NEWLINE);
+		return NULL;
 	}
 
+	/* Release previously stalled maps. Our lazzy strategy here is to
+	 * simply erase previous maps during startup. Maybe if we want to
+	 * implement some kind of graceful-restart we need to reuse-maps
+	 * and rebuild local daemon tracking. Auto-pinning is done during
+	 * bpf_object__load.
+	 * FIXME: Implement graceful-restart */
+	gtp_bpf_cleanup_maps(bpf_obj, opts);
+
+	/* Finally load it */
+	err = bpf_object__load(bpf_obj);
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		vty_out(vty, "%% eBPF: error loading bpf_object err:%d (%s)%s"
+			   , err, errmsg, VTY_NEWLINE);
+		bpf_object__close(bpf_obj);
+		return NULL;
+	}
+
+	return bpf_obj;
+}
+
+static int
+gtp_xdp_load(gtp_bpf_opts_t *opts)
+{
+	struct bpf_object *bpf_obj;
+	struct bpf_program *bpf_prog = NULL;
+	struct bpf_link *bpf_lnk;
+	char errmsg[STRERR_BUFSIZE];
+	vty_t *vty = opts->vty;
+	int len;
+
+	/* Preprare pin_dir. We decided ifindex to be part of
+	 * path to be able to load same bpf program on different
+	 * ifindex */
+	len = snprintf(opts->pin_root_path, GTP_PATH_MAX, "%s/%d"
+					  , pin_basedir, opts->ifindex);
+	if (len < 0) {
+		vty_out(vty, "%% Error preparing eBPF pin_dir for ifindex:%d%s"
+			   , opts->ifindex
+			   , VTY_NEWLINE);
+		return -1;
+	}
+
+	if (len > GTP_PATH_MAX) {
+		vty_out(vty, "%% Error preparing eBPF pin_dir for ifindex:%d (path_too_long)%s"
+			   , opts->ifindex
+			   , VTY_NEWLINE);
+		return -1;
+	}
+
+	/* Load object */
+	bpf_obj = gtp_bpf_load_file(opts);
+	if (!bpf_obj)
+		return -1;
+
+	/* Attach prog to interface */
+	if (opts->progname[0]) {
+		bpf_prog = bpf_object__find_program_by_name(bpf_obj, opts->progname);
+		if (!bpf_prog) {
+			vty_out(vty, "%% eBPF: unknown program:%s (fallback to first one)%s"
+				   , opts->progname
+				   , VTY_NEWLINE);
+		}
+	}
+
+	if (!bpf_prog) {
+		bpf_prog = bpf_object__next_program(bpf_obj, NULL);
+		if (!bpf_prog) {
+			vty_out(vty, "%% eBPF: no program found in file:%s%s"
+				   , opts->filename
+				   , VTY_NEWLINE);
+			goto err;
+		}
+	}
+
+	/* Attach XDP */
+	bpf_lnk = bpf_program__attach_xdp(bpf_prog, opts->ifindex);
+	if (!bpf_lnk) {
+		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
+		vty_out(vty, "%% XDP: error attaching program:%s to ifindex:%d err:%d (%s)%s"
+			   , bpf_program__name(bpf_prog)
+			   , opts->ifindex
+			   , errno, errmsg, VTY_NEWLINE);
+		goto err;
+	}
+
+	opts->bpf_obj = bpf_obj;
+	opts->bpf_lnk = bpf_lnk;
+	return 0;
+
+  err:
+	bpf_object__close(bpf_obj);
 	return -1;
 }
 
-static int
-gtp_xdp_map_export(xdp_exported_maps_t *maps, int idx)
-{
-        char *path = maps[idx].path;
-
-        /* Export map as a file */
-        if (bpf_obj_pin(map_fd[map_data_count + idx], path) != 0) {
-		log_message(LOG_INFO, "%s(): Cannot pin map(%s) file:%s errno:%d (%m)"
-				    , __FUNCTION__
-				    , map_data[map_data_count + idx].name, path, errno);
-		return -1;
-	}
-
-	maps[idx].loaded = true;
-	log_message(LOG_INFO, "%s(): Exporting bpf-map:%s to file:%s"
-			    , __FUNCTION__
-			    , map_data[map_data_count + idx].name
-			    , path);
-        return 0;
-}
-
-static int
-gtp_xdp_map_load(xdp_exported_maps_t *maps, int size)
-{
-	int i, ret;
-
-	for (i = 0; i < size; i++) {
-		if (maps[i].loaded)
-			continue;
-		ret = gtp_xdp_map_export(maps, i);
-		if (ret < 0)
-			return -1;
-	}
-
-	return 0;
-}
-
-static int
-gtp_xdp_load(const char *filename, int ifindex,
-	     xdp_exported_maps_t *maps, int maps_size,
-	     int (*pre_load) (struct bpf_map_data *, int))
-{
-	struct rlimit r = { RLIM_INFINITY, RLIM_INFINITY };
-	int ret;
-
-	/* Setting rlimit */
-	if (setrlimit(RLIMIT_MEMLOCK, &r)) {
-		log_message(LOG_INFO, "%s(): Cant setrlimit !!!", __FUNCTION__);
-		return -1;
-	}
-
-	ret = bpf_load_from_file(filename, pre_load);
-	if (ret < 0) {
-		log_message(LOG_INFO, "%s(): Cant load eBPF file:%s"
-				    , __FUNCTION__
-				    , filename);
-		return -1;
-	}
-
-	ret = gtp_xdp_map_load(maps, maps_size);
-	if (ret < 0) {
-		log_message(LOG_INFO, "%s(): Unable to export maps for eBPF file:%s"
-				    , __FUNCTION__
-				    , filename);
-		return -1;
-	}
-
-	bpf_map_load_ack(maps_size);
-
-//	ret = bpf_set_link_xdp_fd(ifindex, prog_fd[prog_cnt-1], 0);
-	ret = bpf_set_link_xdp_fd(ifindex, prog_fd[prog_cnt-1], XDP_FLAGS_DRV_MODE);
-	if (ret < 0) {
-		log_message(LOG_INFO, "%s(): Cant set ifindex:%d with XDP program"
-				    , __FUNCTION__
-				    , ifindex);
-		return -1;
-	}
-
-	return 0;
-}
-
 static void
-gtp_xdp_unload(int ifindex, xdp_exported_maps_t *maps, int maps_size)
+gtp_xdp_unload(gtp_bpf_opts_t *opts)
 {
-	int i;
-
-//	bpf_set_link_xdp_fd(ifindex, -1, 0);
-	bpf_set_link_xdp_fd(ifindex, -1, XDP_FLAGS_DRV_MODE);
-
-	if (!maps || !maps_size)
-		return;
-
-	/* Remove all exported map file */
-	for (i = 0; i < maps_size; i++) {
-		if (!maps[i].loaded)
-			continue;
-
-		maps[i].loaded = false;
-		if (unlink(maps[i].path) < 0) {
-                        log_message(LOG_INFO, "%s(): cannot unlink map_file:%s errno:%d (%m)\n"
-					    , __FUNCTION__
-					    , maps[i].path
-					    , errno);
-			continue;
-		}
-
-		log_message(LOG_INFO, "%s(): Success unlinking map_file:%s\n"
-				    , __FUNCTION__
-				    , maps[i].path);
-	}	
+	bpf_link__destroy(opts->bpf_lnk);
+	bpf_object__close(opts->bpf_obj);
 }
 
 
 int
-gtp_xdp_load_fwd(const char *filename, int ifindex)
+gtp_xdp_load_fwd(gtp_bpf_opts_t *opts)
 {
-	return gtp_xdp_load(filename, ifindex, xdpfwd_exported_maps, XDPFWD_MAP_CNT,
-			    xdpfwd_pre_load_maps_via_sysfs);
+	int err;
+
+	err = gtp_xdp_load(opts);
+	if (err < 0)
+		return -1;
+
+	/* MAP ref for faster access */
+	xdpfwd_maps[XDPFWD_MAP_TEID].map = bpf_object__find_map_by_name(opts->bpf_obj,
+									"teid_xlat");
+	xdpfwd_maps[XDPFWD_MAP_IPTNL].map = bpf_object__find_map_by_name(opts->bpf_obj,
+									 "iptnl_info");
+	return 0;
 }
 
 void
-gtp_xdp_unload_fwd(int ifindex)
+gtp_xdp_unload_fwd(gtp_bpf_opts_t *opts)
 {
-	gtp_xdp_unload(ifindex, xdpfwd_exported_maps, XDPFWD_MAP_CNT);
+	gtp_xdp_unload(opts);
 }
 
 
@@ -277,7 +255,7 @@ gtp_xdp_unload_fwd(int ifindex)
  */
 static 
 struct gtp_teid_rule *
-gtp_xdp_teid_rule_alloc(void)
+gtp_xdp_teid_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_teid_rule *new;
@@ -286,6 +264,7 @@ gtp_xdp_teid_rule_alloc(void)
 	if (!new)
 		return NULL;
 
+	*sz = nr_cpus * sizeof(struct gtp_teid_rule);
 	return new;
 }
 
@@ -306,45 +285,43 @@ gtp_xdp_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t, int direction)
 }
 
 static int
-gtp_xdp_teid_action(const char *filename, int action, gtp_teid_t *t, int direction)
+gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
 {
 	struct gtp_teid_rule *new = NULL;
-	int fd, ret = 0;
+	char errmsg[STRERR_BUFSIZE];
+	int err = 0;
 	uint32_t key;
+	size_t sz;
 
 	if (!t)
 		return -1;
 
 	key = htonl(t->vid);
 
-	/* Open sysfs bpf map */
-	fd = bpf_obj_get(filename);
-	if (fd < 0) {
-		log_message(LOG_INFO, "%s(): Cant open bpf_map[%s] errno:%d (%m)"
-				    , __FUNCTION__
-				    , filename, errno);
-		return -1;
-	}
-
 	/* Set rule */
 	if (action == XDPFWD_RULE_ADD) {
 		/* fill per cpu rule */
-		new = gtp_xdp_teid_rule_alloc();
+		new = gtp_xdp_teid_rule_alloc(&sz);
 		if (!new) {
 			log_message(LOG_INFO, "%s(): Cant allocate teid_rule !!!"
-					, __FUNCTION__);
-			ret = -1;
+					    , __FUNCTION__);
+			err = -1;
 			goto end;
 		}
 		gtp_xdp_teid_rule_set(new, t, direction);
-		ret = bpf_map_update_elem(fd, &key, new, BPF_NOEXIST);
+		err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
 	} else if (action == XDPFWD_RULE_DEL)
-		ret = bpf_map_delete_elem(fd, &key);
-	if (ret != 0) {
-		log_message(LOG_INFO, "%s(): Cant %s rule for VTEID:0x%.8x"
+		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
+	else
+		return -1;
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant %s rule for VTEID:0x%.8x (%s)"
 				    , __FUNCTION__
 				    , (action) ? "del" : "add"
-				    , t->vid);
+				    , t->vid
+				    , errmsg);
+		err = -1;
 		goto end;
 	}
 
@@ -356,41 +333,34 @@ gtp_xdp_teid_action(const char *filename, int action, gtp_teid_t *t, int directi
   end:
 	if (new)
 		free(new);
-	close(fd);
-	return ret;
+	return err;
 }
 
 static int
-gtp_xdp_teid_vty(const char *filename, vty_t *vty, __be32 id)
+gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	__be32 key, next_key;
 	struct gtp_teid_rule *r;
+	char errmsg[STRERR_BUFSIZE];
 	char addr_ip[16];
-        int fd, ret = 0, i;
+        int err = 0, i;
 	uint64_t packets, bytes;
-
-        /* Open sysfs bpf map */
-        fd = bpf_obj_get(filename);
-        if (fd < 0) {
-		vty_out(vty, "%% Cant open bpf_map[%s] errno:%d (%m)%s"
-                           , filename, errno, VTY_NEWLINE);
-		return -1;
-	}
+	size_t sz;
 
 	/* Allocate temp rule */
-	r = gtp_xdp_teid_rule_alloc();
+	r = gtp_xdp_teid_rule_alloc(&sz);
 	if (!r) {
 		vty_out(vty, "%% Cant allocate temp teid_rule%s", VTY_NEWLINE);
-		close(fd);
 		return -1;
 	}
 
 	/* Specific VTEID lookup */
 	if (id) {
-		ret = bpf_map_lookup_elem(fd, &id, r);
-		if (ret != 0) {
-			vty_out(vty, "       %% No data-plane ?!%s", VTY_NEWLINE);
+		err = bpf_map__lookup_elem(map, &id, sizeof(uint32_t), r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+			vty_out(vty, "       %% No data-plane ?! (%s)%s", errmsg, VTY_NEWLINE);
 			goto end;
 		}
 
@@ -407,12 +377,13 @@ gtp_xdp_teid_vty(const char *filename, vty_t *vty, __be32 id)
 	}
 
 	/* Walk hashtab */
-	while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+	while (bpf_map__get_next_key(map, &key, &next_key, sz) == 0) {
 		key = next_key;
-		ret = bpf_map_lookup_elem(fd, &key, r);
-		if (ret != 0) {
-			vty_out(vty, "%% error fetching value for key:0x%.8x%s"
-				   , key, VTY_NEWLINE);
+		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+			vty_out(vty, "%% error fetching value for key:0x%.8x (%s)%s"
+				   , key, errmsg, VTY_NEWLINE);
 			continue;
 		}
 
@@ -431,22 +402,23 @@ gtp_xdp_teid_vty(const char *filename, vty_t *vty, __be32 id)
 
   end:
 	free(r);
-        close(fd);
-        return 0;
+	return 0;
 }
 
 int
 gtp_xdpfwd_teid_action(int action, gtp_teid_t *t, int direction)
 {
-	if (!xdpfwd_exported_maps[0].loaded)
+	if (!xdpfwd_maps[XDPFWD_MAP_TEID].map)
 		return -1;
-	return gtp_xdp_teid_action(xdpfwd_exported_maps[0].path, action, t, direction);
+	return gtp_xdp_teid_action(xdpfwd_maps[XDPFWD_MAP_TEID].map, action, t, direction);
 }
 
 int
 gtp_xdpfwd_teid_vty(vty_t *vty, __be32 id)
 {
-	return gtp_xdp_teid_vty(xdpfwd_exported_maps[0].path, vty, id);
+	if (!xdpfwd_maps[XDPFWD_MAP_TEID].map)
+		return -1;
+	return gtp_xdp_teid_vty(xdpfwd_maps[XDPFWD_MAP_TEID].map, vty, id);
 }
 
 int
@@ -456,7 +428,7 @@ gtp_xdpfwd_vty(vty_t *vty)
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(xdpfwd_exported_maps[0].path, vty, 0);
+	gtp_xdp_teid_vty(xdpfwd_maps[XDPFWD_MAP_TEID].map, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -468,7 +440,7 @@ gtp_xdpfwd_vty(vty_t *vty)
  */
 static 
 struct gtp_iptnl_rule *
-gtp_xdp_iptnl_rule_alloc(void)
+gtp_xdp_iptnl_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_iptnl_rule *new;
@@ -477,6 +449,7 @@ gtp_xdp_iptnl_rule_alloc(void)
 	if (!new)
 		return NULL;
 
+	*sz = nr_cpus * sizeof(struct gtp_iptnl_rule);
 	return new;
 }
 
@@ -499,29 +472,23 @@ gtp_xdp_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
 int
 gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 {
+	struct bpf_map *map = xdpfwd_maps[XDPFWD_MAP_IPTNL].map;
 	struct gtp_iptnl_rule *new = NULL;
-	int fd, ret = 0;
+	int ret = 0, err = 0;
+	char errmsg[STRERR_BUFSIZE];
 	const char *action_str = "adding";
 	uint32_t key;
+	size_t sz;
 
 	if (!t)
 		return -1;
 
 	key = t->selector_addr;
 
-	/* Open sysfs bpf map */
-	fd = bpf_obj_get(xdpfwd_exported_maps[1].path);
-	if (fd < 0) {
-		log_message(LOG_INFO, "%s(): Cant open bpf_map[%s] errno:%d (%m)"
-				    , __FUNCTION__
-				    , xdpfwd_exported_maps[0].path, errno);
-		return -1;
-	}
-
 	/* Set rule */
 	if (action == XDPFWD_RULE_ADD || action == XDPFWD_RULE_UPDATE) {
 		/* fill per cpu rule */
-		new = gtp_xdp_iptnl_rule_alloc();
+		new = gtp_xdp_iptnl_rule_alloc(&sz);
 		if (!new) {
 			log_message(LOG_INFO, "%s(): Cant allocate iptnl_rule !!!"
 					    , __FUNCTION__);
@@ -531,28 +498,35 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 		gtp_xdp_iptnl_rule_set(new, t);
 
 		if (action == XDPFWD_RULE_ADD) {
-			ret = bpf_map_update_elem(fd, &key, new, BPF_NOEXIST);
+			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
 		} else if (action == XDPFWD_RULE_UPDATE) {
-			ret = bpf_map_lookup_elem(fd, &key, new);
-			if (ret != 0) {
-				log_message(LOG_INFO, "%s(): Unknown iptnl_rule for local_addr:%u.%u.%u.%u"
+			err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), new, sz, 0);
+			if (err) {
+				libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+				log_message(LOG_INFO, "%s(): Unknown iptnl_rule for local_addr:%u.%u.%u.%u (%s)"
 						    , __FUNCTION__
-						    , NIPQUAD(key));
+						    , NIPQUAD(key)
+						    , errmsg);
+				ret = -1;
 				goto end;
 			}
 			action_str = "updating";
 			gtp_xdp_iptnl_rule_set(new, t);
-			ret = bpf_map_update_elem(fd, &key, new, BPF_EXIST);
+			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_EXIST);
 		}
 	} else if (action == XDPFWD_RULE_DEL) {
 		action_str = "deleting";
-		ret = bpf_map_delete_elem(fd, &key);
-	}
-	if (ret != 0) {
-		log_message(LOG_INFO, "%s(): Cant %s iptnl_rule for local_addr:%u.%u.%u.%u"
+		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
+	} else
+		return -1;
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant %s iptnl_rule for local_addr:%u.%u.%u.%u (%s)"
 				    , __FUNCTION__
 				    , (action) ? "del" : "add"
-				    , NIPQUAD(key));
+				    , NIPQUAD(key)
+				    , errmsg);
+		ret = -1;
 		goto end;
 	}
 
@@ -564,31 +538,24 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
   end:
 	if (new)
 		free(new);
-	close(fd);
 	return ret;
 }
 
 int
 gtp_xdp_iptnl_vty(vty_t *vty)
 {
+	struct bpf_map *map = xdpfwd_maps[XDPFWD_MAP_IPTNL].map;
 	__be32 key, next_key;
 	struct gtp_iptnl_rule *r;
+	char errmsg[STRERR_BUFSIZE];
 	char sip[16], lip[16], rip[16];
-        int fd, ret = 0;
-
-        /* Open sysfs bpf map */
-        fd = bpf_obj_get(xdpfwd_exported_maps[1].path);
-        if (fd < 0) {
-		vty_out(vty, "%% Cant open bpf_map[%s] errno:%d (%m)%s"
-                           , xdpfwd_exported_maps[1].path, errno, VTY_NEWLINE);
-		return -1;
-	}
+        int err = 0;
+	size_t sz;
 
 	/* Allocate temp rule */
-	r = gtp_xdp_iptnl_rule_alloc();
+	r = gtp_xdp_iptnl_rule_alloc(&sz);
 	if (!r) {
 		vty_out(vty, "%% Cant allocate temp iptnl_rule%s", VTY_NEWLINE);
-		close(fd);
 		return -1;
 	}
 
@@ -598,12 +565,13 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 
 	/* Walk hashtab */
-	while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+	while (bpf_map__get_next_key(map, &key, &next_key, sz) == 0) {
 		key = next_key;
-		ret = bpf_map_lookup_elem(fd, &key, r);
-		if (ret != 0) {
-			vty_out(vty, "%% error fetching value for key:0x%.4x%s"
-				   , key, VTY_NEWLINE);
+		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+			vty_out(vty, "%% error fetching value for key:0x%.4x (%s)%s"
+				   , key, errmsg, VTY_NEWLINE);
 			continue;
 		}
 
@@ -618,6 +586,5 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
 		   , VTY_NEWLINE);
 	free(r);
-        close(fd);
         return 0;
 }

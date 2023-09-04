@@ -33,29 +33,28 @@ init_script = etc/init.d/gtp-guard.init
 conf_file   = etc/gtp-guard/gtp-guard.conf
 
 CC        = gcc
-LDFLAGS   = -lpthread -lcrypt -ggdb -lm -lresolv -lelf
+LDFLAGS   = -lpthread -lcrypt -ggdb -lm -lz -lresolv -lelf
 SUBDIRS   = lib src
+LIBBPF    = libbpf
+OBJDIR    = $(LIBBPF)/src
 
-all:
+all: $(OBJDIR)/libbpf.a
 	@set -e; \
 	for i in $(SUBDIRS); do \
 	$(MAKE) -C $$i || exit 1; done && \
 	echo "Building $(BIN)/$(EXEC)" && \
-	$(CC) -o $(BIN)/$(EXEC) `find $(SUBDIRS) -name '*.[o]'` $(LDFLAGS)
+	$(CC) -o $(BIN)/$(EXEC) `find $(SUBDIRS) -name '*.[oa]'` $(OBJDIR)/libbpf.a $(LDFLAGS)
 #	strip $(BIN)/$(EXEC)
 	@echo ""
 	@echo "Make complete"
 
-debug:
-	@set -e; \
-	for i in $(SUBDIRS); do \
-	$(MAKE) -C $$i || exit 1; done && \
-	echo "Building $(BIN)/$(EXEC)" && \
-	$(CC) -o $(BIN)/$(EXEC) `find $(SUBDIRS) -name '*.[oa]'` $(LDFLAGS)
-	@echo ""
-	@echo "Make complete"
+$(OBJDIR)/libbpf.a:
+	@$(MAKE) -C $(LIBBPF)/src BUILD_STATIC_ONLY=y NO_PKG_CONFIG=y
+	@ln -sf ../include/uapi $(OBJDIR)
 
 clean:
+	@$(MAKE) -C $(LIBBPF)/src clean
+	rm -f $(OBJDIR)/uapi
 	@set -e; \
 	for i in $(SUBDIRS); do \
 	$(MAKE) -C $$i clean; done

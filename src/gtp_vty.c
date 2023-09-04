@@ -116,43 +116,49 @@ DEFUN(pdn_nameserver,
 
 DEFUN(pdn_xdp_gtpu,
       pdn_xdp_gtpu_cmd,
-      "xdp-gtpu STRING interface STRING",
+      "xdp-gtpu STRING interface STRING [xdp-prog STRING]",
       "GTP Userplane channel XDP program\n"
       "path to BPF file\n"
       "Interface name\n"
-      "name\n")
+      "Name"
+      "XDP Program Name"
+      "Name")
 {
         int ret, ifindex;
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
 
         if (argc < 2) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
-	memcpy(daemon_data->xdp_filename, argv[0], GTP_PATH_MAX);
+	memcpy(opts->filename, argv[0], GTP_PATH_MAX);
 	ifindex = if_nametoindex(argv[1]);
+	if (argc == 3)
+		memcpy(opts->progname, argv[2], GTP_STR_MAX);
 	if (!ifindex) {
-		vty_out(vty, "%% Error with interface %s (%s)%s"
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
 			   , argv[1]
-			   , strerror(errno)
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	daemon_data->xdp_ifindex = ifindex;
+	opts->ifindex = ifindex;
+	opts->vty = vty;
 
-        ret = gtp_xdp_load_fwd(daemon_data->xdp_filename, daemon_data->xdp_ifindex);
+        ret = gtp_xdp_load_fwd(opts);
         if (ret < 0) {
-                vty_out(vty, "%% Error loading eBPF program:%s%s"
-                           , daemon_data->xdp_filename
+                vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
+                           , opts->filename
+                           , opts->ifindex
                            , VTY_NEWLINE);
                 /* Reset data */
-                memset(daemon_data->xdp_filename, 0, GTP_PATH_MAX);
-                daemon_data->xdp_ifindex = 0;
+		memset(opts, 0, sizeof(gtp_bpf_opts_t));
                 return CMD_WARNING;
         }
 
         vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
-                   , daemon_data->xdp_filename, daemon_data->xdp_ifindex
+                   , opts->filename
+		   , opts->ifindex
                    , VTY_NEWLINE);
         return CMD_SUCCESS;
 }
@@ -165,20 +171,21 @@ DEFUN(no_pdn_xdp_gtpu,
       "Interface index\n"
       "Number\n")
 {
-        if (!strlen(daemon_data->xdp_filename)) {
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+
+        if (!strlen(opts->filename)) {
                 vty_out(vty, "No XDP program is currently configured. Ignoring%s"
                            , VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
-        gtp_xdp_unload_fwd(daemon_data->xdp_ifindex);
+        gtp_xdp_unload_fwd(opts);
 
         /* Reset data */
-        memset(daemon_data->xdp_filename, 0, GTP_PATH_MAX);
-        daemon_data->xdp_ifindex = 0;
+	memset(opts, 0, sizeof(gtp_bpf_opts_t));
 
         vty_out(vty, "Success unloading eBPF program:%s%s"
-                   , daemon_data->xdp_filename
+                   , opts->filename
                    , VTY_NEWLINE);
         return CMD_SUCCESS;
 }
@@ -254,9 +261,10 @@ DEFUN(show_gtp_uplane,
       SHOW_STR
       "XDP GTP Dataplane ruleset\n")
 {
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
         int ret;
 
-        if (!strlen(daemon_data->xdp_filename)) {
+        if (!strlen(opts->filename)) {
                 vty_out(vty, "%% No XDP program is currently configured. Ignoring%s"
                            , VTY_NEWLINE);
                 return CMD_WARNING;
@@ -295,18 +303,26 @@ DEFUN(show_xdp_iptnl,
 static int
 pdn_config_write(vty_t *vty)
 {
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
 	char ifname[IF_NAMESIZE];
 
 	vty_out(vty, "pdn%s", VTY_NEWLINE);
 	vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
 	vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
-        if (strlen(daemon_data->xdp_filename)) {
-        	vty_out(vty, " xdp-gtpu %s interface %s%s"
-                           , daemon_data->xdp_filename
-                           , if_indextoname(daemon_data->xdp_ifindex, ifname)
-                           , VTY_NEWLINE);
+        if (opts->filename[0]) {
+		if (opts->progname[0])
+			vty_out(vty, " xdp-gtpu %s interface %s progname %s%s"
+				   , opts->filename
+				   , if_indextoname(opts->ifindex, ifname)
+				   , opts->progname
+				   , VTY_NEWLINE);
+		else
+			vty_out(vty, " xdp-gtpu %s interface %s%s"
+				   , opts->filename
+				   , if_indextoname(opts->ifindex, ifname)
+				   , VTY_NEWLINE);
         }
-	if (strlen(daemon_data->restart_counter_filename)) {
+	if (daemon_data->restart_counter_filename[0]) {
 		vty_out(vty, " restart-counter-file %s%s"
                            , daemon_data->restart_counter_filename
                            , VTY_NEWLINE);

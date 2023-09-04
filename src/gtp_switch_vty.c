@@ -310,7 +310,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
       "GTP-U IPIP tunnel Dead Peer Detection\n"
       "Dead Credit in seconds\n"
       "Interface running cBPF to catch DPD packet\n"
-      "Number\n"
+      "Name\n"
       "Payload attached to DPD GTP packet\n"
       "Number\n")
 {

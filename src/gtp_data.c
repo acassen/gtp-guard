@@ -61,8 +61,9 @@ alloc_daemon_data(void)
 void
 free_daemon_data(void)
 {
-	if (strlen(daemon_data->xdp_filename))
-		gtp_xdp_unload_fwd(daemon_data->xdp_ifindex);
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+	if (opts->filename[0])
+		gtp_xdp_unload_fwd(opts);
 	FREE(daemon_data);
 }
 

@@ -33,12 +33,21 @@ enum daemon_flags {
 };
 
 /* Main control block */
+typedef struct _gtp_bpf_opts {
+	char			filename[GTP_PATH_MAX];
+	char			progname[GTP_STR_MAX];
+	int			ifindex;
+	char			pin_root_path[GTP_PATH_MAX];
+	struct bpf_object	*bpf_obj;
+	struct bpf_link		*bpf_lnk;
+	vty_t			*vty;
+} gtp_bpf_opts_t;
+
 typedef struct _data {
 	char			realm[GTP_PATH_MAX];
 	struct sockaddr_storage	nameserver;
 	gtp_req_channel_t	request_channel;
-	char			xdp_filename[GTP_PATH_MAX];
-	int			xdp_ifindex;
+	gtp_bpf_opts_t		xdp_gtpu;
 	char			restart_counter_filename[GTP_PATH_MAX];
 	uint8_t			restart_counter;
 

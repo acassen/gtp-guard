@@ -25,6 +25,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <libbpf.h>
 
 /* local includes */
 #include "daemon.h"
@@ -130,6 +131,7 @@ usage(const char *prog)
 {
 	fprintf(stderr, VERSION_STRING "\n");
 	fprintf(stderr, COPYRIGHT_STRING "\n");
+	fprintf(stderr, "libbpf %s\n", libbpf_version_string());
 	fprintf(stderr,
 		"\nUsage:\n"
 		"  %s\n"
@@ -183,6 +185,7 @@ parse_cmdline(int argc, char **argv)
 		switch (c) {
 		case 'v':
 			fprintf(stderr, VERSION_STRING "\n");
+			fprintf(stderr, "libbpf %s\n", libbpf_version_string());
 			exit(0);
 			break;
 		case 'h':

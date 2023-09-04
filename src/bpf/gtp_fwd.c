@@ -24,14 +24,15 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
-#include <uapi/linux/bpf.h>
 #include <linux/in.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <linux/if_vlan.h>
+#include <linux/types.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <sys/socket.h>
+#include <uapi/linux/bpf.h>
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
 #include "gtp_bpf_utils.h"
@@ -40,28 +41,28 @@
 /*
  *	MAPs
  */
-struct bpf_map_def SEC("maps") teid_xlat = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(__be32),			/* Virtual TEID */
-	.value_size = sizeof(struct gtp_teid_rule),	/* Rewrite GTP Rulez */
-	.max_entries = 1000000,
-	.map_flags = BPF_F_NO_PREALLOC,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(max_entries, 1000000);
+	__type(key, __be32);				/* Virtual TEID */
+	__type(value, struct gtp_teid_rule);		/* Rewrite GTP Rulez */
+} teid_xlat SEC(".maps");
 
-struct bpf_map_def SEC("maps") ip_frag = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ip_frag_key),		/* saddr + daddr + id + protocol */
-	.value_size = sizeof(struct gtp_teid_frag),	/* dst_addr linked */
-	.max_entries = 1000000,
-	.map_flags = BPF_F_NO_PREALLOC,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(max_entries, 1000000);
+	__type(key, struct ip_frag_key);		/* saddr + daddr + id + protocol */
+	__type(value, struct gtp_teid_frag);		/* dst_addr linked */
+} ip_frag SEC(".maps");
 
-struct bpf_map_def SEC("maps") iptnl_info = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(__be32),
-	.value_size = sizeof(struct gtp_iptnl_rule),
-	.max_entries = MAX_IPTNL_ENTRIES,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(max_entries, MAX_IPTNL_ENTRIES);
+	__type(key, __be32);
+	__type(value, struct gtp_iptnl_rule);
+} iptnl_info SEC(".maps");
 
 
 /* Packet rewrite */
@@ -410,39 +411,33 @@ gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct 
 /*
  *	IP Fragmentation clean-up timer
  */
-#if 0
 static int
 gtpu_ip_frag_timer(void *map, int *key, struct gtp_teid_frag *val)
 {
-//	_bpf_printk("--[ Timer expire ]--\n");
-
-
-
+	bpf_map_delete_elem(map, key);
 	return 0;
 }
-#endif
 
 static int
 gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
 {
-#if 0
 	struct gtp_teid_frag *gtpf = NULL;
+	int ret = 0;
 
 	gtpf = bpf_map_lookup_elem(&ip_frag, frag_key);
-	if (gtpf) {
+	if (!gtpf)
+		return -1;
 
-		/* register expire timer for this entry */
-		bpf_timer_init(&gtpf->timer, &ip_frag, CLOCK_MONOTONIC);
-	}
-
+	/* register expire timer for this entry */
+	ret = bpf_timer_init(&gtpf->timer, &ip_frag, CLOCK_MONOTONIC);
 	if (ret != 0) {
-		bpf_map_delete_elem(&ip_frag, &frag_key);
-	} else {
-		bpf_timer_set_callback(&gtpf->timer, gtpu_ip_frag_timer);
-		/* arm 500ms timer tigger */
-		bpf_timer_start(&gtpf->timer, 500000000, 0);
+		bpf_map_delete_elem(&ip_frag, frag_key);
+		return -1;
 	}
-#endif
+
+	bpf_timer_set_callback(&gtpf->timer, gtpu_ip_frag_timer);
+	/* Fragment tracking lifetime is 500ms */
+	bpf_timer_start(&gtpf->timer, 500000000, 0);
 	return 0;
 }
 
@@ -488,30 +483,21 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 		frag_off &= IP_OFFSET;
 		frag_off <<= 3;		/* 8-byte chunk */
 
-		__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
-		frag_key.saddr = iph->saddr;
-		frag_key.daddr = iph->daddr;
-		frag_key.id = iph->id;
-		frag_key.protocol = iph->protocol;
+		if (frag_off != 0) {
+			__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
+			frag_key.saddr = iph->saddr;
+			frag_key.daddr = iph->daddr;
+			frag_key.id = iph->id;
+			frag_key.protocol = iph->protocol;
 
-		/* First fragment detected */
-		if ((ipfl & IP_MF) && (frag_off == 0)) {
-			/* Hash it ! */
-			__builtin_memset(&frag, 0, sizeof(struct gtp_teid_frag));
-			ret = bpf_map_update_elem(&ip_frag, &frag_key, &frag, BPF_NOEXIST);
-			if (ret < 0)
-				return XDP_PASS;
-
-			gtpu_ip_frag_timer_set(&frag_key);
-		}
-
-		gtpf = bpf_map_lookup_elem(&ip_frag, &frag_key);
-		if (gtpf && gtpf->dst_addr != 0) {
-			/* This is a fragment */
-			gtpu_xlat_iph(iph, gtpf->dst_addr);
-			/* No fib lookup needed, swap mac then */
-			swap_src_dst_mac(ethh);
-			return XDP_TX;
+			gtpf = bpf_map_lookup_elem(&ip_frag, &frag_key);
+			if (gtpf) {
+				/* This is a fragment */
+				gtpu_xlat_iph(iph, gtpf->dst_addr);
+				/* No fib lookup needed, swap mac then */
+				swap_src_dst_mac(ethh);
+				return XDP_TX;
+			}
 		}
 	}
 
@@ -529,11 +515,22 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 		
 	rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
 	if (rule) {
-		if (gtpf && gtpf->dst_addr == 0) {
-			gtpf->dst_addr = rule->dst_addr;
-			ret = bpf_map_update_elem(&ip_frag, &frag_key, gtpf, BPF_EXIST);
+		/* First fragment detected and handled only if related
+		 * to an existing F-TEID */
+		if ((ipfl & IP_MF) && (frag_off == 0)) {
+			__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
+			frag_key.saddr = iph->saddr;
+			frag_key.daddr = iph->daddr;
+			frag_key.id = iph->id;
+			frag_key.protocol = iph->protocol;
+
+			__builtin_memset(&frag, 0, sizeof(struct gtp_teid_frag));
+			frag.dst_addr = rule->dst_addr;
+			ret = bpf_map_update_elem(&ip_frag, &frag_key, &frag, BPF_NOEXIST);
 			if (ret < 0)
-				return XDP_DROP;
+				return XDP_PASS;
+
+			gtpu_ip_frag_timer_set(&frag_key);
 		}
 	}
 
@@ -578,9 +575,8 @@ parse_eth_frame(struct parse_pkt *pkt)
 	return true;
 }
 
-SEC("xdp_gtp_fwd")
-int
-xdp_fwd(struct xdp_md *ctx)
+SEC("xdp")
+int xdp_fwd(struct xdp_md *ctx)
 {
 	struct parse_pkt pkt = { .ctx = ctx,
 				 .vlan_id = 0,

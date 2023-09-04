@@ -31,12 +31,17 @@ enum {
 	XDPFWD_RULE_LIST
 };
 
-#define XDPFWD_MAP_CNT 3
-#define IPIP_MAP_CNT 2
+enum {
+	XDPFWD_MAP_TEID = 0,
+	XDPFWD_MAP_IPFRAG,
+	XDPFWD_MAP_IPTNL,
+	XDPFWD_MAP_CNT
+};
+
+#define XDP_PATH_MAX 128
 
 typedef struct _xdp_exported_maps {
-	char *path;
-	bool loaded;
+	struct bpf_map	*map;
 } xdp_exported_maps_t;
 
 struct gtp_teid_rule {
@@ -63,8 +68,8 @@ struct gtp_iptnl_rule {
 
 
 /* Prototypes */
-extern int gtp_xdp_load_fwd(const char *, int);
-extern void gtp_xdp_unload_fwd(int);
+extern int gtp_xdp_load_fwd(gtp_bpf_opts_t *);
+extern void gtp_xdp_unload_fwd(gtp_bpf_opts_t *);
 extern int gtp_xdpfwd_teid_action(int, gtp_teid_t *, int);
 extern int gtp_xdpfwd_teid_vty(vty_t *, __be32);
 extern int gtp_xdpfwd_vty(vty_t *);
