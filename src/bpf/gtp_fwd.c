@@ -235,6 +235,30 @@ gtpu_xlat_header(struct gtp_teid_rule *rule, struct iphdr *iph, struct gtphdr *g
 	rule->bytes += bpf_ntohs(iph->tot_len);
 }
 
+static struct gtp_teid_frag *
+gtpu_teid_frag_get(struct iphdr *iph)
+{
+	struct gtp_teid_frag *gtpf = NULL;
+	struct ip_frag_key frag_key;
+	__u16 frag_off = 0;
+
+	frag_off = bpf_ntohs(iph->frag_off);
+	frag_off &= IP_OFFSET;
+	frag_off <<= 3;		/* 8-byte chunk */
+
+	if (frag_off != 0) {
+		__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
+		frag_key.saddr = iph->saddr;
+		frag_key.daddr = iph->daddr;
+		frag_key.id = iph->id;
+		frag_key.protocol = iph->protocol;
+
+		gtpf = bpf_map_lookup_elem(&ip_frag, &frag_key);
+	}
+
+	return gtpf;
+}
+
 static __always_inline int
 gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 {
@@ -250,6 +274,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	struct gtphdr *gtph = NULL;
 	int offset = sizeof(struct ethhdr);
 	int headroom = sizeof(struct iphdr);
+	struct gtp_teid_frag *gtpf = NULL;
 
 	if (iptnl_rule->flags & IPTNL_FL_UNTAG_VLAN)
 		headroom += sizeof(struct _vlan_hdr);
@@ -282,6 +307,19 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	iph = data + offset;
 	if (iph + 1 > data_end)
 		return XDP_DROP;
+
+	/* Fragmentation handling */
+	if (iph->frag_off & bpf_htons(IP_MF | IP_OFFSET))
+		gtpf = gtpu_teid_frag_get(iph);
+
+	if (gtpf && iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
+		gtpu_xlat_iph(iph, gtpf->dst_addr);
+
+		__builtin_memset(&fib_params, 0, sizeof(fib_params));
+		fib_params.ifindex = ctx->ingress_ifindex;
+
+		return gtpu_fib_lookup(ctx, new_eth, iph, &fib_params);
+	}
 
 	offset += sizeof(struct iphdr);
 	udph = data + offset;
@@ -408,6 +446,27 @@ gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct 
 	return XDP_TX;
 }
 
+static __always_inline int
+gtpu_xlat_frag(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, __be32 daddr)
+{
+	struct gtp_iptnl_rule *iptnl_rule;
+
+	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph->daddr);
+	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD) &&
+	    iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
+		return gtpu_ipencap(pkt, iptnl_rule);
+
+	gtpu_xlat_iph(iph, daddr);
+
+	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
+		return gtpu_ipencap(pkt, iptnl_rule);
+
+	/* No fib lookup needed, swap mac then */
+	swap_src_dst_mac(ethh);
+	return XDP_TX;
+}
+
+
 /*
  *	IP Fragmentation clean-up timer
  */
@@ -484,20 +543,9 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 		frag_off <<= 3;		/* 8-byte chunk */
 
 		if (frag_off != 0) {
-			__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
-			frag_key.saddr = iph->saddr;
-			frag_key.daddr = iph->daddr;
-			frag_key.id = iph->id;
-			frag_key.protocol = iph->protocol;
-
-			gtpf = bpf_map_lookup_elem(&ip_frag, &frag_key);
-			if (gtpf) {
-				/* This is a fragment */
-				gtpu_xlat_iph(iph, gtpf->dst_addr);
-				/* No fib lookup needed, swap mac then */
-				swap_src_dst_mac(ethh);
-				return XDP_TX;
-			}
+			gtpf = gtpu_teid_frag_get(iph);
+			if (gtpf)
+				return gtpu_xlat_frag(pkt, ethh, iph, gtpf->dst_addr);
 
 			/* If we have a miss in frag tracking hashmap then this
 			 * fragment is orphaned, 2 portentials reasons here :
