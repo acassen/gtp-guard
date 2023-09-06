@@ -236,17 +236,17 @@ gtpu_xlat_header(struct gtp_teid_rule *rule, struct iphdr *iph, struct gtphdr *g
 }
 
 static struct gtp_teid_frag *
-gtpu_teid_frag_get(struct iphdr *iph)
+gtpu_teid_frag_get(struct iphdr *iph, __u16 *frag_off, __u16 *ipfl)
 {
 	struct gtp_teid_frag *gtpf = NULL;
 	struct ip_frag_key frag_key;
-	__u16 frag_off = 0;
 
-	frag_off = bpf_ntohs(iph->frag_off);
-	frag_off &= IP_OFFSET;
-	frag_off <<= 3;		/* 8-byte chunk */
+	*frag_off = bpf_ntohs(iph->frag_off);
+	*ipfl = *frag_off & ~IP_OFFSET;
+	*frag_off &= IP_OFFSET;
+	*frag_off <<= 3;		/* 8-byte chunk */
 
-	if (frag_off != 0) {
+	if (*frag_off != 0) {
 		__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
 		frag_key.saddr = iph->saddr;
 		frag_key.daddr = iph->daddr;
@@ -260,7 +260,7 @@ gtpu_teid_frag_get(struct iphdr *iph)
 }
 
 static __always_inline int
-gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
+gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct gtp_teid_frag *gtpf)
 {
 	struct xdp_md *ctx = pkt->ctx;
 	void *data = (void *) (long) ctx->data;
@@ -274,7 +274,6 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	struct gtphdr *gtph = NULL;
 	int offset = sizeof(struct ethhdr);
 	int headroom = sizeof(struct iphdr);
-	struct gtp_teid_frag *gtpf = NULL;
 
 	if (iptnl_rule->flags & IPTNL_FL_UNTAG_VLAN)
 		headroom += sizeof(struct _vlan_hdr);
@@ -309,11 +308,9 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 		return XDP_DROP;
 
 	/* Fragmentation handling */
-	if (iph->frag_off & bpf_htons(IP_MF | IP_OFFSET))
-		gtpf = gtpu_teid_frag_get(iph);
-
-	if (gtpf && iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
-		gtpu_xlat_iph(iph, gtpf->dst_addr);
+	if (gtpf) {
+		if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
+			gtpu_xlat_iph(iph, gtpf->dst_addr);
 
 		__builtin_memset(&fib_params, 0, sizeof(fib_params));
 		fib_params.ifindex = ctx->ingress_ifindex;
@@ -354,10 +351,12 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
 	struct gtp_iptnl_rule *iptnl_rule;
+	struct gtp_teid_frag *gtpf = NULL;
 	struct iphdr *iph_outer, *iph_inner;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
 	int offset = pkt->l3_offset;
+	__u16 frag_off = 0, ipfl = 0;
 
 	iph_outer = data + offset;
 	if (iph_outer + 1 > data_end)
@@ -387,6 +386,13 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 	if (iph_inner->protocol != IPPROTO_UDP)
 		return XDP_DROP;
 
+	/* Fragmentation handling */
+	if (iph_inner->frag_off & bpf_htons(IP_MF | IP_OFFSET)) {
+		gtpf = gtpu_teid_frag_get(iph_inner, &frag_off, &ipfl);
+		if (gtpf)
+			return gtpu_ipip_decap(pkt, iptnl_rule, gtpf);
+	}
+
 	offset += sizeof(struct iphdr);
 	udph = data + offset;
 	if (udph + 1 > data_end)
@@ -406,7 +412,7 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 	if (gtph->type == GTPU_ECHO_REQ_TYPE)
 		return XDP_PASS;
 
-	return gtpu_ipip_decap(pkt, iptnl_rule);
+	return gtpu_ipip_decap(pkt, iptnl_rule, NULL);
 }
 
 static __always_inline int
@@ -537,24 +543,9 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	/* Fragmentation handling. If we are detecting
 	 * first fragment then track related daddr */
 	if (iph->frag_off & bpf_htons(IP_MF | IP_OFFSET)) {
-		frag_off = bpf_ntohs(iph->frag_off);
-		ipfl = frag_off & ~IP_OFFSET;
-		frag_off &= IP_OFFSET;
-		frag_off <<= 3;		/* 8-byte chunk */
-
-		if (frag_off != 0) {
-			gtpf = gtpu_teid_frag_get(iph);
-			if (gtpf)
-				return gtpu_xlat_frag(pkt, ethh, iph, gtpf->dst_addr);
-
-			/* If we have a miss in frag tracking hashmap then this
-			 * fragment is orphaned, 2 portentials reasons here :
-			 * 1. Ordering issue a remote sending endpoint
-			 * 2. Malicious injection
-			 * Due to second reason, we simply drop this instead
-			 * of releasing it to kernel netstack */
-			return XDP_DROP;
-		}
+		gtpf = gtpu_teid_frag_get(iph, &frag_off, &ipfl);
+		if (gtpf)
+			return gtpu_xlat_frag(pkt, ethh, iph, gtpf->dst_addr);
 	}
 
 	udph = data + offset + sizeof(struct iphdr);
