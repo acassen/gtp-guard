@@ -86,7 +86,55 @@
 #define GTPU_FL_PT					(1 << 4)
 #define GTPU_FL_V					(1 << 5)
 
-/* IE */
+/*
+ *	GTPv1 IE
+ */
+typedef struct _gtp1_ie {
+	uint8_t		type;
+	uint16_t	length;
+} __attribute__((packed)) gtp1_ie_t;
+
+#define GTP1_IE_CAUSE_TYPE				1
+typedef struct _gtp1_ie_cause {
+	uint8_t		type;
+	uint8_t		value;
+} __attribute__((packed)) gtp1_ie_cause_t;
+
+#define GTP1_IE_IMSI_TYPE				2
+typedef struct _gtp1_ie_imsi {
+	uint8_t		type;
+	uint8_t		imsi[8];
+} __attribute__((packed)) gtp1_ie_imsi_t;
+
+#define GTP1_IE_RECOVERY_TYPE				14
+typedef struct _gtp1_ie_recovery {
+	uint8_t		type;
+	uint8_t		recovery;
+} __attribute__((packed)) gtp1_ie_recovery_t;
+
+#define GTP1_IE_TEID_DATA_TYPE				16
+#define GTP1_IE_TEID_CONTROL_TYPE			17
+typedef struct _gtp1_ie_teid {
+	uint8_t		type;
+	uint32_t	id;
+} __attribute__((packed)) gtp1_ie_teid_t;
+
+#define GTP1_IE_APN_TYPE				131
+typedef struct _gtp1_ie_apn {
+	gtp1_ie_t	h;
+	uint8_t		apn[64];
+} __attribute__((packed)) gtp1_ie_apn_t;
+
+#define GTP1_IE_GSN_ADDRESS_TYPE			133
+typedef struct _gtp1_ie_gsn_address {
+	gtp1_ie_t	h;
+	uint32_t	ipv4;
+} __attribute__((packed)) gtp1_ie_gsn_address_t;
+
+
+/*
+ *	GTPv2 IE
+ */
 typedef struct _gtpu_ie {
 	uint8_t		type;
 	uint16_t	length;
@@ -212,8 +260,50 @@ typedef struct _gtp_hdr {
 	};
 } __attribute__((packed)) gtp_hdr_t;
 
+
+typedef struct _gtp1_hdr {
+	union {
+		struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+			uint8_t		pn:1;
+			uint8_t		seq:1;
+			uint8_t		extensionheader:1;
+			uint8_t		spare:1;
+			uint8_t		protocoltype:1;
+			uint8_t		version:3;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+			uint8_t		version:3;
+			uint8_t		protocoltype:1;
+			uint8_t		spare:1;
+			uint8_t		extensionheader:1;
+			uint8_t		seq:1;
+			uint8_t		pn:1;
+#else
+# error "Please fix <bits/endian.h>"
+#endif
+		};
+		uint8_t			flags;
+	};
+
+	uint8_t				type;
+	uint16_t			length;
+	union {
+		struct {
+			uint32_t	teid;
+			uint16_t	sqn;
+			uint8_t		npdu;
+			uint8_t		next;
+		};
+		uint32_t		teid_only;
+	};
+} __attribute__((packed)) gtp1_hdr_t;
+
+
 typedef union _gtp_packet {
-	gtp_hdr_t	hdr;
+	union {
+		gtp1_hdr_t	hdr1;
+		gtp_hdr_t	hdr;
+	};
 	uint8_t		buffer[GTP_MAX_PACKET_SIZE];
 } __attribute__((packed)) gtp_packet_t;
 

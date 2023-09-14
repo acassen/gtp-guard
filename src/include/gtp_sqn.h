@@ -19,20 +19,16 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_TEID_H
-#define _GTP_TEID_H
+#ifndef _GTP_SQN_H
+#define _GTP_SQN_H
 
 /* Prototypes */
-extern int gtp_teid_put(gtp_teid_t *);
-extern gtp_teid_t *gtp_teid_get(gtp_htab_t *, gtp_ie_f_teid_t *);
-extern gtp_teid_t *gtp_teid_alloc(gtp_htab_t *, gtp_ie_f_teid_t *, gtp_ie_eps_bearer_id_t *);
-extern int gtp_teid_unhash(gtp_htab_t *, gtp_teid_t *);
-extern void gtp_teid_bind(gtp_teid_t *, gtp_teid_t *);
-extern int gtp_teid_masq(gtp_ie_f_teid_t *, struct sockaddr_storage *, uint32_t);
-extern int gtp_teid_restore(gtp_teid_t *, gtp_ie_f_teid_t *);
-extern void gtp_teid_dump(gtp_teid_t *);
-extern int gtp_vteid_alloc(gtp_htab_t *, gtp_teid_t *, unsigned int *);
-extern int gtp_vteid_unhash(gtp_htab_t *, gtp_teid_t *);
-extern gtp_teid_t *gtp_vteid_get(gtp_htab_t *, uint32_t);
+extern gtp_teid_t *gtp_vsqn_get(gtp_htab_t *, uint32_t);
+extern int gtp_vsqn_unhash(gtp_htab_t *, gtp_teid_t *);
+extern int gtp_vsqn_alloc(gtp_srv_worker_t *, gtp_teid_t *);
+extern int gtp_vsqn_update(gtp_srv_worker_t *, gtp_teid_t *);
+extern int gtp_sqn_update(gtp_srv_worker_t *, gtp_teid_t *);
+extern int gtp_sqn_masq(gtp_srv_worker_t *, gtp_teid_t *);
+extern int gtp_sqn_restore(gtp_srv_worker_t *, gtp_teid_t *);
 
 #endif

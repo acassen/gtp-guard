@@ -61,6 +61,7 @@ extern thread_master_t *master;
 /* Local data */
 gtp_teid_t dummy_teid = { .type = 0xff };
 
+
 /*
  *	GTP-C Message handle
  */

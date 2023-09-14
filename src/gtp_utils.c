@@ -48,8 +48,16 @@
 #include "gtp_session.h"
 #include "gtp_utils.h"
 
+
 /*
- *      GTP utilities
+ *	GTPv1 utilities
+ */
+
+
+
+
+/*
+ *      GTPv2 utilities
  */
 int
 bcd_buffer_swap(uint8_t *buffer_in, int size, uint8_t *buffer_out)

@@ -119,7 +119,7 @@ typedef struct _gtp_ctx {
 	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
 	gtp_htab_t		vteid_tab;	/* virtual teid hashtab */
 	gtp_htab_t		vsqn_tab;	/* virtual Seqnum hashtab */
-	uint32_t		seqnum;		/* Global context Seqnum */
+	uint32_t		seqnum[2];	/* Global context Seqnum */
 
 	gtp_apn_t		*apn_resolv;
 	char			service_selection[GTP_STR_MAX];

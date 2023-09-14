@@ -51,6 +51,7 @@
 #include "gtp_conn.h"
 #include "gtp_session.h"
 #include "gtp_teid.h"
+#include "gtp_sqn.h"
 #include "gtp_xdp.h"
 
 /* Extern data */
