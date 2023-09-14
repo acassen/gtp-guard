@@ -52,8 +52,96 @@
 /*
  *	GTPv1 utilities
  */
+static const struct {
+	size_t		len;
+} gtp1_ie_len[128] = {
+	[1]	=	{1},
+	[2]	=	{8},
+	[3]	=	{6},
+	[4]	=	{4},
+	[5]	=	{4},
+	[8]	=	{1},
+	[9]	=	{28},
+	[11]	=	{1},
+	[12]	=	{3},
+	[13]	=	{1},
+	[14]	=	{1},
+	[15]	=	{1},
+	[16]	=	{4},
+	[17]	=	{4},
+	[18]	=	{5},
+	[19]	=	{1},
+	[20]	=	{1},
+	[21]	=	{1},
+	[22]	=	{9},
+	[23]	=	{1},
+	[24]	=	{1},
+	[25]	=	{2},
+	[26]	=	{2},
+	[27]	=	{2},
+	[28]	=	{2},
+	[29]	=	{1},
+	[127]	=	{4},
+};
 
+size_t
+gtpc1_get_header_len(gtp1_hdr_t *h)
+{
+	if ((h->flags & 0x07) == 0)
+		return GTPV1C_HEADER_LEN_SHORT;
 
+	return GTPV1C_HEADER_LEN_LONG;
+}
+
+uint8_t *
+gtp1_get_ie_offset(uint8_t type, uint8_t *buffer, uint8_t *end)
+{
+	size_t offset = 0;
+	uint8_t *cp;
+	gtp1_ie_t *ie;
+
+	for (cp = buffer; cp < end; cp += offset) {
+		if (*cp == type)
+			return cp;
+		if (*cp < 0x80) {
+			offset = gtp1_ie_len[*cp].len + 1;
+			continue;
+		}
+		ie = (gtp1_ie_t *) cp;
+		offset = sizeof(gtp1_ie_t) + ntohs(ie->length);
+	}
+
+	return NULL;
+}
+
+uint8_t *
+gtp1_get_ie(uint8_t type, uint8_t *buffer, size_t size)
+{
+	gtp1_hdr_t *h = (gtp1_hdr_t *) buffer;
+	uint8_t *end = buffer + size;
+	size_t offset = gtpc1_get_header_len(h);
+
+	return gtp1_get_ie_offset(type, buffer+offset, end);
+}
+
+int
+gtp1_ie_apn_extract(gtp1_ie_apn_t *apn, char *buffer, size_t size)
+{
+	uint8_t *cp, *end = apn->apn+ntohs(apn->h.length);
+	size_t offset = 0;
+
+	for (cp = apn->apn; cp < end; cp+=*cp+1) {
+		if (offset + *cp > size)
+			return -1;
+		memcpy(buffer+offset, cp+1, *cp);
+		offset += *cp;
+		buffer[offset++] = '.';
+	}
+
+	buffer[offset - 1] = 0;
+
+	return 0;
+}
 
 
 /*

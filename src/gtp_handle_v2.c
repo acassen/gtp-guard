@@ -49,6 +49,7 @@
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
+#include "gtp_handle.h"
 #include "gtp_teid.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
@@ -197,36 +198,6 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	return teid;
 }
 
-static gtp_session_t *
-gtpc_retransmit_detected(gtp_srv_worker_t *w)
-{
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
-	gtp_srv_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
-	gtp_ie_f_teid_t *ie_f_teid = NULL;
-	gtp_session_t *s = NULL;
-	gtp_teid_t *teid;
-	uint8_t *cp;
-
-	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
-	if (!cp)
-		return NULL;
-
-	ie_f_teid = (gtp_ie_f_teid_t *) cp;
-	teid = gtp_teid_get(&ctx->track[1].gtpc_teid_tab, ie_f_teid);
-	if (teid) {
-		/* same SQN too ?*/
-		if (gtph->teid_presence)
-			s = (gtph->sqn == teid->sqn) ? teid->session : NULL;
-		else if (gtph->sqn_only == teid->sqn)
-			s = teid->session;
-
-		gtp_teid_put(teid);
-		return s;
-	}
-
-	return NULL;
-}
 
 /*
  *	GTP-C Protocol helpers

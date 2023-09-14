@@ -65,6 +65,59 @@ gtp_teid_t dummy_teid = { .type = 0xff };
 /*
  *	GTP-C Message handle
  */
+gtp_session_t *
+gtpc_retransmit_detected(gtp_srv_worker_t *w)
+{
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_ie_f_teid_t *ie_f_teid = NULL;
+	gtp1_ie_teid_t *ie_teid = NULL;
+	uint32_t *gsn_address_c = NULL;
+	gtp_session_t *s = NULL;
+	gtp_teid_t *teid;
+
+	uint8_t *cp;
+
+	if (gtph->version == 2) {
+		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
+		if (!cp)
+			return NULL;
+		ie_f_teid = (gtp_ie_f_teid_t *) cp;
+	} else {
+		cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
+		if (!cp)
+			return NULL;
+		ie_teid = (gtp1_ie_teid_t *) cp;
+
+		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+		if (!cp)
+			return NULL;
+		gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+
+		PMALLOC(ie_f_teid);
+		ie_f_teid->teid_grekey = ie_teid->id;
+		ie_f_teid->v4 = 1;
+		ie_f_teid->ipv4 = *gsn_address_c;
+	}
+
+	teid = gtp_teid_get(&ctx->track[1].gtpc_teid_tab, ie_f_teid);
+	if (teid) {
+		/* same SQN too ?*/
+		if (gtph->teid_presence)
+			s = (gtph->sqn == teid->sqn) ? teid->session : NULL;
+		else if (gtph->sqn_only == teid->sqn)
+			s = teid->session;
+
+		gtp_teid_put(teid);
+		FREE_PTR(ie_f_teid);
+		return s;
+	}
+
+	FREE_PTR(ie_f_teid);
+	return NULL;
+}
+
 gtp_teid_t *
 gtpc_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {

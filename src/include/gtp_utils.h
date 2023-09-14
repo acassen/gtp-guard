@@ -23,6 +23,13 @@
 #define _GTP_UTILS_H
 
 /* Prototypes */
+
+/* GTPv1 */
+extern int gtp1_ie_apn_extract(gtp1_ie_apn_t *, char *, size_t);
+extern uint8_t *gtp1_get_ie_offset(uint8_t, uint8_t *, uint8_t *);
+extern uint8_t *gtp1_get_ie(uint8_t type, uint8_t *buffer, size_t size);
+
+/* GTPv2 */
 extern int bcd_buffer_swap(uint8_t *, int, uint8_t *);
 extern int str_imsi_to_bcd_swap(char *, size_t, uint8_t *);
 extern int64_t bcd_to_int64(uint8_t *, int);

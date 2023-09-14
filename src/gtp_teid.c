@@ -270,8 +270,5 @@ gtp_vteid_alloc(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 
 	__gtp_vteid_hash(h, teid, vid);
 	dlock_unlock_id(h->dlock, vid, 0);
-
-//	printf("  - Adding Virtual Tunnel-ID: 0x%.4x\n", vid);
-
 	return 0;
 }
