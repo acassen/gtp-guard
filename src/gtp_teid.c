@@ -126,6 +126,7 @@ gtp_teid_alloc(gtp_htab_t *h, gtp_ie_f_teid_t *ie, gtp_ie_eps_bearer_id_t *bid)
 	gtp_teid_t *new;
 
 	PMALLOC(new);
+	new->version = 2;
 	new->id = ie->teid_grekey;
 	new->ipv4 = ie->ipv4;
 	if (bid)

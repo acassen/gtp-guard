@@ -107,11 +107,13 @@ gtpc_handle_post(gtp_srv_worker_t *w, gtp_teid_t *teid)
 static gtp_teid_t *
 gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	ssize_t len = gtpu_get_header_len(w->buffer, w->buffer_size);
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *pteid = NULL;
 	gtp_ie_f_teid_t *f_teid;
+	gtp_htab_t *htab;
 	uint8_t *cp;
 	uint32_t *field;
 	uint16_t *length;
@@ -127,7 +129,9 @@ gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	f_teid->v4 = 1;
 	f_teid->ipv4 = ((struct sockaddr_in *) addr)->sin_addr.s_addr;
 
-	teid = gtp_teid_get(&ctx->gtpu_teid_tab, f_teid);
+	htab = (gtph->version == 1) ? &ctx->track[0].gtpu_teid_tab :
+				      &ctx->track[1].gtpu_teid_tab;
+	teid = gtp_teid_get(htab, f_teid);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x. Ignoring"
 				    , __FUNCTION__
@@ -178,6 +182,7 @@ gtpu_end_marker_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *pteid = NULL;
 	gtp_ie_f_teid_t *f_teid;
+	gtp_htab_t *htab;
 
 	/* TEID playground */
 	PMALLOC(f_teid);
@@ -185,7 +190,9 @@ gtpu_end_marker_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	f_teid->v4 = 1;
 	f_teid->ipv4 = ((struct sockaddr_in *) addr)->sin_addr.s_addr;
 
-	teid = gtp_teid_get(&ctx->gtpu_teid_tab, f_teid);
+	htab = (gtph->version == 1) ? &ctx->track[0].gtpu_teid_tab :
+				      &ctx->track[1].gtpu_teid_tab;
+	teid = gtp_teid_get(htab, f_teid);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x. Ignoring"
 				    , __FUNCTION__

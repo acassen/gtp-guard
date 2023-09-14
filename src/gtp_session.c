@@ -265,9 +265,9 @@ static int
 __gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 {
 	list_head_del(&teid->next);
-	gtp_vteid_unhash(&ctx->vteid_tab, teid);
-	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
-	gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
+	gtp_vteid_unhash(&ctx->track[teid->version-1].vteid_tab, teid);
+	gtp_teid_unhash(&ctx->track[teid->version-1].gtpc_teid_tab, teid);
+	gtp_vsqn_unhash(&ctx->track[teid->version-1].vsqn_tab, teid);
 	FREE(teid);
 	return 0;
 }
@@ -290,8 +290,8 @@ static int
 __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 {
 	list_head_del(&teid->next);
-	gtp_vteid_unhash(&ctx->vteid_tab, teid);
-	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
+	gtp_vteid_unhash(&ctx->track[teid->version-1].vteid_tab, teid);
+	gtp_teid_unhash(&ctx->track[teid->version-1].gtpu_teid_tab, teid);
 
 	/* Fast-Path cleanup */
 	gtp_xdpfwd_teid_action(XDPFWD_RULE_DEL, teid, 0);

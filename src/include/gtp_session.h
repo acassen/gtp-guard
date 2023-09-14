@@ -33,6 +33,7 @@
 
 /* GTP Connection tracking */
 typedef struct _gtp_teid {
+	uint8_t			version;	/* GTPv1 or GTPv2 */
 	uint8_t			type;		/* User or Contrlo plane */
 	uint32_t		id;		/* Remote TEID */
 	uint32_t		vid;		/* Local Virtual TEID */
