@@ -172,13 +172,15 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	PMALLOC(ie_f_teid);
 
 	/* Control-Plane */
-	ie_f_teid->teid_grekey = teid_c->id;
-	ie_f_teid->v4 = 1;
-	ie_f_teid->ipv4 = *gsn_address_c;
-	teid = gtp1_create_teid(GTP_TEID_C, w
-					  , &ctx->track[0].gtpc_teid_tab
-					  , &ctx->track[0].vteid_tab
-					  , ie_f_teid, s);
+	if (teid_c && gsn_address_c) {
+		ie_f_teid->teid_grekey = teid_c->id;
+		ie_f_teid->v4 = 1;
+		ie_f_teid->ipv4 = *gsn_address_c;
+		teid = gtp1_create_teid(GTP_TEID_C, w
+						, &ctx->track[0].gtpc_teid_tab
+						, &ctx->track[0].vteid_tab
+						, ie_f_teid, s);
+	}
 
 	/* User-Plane */
 	if (teid_u && gsn_address_u) {
@@ -429,14 +431,72 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	dump_buffer("GTPv1 Update-Req ", (char *) w->buffer, w->buffer_size);
-	return NULL;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_ie_imsi_t *ie_imsi;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
+	gtp_session_t *s;
+	uint8_t *cp;
+
+	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	if (!teid) {
+		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
+				    , __FUNCTION__
+				    , ntohl(h->teid));
+		return NULL;
+	}
+
+	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
+
+	/* IMSI rewrite if needed */
+	cp = gtp_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		ie_imsi = (gtp1_ie_imsi_t *) cp;
+		gtp_imsi_rewrite(teid->session->apn, ie_imsi->imsi);
+	}
+
+	/* Set GGSN TEID */
+	h->teid = teid->id;
+	s = teid->session;
+
+	/* Update SQN */
+	gtp_sqn_update(w, teid);
+	gtp_vsqn_update(w, teid);
+	gtp_sqn_masq(w, teid);
+
+	/* Performing session translation */
+	t = gtp1_session_xlat(w, s);
+	if (!t) {
+		/* There is no GTP-C update, so just forward */
+		return teid;
+	}
+
+	/* No peer teid so new teid */
+	if (!t->peer_teid) {
+		/* Set tunnel endpoint */
+		t->sgw_addr = *((struct sockaddr_in *) addr);
+		t->pgw_addr = teid->pgw_addr;
+
+		/* GTP-C old */
+		pteid = teid->peer_teid;
+		t->old_teid = pteid;
+
+		/* GTP-U old */
+		t_u = gtp_session_gtpu_teid_get_by_sqn(s, t->sqn);
+		if (t_u) {
+			t->bearer_teid = t_u;
+			t_u->old_teid = (pteid) ? pteid->bearer_teid : NULL;
+		}
+	}
+	gtp_teid_put(t);
+
+	return teid;
 }
 
 static gtp_teid_t *
 gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	dump_buffer("GTPv1 Update-Resp ", (char *) w->buffer, w->buffer_size);
 	return NULL;
 }
 
