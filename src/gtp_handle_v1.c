@@ -497,7 +497,79 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	return NULL;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_ie_cause_t *ie_cause = NULL;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_teid_t *teid = NULL, *teid_u, *oteid;
+	uint8_t *cp;
+
+	/* Virtual TEID mapping */
+	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	if (!teid) {
+		/* No TEID present try by SQN */
+		teid = gtp_vsqn_get(&ctx->track[0].vsqn_tab, ntohl(h->sqn));
+		if (!teid) {
+			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohs(h->sqn)
+					    , ntohl(h->teid));
+			return NULL;
+		}
+
+		/* SQN masq */
+		gtp_sqn_restore(w, teid->peer_teid);
+
+		return teid;
+	}
+
+	/* TEID set */
+	h->teid = teid->id;
+
+	/* Recovery xlat */
+	gtp1_session_xlat_recovery(w);
+
+	/* If binding already exist then bearer update already done */
+	if (teid->peer_teid)
+		goto end;
+
+	/* Test cause code, destroy if <> success.
+	 * 3GPP.TS.29.274 8.4 */
+	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		ie_cause = (gtp1_ie_cause_t *) cp;
+		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
+		    ie_cause->value < GTP1_CAUSE_NON_EXISTENT) {
+			oteid = teid->old_teid;
+			if (oteid) {
+				gtp_teid_bind(oteid->peer_teid, teid);
+				gtp_session_gtpc_teid_destroy(ctx, oteid);
+			}
+		} else {
+			oteid = teid->old_teid;
+			if (oteid) {
+				/* SQN masq */
+				gtp_sqn_restore(w, oteid->peer_teid);
+			}
+			return teid;
+		}
+	}
+
+	/* Bearer cause handling */
+	teid_u = teid->bearer_teid;
+	if (teid_u->old_teid) {
+		oteid = teid_u->old_teid;
+		if (oteid) {
+			gtp_teid_bind(oteid->peer_teid, teid_u);
+			gtp_session_gtpu_teid_destroy(ctx, oteid);
+		}
+	}
+
+  end:
+	/* SQN masq */
+	gtp_sqn_restore(w, teid->peer_teid);
+
+	return teid;
 }
 
 static gtp_teid_t *
