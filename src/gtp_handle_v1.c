@@ -457,8 +457,30 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtp1_delete_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	dump_buffer("GTPv1 Delete-Req ", (char *) w->buffer, w->buffer_size);
-	return NULL;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_teid_t *teid;
+
+	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	if (!teid) {
+		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
+				    , __FUNCTION__
+				    , ntohl(h->teid));
+		return NULL;
+	}
+
+	log_message(LOG_INFO, "Delete-PDP-Req:={TEID-C:0x%.8x}", ntohl(teid->id));
+
+	/* Set GGSN TEID */
+	h->teid = teid->id;
+
+	/* Update SQN */
+	gtp_sqn_update(w, teid);
+	gtp_vsqn_update(w, teid);
+	gtp_sqn_masq(w, teid);
+
+	return teid;
 }
 
 static gtp_teid_t *
