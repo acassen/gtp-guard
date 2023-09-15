@@ -133,16 +133,41 @@ gtp1_session_xlat_recovery(gtp_srv_worker_t *w)
 }
 
 static gtp_teid_t *
-gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s,
-		  gtp1_ie_teid_t *teid_c, gtp1_ie_teid_t *teid_u,
-		  uint32_t *gsn_address_c, uint32_t *gsn_address_u)
+gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 {
 	gtp_ie_f_teid_t *ie_f_teid;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
+	gtp1_ie_teid_t *teid_c = NULL, *teid_u = NULL;
+	uint32_t *gsn_address_c = NULL, *gsn_address_u = NULL;
+	gtp1_ie_t *ie;
+	uint8_t *cp;
 
 	gtp1_session_xlat_recovery(w);
+
+	/* Control & Data Plane IE */
+	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		teid_c = (gtp1_ie_teid_t *) cp;
+	}
+
+	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		teid_u = (gtp1_ie_teid_t *) cp;
+	}
+
+	/* GSN Address for Control-Plane & Data-Plane */
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+		ie = (gtp1_ie_t *) cp;
+		cp = gtp1_get_ie_offset(GTP1_IE_GSN_ADDRESS_TYPE, cp+sizeof(gtp1_ie_t)+ntohs(ie->length)
+								, w->buffer + w->buffer_size);
+		if (cp) {
+			gsn_address_u = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+		}
+	}
 
 	PMALLOC(ie_f_teid);
 
@@ -156,13 +181,15 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s,
 					  , ie_f_teid, s);
 
 	/* User-Plane */
-	ie_f_teid->teid_grekey = teid_u->id;
-	ie_f_teid->v4 = 1;
-	ie_f_teid->ipv4 = *gsn_address_u;
-	gtp1_create_teid(GTP_TEID_U, w
-				   , &ctx->track[0].gtpc_teid_tab
-				   , &ctx->track[0].vteid_tab
-				   , ie_f_teid, s);
+	if (teid_u && gsn_address_u) {
+		ie_f_teid->teid_grekey = teid_u->id;
+		ie_f_teid->v4 = 1;
+		ie_f_teid->ipv4 = *gsn_address_u;
+		gtp1_create_teid(GTP_TEID_U, w
+					, &ctx->track[0].gtpc_teid_tab
+					, &ctx->track[0].vteid_tab
+					, ie_f_teid, s);
+	}
 
 	FREE(ie_f_teid);
 	return teid;
@@ -192,8 +219,6 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp1_ie_apn_t *ie_apn;
 	gtp1_ie_imsi_t *ie_imsi;
-	gtp1_ie_teid_t *teid_c = NULL, *teid_u = NULL;
-	gtp1_ie_t *ie;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
@@ -202,7 +227,6 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_apn_t *apn;
 	bool new_conn = false, retransmit = false;
 	uint64_t imsi;
-	uint32_t *gsn_address_c = NULL, *gsn_address_u = NULL;
 	uint8_t *cp;
 	char apn_str[64];
 	int ret;
@@ -212,41 +236,21 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	if (s)
 		retransmit = true;
 
-	/* At least TEID CONTROL & DATA for creation */
+	/* At least TEID CONTROL for creation */
 	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
 	if (!cp) {
 		log_message(LOG_INFO, "%s(): no TEID-Control IE present. ignoring..."
 				    , __FUNCTION__);
 		return NULL;
 	}
-	teid_c = (gtp1_ie_teid_t *) cp;
 
-	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->buffer, w->buffer_size);
-	if (!cp) {
-		log_message(LOG_INFO, "%s(): no TEID-Data IE present. ignoring..."
-				    , __FUNCTION__);
-		return NULL;
-	}
-	teid_u = (gtp1_ie_teid_t *) cp;
-
-	/* GSN Address for Control-Plane & Data-Plane */
+	/* At least GSN Address for Control-Plane */
 	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
 	if (!cp) {
 		log_message(LOG_INFO, "%s(): no C-Plane GSN-Address present. ignoring..."
 				    , __FUNCTION__);
 		return NULL;
 	}
-
-	gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
-	ie = (gtp1_ie_t *) cp;
-	cp = gtp1_get_ie_offset(GTP1_IE_GSN_ADDRESS_TYPE, cp+sizeof(gtp1_ie_t)+ntohs(ie->length)
-						        , w->buffer + w->buffer_size);
-	if (!cp) {
-		log_message(LOG_INFO, "%s(): no U-Plane GSN-Address present. ignoring..."
-				    , __FUNCTION__);
-		return NULL;
-	}
-	gsn_address_u = (uint32_t *) (cp + sizeof(gtp1_ie_t));
 
 	/* APN selection */
 	cp = gtp1_get_ie(GTP1_IE_APN_TYPE, w->buffer, w->buffer_size);
@@ -295,7 +299,7 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 		s = gtp_session_alloc(c, apn);
 
 	/* Performing session translation */
-	teid = gtp1_session_xlat(w, s, teid_c, teid_u, gsn_address_c, gsn_address_u);
+	teid = gtp1_session_xlat(w, s);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): Error while xlat. ignoring..."
 				    , __FUNCTION__);
@@ -342,8 +346,98 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	dump_buffer("GTPv1 Create-Resp ", (char *) w->buffer, w->buffer_size);
-	return NULL;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_ie_cause_t *ie_cause = NULL;
+	gtp1_ie_imsi_t *ie_imsi;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_teid_t *teid = NULL, *t, *teid_u, *t_u;
+	uint8_t *cp;
+
+	t = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	if (!t) {
+		/* No TEID present try by SQN */
+		t = gtp_vsqn_get(&ctx->track[1].vsqn_tab, ntohl(h->sqn));
+		if (!t) {
+			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohs(h->sqn)
+					    , ntohl(h->teid));
+			return NULL;
+		}
+
+		/* IMSI rewrite if needed */
+		cp = gtp1_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+		if (cp) {
+			ie_imsi = (gtp1_ie_imsi_t *) cp;
+			gtp_imsi_rewrite(t->session->apn, ie_imsi->imsi);
+		}
+
+		/* SQN masq */
+		gtp_sqn_restore(w, t);
+
+		/* Force delete session */
+		teid->session->action = GTP_ACTION_DELETE_SESSION;
+
+		return t;
+	}
+
+	/* IMSI rewrite if needed */
+	cp = gtp_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		ie_imsi = (gtp1_ie_imsi_t *) cp;
+		gtp_imsi_rewrite(t->session->apn, ie_imsi->imsi);
+	}
+
+	/* Restore TEID at sGW */
+	h->teid = t->id;
+
+	/* Performing session translation */
+	teid = gtp1_session_xlat(w, t->session);
+	if (!teid) {
+		teid = t;
+
+		/* SQN masq */
+		gtp_sqn_restore(w, t);
+
+		/* Force delete session */
+		t->session->action = GTP_ACTION_DELETE_SESSION;
+
+		goto end;
+	}
+
+	/* Create teid binding */
+	gtp_teid_bind(teid, t);
+
+	/* create related GTP-U binding */
+	teid_u = gtp_session_gtpu_teid_get_by_sqn(t->session, teid->sqn);
+	t_u = gtp_session_gtpu_teid_get_by_sqn(t->session, t->sqn);
+	gtp_teid_bind(teid_u, t_u);
+
+	/* GTP-C <-> GTP-U ref */
+	t->bearer_teid = t_u;
+	teid->bearer_teid = teid_u;
+
+	/* SQN masq */
+	gtp_sqn_restore(w, teid->peer_teid);
+
+	/* Set addr tunnel endpoint */
+	teid->pgw_addr = *((struct sockaddr_in *) addr);
+	teid->sgw_addr = t->sgw_addr;
+
+	/* Test cause code, destroy if <> success.
+	 * 3GPP.TS.129.060 7.7.1 */
+	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		ie_cause = (gtp1_ie_cause_t *) cp;
+		if (!(ie_cause->value >= 128 && ie_cause->value <= 191)) {
+			teid->session->action = GTP_ACTION_DELETE_SESSION;
+		}
+	}
+
+  end:
+	gtp_teid_put(t);
+	return teid;
 }
 
 static gtp_teid_t *
