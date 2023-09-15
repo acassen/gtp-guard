@@ -77,7 +77,7 @@ gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *v
 	 * If so need to restore original TEID related, otherwise
 	 * create a new VTEID */
 	if (ie->ipv4 == ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr) {
-		teid = gtp_vteid_get(&ctx->track[1].vteid_tab, ntohl(ie->teid_grekey));
+		teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(ie->teid_grekey));
 		if (!teid)
 			return NULL;
 
@@ -151,8 +151,8 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s,
 	ie_f_teid->v4 = 1;
 	ie_f_teid->ipv4 = *gsn_address_c;
 	teid = gtp1_create_teid(GTP_TEID_C, w
-					  , &ctx->track[1].gtpc_teid_tab
-					  , &ctx->track[1].vteid_tab
+					  , &ctx->track[0].gtpc_teid_tab
+					  , &ctx->track[0].vteid_tab
 					  , ie_f_teid, s);
 
 	/* User-Plane */
@@ -160,8 +160,8 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s,
 	ie_f_teid->v4 = 1;
 	ie_f_teid->ipv4 = *gsn_address_u;
 	gtp1_create_teid(GTP_TEID_U, w
-				   , &ctx->track[1].gtpc_teid_tab
-				   , &ctx->track[1].vteid_tab
+				   , &ctx->track[0].gtpc_teid_tab
+				   , &ctx->track[0].vteid_tab
 				   , ie_f_teid, s);
 
 	FREE(ie_f_teid);
@@ -288,7 +288,7 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	}
 
 	/* Rewrite IMSI if needed */
-	gtp_ie_imsi_rewrite(apn, cp);
+	gtp_imsi_rewrite(apn, ie_imsi->imsi);
 
 	/* Create a new session object */
 	if (!retransmit)

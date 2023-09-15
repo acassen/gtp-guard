@@ -76,7 +76,6 @@ gtpc_retransmit_detected(gtp_srv_worker_t *w)
 	uint32_t *gsn_address_c = NULL;
 	gtp_session_t *s = NULL;
 	gtp_teid_t *teid;
-
 	uint8_t *cp;
 
 	if (gtph->version == 2) {
@@ -84,6 +83,7 @@ gtpc_retransmit_detected(gtp_srv_worker_t *w)
 		if (!cp)
 			return NULL;
 		ie_f_teid = (gtp_ie_f_teid_t *) cp;
+		teid = gtp_teid_get(&ctx->track[1].gtpc_teid_tab, ie_f_teid);
 	} else {
 		cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
 		if (!cp)
@@ -99,9 +99,10 @@ gtpc_retransmit_detected(gtp_srv_worker_t *w)
 		ie_f_teid->teid_grekey = ie_teid->id;
 		ie_f_teid->v4 = 1;
 		ie_f_teid->ipv4 = *gsn_address_c;
+		teid = gtp_teid_get(&ctx->track[0].gtpc_teid_tab, ie_f_teid);
+		FREE(ie_f_teid);
 	}
 
-	teid = gtp_teid_get(&ctx->track[1].gtpc_teid_tab, ie_f_teid);
 	if (teid) {
 		/* same SQN too ?*/
 		if (gtph->teid_presence)
@@ -110,11 +111,9 @@ gtpc_retransmit_detected(gtp_srv_worker_t *w)
 			s = teid->session;
 
 		gtp_teid_put(teid);
-		FREE_PTR(ie_f_teid);
 		return s;
 	}
 
-	FREE_PTR(ie_f_teid);
 	return NULL;
 }
 
