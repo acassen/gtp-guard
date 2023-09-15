@@ -348,7 +348,6 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
 	gtp1_ie_cause_t *ie_cause = NULL;
-	gtp1_ie_imsi_t *ie_imsi;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *teid_u, *t_u;
@@ -366,27 +365,13 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 			return NULL;
 		}
 
-		/* IMSI rewrite if needed */
-		cp = gtp1_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
-		if (cp) {
-			ie_imsi = (gtp1_ie_imsi_t *) cp;
-			gtp_imsi_rewrite(t->session->apn, ie_imsi->imsi);
-		}
-
 		/* SQN masq */
 		gtp_sqn_restore(w, t);
 
 		/* Force delete session */
-		teid->session->action = GTP_ACTION_DELETE_SESSION;
+		t->session->action = GTP_ACTION_DELETE_SESSION;
 
 		return t;
-	}
-
-	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
-	if (cp) {
-		ie_imsi = (gtp1_ie_imsi_t *) cp;
-		gtp_imsi_rewrite(t->session->apn, ie_imsi->imsi);
 	}
 
 	/* Restore TEID at sGW */
@@ -430,7 +415,8 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp1_ie_cause_t *) cp;
-		if (!(ie_cause->value >= 128 && ie_cause->value <= 191)) {
+		if (!(ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
+		      ie_cause->value <= 191)) {
 			teid->session->action = GTP_ACTION_DELETE_SESSION;
 		}
 	}
@@ -486,8 +472,52 @@ gtp1_delete_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtp1_delete_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	dump_buffer("GTPv1 Delete-Resp ", (char *) w->buffer, w->buffer_size);
-	return NULL;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_ie_cause_t *ie_cause = NULL;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_teid_t *teid;
+	uint8_t *cp;
+
+	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	if (!teid) {
+		/* No TEID present try by SQN */
+		teid = gtp_vsqn_get(&ctx->track[1].vsqn_tab, ntohl(h->sqn));
+		if (!teid) {
+			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohs(h->sqn)
+					    , ntohl(h->teid));
+			return NULL;
+		}
+
+		/* SQN masq */
+		gtp_sqn_restore(w, teid);
+
+		/* Force delete session */
+		teid->session->action = GTP_ACTION_DELETE_SESSION;
+
+		return teid;
+	}
+
+	/* Restore TEID at SGSN */
+	h->teid = teid->id;
+
+	/* SQN masq */
+	gtp_sqn_restore(w, teid->peer_teid);
+
+	/* Test cause code, destroy if == success.
+	 * 3GPP.TS.129.060 7.7.1 */
+	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		ie_cause = (gtp1_ie_cause_t *) cp;
+		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
+		    ie_cause->value <= GTP1_CAUSE_NON_EXISTENT) {
+			teid->session->action = GTP_ACTION_DELETE_SESSION;
+		}
+	}
+
+	return teid;
 }
 
 

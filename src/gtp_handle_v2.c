@@ -385,7 +385,7 @@ gtpc_create_session_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *a
 		gtp_sqn_restore(w, t);
 
 		/* Force delete session */
-		teid->session->action = GTP_ACTION_DELETE_SESSION;
+		t->session->action = GTP_ACTION_DELETE_SESSION;
 
 		return t;
 	}
@@ -539,7 +539,7 @@ gtpc_delete_session_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *a
 	/* SQN masq */
 	gtp_sqn_restore(w, teid->peer_teid);
 
-	/* Test cause code, destroy if <> success.
+	/* Test cause code, destroy if == success.
 	 * 3GPP.TS.29.274 8.4 */
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
