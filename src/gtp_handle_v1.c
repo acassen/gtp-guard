@@ -48,9 +48,9 @@
 #include "gtp_resolv.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
+#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_handle.h"
-#include "gtp_teid.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
 #include "gtp_xdp.h"
@@ -66,7 +66,7 @@ extern gtp_teid_t dummy_teid;
 
 static gtp_teid_t *
 gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh,
-		gtp_ie_f_teid_t *ie, gtp_session_t *s)
+		 gtp_f_teid_t *f_teid, gtp_session_t *s)
 {
 	gtp_teid_t *teid;
 	gtp_srv_t *srv = w->srv;
@@ -76,21 +76,21 @@ gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *v
 	/* Determine if this is related to an existing VTEID.
 	 * If so need to restore original TEID related, otherwise
 	 * create a new VTEID */
-	if (ie->ipv4 == ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr) {
-		teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(ie->teid_grekey));
+	if (*f_teid->ipv4 == ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr) {
+		teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(*f_teid->teid_grekey));
 		if (!teid)
 			return NULL;
 
-		gtp_teid_restore(teid, ie);
+		gtp_teid_restore(teid, f_teid);
 		return teid;
 	}
 
-	teid = gtp_teid_get(h, ie);
+	teid = gtp_teid_get(h, f_teid);
 	if (teid)
 		goto masq;
 
 	/* Allocate and bind this new teid */
-	teid = gtp_teid_alloc(h, ie, NULL);
+	teid = gtp_teid_alloc(h, f_teid, NULL);
 	teid->type = type;
 	teid->session = s;
 	gtp_vteid_alloc(vh, teid, &w->seed);
@@ -113,7 +113,7 @@ gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *v
 	gtp_sqn_update(w, teid);
 
 	/* TEID masquarade */
-	gtp_teid_masq(ie, &srv->addr, teid->vid);
+	gtp_teid_masq(f_teid, &srv->addr, teid->vid);
 
 	return teid;
 }
@@ -135,10 +135,10 @@ gtp1_session_xlat_recovery(gtp_srv_worker_t *w)
 static gtp_teid_t *
 gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 {
-	gtp_ie_f_teid_t *ie_f_teid;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
+	gtp_f_teid_t f_teid_c, f_teid_u;
 	gtp1_ie_teid_t *teid_c = NULL, *teid_u = NULL;
 	uint32_t *gsn_address_c = NULL, *gsn_address_u = NULL;
 	gtp1_ie_t *ie;
@@ -150,11 +150,13 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		teid_c = (gtp1_ie_teid_t *) cp;
+		f_teid_c.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 	}
 
 	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		teid_u = (gtp1_ie_teid_t *) cp;
+		f_teid_u.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 	}
 
 	/* GSN Address for Control-Plane & Data-Plane */
@@ -169,31 +171,24 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 		}
 	}
 
-	PMALLOC(ie_f_teid);
-
 	/* Control-Plane */
 	if (teid_c && gsn_address_c) {
-		ie_f_teid->teid_grekey = teid_c->id;
-		ie_f_teid->v4 = 1;
-		ie_f_teid->ipv4 = *gsn_address_c;
+		f_teid_c.ipv4 = gsn_address_c;
 		teid = gtp1_create_teid(GTP_TEID_C, w
 						, &ctx->track[0].gtpc_teid_tab
 						, &ctx->track[0].vteid_tab
-						, ie_f_teid, s);
+						, &f_teid_c, s);
 	}
 
 	/* User-Plane */
 	if (teid_u && gsn_address_u) {
-		ie_f_teid->teid_grekey = teid_u->id;
-		ie_f_teid->v4 = 1;
-		ie_f_teid->ipv4 = *gsn_address_u;
+		f_teid_u.ipv4 = gsn_address_u;
 		gtp1_create_teid(GTP_TEID_U, w
 					, &ctx->track[0].gtpc_teid_tab
 					, &ctx->track[0].vteid_tab
-					, ie_f_teid, s);
+					, &f_teid_u, s);
 	}
 
-	FREE(ie_f_teid);
 	return teid;
 }
 

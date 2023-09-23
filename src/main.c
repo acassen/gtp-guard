@@ -48,6 +48,7 @@
 #include "gtp_resolv.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
+#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "main.h"
 

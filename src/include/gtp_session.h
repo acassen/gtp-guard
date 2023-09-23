@@ -27,37 +27,6 @@
 #define GTP_ACTION_DELETE_SESSION	0x01
 #define GTP_ACTION_DELETE_BEARER	0x02
 
-/* Tunnel type */
-#define GTP_TEID_C	0x01
-#define GTP_TEID_U	0x02
-
-/* GTP Connection tracking */
-typedef struct _gtp_teid {
-	uint8_t			version;	/* GTPv1 or GTPv2 */
-	uint8_t			type;		/* User or Contrlo plane */
-	uint32_t		id;		/* Remote TEID */
-	uint32_t		vid;		/* Local Virtual TEID */
-	uint32_t		ipv4;		/* Remote IPv4 */
-	uint8_t			bearer_id;	/* Bearer we belong to */
-	struct sockaddr_in	sgw_addr;	/* Remote sGW endpoint */
-	struct sockaddr_in	pgw_addr;	/* Remote pGW endpoint */
-	
-	uint32_t		sqn;		/* Local Seqnum */
-	uint32_t		vsqn;		/* Local Virtual Seqnum */
-
-	struct _gtp_session	*session;	/* backpointer */
-	struct _gtp_teid	*peer_teid;	/* Linked TEID */
-	struct _gtp_teid	*old_teid;	/* Old Linked TEID */
-	struct _gtp_teid	*bearer_teid;	/* GTP-C Bearer TEID */
-
-	uint8_t			action;
-        uint32_t		refcnt;
-	struct hlist_node	hlist_teid;
-	struct hlist_node	hlist_vteid;
-	struct hlist_node	hlist_vsqn;
-	list_head_t		next;
-} gtp_teid_t;
-
 /* GTP session */
 typedef struct _gtp_session {
 	uint32_t		id;

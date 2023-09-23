@@ -188,7 +188,7 @@ typedef struct _gtp_ie_apn {
 } __attribute__((packed)) gtp_ie_apn_t;
 
 #define GTP_IE_F_TEID_TYPE				87
-typedef struct _gtp_f_teid {
+typedef struct _gtp_ie_f_teid {
 	gtp_ie_t			h;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 			uint8_t		interface_type:6;
@@ -217,7 +217,7 @@ typedef struct _gtp_ie_eps_bearer_id {
 } __attribute__((packed)) gtp_ie_eps_bearer_id_t;
 
 #define GTP_IE_BEARER_CONTEXT_TYPE			93
-typedef struct _gtp_bearer_context {
+typedef struct _gtp_ie_bearer_context {
 	gtp_ie_t			h;
 	/* Grouped IE here */
 } __attribute__((packed)) gtp_ie_bearer_context_t;

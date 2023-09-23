@@ -51,6 +51,7 @@
 #include "gtp_switch.h"
 #include "gtp_if.h"
 #include "gtp_conn.h"
+#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_handle.h"
 #include "gtp_utils.h"

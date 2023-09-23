@@ -46,6 +46,7 @@
 #include "gtp_resolv.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
+#include "gtp_teid.h"
 #include "gtp_session.h"
 
 
@@ -59,21 +60,21 @@ gtp_teid_hashkey(gtp_htab_t *h, uint32_t id, uint32_t ipv4)
 }
 
 gtp_teid_t *
-gtp_teid_get(gtp_htab_t *h, gtp_ie_f_teid_t *ie)
+gtp_teid_get(gtp_htab_t *h, gtp_f_teid_t *f_teid)
 {
-	struct hlist_head *head = gtp_teid_hashkey(h, ie->teid_grekey, ie->ipv4);
+	struct hlist_head *head = gtp_teid_hashkey(h, *f_teid->teid_grekey, *f_teid->ipv4);
 	struct hlist_node *n;
 	gtp_teid_t *t;
 
-	dlock_lock_id(h->dlock, ie->teid_grekey, ie->ipv4);
+	dlock_lock_id(h->dlock, *f_teid->teid_grekey, *f_teid->ipv4);
 	hlist_for_each_entry(t, n, head, hlist_teid) {
-		if (t->id == ie->teid_grekey && t->ipv4 == ie->ipv4) {
-			dlock_unlock_id(h->dlock, ie->teid_grekey, ie->ipv4);
+		if (t->id == *f_teid->teid_grekey && t->ipv4 == *f_teid->ipv4) {
+			dlock_unlock_id(h->dlock, *f_teid->teid_grekey, *f_teid->ipv4);
 			__sync_add_and_fetch(&t->refcnt, 1);
 			return t;
 		}
 	}
-	dlock_unlock_id(h->dlock, ie->teid_grekey, ie->ipv4);
+	dlock_unlock_id(h->dlock, *f_teid->teid_grekey, *f_teid->ipv4);
 
 	return NULL;
 }
@@ -121,14 +122,14 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 }
 
 gtp_teid_t *
-gtp_teid_alloc(gtp_htab_t *h, gtp_ie_f_teid_t *ie, gtp_ie_eps_bearer_id_t *bid)
+gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
 {
 	gtp_teid_t *new;
 
 	PMALLOC(new);
 	new->version = 2;
-	new->id = ie->teid_grekey;
-	new->ipv4 = ie->ipv4;
+	new->id = *f_teid->teid_grekey;
+	new->ipv4 = *f_teid->ipv4;
 	if (bid)
 		new->bearer_id = bid->id;
 	INIT_LIST_HEAD(&new->next);
@@ -149,22 +150,18 @@ gtp_teid_bind(gtp_teid_t *teid, gtp_teid_t *t)
 }
 
 int
-gtp_teid_masq(gtp_ie_f_teid_t *ie, struct sockaddr_storage *addr, uint32_t vid)
+gtp_teid_masq(gtp_f_teid_t *f_teid, struct sockaddr_storage *addr, uint32_t vid)
 {
-	ie->teid_grekey = htonl(vid);
-	if (ie->v4)
-		ie->ipv4 = ((struct sockaddr_in *) addr)->sin_addr.s_addr;
-
+	*f_teid->teid_grekey = htonl(vid);
+	*f_teid->ipv4 = ((struct sockaddr_in *) addr)->sin_addr.s_addr;
 	return 0;
 }
 
 int
-gtp_teid_restore(gtp_teid_t *teid, gtp_ie_f_teid_t *ie)
+gtp_teid_restore(gtp_teid_t *teid, gtp_f_teid_t *f_teid)
 {
-	ie->teid_grekey = teid->id;
-	if (ie->v4)
-		ie->ipv4 = teid->ipv4;
-
+	*f_teid->teid_grekey = teid->id;
+	*f_teid->ipv4 = teid->ipv4;
 	return 0;
 }
 

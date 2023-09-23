@@ -48,9 +48,9 @@
 #include "gtp_resolv.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
+#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_handle.h"
-#include "gtp_teid.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
 #include "gtp_xdp.h"
@@ -79,7 +79,7 @@ gtp_update_bearer_id(gtp_teid_t *teid, gtp_ie_eps_bearer_id_t *bearer_id)
 }
 static gtp_teid_t *
 gtp_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh,
-		gtp_ie_f_teid_t *ie, gtp_session_t *s, gtp_ie_eps_bearer_id_t *bearer_id)
+		gtp_f_teid_t *f_teid, gtp_session_t *s, gtp_ie_eps_bearer_id_t *bearer_id)
 {
 	gtp_teid_t *teid;
 	gtp_srv_t *srv = w->srv;
@@ -89,22 +89,22 @@ gtp_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh
 	/* Determine if this is related to an existing VTEID.
 	 * If so need to restore original TEID related, otherwise
 	 * create a new VTEID */
-	if (ie->ipv4 == ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr) {
-		teid = gtp_vteid_get(&ctx->track[1].vteid_tab, ntohl(ie->teid_grekey));
+	if (*f_teid->ipv4 == ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr) {
+		teid = gtp_vteid_get(&ctx->track[1].vteid_tab, ntohl(*f_teid->teid_grekey));
 		if (!teid)
 			return NULL;
 
-		gtp_teid_restore(teid, ie);
+		gtp_teid_restore(teid, f_teid);
 		gtp_update_bearer_id(teid, bearer_id);
 		return teid;
 	}
 
-	teid = gtp_teid_get(h, ie);
+	teid = gtp_teid_get(h, f_teid);
 	if (teid)
 		goto masq;
 
 	/* Allocate and bind this new teid */
-	teid = gtp_teid_alloc(h, ie, bearer_id);
+	teid = gtp_teid_alloc(h, f_teid, bearer_id);
 	teid->type = type;
 	teid->session = s;
 	gtp_vteid_alloc(vh, teid, &w->seed);
@@ -130,7 +130,7 @@ gtp_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh
 	gtp_update_bearer_id(teid, bearer_id);
 
 	/* TEID masquarade */
-	gtp_teid_masq(ie, &srv->addr, teid->vid);
+	gtp_teid_masq(f_teid, &srv->addr, teid->vid);
 
 	return teid;
 }
@@ -141,12 +141,15 @@ gtp_append_gtpu(gtp_srv_worker_t *w, gtp_session_t *s, void *arg, uint8_t *ie_bu
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_ie_eps_bearer_id_t *bearer_id = arg;
-	gtp_ie_f_teid_t *ie_f_teid = (gtp_ie_f_teid_t *) ie_buffer;
+	gtp_f_teid_t f_teid;
+
+	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
+	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
 
 	return gtp_create_teid(GTP_TEID_U, w
 					 , &ctx->track[1].gtpu_teid_tab
 					 , &ctx->track[1].vteid_tab
-					 , ie_f_teid, s, bearer_id);
+					 , &f_teid, s, bearer_id);
 }
 
 static int
@@ -166,9 +169,9 @@ gtpc_session_xlat_recovery(gtp_srv_worker_t *w)
 static gtp_teid_t *
 gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 {
-	gtp_ie_f_teid_t *ie_f_teid = NULL;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
+	gtp_f_teid_t f_teid;
 	gtp_teid_t *teid = NULL;
 	uint8_t *cp, *cp_bid;
 	gtp_ie_eps_bearer_id_t *bearer_id = NULL;
@@ -178,11 +181,12 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 
 	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
-		ie_f_teid = (gtp_ie_f_teid_t *) cp;
+		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, teid_grekey));
+		f_teid.ipv4 = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, ipv4));
 		teid = gtp_create_teid(GTP_TEID_C, w
 						 , &ctx->track[1].gtpc_teid_tab
 						 , &ctx->track[1].vteid_tab
-						 , ie_f_teid, s, NULL);
+						 , &f_teid, s, NULL);
 	}
 
 	/* Bearer Context handling */
