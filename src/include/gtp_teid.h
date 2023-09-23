@@ -54,6 +54,7 @@ typedef struct _gtp_teid {
 } gtp_teid_t;
 
 typedef struct _gtp_f_teid {
+	uint8_t			version;
 	uint32_t		*teid_grekey;
 	union {
 		uint32_t	*ipv4;

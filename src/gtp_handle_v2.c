@@ -143,6 +143,7 @@ gtp_append_gtpu(gtp_srv_worker_t *w, gtp_session_t *s, void *arg, uint8_t *ie_bu
 	gtp_ie_eps_bearer_id_t *bearer_id = arg;
 	gtp_f_teid_t f_teid;
 
+	f_teid.version = 2;
 	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
 	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
 
@@ -181,6 +182,7 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 
 	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
+		f_teid.version = 2;
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, teid_grekey));
 		f_teid.ipv4 = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, ipv4));
 		teid = gtp_create_teid(GTP_TEID_C, w

@@ -150,12 +150,14 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		teid_c = (gtp1_ie_teid_t *) cp;
+		f_teid_c.version = 1;
 		f_teid_c.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 	}
 
 	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		teid_u = (gtp1_ie_teid_t *) cp;
+		f_teid_u.version = 1;
 		f_teid_u.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 	}
 
