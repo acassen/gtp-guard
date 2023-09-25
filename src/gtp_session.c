@@ -71,8 +71,8 @@ pthread_mutex_t gtp_session_expiration_mutex;
 /*
  *	Session handling
  */
-int
-gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
+static int
+__gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
 {
 	gtp_teid_t *t;
 
@@ -87,8 +87,8 @@ gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
 	return 0;
 }
 
-int
-gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
+static int
+__gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 {
 	gtp_teid_t *t;
 
@@ -126,8 +126,8 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 			   , t->tm_hour, t->tm_min, t->tm_sec
 			   , (s->sands.tv_sec) ? s->tmp_str : "never"
 			   , VTY_NEWLINE);
-		gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
-		gtp_session_teid_up_vty(vty, &s->gtpu_teid);
+		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
+		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
 	}
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 	return 0;
@@ -193,13 +193,13 @@ gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 	return NULL;
 }
 
-int
-gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
+static int
+gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
 {
 	gtp_conn_t *c = s->conn;
 
 	pthread_mutex_lock(&c->gtp_session_mutex);
-	list_add_tail(&teid->next, &s->gtpc_teid);
+	list_add_tail(&teid->next, l);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 
 	__sync_add_and_fetch(&s->refcnt, 1);
@@ -207,16 +207,15 @@ gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 }
 
 int
+gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
+{
+	return gtp_session_teid_add(s, teid, &s->gtpc_teid);
+}
+
+int
 gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 {
-	gtp_conn_t *c = s->conn;
-
-	pthread_mutex_lock(&c->gtp_session_mutex);
-	list_add_tail(&teid->next, &s->gtpu_teid);
-	pthread_mutex_unlock(&c->gtp_session_mutex);
-
-	__sync_add_and_fetch(&s->refcnt, 1);
-	return 0;
+	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
 }
 
 static void
@@ -264,11 +263,15 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn)
 static int
 __gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 {
+	gtp_session_t *s = teid->session;
+
 	list_head_del(&teid->next);
 	gtp_vteid_unhash(&ctx->track[teid->version-1].vteid_tab, teid);
 	gtp_teid_unhash(&ctx->track[teid->version-1].gtpc_teid_tab, teid);
 	gtp_vsqn_unhash(&ctx->track[teid->version-1].vsqn_tab, teid);
+
 	FREE(teid);
+	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -289,6 +292,8 @@ gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 static int
 __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 {
+	gtp_session_t *s = teid->session;
+
 	list_head_del(&teid->next);
 	gtp_vteid_unhash(&ctx->track[teid->version-1].vteid_tab, teid);
 	gtp_teid_unhash(&ctx->track[teid->version-1].gtpu_teid_tab, teid);
@@ -297,6 +302,7 @@ __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 	gtp_xdpfwd_teid_action(XDPFWD_RULE_DEL, teid, 0);
 
 	FREE(teid);
+	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 

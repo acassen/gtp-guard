@@ -63,7 +63,6 @@ extern thread_master_t *master;
 extern gtp_teid_t dummy_teid;
 
 
-
 static gtp_teid_t *
 gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh,
 		 gtp_f_teid_t *f_teid, gtp_session_t *s)
@@ -124,7 +123,7 @@ gtp1_session_xlat_recovery(gtp_srv_worker_t *w)
 	gtp1_ie_recovery_t *rec;
 	uint8_t *cp;
 
-	cp = gtp_get_ie(GTP1_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		rec = (gtp1_ie_recovery_t *) cp;
 		rec->recovery = daemon_data->restart_counter;
@@ -202,7 +201,7 @@ gtp1_echo_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp1_ie_recovery_t *rec;
 	uint8_t *cp;
 
-	cp = gtp_get_ie(GTP1_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		rec = (gtp1_ie_recovery_t *) cp;
 		rec->recovery = daemon_data->restart_counter;
@@ -411,7 +410,7 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* Test cause code, destroy if <> success.
 	 * 3GPP.TS.129.060 7.7.1 */
-	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp1_ie_cause_t *) cp;
 		if (!(ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
@@ -447,7 +446,7 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_imsi = (gtp1_ie_imsi_t *) cp;
 		gtp_imsi_rewrite(teid->session->apn, ie_imsi->imsi);
@@ -532,7 +531,7 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* Test cause code, destroy if <> success.
 	 * 3GPP.TS.29.274 8.4 */
-	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp1_ie_cause_t *) cp;
 		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
@@ -637,7 +636,7 @@ gtp1_delete_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* Test cause code, destroy if == success.
 	 * 3GPP.TS.129.060 7.7.1 */
-	cp = gtp_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
 		ie_cause = (gtp1_ie_cause_t *) cp;
 		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
