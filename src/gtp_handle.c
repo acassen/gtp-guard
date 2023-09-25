@@ -154,33 +154,29 @@ gtpc_handle_post(gtp_srv_worker_t *w, gtp_teid_t *teid)
 static gtp_teid_t *
 gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
-	ssize_t len = gtpu_get_header_len(w->buffer, w->buffer_size);
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	gtp_teid_t *teid, *pteid = NULL;
+	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
-	gtp_htab_t *htab;
 	uint8_t *cp;
-	uint32_t *field;
-	uint16_t *length;
 
-	/* Tunnel Endpoint Identifier Data I */
-	cp = w->buffer + len;
-	if (*cp != GTP_IE_TUNNEL_ENDPOINT_ID_DATA_I)
+	/* Data Plane IE */
+	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->buffer, w->buffer_size);
+	if (!cp)
 		return NULL;
-	field = (uint32_t *) (++cp);
+	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 
-	f_teid.teid_grekey = field;
-	f_teid.ipv4 = &((struct sockaddr_in *) addr)->sin_addr.s_addr;
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+	if (!cp)
+		return NULL;
+	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
 
-	htab = (gtph->version == 1) ? &ctx->track[0].gtpu_teid_tab :
-				      &ctx->track[1].gtpu_teid_tab;
-	teid = gtp_teid_get(htab, &f_teid);
+	teid = (teid) ? : gtp_teid_get(&ctx->track[0].gtpu_teid_tab, &f_teid);
+	teid = (teid) ? : gtp_teid_get(&ctx->track[1].gtpu_teid_tab, &f_teid);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x. Ignoring"
 				    , __FUNCTION__
-				    , ntohl(*field));
+				    , ntohl(*f_teid.teid_grekey));
 		return NULL;
 	}
 
@@ -195,20 +191,8 @@ gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	}
 
 	/* xlat TEID */
-	*field = htonl(teid->vid);
-
-	/* Continue with GTP-U Peer Address */
-	cp += 4;
-	if (*cp != GTP_IE_GTPU_PEER_ADDRESS)
-		return NULL;
-	length = (uint16_t *) (++cp);
-
-	/* Hard coded for IPv4... ugly... */
-	if (ntohs(*length) != 4)
-		return NULL;
-
-	field = (uint32_t *) (cp + 2);
-	*field = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
+	*f_teid.teid_grekey = htonl(teid->vid);
+	*f_teid.ipv4 = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
 
 	/* Finaly set addr back to linked peer */
 	((struct sockaddr_in *) addr)->sin_addr.s_addr = pteid->ipv4;
@@ -222,18 +206,16 @@ gtpu_end_marker_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	gtp_teid_t *teid, *pteid = NULL;
+	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
-	gtp_htab_t *htab;
 	uint32_t field = gtph->teid;
 
 	/* TEID playground */
 	f_teid.teid_grekey = &field;
 	f_teid.ipv4 = &((struct sockaddr_in *) addr)->sin_addr.s_addr;
 
-	htab = (gtph->version == 1) ? &ctx->track[0].gtpu_teid_tab :
-				      &ctx->track[1].gtpu_teid_tab;
-	teid = gtp_teid_get(htab, &f_teid);
+	teid = (teid) ? : gtp_teid_get(&ctx->track[0].gtpu_teid_tab, &f_teid);
+	teid = (teid) ? : gtp_teid_get(&ctx->track[1].gtpu_teid_tab, &f_teid);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x. Ignoring"
 				    , __FUNCTION__

@@ -222,10 +222,6 @@ typedef struct _gtp_ie_bearer_context {
 	/* Grouped IE here */
 } __attribute__((packed)) gtp_ie_bearer_context_t;
 
-#define GTP_IE_TUNNEL_ENDPOINT_ID_DATA_I	16
-#define GTP_IE_GTPU_PEER_ADDRESS		133
-
-
 
 /* Macro */
 #define GTP_XID_TO_SQN(__xid) htobe32(((__xid) << 8))
