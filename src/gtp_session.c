@@ -406,12 +406,12 @@ gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
 		}
 	}
 
-	if (list_empty(&s->gtpu_teid))
+	if (list_empty(&s->gtpc_teid) && list_empty(&s->gtpu_teid))
 		destroy_session = true;
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 
 	if (destroy_session)
-		return __gtp_session_destroy(ctx, s);
+		return gtp_session_destroy(ctx, s);
 
 	return 0;
 }
