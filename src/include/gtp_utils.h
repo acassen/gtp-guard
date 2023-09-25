@@ -26,6 +26,7 @@
 
 /* GTPv1 */
 extern int gtp1_ie_apn_extract(gtp1_ie_apn_t *, char *, size_t);
+extern size_t gtp1_get_header_len(gtp1_hdr_t *);
 extern uint8_t *gtp1_get_ie_offset(uint8_t, uint8_t *, uint8_t *);
 extern uint8_t *gtp1_get_ie(uint8_t type, uint8_t *buffer, size_t size);
 

@@ -197,17 +197,17 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 static gtp_teid_t *
 gtp1_echo_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
 	gtp1_ie_recovery_t *rec;
-	uint8_t *cp;
 
-	cp = gtp1_get_ie(GTP1_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
-	if (cp) {
-		rec = (gtp1_ie_recovery_t *) cp;
-		rec->recovery = daemon_data->restart_counter;
-	}
-
+	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
 	h->type = GTP_ECHO_RESPONSE_TYPE;
+	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
+	w->buffer_size += sizeof(gtp1_ie_recovery_t);
+
+	rec = (gtp1_ie_recovery_t *) (w->buffer + gtp1_get_header_len(h));
+	rec->type = GTP1_IE_RECOVERY_TYPE;
+	rec->recovery = daemon_data->restart_counter;
 
 	return &dummy_teid;
 }
@@ -610,7 +610,7 @@ gtp1_delete_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->track[1].vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(&ctx->track[0].vsqn_tab, ntohl(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__

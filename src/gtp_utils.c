@@ -86,7 +86,7 @@ static const struct {
 };
 
 size_t
-gtpc1_get_header_len(gtp1_hdr_t *h)
+gtp1_get_header_len(gtp1_hdr_t *h)
 {
 	if ((h->flags & 0x07) == 0)
 		return GTPV1C_HEADER_LEN_SHORT;
@@ -120,7 +120,7 @@ gtp1_get_ie(uint8_t type, uint8_t *buffer, size_t size)
 {
 	gtp1_hdr_t *h = (gtp1_hdr_t *) buffer;
 	uint8_t *end = buffer + size;
-	size_t offset = gtpc1_get_header_len(h);
+	size_t offset = gtp1_get_header_len(h);
 
 	return gtp1_get_ie_offset(type, buffer+offset, end);
 }
