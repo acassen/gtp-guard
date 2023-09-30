@@ -791,7 +791,7 @@ gtpc_delete_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	gtpc_session_xlat_recovery(w);
 
 	/* SQN masq */
-	gtp_sqn_restore(w, teid->peer_teid);
+	gtp_sqn_restore(w, teid);
 
 	/* TEID set */
 	h->teid = teid->id;
@@ -804,6 +804,8 @@ gtpc_delete_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 		ie_cause = (gtp_ie_cause_t *) cp;
 		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
 		    ie_cause->value <= GTP_CAUSE_CONTEXT_NOT_FOUND) {
+			if (ie_cause->value == GTP_CAUSE_CONTEXT_NOT_FOUND)
+				teid->session->action = GTP_ACTION_DELETE_SESSION;
 			gtp_session_destroy_bearer(ctx, s);
 		}
 	}
