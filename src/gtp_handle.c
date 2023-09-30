@@ -112,16 +112,31 @@ gtpc_retransmit_detected(gtp_srv_worker_t *w)
 	return NULL;
 }
 
+/*
+ *	GTP-C Message handle
+ */
+static const struct {
+	gtp_teid_t * (*hdl) (gtp_srv_worker_t *, struct sockaddr_storage *);
+} gtpc_msg_hdl[7] = {
+	[1]	= { gtpc_handle_v1 },
+	[2]	= { gtpc_handle_v2 },
+};
+
 gtp_teid_t *
 gtpc_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 
-	if (gtph->version == 1)
-		return gtpc_handle_v1(w, addr);
+	/* Only support GTPv1 & GTPv2 */
+	if (*(gtpc_msg_hdl[gtph->version].hdl))
+		return (*(gtpc_msg_hdl[gtph->version].hdl)) (w, addr);
 
-	if (gtph->version == 2)
-		return gtpc_handle_v2(w, addr);
+	log_message(LOG_INFO, "%s(): GTP Version %d not supported."
+			      " Ignoring ingress datagram from [%s]:%d"
+			    , __FUNCTION__
+			    , gtph->version
+			    , inet_sockaddrtos(addr)
+			    , ntohs(inet_sockaddrport(addr)));
 
 	return NULL;
 }
