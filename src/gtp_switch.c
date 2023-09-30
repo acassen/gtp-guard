@@ -367,24 +367,6 @@ gtp_htab_destroy(gtp_htab_t *h)
 	FREE(h->dlock);
 }
 
-static void
-gtp_track_init(gtp_track_t *track)
-{
-	gtp_htab_init(&track->gtpc_teid_tab);
-	gtp_htab_init(&track->gtpu_teid_tab);
-	gtp_htab_init(&track->vteid_tab);
-	gtp_htab_init(&track->vsqn_tab);
-}
-
-static void
-gtp_track_destroy(gtp_track_t *track)
-{
-	gtp_htab_destroy(&track->gtpc_teid_tab);
-	gtp_htab_destroy(&track->gtpu_teid_tab);
-	gtp_htab_destroy(&track->vteid_tab);
-	gtp_htab_destroy(&track->vsqn_tab);
-}
-
 gtp_ctx_t *
 gtp_switch_init(const char *name)
 {
@@ -396,8 +378,10 @@ gtp_switch_init(const char *name)
         list_add_tail(&new->next, &daemon_data->gtp_ctx);
 
 	/* Init hashtab */
-	gtp_track_init(&new->track[0]); /* GTPv1 tracking */
-	gtp_track_init(&new->track[1]); /* GTPv2 tracking */
+	gtp_htab_init(&new->gtpc_teid_tab);
+	gtp_htab_init(&new->gtpu_teid_tab);
+	gtp_htab_init(&new->vteid_tab);
+	gtp_htab_init(&new->vsqn_tab);
 
 	return new;
 }
@@ -405,7 +389,9 @@ gtp_switch_init(const char *name)
 int
 gtp_switch_destroy(gtp_ctx_t *ctx)
 {
-	gtp_track_destroy(&ctx->track[0]);
-	gtp_track_destroy(&ctx->track[1]);
+	gtp_htab_destroy(&ctx->gtpc_teid_tab);
+	gtp_htab_destroy(&ctx->gtpu_teid_tab);
+	gtp_htab_destroy(&ctx->vteid_tab);
+	gtp_htab_destroy(&ctx->vsqn_tab);
 	return 0;
 }

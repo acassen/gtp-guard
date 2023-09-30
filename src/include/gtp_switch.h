@@ -109,21 +109,17 @@ typedef struct _gtp_iptnl {
 	uint8_t			flags;
 } gtp_iptnl_t;
 
-typedef struct _gtp_track {
-	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
-	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
-	gtp_htab_t		vteid_tab;	/* virtual teid hashtab */
-	gtp_htab_t		vsqn_tab;	/* virtual Seqnum hashtab */
-	uint32_t		seqnum;		/* Global context Seqnum */
-} gtp_track_t;
-
 typedef struct _gtp_ctx {
 	char			name[GTP_STR_MAX];
 	gtp_srv_t		gtpc_ingress;
 	gtp_srv_t		gtpc_egress;
 	gtp_srv_t		gtpu;
 
-	gtp_track_t		track[2];	/* GTPv1 & GTPv2 tracking */
+	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
+	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
+	gtp_htab_t		vteid_tab;	/* virtual teid hashtab */
+	gtp_htab_t		vsqn_tab;	/* virtual Seqnum hashtab */
+	uint32_t		seqnum;		/* Global context Seqnum */
 
 	gtp_apn_t		*apn_resolv;
 	char			service_selection[GTP_STR_MAX];

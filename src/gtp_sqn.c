@@ -126,12 +126,11 @@ gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid)
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	uint32_t *sqn = &ctx->track[teid->version-1].seqnum;
+	uint32_t *sqn = &ctx->seqnum;
 	uint32_t sqn_max = -1, vsqn;
-	int bytes = (gtph->version == 1) ? 2 : 3;
 
 	/* nbytes counter circle */
-	sqn_max >>= (sizeof(uint32_t) - bytes) * 8;
+	sqn_max >>= 8;
 	if (!*sqn || *sqn >= sqn_max)
 		*sqn = 0x0f;
 	__sync_add_and_fetch(sqn, 1);
@@ -140,7 +139,7 @@ gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid)
 	vsqn = (gtph->version == 2) ? *sqn << 8 : *sqn;
 
 	/* Hash it */
-	gtp_vsqn_hash(&ctx->track[teid->version-1].vsqn_tab, teid, vsqn);
+	gtp_vsqn_hash(&ctx->vsqn_tab, teid, vsqn);
 
 	return 0;
 }
@@ -152,7 +151,7 @@ gtp_vsqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid)
 	gtp_ctx_t *ctx = srv->ctx;
 
 	if (teid->sqn)
-		gtp_vsqn_unhash(&ctx->track[teid->version-1].vsqn_tab, teid);
+		gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
 	gtp_vsqn_alloc(w, teid);
 
 	return 0;
@@ -165,7 +164,7 @@ gtp_sqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid)
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 
 	if (gtph->version == 1) {
-		teid->sqn = (gtp1h->sqn) ? gtp1h->sqn : 0;
+		teid->sqn = (gtp1h->seq) ? gtp1h->sqn : 0;
 		return 0;
 	}
 

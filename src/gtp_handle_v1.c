@@ -76,7 +76,7 @@ gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *v
 	 * If so need to restore original TEID related, otherwise
 	 * create a new VTEID */
 	if (*f_teid->ipv4 == ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr) {
-		teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(*f_teid->teid_grekey));
+		teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(*f_teid->teid_grekey));
 		if (!teid)
 			return NULL;
 
@@ -176,8 +176,8 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	if (teid_c && gsn_address_c) {
 		f_teid_c.ipv4 = gsn_address_c;
 		teid = gtp1_create_teid(GTP_TEID_C, w
-						, &ctx->track[0].gtpc_teid_tab
-						, &ctx->track[0].vteid_tab
+						, &ctx->gtpc_teid_tab
+						, &ctx->vteid_tab
 						, &f_teid_c, s);
 	}
 
@@ -185,8 +185,8 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	if (teid_u && gsn_address_u) {
 		f_teid_u.ipv4 = gsn_address_u;
 		gtp1_create_teid(GTP_TEID_U, w
-					, &ctx->track[0].gtpc_teid_tab
-					, &ctx->track[0].vteid_tab
+					, &ctx->gtpu_teid_tab
+					, &ctx->vteid_tab
 					, &f_teid_u, s);
 	}
 
@@ -351,10 +351,17 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_teid_t *teid = NULL, *t, *teid_u, *t_u;
 	uint8_t *cp;
 
-	t = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	t = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!t) {
+		if (!h->seq) {
+			log_message(LOG_INFO, "%s(): No seqnum provided for TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohl(h->teid));
+			return NULL;
+		}
+
 		/* No TEID present try by SQN */
-		t = gtp_vsqn_get(&ctx->track[1].vsqn_tab, ntohl(h->sqn));
+		t = gtp_vsqn_get(&ctx->vsqn_tab, ntohs(h->sqn));
 		if (!t) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -433,17 +440,32 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
 	gtp_session_t *s;
+	bool mobility = false;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
 				    , ntohl(h->teid));
 		return NULL;
+
 	}
 
-	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
+	/* Mobility from 4G to 3G, incoming TEID is related to a
+	 * previously allocated VTEID. We need to fetch it and
+	 * forward this update request accordingly to remote pGW
+	 * supporting x-Gn interface. We are making assumption here
+	 * that all pGW are supporting x-Gn interface */
+	if (teid->version == 2) {
+		mobility = true;
+		/* sGW is no longer accurate, update with current SGSN */
+		teid->sgw_addr = *((struct sockaddr_in *) addr);
+	}
+
+	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x}%s"
+			    , ntohl(h->teid)
+			    , mobility ? " (4G Mobility)" : "");
 
 	/* IMSI rewrite if needed */
 	cp = gtp1_get_ie(GTP1_IE_IMSI_TYPE, w->buffer, w->buffer_size);
@@ -461,12 +483,18 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_vsqn_update(w, teid);
 	gtp_sqn_masq(w, teid);
 
+	/* Update last sGW visited */
+	s->conn->sgw_addr = *((struct sockaddr_in *) addr);
+
 	/* Performing session translation */
 	t = gtp1_session_xlat(w, s);
 	if (!t) {
 		/* There is no GTP-C update, so just forward */
 		return teid;
 	}
+
+	if (mobility)
+		t->mobility_teid = teid;
 
 	/* No peer teid so new teid */
 	if (!t->peer_teid) {
@@ -497,14 +525,23 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp1_ie_cause_t *ie_cause = NULL;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	gtp_teid_t *teid = NULL, *teid_u, *oteid;
+	gtp_teid_t *teid = NULL, *t, *teid_u, *t_u = NULL, *oteid;
+	uint32_t *gsn_address_c;
+	bool accepted = false;
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
+		if (!h->seq) {
+			log_message(LOG_INFO, "%s(): No seqnum provided for TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohl(h->teid));
+			return NULL;
+		}
+
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->track[0].vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohs(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -522,13 +559,6 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	/* TEID set */
 	h->teid = teid->id;
 
-	/* Recovery xlat */
-	gtp1_session_xlat_recovery(w);
-
-	/* If binding already exist then bearer update already done */
-	if (teid->peer_teid)
-		goto end;
-
 	/* Test cause code, destroy if <> success.
 	 * 3GPP.TS.29.274 8.4 */
 	cp = gtp1_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
@@ -536,11 +566,7 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 		ie_cause = (gtp1_ie_cause_t *) cp;
 		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
 		    ie_cause->value < GTP1_CAUSE_NON_EXISTENT) {
-			oteid = teid->old_teid;
-			if (oteid) {
-				gtp_teid_bind(oteid->peer_teid, teid);
-				gtp_session_gtpc_teid_destroy(ctx, oteid);
-			}
+			accepted = true;
 		} else {
 			oteid = teid->old_teid;
 			if (oteid) {
@@ -549,6 +575,63 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 			}
 			return teid;
 		}
+	}
+
+	/* Performing session translation */
+	t = gtp1_session_xlat(w, teid->session);
+	if (!t) {
+		/* No GTP-C IE, if related GSN Address present then xlat it */
+		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+		if (cp) {
+			gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+			*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
+		}
+
+
+		/* No GTP-C present so refering to previous one. Ensure
+		 * binding with GTP-U is set if not do it. */
+		teid_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, teid->sqn);
+		if (h->seq)
+			t_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, h->sqn);
+		gtp_teid_bind(teid_u, t_u);
+
+		/* Mobility binding */
+		if (teid->mobility_teid && accepted)
+			gtp_teid_bind(teid, teid->mobility_teid);
+
+		/* SQN masq */
+		gtp_sqn_restore(w, (teid->peer_teid) ? teid->peer_teid : teid);
+
+		return teid;
+	}
+
+	/* If binding already exist then bearer update already done */
+	if (teid->peer_teid)
+		goto end;
+
+	if (accepted) {
+		oteid = teid->old_teid;
+		if (oteid) {
+			gtp_teid_bind(oteid->peer_teid, teid);
+			gtp_session_gtpc_teid_destroy(ctx, oteid);
+		}
+
+		/* New GTP-C binding */
+		gtp_teid_bind(teid, t);
+
+		/* New GTP-U binding */
+		teid_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, teid->sqn);
+		t_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, t->sqn);
+		gtp_teid_bind(teid_u, t_u);
+
+		/* GTP-C <-> GTP-U ref */
+		teid->bearer_teid = teid_u;
+		t->bearer_teid = t_u;
+
+		/* SQN masq */
+		gtp_sqn_restore(w, teid);
+
+		return teid;
 	}
 
 	/* Bearer cause handling */
@@ -576,7 +659,7 @@ gtp1_delete_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid;
 
-	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -584,7 +667,9 @@ gtp1_delete_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 		return NULL;
 	}
 
-	log_message(LOG_INFO, "Delete-PDP-Req:={TEID-C:0x%.8x}", ntohl(teid->id));
+	log_message(LOG_INFO, "Delete-PDP-Req:={TEID-C:0x%.8x}%s"
+			    , ntohl(h->teid)
+			    , (teid->version == 2) ? " (4G Mobility)" : "");
 
 	/* Set GGSN TEID */
 	h->teid = teid->id;
@@ -607,10 +692,17 @@ gtp1_delete_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_teid_t *teid;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->track[0].vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
+		if (!h->seq) {
+			log_message(LOG_INFO, "%s(): No seqnum provided for TEID:0x%.8x from gtp header. ignoring..."
+					    , __FUNCTION__
+					    , ntohl(h->teid));
+			return NULL;
+		}
+
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->track[0].vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohs(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
