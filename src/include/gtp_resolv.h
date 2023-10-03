@@ -31,6 +31,8 @@
 
 /* GTP Resolv */
 typedef struct _gtp_pgw {
+	uint16_t		priority;
+	uint16_t		weight;
 	char			srv_name[GTP_DISPLAY_SRV_LEN];
 	struct _gtp_naptr	*naptr;	  /*Back-pointer */
 	struct sockaddr_storage	addr;
@@ -42,8 +44,12 @@ typedef struct _gtp_pgw {
 
 typedef struct _gtp_naptr {
 	uint8_t			server_type;
-	char			server[GTP_APN_MAX_LEN];
+	uint16_t		order;
+	uint16_t		preference;
+	char			flags[GTP_APN_MAX_LEN];
 	char			service[GTP_APN_MAX_LEN];
+	char			regexp[GTP_APN_MAX_LEN];
+	char			server[GTP_APN_MAX_LEN];
 	struct _gtp_apn		*apn;	/* Back-pointer */
 
 	list_head_t		pgw;

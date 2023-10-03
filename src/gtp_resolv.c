@@ -63,7 +63,7 @@ extern thread_master_t *master;
 
 
 /*
- *	Loadbalancing decision
+ *	Scheduling decision
  */
 static int
 gtp_resolv_pgw_lc(gtp_naptr_t *naptr, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
@@ -126,18 +126,47 @@ gtp_resolv_schedule_pgw(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockadd
 	return ret;
 }
 
-/*
- *	APN resolver
- */
-static size_t
-ns_srvname_offset(char *buffer, size_t size)
-{
-	const char *cp = buffer + size;
-	size_t offset = 0;
 
-	for (cp = buffer + size; !isspace(*cp); cp--)
-		offset++;
-	return strlen(buffer) - offset + 1;
+/*
+ *	Resolver helpers
+ */
+static int8_t
+gtp_naptr_strncpy(char *str, size_t str_len, const u_char *buffer, const u_char *end)
+{
+	uint8_t *len = (uint8_t *) buffer;
+
+	/* overflow prevention */
+	if ((buffer + *len > end) || (*len > str_len))
+		return -1;
+
+	if (!*len)
+		return 1;
+
+	memcpy(str, buffer+1, *len);
+	return *len + 1;
+}
+
+static int16_t
+gtp_naptr_name_strncat(char *str, size_t str_len, const u_char *buffer, const u_char *end)
+{
+	int16_t offset = 0;
+	const uint8_t *cp = buffer;
+	uint8_t len, i;
+
+	for (cp = buffer; cp < end && *cp; cp++) {
+		len = *cp;
+
+		/* truncate when needed */
+		if (offset + len + 1 > str_len)
+			goto end;
+
+		for (i = 0; i < len && cp < end; i++)
+			str[offset++] = *++cp;
+		str[offset++] = '.';
+	}
+
+  end:
+	return offset;
 }
 
 static void
@@ -182,48 +211,11 @@ retry:
 }
 
 static int
-gtp_naptr_parse_server_type(gtp_naptr_t *naptr, char *buffer, size_t size)
+gtp_pgw_set(gtp_pgw_t *pgw, const u_char *rdata, size_t rdlen)
 {
-	const char *end = buffer + size;
-	const char *cp;
-
-	for (cp = buffer; cp < end; cp++) {
-		/* First column match Server type */
-		if (*cp == '"') {
-			if (*(cp+1) == 'S')
-				naptr->server_type = ns_t_srv;
-			if (*(cp+1) == 'A')
-				naptr->server_type = ns_t_a;
-			return 0;
-		}
-	}
-
-	return 0;
-}
-
-static int
-gtp_naptr_parse_service(gtp_naptr_t *naptr, char *buffer, size_t size)
-{
-	const char *end = buffer + size;
-	const char *cp;
-	int match = 0, i = 0;
-
-	for (cp = buffer; cp < end; cp++) {
-		/* Third column match Server type */
-		if (*cp == '"' && ++match == 3) {
-			for (++cp; cp < end && *cp !='"'; cp++)
-				naptr->service[i++] = *cp;
-			return 0;
-		}
-	}
-
-	return 0;
-}
-
-static int
-gtp_pgw_set(gtp_pgw_t *pgw, char *buffer, size_t size)
-{
-	inet_stosockaddr(buffer, "2123", &pgw->addr);
+	struct sockaddr_in *addr4 = (struct sockaddr_in *) &pgw->addr;
+	pgw->addr.ss_family = AF_INET;
+	addr4->sin_addr.s_addr = *(uint32_t *) rdata;
 	return 0;
 }
 
@@ -236,7 +228,6 @@ gtp_resolv_srv_a(gtp_pgw_t *pgw)
 	int ret, i, err;
 	ns_msg msg;
 	ns_rr rr;
-	size_t offset;
 	struct sockaddr_storage *nsaddr;
 
 	/* Name Server selection */
@@ -268,13 +259,11 @@ gtp_resolv_srv_a(gtp_pgw_t *pgw)
 		if (err < 0)
 			continue;
 
-		/* That is crappy here, but anyway resolver perform
-		 * string stuff and dont need to expand code from ns_print.
-		 */
-		memset(apn->nsdisp, 0, GTP_DISPLAY_BUFFER_LEN);
-		ns_sprintrr(&msg, &rr, NULL, NULL, apn->nsdisp, GTP_DISPLAY_BUFFER_LEN);
-                offset = ns_srvname_offset(apn->nsdisp, strlen(apn->nsdisp));
-		gtp_pgw_set(pgw, apn->nsdisp+offset, strlen(apn->nsdisp)-offset);
+		/* Ensure only A are being used */
+		if (ns_rr_type(rr) != ns_t_a)
+			continue;
+
+		gtp_pgw_set(pgw, ns_rr_rdata(rr), ns_rr_rdlen(rr));
         }
 
 	/* Context release */
@@ -294,18 +283,50 @@ gtp_resolv_pgw_srv(gtp_naptr_t *naptr)
 	return 0;
 }
 
-
 static int
-gtp_pgw_append(gtp_naptr_t *naptr, char *buffer, size_t size)
+gtp_pgw_append(gtp_naptr_t *naptr, char *name, size_t len)
 {
 	gtp_pgw_t *new;
+	struct sockaddr_in *addr4;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
 	new->naptr = naptr;
-	strncpy(new->srv_name, buffer, size);
-	list_add_tail(&new->next, &naptr->pgw);
+	strncpy(new->srv_name, name, GTP_DISPLAY_SRV_LEN);
 
+	/* Some default hard-coded value */
+	addr4 = (struct sockaddr_in *) &new->addr;
+	addr4->sin_port = htons(2123);
+	new->priority = 10;
+	new->weight = 20;
+
+	list_add_tail(&new->next, &naptr->pgw);
+	return 0;
+}
+
+static int
+gtp_pgw_alloc(gtp_naptr_t *naptr, const u_char *rdata, size_t rdlen)
+{
+	gtp_pgw_t *new;
+	const u_char *edata = rdata + rdlen;
+	struct sockaddr_in *addr4;
+	uint16_t port;
+
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->next);
+	new->naptr = naptr;
+	addr4 = (struct sockaddr_in *) &new->addr;
+
+	new->priority = ns_get16(rdata);
+	rdata += NS_INT16SZ;
+	new->weight = ns_get16(rdata);
+	rdata += NS_INT16SZ;
+	port = ns_get16(rdata);
+	addr4->sin_port = htons(port);
+	rdata += NS_INT16SZ;
+	gtp_naptr_name_strncat(new->srv_name, GTP_DISPLAY_SRV_LEN, rdata, edata);
+
+	list_add_tail(&new->next, &naptr->pgw);
 	return 0;
 }
 
@@ -317,7 +338,6 @@ gtp_resolv_naptr_srv(gtp_naptr_t *naptr)
 	int ret, i, err;
 	ns_msg msg;
 	ns_rr rr;
-	size_t offset;
 	struct sockaddr_storage *nsaddr;
 
 	/* Name Server selection */
@@ -349,13 +369,11 @@ gtp_resolv_naptr_srv(gtp_naptr_t *naptr)
 		if (err < 0)
 			continue;
 
-		/* That is crappy here, by anyway resolver perform
-		 * string stuff and dont need to expand code from ns_print.
-		 */
-		memset(apn->nsdisp, 0, GTP_DISPLAY_BUFFER_LEN);
-		ns_sprintrr(&msg, &rr, NULL, NULL, apn->nsdisp, GTP_DISPLAY_BUFFER_LEN);
-                offset = ns_srvname_offset(apn->nsdisp, strlen(apn->nsdisp));
-		gtp_pgw_append(naptr, apn->nsdisp+offset, strlen(apn->nsdisp)-offset);
+		/* Ensure only SRV are being used */
+		if (ns_rr_type(rr) != ns_t_srv)
+			continue;
+
+		gtp_pgw_alloc(naptr, ns_rr_rdata(rr), ns_rr_rdlen(rr));
         }
 
 	/* Context release */
@@ -392,32 +410,64 @@ gtp_resolv_pgw(gtp_apn_t *apn, list_head_t *l)
 	return 0;
 }
 
-
-static gtp_naptr_t *
-gtp_naptr_alloc(gtp_apn_t *apn, list_head_t *l, char *buffer, size_t size)
+static int
+gtp_naptr_alloc(gtp_apn_t *apn, list_head_t *l, const u_char *rdata, size_t rdlen)
 {
 	gtp_naptr_t *new;
+	const u_char *edata = rdata + rdlen;
+	int16_t len = 0;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->pgw);
 	INIT_LIST_HEAD(&new->next);
 	new->apn = apn;
-	strncpy(new->server, buffer, size);
-	list_add_tail(&new->next, l);
 
-	return new;
+	/* Parse ns response according to IETF-RFC2915.8 */
+	new->order = ns_get16(rdata);
+	rdata += NS_INT16SZ;
+	new->preference = ns_get16(rdata);
+	rdata += NS_INT16SZ;
+
+	/* Flags */
+	len = gtp_naptr_strncpy(new->flags, GTP_APN_MAX_LEN, rdata, edata);
+	if (len < 0)
+		goto end;
+	rdata += len;
+	if (*new->flags == 'A')
+		new->server_type = ns_t_a;
+	else if (*new->flags == 'S')
+		new->server_type = ns_t_srv;
+
+	/* Services */
+	len = gtp_naptr_strncpy(new->service, GTP_APN_MAX_LEN, rdata, edata);
+	if (len < 0)
+		goto end;
+	rdata += len;
+
+	/* REGEXP */
+	len = gtp_naptr_strncpy(new->regexp, GTP_APN_MAX_LEN, rdata, edata);
+	if (len < 0)
+		goto end;
+	rdata += len;
+
+	/* Server */
+	len = gtp_naptr_name_strncat(new->server, GTP_APN_MAX_LEN, rdata, edata);
+	if (len < 0)
+		goto end;
+
+  end:
+	list_add_tail(&new->next, l);
+	return 0;
 }
 
 
 int
 gtp_resolv_naptr(gtp_apn_t *apn, list_head_t *l)
 {
-	gtp_naptr_t *naptr;
 	struct __res_state ns_rs;
 	int ret, i, err;
 	ns_msg msg;
 	ns_rr rr;
-	size_t offset;
 	char *realm;
 	struct sockaddr_storage *nsaddr;
 
@@ -450,22 +500,18 @@ gtp_resolv_naptr(gtp_apn_t *apn, list_head_t *l)
 		return -1;
 	}
 
-        ns_initparse(apn->nsbuffer, ret, &msg);
-        ret = ns_msg_count(msg, ns_s_an);
-        for (i = 0; i < ret; i++) {
-                err = ns_parserr(&msg, ns_s_an, i, &rr);
+	ns_initparse(apn->nsbuffer, ret, &msg);
+	ret = ns_msg_count(msg, ns_s_an);
+	for (i = 0; i < ret; i++) {
+		err = ns_parserr(&msg, ns_s_an, i, &rr);
 		if (err < 0)
 			continue;
 
-		/* That is crappy here, but anyway resolver perform
-		 * string stuff and dont need to expand code from ns_print.
-		 */
-		memset(apn->nsdisp, 0, GTP_DISPLAY_BUFFER_LEN);
-		ns_sprintrr(&msg, &rr, NULL, NULL, apn->nsdisp, GTP_DISPLAY_BUFFER_LEN);
-		offset = ns_srvname_offset(apn->nsdisp, strlen(apn->nsdisp));
-		naptr = gtp_naptr_alloc(apn, l, apn->nsdisp+offset, strlen(apn->nsdisp)-offset);
-		gtp_naptr_parse_server_type(naptr, apn->nsdisp, strlen(apn->nsdisp));
-		gtp_naptr_parse_service(naptr, apn->nsdisp, strlen(apn->nsdisp));
+		/* Ensure only NAPTR are being used */
+		if (ns_rr_type(rr) != ns_t_naptr)
+			continue;
+
+		gtp_naptr_alloc(apn, l, ns_rr_rdata(rr), ns_rr_rdlen(rr));
         }
 
 	/* Context release */
@@ -495,10 +541,12 @@ gtp_pgw_show(vty_t *vty, list_head_t *l)
 	gtp_pgw_t *pgw;
 
 	list_for_each_entry(pgw, l, next) {
-		vty_out(vty, "  %s\t\t[%s]:%d%s"
+		vty_out(vty, "  %s\t\t[%s]:%d\tPrio:%d Weight:%d%s"
 			   , pgw->srv_name
 			   , inet_sockaddrtos(&pgw->addr)
 			   , ntohs(inet_sockaddrport(&pgw->addr))
+			   , pgw->priority
+			   , pgw->weight
 			   , VTY_NEWLINE);
 	}
 
@@ -514,9 +562,11 @@ gtp_naptr_show(vty_t *vty, gtp_apn_t *apn)
 	vty_out(vty, "Access-Point-Name %s%s", apn->name, VTY_NEWLINE);
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry(naptr, l, next) {
-		vty_out(vty, " %s\t(%s,%s)%s"
+		vty_out(vty, " %s\t(%s, %s, Order:%d, Pref:%d)%s"
 			   , naptr->server, (naptr->server_type == ns_t_srv) ? "SRV" : "A"
 			   , naptr->service
+			   , naptr->order
+			   , naptr->preference
 			   , VTY_NEWLINE);
 		gtp_pgw_show(vty, &naptr->pgw);
 	}
