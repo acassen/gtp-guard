@@ -125,8 +125,10 @@ gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
 		return 0;
 	}
 
+	pthread_mutex_lock(&gtp_apn_mutex);
 	list_for_each_entry(_apn, l, next)
 		gtp_naptr_show(vty, _apn);
+	pthread_mutex_unlock(&gtp_apn_mutex);
 
 	return 0;
 }
@@ -135,31 +137,31 @@ gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
  *	Service selection related
  */
 static int
-gtp_service_update(gtp_apn_t *apn)
+gtp_service_cmp(list_head_t *a, list_head_t *b)
 {
-	gtp_service_t *service;
+	gtp_service_t *sa, *sb;
 
-	list_for_each_entry(service, &apn->service_selection, next) {
-		service->naptr = __gtp_naptr_get(apn, service->str);
-	}
+	sa = container_of(a, gtp_service_t, next);
+	sb = container_of(b, gtp_service_t, next);
 
-	return 0;
+	return sa->prio - sb->prio;
 }
 
 static gtp_service_t *
-gtp_service_alloc(gtp_apn_t *apn, gtp_naptr_t *naptr, const char *str, int prio)
+gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
 {
 	gtp_service_t *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
-	new->naptr = naptr;
 	new->prio = prio;
 	if (str)
 		strncpy(new->str, str, GTP_APN_MAX_LEN - 1);
 
 	pthread_mutex_lock(&apn->mutex);
 	list_add_tail(&new->next, &apn->service_selection);
+	/* Just a few elements to be added so that is ok */
+	list_sort(&apn->service_selection, gtp_service_cmp);
 	pthread_mutex_unlock(&apn->mutex);
 
 	return new;
@@ -210,7 +212,6 @@ apn_resolv_cache_realloc(gtp_apn_t *apn)
 	pthread_mutex_lock(&apn->mutex);
 	list_copy(&old_naptr, &apn->naptr);
 	list_copy(&apn->naptr, &l);
-	gtp_service_update(apn);
 	pthread_mutex_unlock(&apn->mutex);
 
 	/* Release previous elements */
@@ -439,7 +440,7 @@ DEFUN(apn_service_selection,
 		vty_out(vty, "%% unknown service %s. Preparing for futur use%s", argv[0], VTY_NEWLINE);
 	}
 
-	gtp_service_alloc(apn, naptr, argv[0], prio);
+	gtp_service_alloc(apn, argv[0], prio);
 	__set_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags);
 
 	return CMD_SUCCESS;
@@ -615,12 +616,12 @@ apn_config_write(vty_t *vty)
 			list_for_each_entry(service, &apn->service_selection, next) {
 				if (service->prio)
 					vty_out(vty, " service-selection %s prio %d%s"
-						   , service->naptr->service
+						   , service->str
 						   , service->prio
 						   , VTY_NEWLINE);
 				else
 					vty_out(vty, " service-selection %s%s"
-						   , service->naptr->service
+						   , service->str
 						   , VTY_NEWLINE);
 			}
 		}

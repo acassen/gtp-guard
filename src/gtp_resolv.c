@@ -65,17 +65,18 @@ extern thread_master_t *master;
 /*
  *	Scheduling decision
  */
-static int
-gtp_resolv_pgw_lc(gtp_naptr_t *naptr, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+static gtp_pgw_t *
+gtp_resolv_scheduled_pgw_wlc(gtp_naptr_t *naptr, struct sockaddr_in *addr_skip)
 {
-	uint32_t loh = 0, doh;
+	uint64_t loh = 0, doh;
 	gtp_pgw_t *pgw, *least = NULL;
 	struct sockaddr_in *paddr;
 
-	if (!naptr)
-		return -1;
-
 	list_for_each_entry(pgw, &naptr->pgw, next) {
+		/* weight=0 is quiesced and will not receive any connections */
+		if (!pgw->weight)
+			continue;
+
 		paddr = (struct sockaddr_in *) &pgw->addr;
 		if (paddr->sin_addr.s_addr == addr_skip->sin_addr.s_addr)
 			continue;
@@ -86,46 +87,77 @@ gtp_resolv_pgw_lc(gtp_naptr_t *naptr, struct sockaddr_in *addr, struct sockaddr_
 			break;
 		}
 
-		if (!least || doh < loh) {
+		/* The comparison of h1*w2 > h2*w1 is equivalent to that of
+		 * h1/w1 > h2/w2 */
+		if (!least || doh*least->weight < loh*pgw->weight) {
 			least = pgw;
 			loh = doh;
 		}
 	}
 
 	if (!least)
-		return -1;
+		return NULL;
 
 	__sync_add_and_fetch(&least->cnt, 1);
-	*addr = *(struct sockaddr_in *) &least->addr;
-	return 0;
+	return least;
+}
+
+static gtp_pgw_t *
+gtp_resolv_schedule_naptr(gtp_apn_t *apn, const char *service, struct sockaddr_in *addr_skip)
+{
+	gtp_naptr_t *naptr, *least = NULL;
+	gtp_pgw_t *pgw = NULL;
+
+	/* First stage: Reset previous scheduling flags */
+	list_for_each_entry(naptr, &apn->naptr, next)
+		naptr->fl = 0;
+
+	/* Second stage : Schedule by order until pgw election */
+  shoot_again:
+	list_for_each_entry(naptr, &apn->naptr, next) {
+		if (!strstr(naptr->service, service) ||
+		    __test_bit(GTP_SCHEDULE_FL_SKIP, &naptr->fl))
+			continue;
+
+		if (!least || naptr->order < least->order)
+			least = naptr;
+	}
+
+	if (!least)
+		return NULL;
+
+	pgw = gtp_resolv_scheduled_pgw_wlc(least, addr_skip);
+	if (!pgw) {
+		least = NULL;
+		/* Same player */
+		__set_bit(GTP_SCHEDULE_FL_SKIP, &least->fl);
+		goto shoot_again;
+	}
+
+	return pgw;
 }
 
 int
-gtp_resolv_schedule_pgw(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+gtp_resolv_schedule(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
 {
-	gtp_service_t *service, *least = NULL;
-	int ret = 0;
+	gtp_service_t *service;
+	gtp_pgw_t *pgw = NULL;
 
+	/* Service selection list is already sorted by prio */
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry(service, &apn->service_selection, next) {
-		if (!service->naptr)
-			continue;
+		pgw = gtp_resolv_schedule_naptr(apn, service->str, addr_skip);
+		if (pgw) {
+			*addr = *(struct sockaddr_in *) &pgw->addr;
+			pthread_mutex_unlock(&apn->mutex);
+			return 0;
+		}
 
-		/* lower prio means high priority */
-		if (!least || service->prio < least->prio)
-			least = service;
 	}
-
-	if (!least) {
-		pthread_mutex_unlock(&apn->mutex);
-		return -1;
-	}
-
-	ret = gtp_resolv_pgw_lc(least->naptr, addr, addr_skip);
 	pthread_mutex_unlock(&apn->mutex);
-	return ret;
-}
 
+	return -1;
+}
 
 /*
  *	Resolver helpers
