@@ -285,8 +285,6 @@ gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	__gtp_session_gtpc_teid_destroy(ctx, teid);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
-
-	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -316,8 +314,6 @@ gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	__gtp_session_gtpu_teid_destroy(ctx, teid);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
-
-	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -358,8 +354,8 @@ __gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 	/* Release connection if no more sessions */
 	if (list_empty(&c->gtp_sessions)) {
 		log_message(LOG_INFO, "IMSI:%ld - no more sessions - Releasing tracking", c->imsi);
-		pthread_mutex_unlock(&c->gtp_session_mutex);
 		gtp_conn_unhash(c);
+		pthread_mutex_unlock(&c->gtp_session_mutex);
 		FREE(c);
 		return 0;
 	}
@@ -371,13 +367,8 @@ __gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 int
 gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 {
-	gtp_apn_t *apn = s->apn;
-
-	if (apn->session_lifetime) {
-		pthread_mutex_lock(&gtp_session_timer_mutex);
-		rb_erase_cached(&s->n, &gtp_session_timer);
-		pthread_mutex_unlock(&gtp_session_timer_mutex);
-	}
+	if (s->sands.tv_sec)
+		return gtp_session_expire_now(s);
 
 	return __gtp_session_destroy(ctx, s);
 }
@@ -427,6 +418,21 @@ gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
 /*
  *	Session expiration handling
  */
+int
+gtp_session_expire_now(gtp_session_t *s)
+{
+	pthread_mutex_lock(&gtp_session_timer_mutex);
+	rb_erase_cached(&s->n, &gtp_session_timer);
+	s->sands = timer_now();
+	rb_add_cached(&s->n, &gtp_session_timer, gtp_session_timer_less);
+	pthread_mutex_unlock(&gtp_session_timer_mutex);
+
+	pthread_mutex_lock(&gtp_session_expiration_mutex);
+	pthread_cond_signal(&gtp_session_expiration_cond);
+	pthread_mutex_unlock(&gtp_session_expiration_mutex);
+	return 0;
+}
+
 static int
 __gtp_session_expire(gtp_session_t *s)
 {
@@ -448,16 +454,21 @@ gtp_sessions_release(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	/* Release sessions */
+	pthread_mutex_lock(&gtp_session_timer_mutex);
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry_safe(s, _s, l, next) {
+		if (s->sands.tv_sec)
+			rb_erase_cached(&s->n, &gtp_session_timer);
 		__gtp_session_teid_destroy(c->ctx, s);
 		list_head_del(&s->next);
 		FREE(s);
 	}
+
+	gtp_conn_unhash(c);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&gtp_session_timer_mutex);
 
 	/* Release connection */
-	gtp_conn_unhash(c);
 	FREE(c);
 	return 0;
 }

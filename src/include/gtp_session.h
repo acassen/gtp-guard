@@ -60,6 +60,7 @@ extern int gtp_session_gtpc_teid_destroy(gtp_ctx_t *, gtp_teid_t *);
 extern int gtp_session_destroy(gtp_ctx_t *, gtp_session_t *);
 extern int gtp_session_set_delete_bearer(gtp_ctx_t *, gtp_session_t *, gtp_ie_eps_bearer_id_t *);
 extern int gtp_session_destroy_bearer(gtp_ctx_t *, gtp_session_t *);
+extern int gtp_session_expire_now(gtp_session_t *);
 extern int gtp_sessions_init(void);
 extern int gtp_sessions_destroy(void);
 extern int gtp_sessions_vty_init(void);

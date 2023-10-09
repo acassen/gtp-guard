@@ -157,8 +157,7 @@ gtp_request_session_close(gtp_req_session_t *s)
 			    , ntohs(inet_sockaddrport(&s->addr)));
 
 	jsonw_destroy(&s->jwriter);
-	close(s->fd);
-	fclose(s->fp);
+	fclose(s->fp);	/* Also close s->fd */
 	FREE(s);
 	return 0;
 }

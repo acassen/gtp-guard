@@ -437,7 +437,8 @@ DEFUN(apn_service_selection,
 
 	naptr = gtp_naptr_get(apn, argv[0]);
 	if (!naptr) {
-		vty_out(vty, "%% unknown service %s. Preparing for futur use%s", argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% unknown service %s. Preparing for futur use%s"
+			   , argv[0], VTY_NEWLINE);
 	}
 
 	gtp_service_alloc(apn, argv[0], prio);
