@@ -441,6 +441,7 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
 	gtp_session_t *s;
+	uint32_t *gsn_address_c;
 	bool mobility = false;
 	uint8_t *cp;
 
@@ -460,9 +461,11 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	 * that all pGW are supporting x-Gn interface */
 	if (teid->version == 2) {
 		mobility = true;
-		/* sGW is no longer accurate, update with current SGSN */
-		teid->sgw_addr = *((struct sockaddr_in *) addr);
+		teid->version = 1;
 	}
+
+	/* Update GTP-C with current SGSN */
+	teid->sgw_addr = *((struct sockaddr_in *) addr);
 
 	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x}%s"
 			    , ntohl(h->teid)
@@ -490,12 +493,18 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	/* Performing session translation */
 	t = gtp1_session_xlat(w, s);
 	if (!t) {
+		/* No GTP-C IE, if related GSN Address present then xlat it */
+		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+		if (cp) {
+			gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+			*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
+		}
+
 		/* There is no GTP-C update, so just forward */
 		return teid;
 	}
 
-	if (mobility)
-		t->mobility_teid = teid;
+	t->mobility_teid = (mobility) ? teid : NULL;
 
 	/* No peer teid so new teid */
 	if (!t->peer_teid) {

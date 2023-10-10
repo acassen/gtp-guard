@@ -175,8 +175,9 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
 	gtp_teid_t *teid = NULL;
-	uint8_t *cp, *cp_bid;
+	uint8_t *cp, *cp_bid, *end;
 	gtp_ie_eps_bearer_id_t *bearer_id = NULL;
+	gtp_ie_t *ie;
 	size_t size;
 
 	gtpc_session_xlat_recovery(w);
@@ -200,7 +201,10 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	size = w->buffer_size - (cp - w->buffer);
 	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID, cp, size, sizeof(gtp_ie_t));
 	bearer_id = (cp_bid) ? (gtp_ie_eps_bearer_id_t *) cp_bid : NULL;
-	gtp_foreach_ie(GTP_IE_F_TEID_TYPE, cp, sizeof(gtp_ie_t), w, s, bearer_id, gtp_append_gtpu);
+	ie = (gtp_ie_t *) cp;
+	end = cp + sizeof(gtp_ie_t) + ntohs(ie->length);
+	gtp_foreach_ie(GTP_IE_F_TEID_TYPE, cp, sizeof(gtp_ie_t), end,
+		       w, s, bearer_id, gtp_append_gtpu);
 
 	return teid;
 }
@@ -569,6 +573,7 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
 	gtp_session_t *s;
+	bool mobility = false;
 	uint8_t *cp;
 
 	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
@@ -579,7 +584,18 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 		return NULL;
 	}
 
-	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
+	/* Mobility from 3G to 4G */
+	if (teid->version == 1) {
+		mobility = true;
+		teid->version = 2;
+	}
+
+	/* Update GTP-C with current sGW*/
+	teid->sgw_addr = *((struct sockaddr_in *) addr);
+
+	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x}%s"
+			    , ntohl(teid->id)
+			    , mobility ? " (3G Mobility)" : "");
 
 	/* IMSI rewrite if needed */
 	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);

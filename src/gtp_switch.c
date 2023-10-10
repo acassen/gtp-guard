@@ -77,10 +77,10 @@ gtp_switch_udp_init(gtp_srv_t *srv)
 
 	/* Create UDP Listener */
 	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
-	fd = if_setsockopt_reuseaddr(fd, 1);
-	fd = if_setsockopt_reuseport(fd, 1);
-	fd = if_setsockopt_rcvtimeo(fd, 1000);
-	fd = if_setsockopt_sndtimeo(fd, 1000);
+	fd = (fd < 0) ? fd : if_setsockopt_reuseaddr(fd, 1);
+	fd = (fd < 0) ? fd : if_setsockopt_reuseport(fd, 1);
+	fd = (fd < 0) ? fd : if_setsockopt_rcvtimeo(fd, 1000);
+	fd = (fd < 0) ? fd : if_setsockopt_sndtimeo(fd, 1000);
 	if (fd < 0) {
 		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
 				    , __FUNCTION__
