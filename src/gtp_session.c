@@ -115,7 +115,7 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 	/* Walk the line */
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry(s, l, next) {
-		if (s->sands.tv_sec) {
+		if (timerisset(&s->sands)) {
 			timeout = s->sands.tv_sec - time_now.tv_sec;
 			snprintf(s->tmp_str, 63, "%ld secs", timeout);
 		}
@@ -125,7 +125,7 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 			   , s->id, s->apn->name
 			   , t->tm_mday, t->tm_mon+1, t->tm_year+1900
 			   , t->tm_hour, t->tm_min, t->tm_sec
-			   , (s->sands.tv_sec) ? s->tmp_str : "never"
+			   , timerisset(&s->sands) ? s->tmp_str : "never"
 			   , VTY_NEWLINE);
 		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
 		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
@@ -145,7 +145,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 	/* Walk the line */
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry(s, l, next) {
-		if (s->sands.tv_sec) {
+		if (timerisset(&s->sands)) {
 			timeout = s->sands.tv_sec - time_now.tv_sec;
 			snprintf(s->tmp_str, 63, "%ld secs", timeout);
 		}
@@ -153,7 +153,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 		if (!apn) {
 			vty_out(vty, "| %.15ld | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
 				   , c->imsi, s->apn->name, s->id, s->refcnt
-				   , (s->sands.tv_sec) ? s->tmp_str : "never"
+				   , timerisset(&s->sands) ? s->tmp_str : "never"
 				   , VTY_NEWLINE);
 			apn = s->apn;
 			continue;
@@ -162,7 +162,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 		vty_out(vty, "|                 | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
 			   , (apn == s->apn) ? "" : s->apn->name
 			   , s->id, s->refcnt
-			   , (s->sands.tv_sec) ? s->tmp_str : "never"
+			   , timerisset(&s->sands) ? s->tmp_str : "never"
 			   , VTY_NEWLINE);
 		apn = s->apn;
 	}
@@ -367,7 +367,7 @@ __gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 int
 gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 {
-	if (s->sands.tv_sec)
+	if (timerisset(&s->sands))
 		return gtp_session_expire_now(s);
 
 	return __gtp_session_destroy(ctx, s);
@@ -423,7 +423,7 @@ gtp_session_expire_now(gtp_session_t *s)
 {
 	pthread_mutex_lock(&gtp_session_timer_mutex);
 	rb_erase_cached(&s->n, &gtp_session_timer);
-	s->sands = timer_now();
+	gettimeofday(&s->sands, NULL);
 	rb_add_cached(&s->n, &gtp_session_timer, gtp_session_timer_less);
 	pthread_mutex_unlock(&gtp_session_timer_mutex);
 
@@ -457,7 +457,7 @@ gtp_sessions_release(gtp_conn_t *c)
 	pthread_mutex_lock(&gtp_session_timer_mutex);
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry_safe(s, _s, l, next) {
-		if (s->sands.tv_sec)
+		if (timerisset(&s->sands))
 			rb_erase_cached(&s->n, &gtp_session_timer);
 		__gtp_session_teid_destroy(c->ctx, s);
 		list_head_del(&s->next);
@@ -474,7 +474,7 @@ gtp_sessions_release(gtp_conn_t *c)
 }
 
 static void
-gtp_sessions_expire(void)
+gtp_sessions_expire(timeval_t *now)
 {
 	gtp_session_t *s;
 	rb_node_t *s_node;
@@ -483,7 +483,7 @@ gtp_sessions_expire(void)
 	while ((s_node = rb_first_cached(&gtp_session_timer))) {
 		s = rb_entry(s_node, gtp_session_t, n);
 
-		if (timercmp(&time_now, &s->sands, <))
+		if (timercmp(now, &s->sands, <))
 			break;
 
 		__gtp_session_expire(s);
@@ -494,8 +494,8 @@ gtp_sessions_expire(void)
 void *
 gtp_sessions_task(void *arg)
 {
-	struct timeval tval;
 	struct timespec timeout;
+	timeval_t now;
 
         /* Our identity */
         prctl(PR_SET_NAME, "session_expiration", 0, 0, 0, 0);
@@ -503,9 +503,9 @@ gtp_sessions_task(void *arg)
   session_process:
 	/* Schedule interruptible timeout */
 	pthread_mutex_lock(&gtp_session_expiration_mutex);
-	gettimeofday(&tval, NULL);
-	timeout.tv_sec = tval.tv_sec + 1;
-	timeout.tv_nsec = tval.tv_usec * 1000;
+	gettimeofday(&now, NULL);
+	timeout.tv_sec = now.tv_sec + 1;
+	timeout.tv_nsec = now.tv_usec * 1000;
 	pthread_cond_timedwait(&gtp_session_expiration_cond, &gtp_session_expiration_mutex, &timeout);
 	pthread_mutex_unlock(&gtp_session_expiration_mutex);
 
@@ -513,7 +513,7 @@ gtp_sessions_task(void *arg)
 		goto session_finish;
 
 	/* Expiration handling */
-	gtp_sessions_expire();
+	gtp_sessions_expire(&now);
 
 	goto session_process;
 
