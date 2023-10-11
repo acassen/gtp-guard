@@ -454,22 +454,12 @@ gtp_sessions_release(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	/* Release sessions */
-	pthread_mutex_lock(&gtp_session_timer_mutex);
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry_safe(s, _s, l, next) {
-		if (timerisset(&s->sands))
-			rb_erase_cached(&s->n, &gtp_session_timer);
-		__gtp_session_teid_destroy(c->ctx, s);
-		list_head_del(&s->next);
-		FREE(s);
+		gtp_session_expire_now(s);
 	}
-
-	gtp_conn_unhash(c);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
-	pthread_mutex_unlock(&gtp_session_timer_mutex);
 
-	/* Release connection */
-	FREE(c);
 	return 0;
 }
 
