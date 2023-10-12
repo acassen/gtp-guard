@@ -47,6 +47,7 @@
 #include "gtp_dlock.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_sched.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_teid.h"
@@ -351,7 +352,7 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 		goto end;
 	}
 
-	ret = gtp_resolv_schedule(apn, &teid->pgw_addr, &teid->sgw_addr);
+	ret = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
 	if (ret < 0) {
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__

@@ -24,6 +24,7 @@
 
 /* defines */
 #define GTP_APN_MAX_LEN		256
+#define GTP_REALM_LEN		128
 #define GTP_RESOLV_BUFFER_LEN	20*1024
 #define GTP_DISPLAY_BUFFER_LEN	512
 #define GTP_DISPLAY_SRV_LEN	256
@@ -49,7 +50,7 @@ typedef struct _gtp_apn {
 	char			name[GTP_APN_MAX_LEN];
 	u_char			nsbuffer[GTP_RESOLV_BUFFER_LEN];
 	char			nsdisp[GTP_DISPLAY_BUFFER_LEN];
-	char			realm[GTP_PATH_MAX];
+	char			realm[GTP_REALM_LEN];
 	struct sockaddr_storage	nameserver;
 	uint8_t			resolv_max_retry;
 	int			resolv_cache_update;

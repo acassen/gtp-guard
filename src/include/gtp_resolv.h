@@ -76,7 +76,6 @@ typedef struct _gtp_service {
 extern int gtp_naptr_destroy(list_head_t *);
 extern int gtp_naptr_show(vty_t *vty, gtp_apn_t *);
 extern gtp_naptr_t *gtp_naptr_get(gtp_apn_t *, const char *);
-extern int gtp_resolv_schedule(gtp_apn_t *, struct sockaddr_in *, struct sockaddr_in *);
 extern int gtp_resolv_pgw(gtp_apn_t *, list_head_t *);
 extern int gtp_resolv_naptr(gtp_apn_t *, list_head_t *);
 extern int gtp_resolv_init(void);
