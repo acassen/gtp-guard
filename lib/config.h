@@ -25,7 +25,7 @@
 #define LOG_FACILITY_MAX        7
 #define PROG                    "gtp-guard"
 #define PROG_PID_FILE		"/var/run/gtp-guard.pid"
-#define VERSION_STRING PROG	" v1.0.0 (2023/07/14)"
+#define VERSION_STRING PROG	" v1.0.1 (2023/10/16)"
 #define COPYRIGHT_STRING	"Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>"
 
 
