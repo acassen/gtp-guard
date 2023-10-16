@@ -697,16 +697,15 @@ gtpc_modify_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	 * 3GPP.TS.29.274 8.4 */
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
 	if (cp) {
+		oteid = teid->old_teid;
 		ie_cause = (gtp_ie_cause_t *) cp;
 		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
 		    ie_cause->value <= 63) {
-			oteid = teid->old_teid;
 			if (oteid) {
 				gtp_teid_bind(oteid->peer_teid, teid);
 				gtp_session_gtpc_teid_destroy(ctx, oteid);
 			}
 		} else {
-			oteid = teid->old_teid;
 			if (oteid) {
 				/* SQN masq */
 				gtp_sqn_restore(w, oteid->peer_teid);

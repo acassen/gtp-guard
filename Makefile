@@ -67,7 +67,8 @@ uninstall:
 
 install:
 	install -d $(prefix)
-	install -m 700 $(BIN)/$(EXEC) $(sbindir)
+	install -m 700 $(BIN)/$(EXEC) $(sbindir)/$(EXEC)-$(VERSION)
+	ln -sf $(sbindir)/$(EXEC)-$(VERSION) $(sbindir)/$(EXEC)
 
 tarball: clean
 	@mkdir $(EXEC)-$(VERSION)

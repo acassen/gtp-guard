@@ -44,7 +44,6 @@ typedef struct _gtp_teid {
 	struct _gtp_teid	*peer_teid;	/* Linked TEID */
 	struct _gtp_teid	*old_teid;	/* Old Linked TEID */
 	struct _gtp_teid	*bearer_teid;	/* GTP-C Bearer TEID */
-	struct _gtp_teid	*mobility_teid;	/* GTP-C Mobility TEID */
 
 	uint8_t			action;
 	uint32_t		refcnt;

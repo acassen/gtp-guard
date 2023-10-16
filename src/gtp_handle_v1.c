@@ -505,8 +505,6 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 		return teid;
 	}
 
-	t->mobility_teid = (mobility) ? teid : NULL;
-
 	/* No peer teid so new teid */
 	if (!t->peer_teid) {
 		/* Set tunnel endpoint */
@@ -536,9 +534,8 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp1_ie_cause_t *ie_cause = NULL;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	gtp_teid_t *teid = NULL, *t, *teid_u, *t_u = NULL, *oteid;
+	gtp_teid_t *teid = NULL, *t, *teid_u, *oteid;
 	uint32_t *gsn_address_c;
-	bool accepted = false;
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
@@ -570,24 +567,6 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	/* TEID set */
 	h->teid = teid->id;
 
-	/* Test cause code, destroy if <> success.
-	 * 3GPP.TS.29.274 8.4 */
-	cp = gtp1_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
-	if (cp) {
-		ie_cause = (gtp1_ie_cause_t *) cp;
-		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
-		    ie_cause->value < GTP1_CAUSE_NON_EXISTENT) {
-			accepted = true;
-		} else {
-			oteid = teid->old_teid;
-			if (oteid) {
-				/* SQN masq */
-				gtp_sqn_restore(w, oteid->peer_teid);
-			}
-			return teid;
-		}
-	}
-
 	/* Performing session translation */
 	t = gtp1_session_xlat(w, teid->session);
 	if (!t) {
@@ -597,52 +576,31 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 			gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
 			*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
 		}
-
-
-		/* No GTP-C present so refering to previous one. Ensure
-		 * binding with GTP-U is set if not do it. */
-		teid_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, teid->sqn);
-		if (h->seq)
-			t_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, h->sqn);
-		gtp_teid_bind(teid_u, t_u);
-
-		/* Mobility binding */
-		if (teid->mobility_teid && accepted)
-			gtp_teid_bind(teid, teid->mobility_teid);
-
-		/* SQN masq */
-		gtp_sqn_restore(w, (teid->peer_teid) ? teid->peer_teid : teid);
-
-		return teid;
 	}
 
 	/* If binding already exist then bearer update already done */
 	if (teid->peer_teid)
 		goto end;
 
-	if (accepted) {
+	/* Test cause code, destroy if <> success.
+	 * 3GPP.TS.29.274 8.4 */
+	cp = gtp1_get_ie(GTP1_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
 		oteid = teid->old_teid;
-		if (oteid) {
-			gtp_teid_bind(oteid->peer_teid, teid);
-			gtp_session_gtpc_teid_destroy(ctx, oteid);
+		ie_cause = (gtp1_ie_cause_t *) cp;
+		if (ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
+		    ie_cause->value < GTP1_CAUSE_NON_EXISTENT) {
+			if (oteid) {
+				gtp_teid_bind(oteid->peer_teid, teid);
+				gtp_session_gtpc_teid_destroy(ctx, oteid);
+			}
+		} else {
+			if (oteid) {
+				/* SQN masq */
+				gtp_sqn_restore(w, oteid->peer_teid);
+			}
+			return teid;
 		}
-
-		/* New GTP-C binding */
-		gtp_teid_bind(teid, t);
-
-		/* New GTP-U binding */
-		teid_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, teid->sqn);
-		t_u = gtp_session_gtpu_teid_get_by_sqn(teid->session, t->sqn);
-		gtp_teid_bind(teid_u, t_u);
-
-		/* GTP-C <-> GTP-U ref */
-		teid->bearer_teid = teid_u;
-		t->bearer_teid = t_u;
-
-		/* SQN masq */
-		gtp_sqn_restore(w, teid);
-
-		return teid;
 	}
 
 	/* Bearer cause handling */
