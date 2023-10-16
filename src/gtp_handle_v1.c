@@ -315,7 +315,7 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	}
 
 	/* Create a vSQN */
-	gtp_vsqn_alloc(w, teid);
+	gtp_vsqn_alloc(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Set addr tunnel endpoint */
@@ -485,7 +485,7 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid);
+	gtp_vsqn_update(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Update last sGW visited */
@@ -687,7 +687,7 @@ gtp1_delete_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid);
+	gtp_vsqn_update(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	return teid;

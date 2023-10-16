@@ -122,22 +122,25 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 }
 
 int
-gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid)
+gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	uint32_t *sqn = &ctx->seqnum;
-	uint32_t sqn_max = -1, vsqn;
+	uint32_t sqn_max = ~(1 << 31) >> 8; /* MSB is reserved */
+	uint32_t vsqn;
 
 	/* nbytes counter circle */
-	sqn_max >>= 8;
 	if (!*sqn || *sqn >= sqn_max)
 		*sqn = 0x0f;
 	__sync_add_and_fetch(sqn, 1);
 
 	/* In GTPv2 simply shift 8bit for spare field */
 	vsqn = (gtph->version == 2) ? *sqn << 8 : *sqn;
+
+	if (set_msb)
+		vsqn |= 1 << 31;
 
 	/* Hash it */
 	gtp_vsqn_hash(&ctx->vsqn_tab, teid, vsqn);
@@ -146,14 +149,14 @@ gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid)
 }
 
 int
-gtp_vsqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid)
+gtp_vsqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
 {
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 
 	if (teid->sqn)
 		gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
-	gtp_vsqn_alloc(w, teid);
+	gtp_vsqn_alloc(w, teid, set_msb);
 
 	return 0;
 }

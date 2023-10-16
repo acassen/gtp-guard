@@ -337,7 +337,7 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	}
 
 	/* Create a vSQN */
-	gtp_vsqn_alloc(w, teid);
+	gtp_vsqn_alloc(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Set addr tunnel endpoint */
@@ -491,7 +491,7 @@ gtpc_delete_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid);
+	gtp_vsqn_update(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Performing session translation */
@@ -610,7 +610,7 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid);
+	gtp_vsqn_update(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Performing session translation */
@@ -761,7 +761,7 @@ gtpc_delete_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid);
+	gtp_vsqn_update(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* TEID set */
@@ -861,6 +861,61 @@ gtpc_generic_xlat_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr
 	gtp_teid_t *teid, *t;
 	gtp_session_t *s;
 	uint8_t *cp;
+	uint32_t sqn;
+
+	/* Virtual TEID mapping */
+	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	if (!teid) {
+		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
+				    , __FUNCTION__
+				    , ntohl(h->teid));
+		return NULL;
+	}
+
+	/* IMSI rewrite if needed */
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	if (cp) {
+		gtp_ie_imsi_rewrite(teid->session->apn, cp);
+	}
+
+	/* 3GPP TS 29.274 section 7.6 : if MSB is set then simply
+	 * be transitive to the message sqn since it is related to
+	 * a previous Command message otherwise update SQN */
+	sqn = (h->teid_presence) ? ntohl(h->sqn) : ntohl(h->sqn_only);
+	if (sqn & (1 << 31)) {
+		t = gtp_vsqn_get(&ctx->vsqn_tab, sqn);
+		if (t) {
+			gtp_sqn_restore(w, t);
+		}
+	} else {
+		gtp_sqn_update(w, teid);
+		gtp_vsqn_update(w, teid, false);
+		gtp_sqn_masq(w, teid);
+	}
+
+	/* TEID set */
+	h->teid = teid->id;
+	s = teid->session;
+
+	/* Performing session translation */
+	t = gtpc_session_xlat(w, s);
+	if (t) {
+		gtpc_generic_setaddr(w, addr, teid, t);
+		gtp_teid_put(t);
+	}
+
+	return teid;
+}
+
+static gtp_teid_t *
+gtpc_generic_xlat_command_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_srv_t *srv = w->srv;
+	gtp_ctx_t *ctx = srv->ctx;
+	gtp_teid_t *teid, *t;
+	gtp_session_t *s;
+	uint8_t *cp;
 
 	/* Virtual TEID mapping */
 	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
@@ -879,7 +934,7 @@ gtpc_generic_xlat_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid);
+	gtp_vsqn_update(w, teid, true);
 	gtp_sqn_masq(w, teid);
 
 	/* TEID set */
@@ -1008,12 +1063,13 @@ static const struct {
 	[GTP_MODIFY_BEARER_RESPONSE_TYPE]	= { gtpc_modify_bearer_response_hdl },
 	[GTP_DELETE_BEARER_REQUEST]		= { gtpc_delete_bearer_request_hdl },
 	[GTP_DELETE_BEARER_RESPONSE]		= { gtpc_delete_bearer_response_hdl },
+	/* Generic command xlat */
+	[GTP_MODIFY_BEARER_COMMAND]		= { gtpc_generic_xlat_command_hdl },
+	[GTP_DELETE_BEARER_COMMAND]		= { gtpc_generic_xlat_command_hdl },
+	[GTP_BEARER_RESSOURCE_COMMAND]		= { gtpc_generic_xlat_command_hdl },
 	/* Generic request xlat */
 	[GTP_CHANGE_NOTIFICATION_REQUEST_REQUEST] = { gtpc_generic_xlat_request_hdl },
 	[GTP_RESUME_NOTIFICATION]		= { gtpc_generic_xlat_request_hdl },
-	[GTP_MODIFY_BEARER_COMMAND]		= { gtpc_generic_xlat_request_hdl },
-	[GTP_DELETE_BEARER_COMMAND]		= { gtpc_generic_xlat_request_hdl },
-	[GTP_BEARER_RESSOURCE_COMMAND]		= { gtpc_generic_xlat_request_hdl },
 	[GTP_CREATE_BEARER_REQUEST]		= { gtpc_generic_xlat_request_hdl },
 	[GTP_UPDATE_BEARER_REQUEST]		= { gtpc_generic_xlat_request_hdl },
 	[GTP_UPDATE_PDN_CONNECTION_SET_REQUEST]	= { gtpc_generic_xlat_request_hdl },
