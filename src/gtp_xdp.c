@@ -379,7 +379,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 	}
 
 	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sz) == 0) {
+	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
 		key = next_key;
 		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
 		if (err) {
@@ -567,7 +567,7 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 
 	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sz) == 0) {
+	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
 		key = next_key;
 		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
 		if (err) {

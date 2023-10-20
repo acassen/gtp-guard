@@ -23,7 +23,7 @@ EXEC = gtp-guard
 BIN  = bin
 VERSION := $(shell cat VERSION)
 TARBALL = $(EXEC)-$(VERSION).tar.xz
-TARFILES = AUTHOR VERSION LICENSE README.md bin conf src lib Makefile
+TARFILES = AUTHOR VERSION LICENSE README.md bin src lib Makefile libbpf
 
 prefix = /usr/local
 exec_prefix = ${prefix}

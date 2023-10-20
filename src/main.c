@@ -74,7 +74,6 @@ stop_gtp(void)
 	gtp_conn_destroy();
 
 	free_daemon_data();
-	FREE_PTR(conf_file);
 	thread_destroy_master(master);
 
 #ifdef _DEBUG_
@@ -208,12 +207,9 @@ parse_cmdline(int argc, char **argv)
 			break;
 		case 'S':
 			log_facility = LOG_FACILITY[atoi(optarg)].facility;
-			free(optarg);
 			break;
 		case 'f':
-			conf_file = (char *) MALLOC(256);
-			strncpy(conf_file, optarg, 255);
-			free(optarg);
+			conf_file = optarg;
 			break;
 		case '?':
 			if (optopt && argv[curind][1] != '-')
