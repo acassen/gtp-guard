@@ -166,9 +166,6 @@ gtp_switch_worker_task(void *arg)
 
 	/* Infinita tristessa */
 	for (;;) {
-		/* Dead-Peer-Detection */
-
-
 		/* Perform ingress packet handling */
 		w->buffer_size = gtp_switch_udp_recvfrom(w, (struct sockaddr *) &addr_from
 							  , &addrlen);
@@ -180,10 +177,6 @@ gtp_switch_worker_task(void *arg)
 					    , pname);
 			goto end;
 		}
-#if 0
-		printf("-----[ Incoming Buffer (%s) (%ld)]------\n", pname, w->buffer_size);
-		dump_buffer("GTP ", (char *)w->buffer, w->buffer_size);
-#endif
 
 		/* GTP-U handling */
 		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {

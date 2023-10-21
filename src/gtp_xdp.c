@@ -69,6 +69,16 @@ static xdp_exported_maps_t xdpfwd_maps[XDPFWD_MAP_CNT];
 /*
  *	XDP related
  */
+static int
+gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list args)
+{
+	if (level == LIBBPF_DEBUG && !(debug & 16))
+		return 0;
+
+	log_message(LOG_INFO, format, args);
+	return 0;
+}
+
 static void
 gtp_bpf_cleanup_maps(struct bpf_object *obj, gtp_bpf_opts_t *opts)
 {
@@ -88,7 +98,9 @@ gtp_bpf_cleanup_maps(struct bpf_object *obj, gtp_bpf_opts_t *opts)
 			vty_out(vty, "%% eBPF: error preparing path for map(%s)%s"
 				   , bpf_map__name(map), VTY_NEWLINE);
 			return;
-		} else if (len > GTP_PATH_MAX) {
+		}
+
+		if (len > GTP_PATH_MAX) {
 			vty_out(vty, "%% eBPF error, pathname too long to store map(%s)%s"
 				   , bpf_map__name(map), VTY_NEWLINE);
 			return;
@@ -589,4 +601,21 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 		   , VTY_NEWLINE);
 	free(r);
         return 0;
+}
+
+
+/*
+ *	XDP init
+ */
+int
+gtp_xdp_init(void)
+{
+	libbpf_set_print(gtp_bpf_log_message);
+	return 0;
+}
+
+int
+gtp_xdp_destroy(void)
+{
+	return 0;
 }

@@ -51,6 +51,7 @@
 #include "gtp_conn.h"
 #include "gtp_teid.h"
 #include "gtp_session.h"
+#include "gtp_xdp.h"
 #include "main.h"
 
 /* Log facility table */
@@ -72,6 +73,7 @@ stop_gtp(void)
 	cmd_terminate();
 	gtp_sessions_destroy();
 	gtp_conn_destroy();
+	gtp_xdp_destroy();
 
 	free_daemon_data();
 	thread_destroy_master(master);
@@ -97,6 +99,7 @@ start_gtp(void)
 	vty_init();
 	gtp_vty_init();
 	sort_node();
+	gtp_xdp_init();
 	gtp_conn_init();
 	gtp_sessions_init();
 
@@ -146,13 +149,14 @@ usage(const char *prog)
 		"  %s --dont-fork          -n    Dont fork the daemon process.\n"
 		"  %s --use-file           -f    Use the specified configuration file.\n"
 		"                                Default is /etc/gtp-guard/gtp-guard.conf.\n"
+		"  %s --enable-bpf-debug   -b    Enable verbose libbpf log debug.\n"
 		"  %s --dump-conf          -d    Dump the configuration data.\n"
 		"  %s --log-console        -l    Log message to stderr.\n"
 		"  %s --log-detail         -D    Detailed log messages.\n"
 		"  %s --log-facility       -S    0-7 Set syslog facility to LOG_LOCAL[0-7]. (default=LOG_DAEMON)\n"
 		"  %s --help               -h    Display this short inlined help screen.\n"
 		"  %s --version            -v    Display the version number\n",
-		prog, prog, prog, prog, prog, prog, prog, prog);
+		prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* Command line parser */
@@ -168,6 +172,7 @@ parse_cmdline(int argc, char **argv)
 		{"log-facility",	required_argument,	NULL, 'S'},
 		{"dont-fork",		no_argument,		NULL, 'n'},
 		{"dump-conf",		no_argument,		NULL, 'd'},
+		{"enable-bpf-debug",	no_argument,		NULL, 'b'},
 		{"use-file",		required_argument,	NULL, 'f'},
 		{"version",		no_argument,		NULL, 'v'},
 		{"help",		no_argument,		NULL, 'h'},
@@ -175,7 +180,7 @@ parse_cmdline(int argc, char **argv)
 	};
 
 	curind = optind;
-	while (longindex = -1, (c = getopt_long(argc, argv, ":vhlndDf:S:"
+	while (longindex = -1, (c = getopt_long(argc, argv, ":vhlndDbf:S:"
 						, long_options, &longindex)) != -1) {
 		if (longindex >= 0 && long_options[longindex].has_arg == required_argument &&
 		    optarg && !optarg[0]) {
@@ -204,6 +209,9 @@ parse_cmdline(int argc, char **argv)
 			break;
 		case 'D':
 			debug |= 8;
+			break;
+		case 'b':
+			debug |= 16;
 			break;
 		case 'S':
 			log_facility = LOG_FACILITY[atoi(optarg)].facility;

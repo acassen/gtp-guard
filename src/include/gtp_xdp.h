@@ -76,5 +76,7 @@ extern int gtp_xdpfwd_vty(vty_t *);
 extern int gtp_xdp_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_iptnl_vty(vty_t *);
 extern int gtp_xdp_iptnl_teid_vty(vty_t *);
+extern int gtp_xdp_init(void);
+extern int gtp_xdp_destroy(void);
 
 #endif
