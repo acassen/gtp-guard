@@ -546,6 +546,12 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 		gtpf = gtpu_teid_frag_get(iph, &frag_off, &ipfl);
 		if (gtpf)
 			return gtpu_xlat_frag(pkt, ethh, iph, gtpf->dst_addr);
+
+		/* MISS but fragment offset present, this is an ordering issue.
+		 * We simply drop to not flood kernel with unsollicited ip_frag.
+		 */
+		if (frag_off != 0)
+			return XDP_DROP;
 	}
 
 	udph = data + offset + sizeof(struct iphdr);
