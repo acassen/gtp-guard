@@ -168,6 +168,24 @@ gtpc_handle_post(gtp_srv_worker_t *w, gtp_teid_t *teid)
  *	GTP-U Message handle
  */
 static gtp_teid_t *
+gtpu_echo_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+{
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_ie_recovery_t *rec;
+
+	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
+	h->type = GTPU_ECHO_RSP_TYPE;
+	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
+	w->buffer_size += sizeof(gtp1_ie_recovery_t);
+
+	rec = (gtp1_ie_recovery_t *) (w->buffer + gtp1_get_header_len(h));
+	rec->type = GTP1_IE_RECOVERY_TYPE;
+	rec->recovery = 0;
+
+	return &dummy_teid;
+}
+
+static gtp_teid_t *
 gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_srv_t *srv = w->srv;
@@ -259,8 +277,9 @@ gtpu_end_marker_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 static const struct {
 	gtp_teid_t * (*hdl) (gtp_srv_worker_t *, struct sockaddr_storage *);
 } gtpu_msg_hdl[0xff] = {
+	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
-	[GTPU_END_MARKER_TYPE]			= { gtpu_end_marker_hdl },
+	[GTPU_END_MARKER_TYPE]			= { gtpu_end_marker_hdl	},
 };
 
 gtp_teid_t *
@@ -278,8 +297,9 @@ gtpu_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 		return (*(gtpu_msg_hdl[gtph->type].hdl)) (w, addr);
 
 	/* Not supported */
-	log_message(LOG_INFO, "%s(): GTP-U/path-mgt msg_type:0x%.2x not supported..."
+	log_message(LOG_INFO, "%s(): GTP-U/path-mgt msg_type:0x%.2x from %s not supported..."
 			    , __FUNCTION__
+			    , inet_sockaddrtos(addr)
 			    , gtph->type);
 	return NULL;
 }
