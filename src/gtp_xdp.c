@@ -166,7 +166,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	struct bpf_link *bpf_lnk;
 	char errmsg[STRERR_BUFSIZE];
 	vty_t *vty = opts->vty;
-	int len;
+	int len, err;
 
 	/* Preprare pin_dir. We decided ifindex to be part of
 	 * path to be able to load same bpf program on different
@@ -174,16 +174,16 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	len = snprintf(opts->pin_root_path, GTP_PATH_MAX, "%s/%d"
 					  , pin_basedir, opts->ifindex);
 	if (len < 0) {
-		vty_out(vty, "%% Error preparing eBPF pin_dir for ifindex:%d%s"
-			   , opts->ifindex
-			   , VTY_NEWLINE);
+		log_message(LOG_INFO, "%s(): Error preparing eBPF pin_dir for ifindex:%d"
+				    , __FUNCTION__
+				    , opts->ifindex);
 		return -1;
 	}
 
 	if (len > GTP_PATH_MAX) {
-		vty_out(vty, "%% Error preparing eBPF pin_dir for ifindex:%d (path_too_long)%s"
-			   , opts->ifindex
-			   , VTY_NEWLINE);
+		log_message(LOG_INFO, "%s(): Error preparing eBPF pin_dir for ifindex:%d (path_too_long)"
+				    , __FUNCTION__
+				    , opts->ifindex);
 		return -1;
 	}
 
@@ -196,30 +196,40 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	if (opts->progname[0]) {
 		bpf_prog = bpf_object__find_program_by_name(bpf_obj, opts->progname);
 		if (!bpf_prog) {
-			vty_out(vty, "%% eBPF: unknown program:%s (fallback to first one)%s"
-				   , opts->progname
-				   , VTY_NEWLINE);
+			log_message(LOG_INFO, "%s(): eBPF: unknown program:%s (fallback to first one)"
+					    , __FUNCTION__
+					    , opts->progname);
 		}
 	}
 
 	if (!bpf_prog) {
 		bpf_prog = bpf_object__next_program(bpf_obj, NULL);
 		if (!bpf_prog) {
-			vty_out(vty, "%% eBPF: no program found in file:%s%s"
-				   , opts->filename
-				   , VTY_NEWLINE);
+			log_message(LOG_INFO, "%s(): eBPF: no program found in file:%s"
+					    , __FUNCTION__
+					    , opts->filename);
 			goto err;
 		}
+	}
+
+	/* Detach previously stalled XDP programm */
+	err = bpf_xdp_detach(opts->ifindex, XDP_FLAGS_DRV_MODE, NULL);
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant detach previous XDP programm (%s)"
+				    , __FUNCTION__
+				    , errmsg);
 	}
 
 	/* Attach XDP */
 	bpf_lnk = bpf_program__attach_xdp(bpf_prog, opts->ifindex);
 	if (!bpf_lnk) {
 		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
-		vty_out(vty, "%% XDP: error attaching program:%s to ifindex:%d err:%d (%s)%s"
-			   , bpf_program__name(bpf_prog)
-			   , opts->ifindex
-			   , errno, errmsg, VTY_NEWLINE);
+		log_message(LOG_INFO, "%s(): XDP: error attaching program:%s to ifindex:%d err:%d (%s)"
+				    , __FUNCTION__
+				    , bpf_program__name(bpf_prog)
+				    , opts->ifindex
+				    , errno, errmsg, VTY_NEWLINE);
 		goto err;
 	}
 
