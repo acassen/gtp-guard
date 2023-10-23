@@ -808,7 +808,7 @@ gtpc_delete_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	gtpc_session_xlat_recovery(w);
 
 	/* SQN masq */
-	gtp_sqn_restore(w, teid);
+	gtp_sqn_restore(w, teid->peer_teid);
 
 	/* TEID set */
 	h->teid = teid->id;
