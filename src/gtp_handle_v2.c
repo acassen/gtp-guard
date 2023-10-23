@@ -945,6 +945,10 @@ gtpc_generic_xlat_command_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr
 	if (t) {
 		gtpc_generic_setaddr(w, addr, teid, t);
 		gtp_teid_put(t);
+	} else {
+		/* GTP-C F-TEID is not mandatory, but we need to
+		 * update peer sqn for futur request */
+		gtp_sqn_update(w, teid->peer_teid);
 	}
 
 	return teid;

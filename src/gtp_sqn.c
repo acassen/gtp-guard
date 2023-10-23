@@ -167,6 +167,9 @@ gtp_sqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid)
 	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 
+	if (!teid)
+		return -1;
+
 	if (gtph->version == 1) {
 		teid->sqn = (gtp1h->seq) ? gtp1h->sqn : 0;
 		return 0;
