@@ -439,7 +439,7 @@ __gtp_session_expire(gtp_session_t *s)
 	gtp_conn_t *c = s->conn;
 	gtp_ctx_t *ctx = c->ctx;
 
-	log_message(LOG_INFO, "IMSI:%ld - Expiring sesion-id:%ld"
+	log_message(LOG_INFO, "IMSI:%ld - Expiring sesion-id:0x%.8x"
 			    , s->conn->imsi, s->id);
 
 	rb_erase_cached(&s->n, &gtp_session_timer);

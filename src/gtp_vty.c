@@ -346,6 +346,7 @@ DEFUN(gtp_send_echo_request,
 
 	gtp_cmd_args->version = version;
 	gtp_cmd_args->count = count;
+	gtp_cmd_args->sqn = 0x2bad;
 	gtp_cmd_args->vty = vty;
 	gtp_cmd_echo_request(gtp_cmd_args);
 	return CMD_SUCCESS;

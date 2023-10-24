@@ -28,6 +28,7 @@ typedef struct _gtp_cmd_args {
 	vty_t			*vty;
 	int			version;
 	int			count;
+	uint32_t		sqn;
 	int			fd;
 	char			buffer[64];
 	size_t			buffer_len;

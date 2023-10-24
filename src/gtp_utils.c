@@ -517,14 +517,24 @@ static int
 gtp_cmd_build_gtp_v1(gtp_cmd_args_t *args)
 {
 	gtp1_hdr_t *gtph = (gtp1_hdr_t *) args->buffer;
+	gtp1_ie_recovery_t *recovery;
+	off_t hlen = sizeof(gtp1_hdr_t);
 
 	gtph->version = 1;
 	gtph->protocoltype = 1;
 	gtph->seq = 1;
 	gtph->type = GTP_ECHO_REQUEST_TYPE;
-	gtph->length = htons(4);
+	gtph->length = htons(sizeof(gtp1_ie_recovery_t) + 4);
+	gtph->sqn = htons(args->sqn++);
 
-	args->buffer_len = sizeof(gtp1_hdr_t) + ntohs(gtph->length) + 4;
+	/* Recovery is not mandatory as per 3GPP howver on the field
+	 * it seems some GTPv1 peer really need it
+	 */
+	recovery = (gtp1_ie_recovery_t *) (args->buffer + hlen);
+	recovery->type = GTP1_IE_RECOVERY_TYPE;
+	recovery->recovery = daemon_data->restart_counter;
+
+	args->buffer_len = sizeof(gtp1_hdr_t) + ntohs(gtph->length);
 	return 0;
 }
 
@@ -537,14 +547,14 @@ gtp_cmd_build_gtp_v2(gtp_cmd_args_t *args)
 
 	gtph->version = 2;
 	gtph->type = GTP_ECHO_REQUEST_TYPE;
-	gtph->length = htons(sizeof(gtp_ie_recovery_t));
+	gtph->length = htons(sizeof(gtp_ie_recovery_t) + 4);
 
 	recovery = (gtp_ie_recovery_t *) (args->buffer + hlen);
 	recovery->h.type = GTP_IE_RECOVERY_TYPE;
 	recovery->h.length = htons(1);
 	recovery->recovery = daemon_data->restart_counter;
 
-	args->buffer_len = hlen + ntohs(gtph->length);
+	args->buffer_len = hlen + ntohs(gtph->length) - 4;
 	return 0;
 }
 
@@ -585,6 +595,11 @@ gtp_cmd_read_thread(thread_ref_t thread)
 	/* Handle read timeout */
 	if (thread->type == THREAD_READ_TIMEOUT) {
 		vty_send_out(vty, ".");
+		log_message(LOG_INFO, "%s(): Timeout receiving GTPv%d Echo-Response from remote-peer [%s]:%d"
+				    , __FUNCTION__
+				    , args->version
+				    , inet_sockaddrtos(&args->addr)
+				    , ntohs(inet_sockaddrport(&args->addr)));
 		goto end;
 	}
 
@@ -598,6 +613,12 @@ gtp_cmd_read_thread(thread_ref_t thread)
 	}
 
 	vty_send_out(vty, "%s", (gtph->type == GTP_ECHO_RESPONSE_TYPE) ? "!" : "?");
+
+	log_message(LOG_INFO, "%s(): Receiving GTPv%d Echo-Response from remote-peer [%s]:%d"
+			    , __FUNCTION__
+			    , args->version
+			    , inet_sockaddrtos(&addr_from)
+			    , ntohs(inet_sockaddrport(&addr_from)));
 
   end:
 	if (!--args->count) {
@@ -650,6 +671,12 @@ gtp_cmd_write_thread(thread_ref_t thread)
 		FREE(args);
 		return;
 	}
+
+	log_message(LOG_INFO, "%s(): Sending GTPv%d Echo-Request to remote-peer [%s]:%d"
+			    , __FUNCTION__
+			    , args->version
+			    , inet_sockaddrtos(addr)
+			    , ntohs(inet_sockaddrport(addr)));
 
 	/* Register async read thread */
 	args->t_read = thread_add_read(master, gtp_cmd_read_thread, args, args->fd, 3 * TIMER_HZ, 0);
