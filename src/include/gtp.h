@@ -223,11 +223,9 @@ typedef struct _gtp_ie_bearer_context {
 } __attribute__((packed)) gtp_ie_bearer_context_t;
 
 
-/* Macro */
-#define GTP_XID_TO_SQN(__xid) htobe32(((__xid) << 8))
-#define GTP_SQN_TO_XID(__sqn) (be32toh(__sqn) >> 8)
-
-
+/*
+ *	GTP Protocol headers
+ */
 typedef struct _gtp_hdr {
 	union {
 		struct {

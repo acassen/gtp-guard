@@ -49,6 +49,7 @@
 #include "gtp_session.h"
 #include "gtp_xdp.h"
 #include "gtp_disk.h"
+#include "gtp_utils.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -225,7 +226,7 @@ DEFUN(request_channel,
       request_channel_cmd,
       "request-channel (A.B.C.D|X:X:X:X) port <1024-65535>",
       "GTP-Proxy request channel\n"
-       "IPv4 Address\n"
+      "IPv4 Address\n"
       "IPv6 Address\n"
       "listening TCP Port\n"
       "Number\n")
@@ -234,10 +235,10 @@ DEFUN(request_channel,
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, ret = 0;
 
-        if (argc < 2) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
         VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
 	if (port) ; /* Dummy test */
@@ -288,18 +289,67 @@ DEFUN(show_xdp_iptnl,
       SHOW_STR
       "GTP XDP IPIP Tunnel ruleset\n")
 {
-        int ret;
+	int ret;
 
-        ret = gtp_xdp_iptnl_vty(vty);
-        if (ret < 0) {
-                vty_out(vty, "%% Error displaying XDP ruleset%s"
-                           , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	ret = gtp_xdp_iptnl_vty(vty);
+	if (ret < 0) {
+		vty_out(vty, "%% Error displaying XDP ruleset%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
+DEFUN(gtp_send_echo_request,
+      gtp_send_echo_request_cmd,
+      "gtp send echo-request version (1|2) remote-peer (A.B.C.D|X:X:X:X) remote-port <1024-65535> [count INTEGER]",
+      "Tool to send GTP-C or GTP-U Protocol messages\n"
+      "Send Action\n"
+      "Echo Request message\n"
+      "GTP Protocol Version\n"
+      "Version 1\n"
+      "Version 2\n"
+      "Remote GTP Peer\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "Remote GTP Peer Port\n"
+      "Port\n"
+      "Number of message to send\n"
+      "Number between 1 and 20\n")
+{
+	gtp_cmd_args_t *gtp_cmd_args;
+	int version, port, ret = 0, count = 3;
+
+	if (argc < 3) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	PMALLOC(gtp_cmd_args);
+
+	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[0], 1, 2);
+	if (version) ; /* Dummy test */
+
+        VTY_GET_INTEGER_RANGE("remote-port", port, argv[2], 1024, 65535);
+	if (port) ; /* Dummy test */
+        ret = inet_stosockaddr(argv[1], argv[2], &gtp_cmd_args->addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc > 3) {
+	        VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
+		if (count) ; /* Dummy test */
+	}
+
+	gtp_cmd_args->version = version;
+	gtp_cmd_args->count = count;
+	gtp_cmd_args->vty = vty;
+	gtp_cmd_echo_request(gtp_cmd_args);
+	return CMD_SUCCESS;
+}
 
 /* Configuration writer */
 static int
@@ -357,9 +407,10 @@ gtp_vty_init(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_uplane_cmd);
 	install_element(VIEW_NODE, &show_xdp_iptnl_cmd);
+	install_element(VIEW_NODE, &gtp_send_echo_request_cmd);
 	install_element(ENABLE_NODE, &show_gtp_uplane_cmd);
 	install_element(ENABLE_NODE, &show_xdp_iptnl_cmd);
-//	install_element(ENABLE_NODE, &show_pdn_cmd);
+	install_element(ENABLE_NODE, &gtp_send_echo_request_cmd);
 
 	/* Install other VTY */
         gtp_apn_vty_init();

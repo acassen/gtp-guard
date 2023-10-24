@@ -85,7 +85,7 @@ vty_out(vty_t *vty, const char *format, ...)
 	char *tmp = NULL;
 	char *p = NULL;
 
-	if (vty_shell (vty)) {
+	if (vty_shell(vty)) {
 		va_start(args, format);
 		vprintf(format, args);
 		va_end(args);
@@ -132,6 +132,21 @@ vty_out(vty_t *vty, const char *format, ...)
 	}
 
 	return len;
+}
+
+ssize_t
+vty_send_out(vty_t *vty, const char *format, ...)
+{
+	va_list args;
+	int len = 0;
+	char buf[1024];
+
+	/* Try to write to initial buffer.  */
+	va_start(args, format);
+	len = vsnprintf(buf, sizeof(buf), format, args);
+	va_end(args);
+
+	return write(vty->fd, buf, len);
 }
 
 /* Output current time to vty. */
@@ -183,16 +198,39 @@ static void
 vty_prompt(vty_t *vty)
 {
 	struct utsname names;
-	const char*hostname;
+	const char *hostname = NULL;
 
-	if (vty->type == VTY_TERM) {
+	if (vty->type == VTY_TERM && vty->status != VTY_HOLD) {
 		hostname = host.name;
 		if (!hostname) {
 			uname(&names);
 			hostname = names.nodename;
 		}
+
 		vty_out(vty, cmd_prompt(vty->node), hostname);
 	}
+}
+
+void
+vty_prompt_hold(vty_t *vty)
+{
+	vty->status = VTY_HOLD;
+}
+
+void
+vty_prompt_restore(vty_t *vty)
+{
+	struct utsname names;
+	const char *hostname = NULL;
+
+	vty->status = VTY_NORMAL;
+	hostname = host.name;
+	if (!hostname) {
+		uname(&names);
+		hostname = names.nodename;
+	}
+
+	vty_send_out(vty, cmd_prompt(vty->node), hostname);
 }
 
 /* Send WILL TELOPT_ECHO to remote server. */
@@ -438,8 +476,8 @@ vty_beginning_of_line(vty_t *vty)
 static void
 vty_end_of_line(vty_t *vty)
 {
-  while (vty->cp < vty->length)
-    vty_forward_char (vty);
+	while (vty->cp < vty->length)
+		vty_forward_char (vty);
 }
 
 static void vty_kill_line_from_beginning(vty_t *);
@@ -513,7 +551,7 @@ vty_previous_line(vty_t *vty)
 }
 
 /* This function redraw all of the command line character. */
-static void
+void
 vty_redraw_line(vty_t *vty)
 {
 	vty_write(vty, vty->buf, vty->length);
@@ -750,12 +788,12 @@ vty_complete_command(vty_t *vty)
 		FREE(matched[0]);
 		break;
 	case CMD_COMPLETE_MATCH:
-		vty_prompt (vty);
-		vty_redraw_line (vty);
-		vty_backward_pure_word (vty);
-		vty_insert_word_overwrite (vty, matched[0]);
+		vty_prompt(vty);
+		vty_redraw_line(vty);
+		vty_backward_pure_word(vty);
+		vty_insert_word_overwrite(vty, matched[0]);
 		FREE(matched[0]);
-		vector_only_index_free (matched);
+		vector_only_index_free(matched);
 		return;
 		break;
 	case CMD_COMPLETE_LIST_MATCH:
@@ -856,14 +894,14 @@ vty_describe_command(vty_t *vty)
 
 	/* Get width of command string. */
 	width = 0;
-	for (i = 0; i < vector_active (describe); i++) {
-		if ((desc = vector_slot (describe, i)) != NULL) {
+	for (i = 0; i < vector_active(describe); i++) {
+		if ((desc = vector_slot(describe, i)) != NULL) {
 			unsigned int len;
 
 			if (desc->cmd[0] == '\0')
 				continue;
 
-			len = strlen (desc->cmd);
+			len = strlen(desc->cmd);
 			if (desc->cmd[0] == '.')
 				len--;
 
@@ -876,12 +914,12 @@ vty_describe_command(vty_t *vty)
 	desc_width = vty->width - (width + 6);
 
 	/* Print out description. */
-	for (i = 0; i < vector_active (describe); i++) {
+	for (i = 0; i < vector_active(describe); i++) {
 		if ((desc = vector_slot(describe, i)) != NULL) {
 			if (desc->cmd[0] == '\0')
 				continue;
 	
-			if (strcmp (desc->cmd, command_cr) == 0) {
+			if (strcmp(desc->cmd, command_cr) == 0) {
 				desc_cr = desc;
 				continue;
 			}
@@ -890,7 +928,7 @@ vty_describe_command(vty_t *vty)
 				vty_out(vty, "  %-s%s",
 					desc->cmd[0] == '.' ? desc->cmd + 1 : desc->cmd,
 					VTY_NEWLINE);
-			} else if (desc_width >= strlen (desc->str)) {
+			} else if (desc_width >= strlen(desc->str)) {
 				vty_out(vty, "  %-*s  %s%s", width,
 					desc->cmd[0] == '.' ? desc->cmd + 1 : desc->cmd,
 					desc->str, VTY_NEWLINE);
@@ -905,7 +943,7 @@ vty_describe_command(vty_t *vty)
 			vty_out(vty, "  %-s%s",
 				desc->cmd[0] == '.' ? desc->cmd + 1 : desc->cmd,
 				VTY_NEWLINE);
-		} else if (desc_width >= strlen (desc->str)) {
+		} else if (desc_width >= strlen(desc->str)) {
 			vty_out(vty, "  %-*s  %s%s", width,
 				desc->cmd[0] == '.' ? desc->cmd + 1 : desc->cmd,
 				desc->str, VTY_NEWLINE);

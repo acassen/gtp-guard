@@ -49,7 +49,8 @@ typedef enum _vty_status {
 	VTY_NORMAL,
 	VTY_CLOSE,
 	VTY_MORE,
-	VTY_MORELINE
+	VTY_MORELINE,
+	VTY_HOLD
 } vty_status_t;
 
 
@@ -178,6 +179,9 @@ extern int vty_listen(thread_master_t *, struct sockaddr_storage *);
 extern void vty_reset(void);
 extern vty_t *vty_new(void);
 extern int vty_out(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
+extern ssize_t vty_send_out(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
+extern void vty_prompt_hold(vty_t *);
+extern void vty_prompt_restore(vty_t *);
 extern int vty_read_config(char *, char *);
 extern void vty_time_print(vty_t *, int);
 extern void vty_serv_sock(const char *, unsigned short, const char *);
