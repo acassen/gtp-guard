@@ -398,9 +398,10 @@ gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
 	bool destroy_session = false;
 
 	pthread_mutex_lock(&c->gtp_session_mutex);
-	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next) {
-		if (t->action == GTP_ACTION_DELETE_BEARER) {
-			__gtp_session_gtpu_teid_destroy(ctx, t);
+	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
+		if (t->bearer_teid && t->bearer_teid->action == GTP_ACTION_DELETE_BEARER) {
+			__gtp_session_gtpu_teid_destroy(ctx, t->bearer_teid);
+			__gtp_session_gtpc_teid_destroy(ctx, t);
 		}
 	}
 

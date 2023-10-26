@@ -66,13 +66,12 @@ extern gtp_teid_t dummy_teid;
 
 
 static gtp_teid_t *
-gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh,
+gtp1_create_teid(uint8_t type, int direction, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh,
 		 gtp_f_teid_t *f_teid, gtp_session_t *s)
 {
 	gtp_teid_t *teid;
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	int direction = GTP_TEID_DIRECTION_INGRESS;
 
 	/* Determine if this is related to an existing VTEID.
 	 * If so need to restore original TEID related, otherwise
@@ -101,9 +100,6 @@ gtp1_create_teid(uint8_t type, gtp_srv_worker_t *w, gtp_htab_t *h, gtp_htab_t *v
 		gtp_session_gtpc_teid_add(s, teid);
 	} else if (type == GTP_TEID_U) {
 		gtp_session_gtpu_teid_add(s, teid);
-
-		if (__test_bit(GTP_FL_EGRESS_BIT, &srv->flags))
-			direction = GTP_TEID_DIRECTION_EGRESS;
 
 		/* Fast-Path setup */
 		gtp_xdpfwd_teid_action(XDPFWD_RULE_ADD, teid, direction);
@@ -134,7 +130,7 @@ gtp1_session_xlat_recovery(gtp_srv_worker_t *w)
 }
 
 static gtp_teid_t *
-gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
+gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s, int direction)
 {
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
@@ -177,7 +173,7 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	/* Control-Plane */
 	if (teid_c && gsn_address_c) {
 		f_teid_c.ipv4 = gsn_address_c;
-		teid = gtp1_create_teid(GTP_TEID_C, w
+		teid = gtp1_create_teid(GTP_TEID_C, direction, w
 						, &ctx->gtpc_teid_tab
 						, &ctx->vteid_tab
 						, &f_teid_c, s);
@@ -186,7 +182,7 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s)
 	/* User-Plane */
 	if (teid_u && gsn_address_u) {
 		f_teid_u.ipv4 = gsn_address_u;
-		gtp1_create_teid(GTP_TEID_U, w
+		gtp1_create_teid(GTP_TEID_U, direction, w
 					, &ctx->gtpu_teid_tab
 					, &ctx->vteid_tab
 					, &f_teid_u, s);
@@ -299,7 +295,7 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 		s = gtp_session_alloc(c, apn);
 
 	/* Performing session translation */
-	teid = gtp1_session_xlat(w, s);
+	teid = gtp1_session_xlat(w, s, GTP_INGRESS);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): Error while xlat. ignoring..."
 				    , __FUNCTION__);
@@ -385,7 +381,7 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	h->teid = t->id;
 
 	/* Performing session translation */
-	teid = gtp1_session_xlat(w, t->session);
+	teid = gtp1_session_xlat(w, t->session, GTP_EGRESS);
 	if (!teid) {
 		teid = t;
 
@@ -492,7 +488,7 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	s->conn->sgw_addr = *((struct sockaddr_in *) addr);
 
 	/* Performing session translation */
-	t = gtp1_session_xlat(w, s);
+	t = gtp1_session_xlat(w, s, GTP_INGRESS);
 	if (!t) {
 		/* No GTP-C IE, if related GSN Address present then xlat it */
 		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
@@ -568,7 +564,7 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	h->teid = teid->id;
 
 	/* Performing session translation */
-	t = gtp1_session_xlat(w, teid->session);
+	t = gtp1_session_xlat(w, teid->session, GTP_EGRESS);
 	if (!t) {
 		/* No GTP-C IE, if related GSN Address present then xlat it */
 		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
@@ -605,12 +601,11 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* Bearer cause handling */
 	teid_u = teid->bearer_teid;
-	if (teid_u->old_teid) {
+	if (teid_u && teid_u->old_teid) {
 		oteid = teid_u->old_teid;
-		if (oteid) {
+		if (oteid->peer_teid)
 			gtp_teid_bind(oteid->peer_teid, teid_u);
-			gtp_session_gtpu_teid_destroy(ctx, oteid);
-		}
+		gtp_session_gtpu_teid_destroy(ctx, oteid);
 	}
 
   end:
@@ -733,6 +728,9 @@ gtpc_handle_v1(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	if (*(gtpc_msg_hdl[gtph->type].hdl))
 		return (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);
 
-	dump_buffer("GTPv1 Unknown", (char *) w->buffer, w->buffer_size);
+	log_message(LOG_INFO, "%s(): GTPv1 msg_type:0x%.2x not supported. Ignoring..."
+			    , __FUNCTION__
+			    , gtph->type);
+	dump_buffer("GTPv1 Not Supported", (char *) w->buffer, w->buffer_size);
 	return NULL;
 }

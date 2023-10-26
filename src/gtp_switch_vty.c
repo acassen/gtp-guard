@@ -88,9 +88,9 @@ DEFUN(gtp,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpc_ingress_tunnel_endpoint,
-      gtpc_ingress_tunnel_endpoint_cmd,
-      "gtpc-ingress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
+DEFUN(gtpc_tunnel_endpoint,
+      gtpc_tunnel_endpoint_cmd,
+      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
       "GTP Control channel ingress tunnel endpoint\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
@@ -98,7 +98,7 @@ DEFUN(gtpc_ingress_tunnel_endpoint,
       "Number\n")
 {
         gtp_ctx_t *ctx = vty->index;
-        gtp_srv_t *srv = &ctx->gtpc_ingress;
+        gtp_srv_t *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, ret = 0;
 
@@ -122,25 +122,23 @@ DEFUN(gtpc_ingress_tunnel_endpoint,
 	}
 
         srv->thread_cnt = GTP_DEFAULT_THREAD_CNT;
-        __set_bit(GTP_FL_INGRESS_BIT, &srv->flags);
         gtp_switch_worker_init(ctx, srv);
-        gtp_switch_worker_bind(ctx);
         gtp_switch_worker_start(ctx);
 
         return CMD_SUCCESS;
 }
 
-DEFUN(gtpc_egress_tunnel_endpoint,
-      gtpc_egress_tunnel_endpoint_cmd,
-      "gtpc-egress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
-      "GTP Control channel egress tunnel endpoint\n"
+DEFUN(gtpu_tunnel_endpoint,
+      gtpu_tunnel_endpoint_cmd,
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "GTP Userplane channel tunnel endpoint\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
       "listening UDP Port\n"
       "Number\n")
 {
         gtp_ctx_t *ctx = vty->index;
-        gtp_srv_t *srv = &ctx->gtpc_egress;
+        gtp_srv_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port, ret = 0;
 
@@ -154,7 +152,7 @@ DEFUN(gtpc_egress_tunnel_endpoint,
                 if (port) ; /* dummy test */
         	ret = inet_stosockaddr(argv[0], argv[1], addr);
         } else {
-        	ret = inet_stosockaddr(argv[0], "20123", addr);
+		ret = inet_stosockaddr(argv[0], "2152", addr);
         }
 
 	if (ret < 0) {
@@ -164,10 +162,9 @@ DEFUN(gtpc_egress_tunnel_endpoint,
 	}
 
         srv->thread_cnt = GTP_DEFAULT_THREAD_CNT;
-        __set_bit(GTP_FL_EGRESS_BIT, &srv->flags);
+        __set_bit(GTP_FL_UPF_BIT, &srv->flags);
         gtp_switch_worker_init(ctx, srv);
-        gtp_switch_worker_bind(ctx);
-        gtp_switch_worker_start(ctx);
+        gtp_switch_worker_launch(srv);
 
 	return CMD_SUCCESS;
 }
@@ -196,47 +193,6 @@ DEFUN(gtpc_force_pgw_selection,
 	}
 
         __set_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(gtpu_tunnel_endpoint,
-      gtpu_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
-      "GTP Userplane channel tunnel endpoint\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "listening UDP Port\n"
-      "Number\n")
-{
-        gtp_ctx_t *ctx = vty->index;
-        gtp_srv_t *srv = &ctx->gtpu;
-	struct sockaddr_storage *addr = &srv->addr;
-	int port, ret = 0;
-
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
-
-        if (argc == 2) {
-                VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-                if (port) ; /* dummy test */
-        	ret = inet_stosockaddr(argv[0], argv[1], addr);
-        } else {
-        	ret = inet_stosockaddr(argv[0], "2152", addr);
-        }
-
-	if (ret < 0) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		memset(addr, 0, sizeof(struct sockaddr_storage));
-		return CMD_WARNING;
-	}
-
-        srv->thread_cnt = GTP_DEFAULT_THREAD_CNT;
-        __set_bit(GTP_FL_UPF_BIT, &srv->flags);
-        gtp_switch_worker_init(ctx, srv);
-        gtp_switch_worker_launch(srv);
-
 	return CMD_SUCCESS;
 }
 
@@ -486,13 +442,9 @@ gtp_config_write(vty_t *vty)
 
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);
-        	vty_out(vty, " gtpc-ingress-tunnel-endpoint %s port %d%s"
-                           , inet_sockaddrtos(&ctx->gtpc_ingress.addr)
-                           , ntohs(inet_sockaddrport(&ctx->gtpc_ingress.addr))
-                           , VTY_NEWLINE);
-		vty_out(vty, " gtpc-egress-tunnel-endpoint %s port %d%s"
-                           , inet_sockaddrtos(&ctx->gtpc_egress.addr)
-                           , ntohs(inet_sockaddrport(&ctx->gtpc_egress.addr))
+		vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
+                           , inet_sockaddrtos(&ctx->gtpc.addr)
+                           , ntohs(inet_sockaddrport(&ctx->gtpc.addr))
                            , VTY_NEWLINE);
 		srv = &ctx->gtpu;
 		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
@@ -544,10 +496,9 @@ gtp_switch_vty_init(void)
 	install_element(CONFIG_NODE, &gtp_cmd);
 
 	install_default(GTP_NODE);
-	install_element(GTP_NODE, &gtpc_ingress_tunnel_endpoint_cmd);
-	install_element(GTP_NODE, &gtpc_egress_tunnel_endpoint_cmd);
-	install_element(GTP_NODE, &gtpc_force_pgw_selection_cmd);
+	install_element(GTP_NODE, &gtpc_tunnel_endpoint_cmd);
 	install_element(GTP_NODE, &gtpu_tunnel_endpoint_cmd);
+	install_element(GTP_NODE, &gtpc_force_pgw_selection_cmd);
 	install_element(GTP_NODE, &gtpu_ipip_cmd);
 	install_element(GTP_NODE, &gtpu_ipip_dead_peer_detection_cmd);
 	install_element(GTP_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);

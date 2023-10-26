@@ -299,7 +299,7 @@ gtpu_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	/* Not supported */
 	log_message(LOG_INFO, "%s(): GTP-U/path-mgt msg_type:0x%.2x from %s not supported..."
 			    , __FUNCTION__
-			    , inet_sockaddrtos(addr)
-			    , gtph->type);
+			    , gtph->type
+			    , inet_sockaddrtos(addr));
 	return NULL;
 }

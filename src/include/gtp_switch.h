@@ -34,8 +34,6 @@ enum gtp_flags {
 	GTP_FL_STARTING_BIT,
 	GTP_FL_STOPING_BIT,
 	GTP_FL_HASHED_BIT,
-	GTP_FL_INGRESS_BIT,
-	GTP_FL_EGRESS_BIT,
 	GTP_FL_UPF_BIT,
 	GTP_FL_FORCE_PGW_BIT,
 	GTP_FL_IPTNL_BIT,
@@ -55,7 +53,6 @@ typedef struct _gtp_srv_worker {
 	pthread_t		task;
 	int			fd;
 	struct _gtp_srv		*srv;		/* backpointer */
-	struct _gtp_srv_worker	*fwd;
 	uint8_t			buffer[GTP_BUFFER_SIZE];
 	size_t			buffer_size;
 	unsigned int		seed;
@@ -111,8 +108,7 @@ typedef struct _gtp_iptnl {
 
 typedef struct _gtp_ctx {
 	char			name[GTP_STR_MAX];
-	gtp_srv_t		gtpc_ingress;
-	gtp_srv_t		gtpc_egress;
+	gtp_srv_t		gtpc;
 	gtp_srv_t		gtpu;
 
 	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
@@ -137,7 +133,6 @@ typedef struct _gtp_ctx {
 
 /* Prototypes */
 extern int gtp_switch_worker_init(gtp_ctx_t *, gtp_srv_t *);
-extern int gtp_switch_worker_bind(gtp_ctx_t *);
 extern int gtp_switch_worker_launch(gtp_srv_t *);
 extern int gtp_switch_worker_start(gtp_ctx_t *);
 extern gtp_ctx_t *gtp_switch_get(const char *);

@@ -23,8 +23,10 @@
 #define _GTP_TEID_H
 
 /* Tunnel type */
-#define GTP_TEID_C	0x01
-#define GTP_TEID_U	0x02
+enum {
+	GTP_TEID_C = 1,
+	GTP_TEID_U,
+};
 
 /* GTP Connection tracking */
 typedef struct _gtp_teid {

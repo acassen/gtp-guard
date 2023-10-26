@@ -54,8 +54,8 @@ struct gtp_teid_rule {
 	__u64	bytes;
 	__u8	direction;
 } __attribute__ ((__aligned__(8)));
-#define GTP_TEID_DIRECTION_INGRESS	0
-#define GTP_TEID_DIRECTION_EGRESS	1
+#define GTP_INGRESS	0
+#define GTP_EGRESS	1
 
 struct gtp_iptnl_rule {
 	__be32	selector_addr;

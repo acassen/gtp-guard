@@ -136,11 +136,10 @@ gtp_switch_worker_task(void *arg)
 	gtp_teid_t *teid;
 	gtp_ctx_t *ctx = srv->ctx;
 	char pname[128];
-	const char *ptype;
+	const char *ptype = "gtpc";
 	int fd;
 
 	/* Create Process Name */
-	ptype = (__test_bit(GTP_FL_INGRESS_BIT, &srv->flags)) ? "in" : "out";
 	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
 		ptype = "upf";
 	snprintf(pname, 127, "%s-%s-%d"
@@ -195,7 +194,7 @@ gtp_switch_worker_task(void *arg)
 
 		/* Set destination address */
 		addr_to = gtp_switch_fwd_addr_get(teid, &addr_from);
-		gtp_switch_udp_fwd(w, (teid->type == 0xff) ? w->fd : w->fwd->fd
+		gtp_switch_udp_fwd(w, w->fd
 				    , (teid->type == 0xff) ? (struct sockaddr_in *) &addr_from :
 					 		     addr_to);
 
@@ -211,52 +210,6 @@ gtp_switch_worker_task(void *arg)
 /*
  *	UDP listener init
  */
-static gtp_srv_worker_t *
-gtp_switch_worker_get(gtp_srv_t *srv)
-{
-	gtp_srv_worker_t *worker = NULL;
-
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry(worker, &srv->workers, next) {
-		if (__test_bit(GTP_FL_STARTING_BIT, &worker->flags))
-			continue;
-
-		__set_bit(GTP_FL_STARTING_BIT, &worker->flags);
-		pthread_mutex_unlock(&srv->workers_mutex);
-		return worker;
-	}
-	pthread_mutex_unlock(&srv->workers_mutex);
-	
-	return NULL;
-}
-
-int
-gtp_switch_worker_bind(gtp_ctx_t *ctx)
-{
-	gtp_srv_t *ingress = &ctx->gtpc_ingress;
-	gtp_srv_t *egress = &ctx->gtpc_egress;
-	gtp_srv_worker_t *iw, *ew;
-
-	if (!(__test_bit(GTP_FL_RUNNING_BIT, &ingress->flags) &&
-	      __test_bit(GTP_FL_RUNNING_BIT, &egress->flags)))
-	    return -1;
-
-	ingress->ctx = ctx;
-	egress->ctx = ctx;
-	pthread_mutex_lock(&ingress->workers_mutex);
-	list_for_each_entry(iw, &ingress->workers, next) {
-		if (!__test_and_set_bit(GTP_FL_STARTING_BIT, &iw->flags)) {
-			ew = gtp_switch_worker_get(egress);
-			iw->fwd = ew;
-			ew->fwd = iw;
-		}
-
-	}
-	pthread_mutex_unlock(&ingress->workers_mutex);
-
-	return 0;
-}
-
 int
 gtp_switch_worker_launch(gtp_srv_t *srv)
 {
@@ -274,15 +227,12 @@ gtp_switch_worker_launch(gtp_srv_t *srv)
 int
 gtp_switch_worker_start(gtp_ctx_t *ctx)
 {
-	gtp_srv_t *ingress = &ctx->gtpc_ingress;
-	gtp_srv_t *egress = &ctx->gtpc_egress;
+	gtp_srv_t *gtpc = &ctx->gtpc;
 
-	if (!(__test_bit(GTP_FL_RUNNING_BIT, &ingress->flags) &&
-	      __test_bit(GTP_FL_RUNNING_BIT, &egress->flags)))
+	if (!__test_bit(GTP_FL_RUNNING_BIT, &gtpc->flags))
 	    return -1;
 
-	gtp_switch_worker_launch(ingress);
-	gtp_switch_worker_launch(egress);
+	gtp_switch_worker_launch(gtpc);
 
 	return 0;
 }
