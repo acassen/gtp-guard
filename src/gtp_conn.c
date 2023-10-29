@@ -158,6 +158,7 @@ gtp_conn_hash(gtp_conn_t *c)
 
 	__set_bit(GTP_CONN_F_HASHED, &c->flags);
 	__sync_add_and_fetch(&gtp_conn_tab_cnt, 1);
+	__sync_add_and_fetch(&c->refcnt, 1);
 	return 0;
 }
 
@@ -173,6 +174,7 @@ gtp_conn_unhash(gtp_conn_t *c)
 
 	__clear_bit(GTP_CONN_F_HASHED, &c->flags);
 	__sync_sub_and_fetch(&gtp_conn_tab_cnt, 1);
+	__sync_sub_and_fetch(&c->refcnt, 1);
 	return 0;
 }
 

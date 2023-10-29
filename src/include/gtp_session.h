@@ -24,8 +24,10 @@
 
 
 /* Tunnel Actions */
-#define GTP_ACTION_DELETE_SESSION	0x01
-#define GTP_ACTION_DELETE_BEARER	0x02
+enum {
+	GTP_ACTION_DELETE_SESSION = 1,
+	GTP_ACTION_DELETE_BEARER
+};
 
 /* GTP session */
 typedef struct _gtp_session {
@@ -37,7 +39,6 @@ typedef struct _gtp_session {
 	gtp_conn_t		*conn;		/* backpointer */
 
 	uint8_t			action;
-        uint32_t                refcnt;
 
 	/* Expiration handling */
 	char			tmp_str[64];
@@ -46,6 +47,8 @@ typedef struct _gtp_session {
 	rb_node_t		n;
 
 	list_head_t		next;
+
+	int			refcnt;
 } gtp_session_t;
 
 

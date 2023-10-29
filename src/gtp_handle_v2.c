@@ -239,7 +239,7 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
 	gtp_apn_t *apn;
-	bool new_conn = false, retransmit = false;
+	bool retransmit = false;
 	uint64_t imsi;
 	uint8_t *cp;
 	char apn_str[64];
@@ -306,7 +306,6 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	c = gtp_conn_get_by_imsi(imsi);
 	if (!c) {
 		c = gtp_conn_alloc(imsi, ctx);
-		new_conn = true; /* preserve refcnt */
 	}
 
 	/* Rewrite IMSI if needed */
@@ -356,8 +355,7 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	}
 
   end:
-	if (!new_conn)
-		gtp_conn_put(c);
+	gtp_conn_put(c);
 	return teid;
 }
 

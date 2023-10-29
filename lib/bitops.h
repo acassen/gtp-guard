@@ -58,6 +58,16 @@ static inline bool __test_and_set_bit(unsigned idx, unsigned long *bmap)
 	return false;
 }
 
+static inline bool __test_and_clear_bit(unsigned idx, unsigned long *bmap)
+{
+	if (!__test_bit(idx, bmap))
+		return false;
+
+	__clear_bit(idx, bmap);
+
+	return true;
+}
+
 static inline void __set_bit_array(unsigned idx, unsigned long bmap[])
 {
 	bmap[BIT_WORD(idx)] |= BIT_MASK(idx);

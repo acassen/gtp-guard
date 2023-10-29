@@ -90,7 +90,7 @@ DEFUN(gtp,
 
 DEFUN(gtpc_tunnel_endpoint,
       gtpc_tunnel_endpoint_cmd,
-      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Control channel ingress tunnel endpoint\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
@@ -121,7 +121,7 @@ DEFUN(gtpc_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-        srv->thread_cnt = GTP_DEFAULT_THREAD_CNT;
+        srv->thread_cnt = (argc == 3) ? strtoul(argv[2], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
         gtp_switch_worker_init(ctx, srv);
         gtp_switch_worker_start(ctx);
 

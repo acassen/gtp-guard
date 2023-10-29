@@ -69,6 +69,12 @@ gtp_switch_udp_recvfrom(gtp_srv_worker_t *w, struct sockaddr *addr, socklen_t *a
 }
 
 static int
+gtp_switch_udp_fwd(gtp_srv_worker_t *w, int fd, struct sockaddr_in *addr)
+{
+	return sendto(fd, w->buffer, w->buffer_size, 0, addr, sizeof(*addr));
+}
+
+static int
 gtp_switch_udp_init(gtp_srv_t *srv)
 {
 	struct sockaddr_storage *addr = &srv->addr;
@@ -105,12 +111,6 @@ gtp_switch_udp_init(gtp_srv_t *srv)
 
   socket_error:
 	return -1;
-}
-
-static int
-gtp_switch_udp_fwd(gtp_srv_worker_t *w, int fd, struct sockaddr_in *addr)
-{
-	return sendto(fd, w->buffer, w->buffer_size, 0, addr, sizeof(*addr));
 }
 
 static struct sockaddr_in *

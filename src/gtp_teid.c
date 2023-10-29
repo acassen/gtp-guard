@@ -90,21 +90,22 @@ gtp_teid_put(gtp_teid_t *t)
 	return 0;
 }
 
-int
+static int
 gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
 {
-	struct hlist_head *head;
-
-	if (!teid)
-		return -1;
-
-	head = gtp_teid_hashkey(h, teid->id, teid->ipv4);
+	struct hlist_head *head = gtp_teid_hashkey(h, teid->id, teid->ipv4);
 
 	dlock_lock_id(h->dlock, teid->id, teid->ipv4);
+	if (__test_and_set_bit(GTP_TEID_FL_HASHED, &teid->flags)) {
+		log_message(LOG_INFO, "%s(): TEID:0x%.8x already hashed !!!"
+				    , __FUNCTION__, ntohl(teid->id));
+		dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
+		return -1;
+	}
 	hlist_add_head(&teid->hlist_teid, head);
+	__sync_add_and_fetch(&teid->refcnt, 1);
 	dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
 
-	__sync_add_and_fetch(&teid->refcnt, 1);
 	return 0;
 }
 
@@ -115,10 +116,16 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 		return -1;
 
 	dlock_lock_id(h->dlock, teid->id, teid->ipv4);
+	if (!__test_and_clear_bit(GTP_TEID_FL_HASHED, &teid->flags)) {
+		log_message(LOG_INFO, "%s(): TEID:0x%.8x already unhashed !!!"
+				    , __FUNCTION__, ntohl(teid->id));
+		dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
+		return -1;
+	}
 	hlist_del_init(&teid->hlist_teid);
+	__sync_sub_and_fetch(&teid->refcnt, 1);
 	dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
 
-	__sync_sub_and_fetch(&teid->refcnt, 1);
 	return 0;
 }
 
@@ -227,6 +234,12 @@ __gtp_vteid_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t vid)
 {
 	struct hlist_head *head;
 
+	if (__test_and_set_bit(GTP_TEID_FL_VTEID_HASHED, &t->flags)) {
+		log_message(LOG_INFO, "%s(): VTEID:0x%.8x for TEID:0x%.8x already hashed !!!"
+				    , __FUNCTION__, t->vid, ntohl(t->id));
+		return -1;
+	}
+
 	head = gtp_teid_hashkey(h, vid, 0);
 	t->vid = vid;
 	hlist_add_head(&t->hlist_vteid, head);
@@ -239,10 +252,16 @@ int
 gtp_vteid_unhash(gtp_htab_t *h, gtp_teid_t *t)
 {
 	dlock_lock_id(h->dlock, t->vid, 0);
+	if (!__test_and_clear_bit(GTP_TEID_FL_VTEID_HASHED, &t->flags)) {
+		log_message(LOG_INFO, "%s(): VTEID:0x%.8x for TEID:0x%.8x already unhashed !!!"
+				    , __FUNCTION__, t->vid, ntohl(t->id));
+		dlock_unlock_id(h->dlock, t->vid, 0);
+		return -1;
+	}
 	hlist_del_init(&t->hlist_vteid);
+	__sync_sub_and_fetch(&t->refcnt, 1);
 	dlock_unlock_id(h->dlock, t->vid, 0);
 
-	__sync_sub_and_fetch(&t->refcnt, 1);
 	return 0;
 }
 

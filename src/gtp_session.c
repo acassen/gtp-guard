@@ -95,7 +95,8 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 
 	/* Walk the line */
 	list_for_each_entry(t, l, next) {
-		vty_out(vty, "  [UP] vteid:0x%.8x teid:0x%.8x sqn:0x%.8x bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
+		vty_out(vty, "  [UP] vteid:0x%.8x teid:0x%.8x sqn:0x%.8x"
+			     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
 			   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
 			   , VTY_NEWLINE);
 		if (t->vid)
@@ -195,15 +196,37 @@ gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 }
 
 static int
+__gtp_session_teid_del(gtp_session_t *s, gtp_teid_t *teid)
+{
+	if (!__test_and_clear_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
+		log_message(LOG_INFO, "%s(): TEID:0x%.8x already unlinked from session:0x%.8x!!!"
+				    , __FUNCTION__, ntohl(teid->id), s->id);
+		return -1;
+	}
+
+	list_head_del(&teid->next);
+	__sync_sub_and_fetch(&teid->refcnt, 1);
+	__sync_sub_and_fetch(&s->refcnt, 1);
+	return 0;
+}
+
+static int
 gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
 {
 	gtp_conn_t *c = s->conn;
 
 	pthread_mutex_lock(&c->gtp_session_mutex);
+	if (__test_and_set_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
+		log_message(LOG_INFO, "%s(): TEID:0x%.8x already linked to session:0x%.8x !!!"
+			    , __FUNCTION__, ntohl(teid->id), s->id);
+		pthread_mutex_unlock(&c->gtp_session_mutex);
+		return -1;
+	}
 	list_add_tail(&teid->next, l);
+	__sync_add_and_fetch(&teid->refcnt, 1);
+	__sync_add_and_fetch(&s->refcnt, 1);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 
-	__sync_add_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -253,6 +276,7 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn)
 
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_add_tail(&new->next, &c->gtp_sessions);
+	__sync_add_and_fetch(&c->refcnt, 1);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
 
 	gtp_session_add_timer(new);
@@ -266,13 +290,13 @@ __gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
 
-	list_head_del(&teid->next);
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
 	gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
+	if (__gtp_session_teid_del(s, teid) < 0)
+		return -1;
 
 	FREE(teid);
-	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -293,15 +317,15 @@ __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
 
-	list_head_del(&teid->next);
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
+	if (__gtp_session_teid_del(s, teid) < 0)
+		return -1;
 
 	/* Fast-Path cleanup */
 	gtp_xdpfwd_teid_action(XDPFWD_RULE_DEL, teid, 0);
 
 	FREE(teid);
-	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -323,16 +347,12 @@ __gtp_session_teid_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 	gtp_teid_t *t, *_t;
 
 	/* Release control plane */
-	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
+	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next)
 		__gtp_session_gtpc_teid_destroy(ctx, t);
-		/* FIXME: refcnt playground here */
-	}
 
 	/* Release data plane */
-	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next) {
+	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next)
 		__gtp_session_gtpu_teid_destroy(ctx, t);
-		/* FIXME: refcnt playground here */
-	}
 
 	return 0;
 }
@@ -349,6 +369,7 @@ __gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 
 	/* Release session */
 	list_head_del(&s->next);
+	__sync_sub_and_fetch(&c->refcnt, 1);
 	FREE(s);
 
 	/* Release connection if no more sessions */
@@ -400,8 +421,13 @@ gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
 	pthread_mutex_lock(&c->gtp_session_mutex);
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
 		if (t->bearer_teid && t->bearer_teid->action == GTP_ACTION_DELETE_BEARER) {
-			__gtp_session_gtpu_teid_destroy(ctx, t->bearer_teid);
 			__gtp_session_gtpc_teid_destroy(ctx, t);
+		}
+	}
+
+	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next) {
+		if (t->action == GTP_ACTION_DELETE_BEARER) {
+			__gtp_session_gtpu_teid_destroy(ctx, t);
 		}
 	}
 
@@ -609,6 +635,7 @@ DEFUN(clear_gtp_session,
 	}
 
 	gtp_sessions_release(c);
+	gtp_conn_put(c);
 	return CMD_SUCCESS;
 }
 

@@ -183,9 +183,9 @@ gtp1_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s, int direction)
 	if (teid_u && gsn_address_u) {
 		f_teid_u.ipv4 = gsn_address_u;
 		gtp1_create_teid(GTP_TEID_U, direction, w
-					, &ctx->gtpu_teid_tab
-					, &ctx->vteid_tab
-					, &f_teid_u, s);
+					   , &ctx->gtpu_teid_tab
+					   , &ctx->vteid_tab
+					   , &f_teid_u, s);
 	}
 
 	return teid;
@@ -221,7 +221,7 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
 	gtp_apn_t *apn;
-	bool new_conn = false, retransmit = false;
+	bool retransmit = false;
 	uint64_t imsi;
 	uint8_t *cp;
 	char apn_str[64];
@@ -284,7 +284,6 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	c = gtp_conn_get_by_imsi(imsi);
 	if (!c) {
 		c = gtp_conn_alloc(imsi, ctx);
-		new_conn = true; /* preserve refcnt */
 	}
 
 	/* Rewrite IMSI if needed */
@@ -334,8 +333,7 @@ gtp1_create_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	}
 
   end:
-	if (!new_conn)
-		gtp_conn_put(c);
+	gtp_conn_put(c);
 	return teid;
 }
 

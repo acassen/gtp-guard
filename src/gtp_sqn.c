@@ -93,6 +93,12 @@ __gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
 {
 	struct hlist_head *head;
 
+	if (__test_and_set_bit(GTP_TEID_FL_VSQN_HASHED, &t->flags)) {
+		log_message(LOG_INFO, "%s(): VSQN:0x%.8x for TEID:0x%.8x already hashed !!!"
+				    , __FUNCTION__, t->vsqn, ntohl(t->id));
+		return -1;
+	}
+
 	head = gtp_sqn_hashkey(h, sqn);
 	t->vsqn = sqn;
 	hlist_add_head(&t->hlist_vsqn, head);
@@ -113,11 +119,20 @@ gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
 int
 gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 {
+	if (!t->vsqn)
+		return -1;
+
 	dlock_lock_id(h->dlock, t->vsqn, 0);
+	if (!__test_and_clear_bit(GTP_TEID_FL_VSQN_HASHED, &t->flags)) {
+		log_message(LOG_INFO, "%s(): VSQN:0x%.8x for TEID:0x%.8x already unhashed !!!"
+				    , __FUNCTION__, t->vsqn, ntohl(t->id));
+		dlock_unlock_id(h->dlock, t->vid, 0);
+		return -1;
+	}
 	hlist_del_init(&t->hlist_vsqn);
+	__sync_sub_and_fetch(&t->refcnt, 1);
 	dlock_unlock_id(h->dlock, t->vsqn, 0);
 
-	__sync_sub_and_fetch(&t->refcnt, 1);
 	return 0;
 }
 
@@ -154,8 +169,7 @@ gtp_vsqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
 	gtp_srv_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 
-	if (teid->sqn)
-		gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
+	gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
 	gtp_vsqn_alloc(w, teid, set_msb);
 
 	return 0;

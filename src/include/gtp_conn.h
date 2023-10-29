@@ -42,11 +42,12 @@ typedef struct _gtp_conn {
         pthread_mutex_t		gtp_session_mutex;
 
 	time_t			ts;
-	unsigned long		flags;
-        uint32_t                refcnt;
 
-        /* hash stuff */
+	/* hash stuff */
         struct hlist_node       hlist;
+
+	unsigned long		flags;
+	int			refcnt;
 } gtp_conn_t;
 
 

@@ -28,6 +28,14 @@ enum {
 	GTP_TEID_U,
 };
 
+/* flags */
+enum gtp_teid_flags {
+	GTP_TEID_FL_LINKED,
+	GTP_TEID_FL_HASHED,
+	GTP_TEID_FL_VTEID_HASHED,
+	GTP_TEID_FL_VSQN_HASHED,
+};
+
 /* GTP Connection tracking */
 typedef struct _gtp_teid {
 	uint8_t			version;	/* GTPv1 or GTPv2 */
@@ -48,11 +56,13 @@ typedef struct _gtp_teid {
 	struct _gtp_teid	*bearer_teid;	/* GTP-C Bearer TEID */
 
 	uint8_t			action;
-	uint32_t		refcnt;
 	struct hlist_node	hlist_teid;
 	struct hlist_node	hlist_vteid;
 	struct hlist_node	hlist_vsqn;
 	list_head_t		next;
+
+	unsigned long		flags;
+	int			refcnt;
 } gtp_teid_t;
 
 typedef struct _gtp_f_teid {
