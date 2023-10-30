@@ -72,66 +72,6 @@ cmd_node_t apn_node = {
 pthread_mutex_t gtp_apn_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-static gtp_apn_t *
-gtp_apn_alloc(const char *name)
-{
-	gtp_apn_t *new;
-
-	PMALLOC(new);
-	INIT_LIST_HEAD(&new->naptr);
-	INIT_LIST_HEAD(&new->service_selection);
-	INIT_LIST_HEAD(&new->imsi_match);
-	INIT_LIST_HEAD(&new->oi_match);
-	INIT_LIST_HEAD(&new->next);
-        pthread_mutex_init(&new->mutex, NULL);
-	memcpy(new->name, name, GTP_APN_MAX_LEN - 1);
-
-	/* FIXME: lookup before insert */
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_add_tail(&new->next, &daemon_data->gtp_apn);
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	/* Point default pGW to list head */
-
-	return new;
-}
-
-gtp_apn_t *
-gtp_apn_get(const char *name)
-{
-	gtp_apn_t *apn;
-
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
-		if (!strncmp(name, apn->name, strlen(name))) {
-			pthread_mutex_unlock(&gtp_apn_mutex);
-			return apn;
-		}
-
-	}
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	return NULL;
-}
-
-static int
-gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
-{
-	list_head_t *l = &daemon_data->gtp_apn;
-	gtp_apn_t *_apn;
-
-	if (apn) {
-		gtp_naptr_show(vty, apn);
-		return 0;
-	}
-
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_for_each_entry(_apn, l, next)
-		gtp_naptr_show(vty, _apn);
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	return 0;
-}
 
 /*
  *	Service selection related
@@ -167,18 +107,50 @@ gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
 	return new;
 }
 
+static int
+gtp_service_destroy(gtp_apn_t *apn)
+{
+	gtp_service_t *s, *_s;
+
+	pthread_mutex_lock(&apn->mutex);
+	list_for_each_entry_safe(s, _s, &apn->service_selection, next) {
+		list_head_del(&s->next);
+		FREE(s);
+	}
+	pthread_mutex_unlock(&apn->mutex);
+	return 0;
+}
+
 /*
  *	Rewrite rule related
  */
 static gtp_rewrite_rule_t *
-gtp_rewrite_rule_alloc(gtp_apn_t *apn)
+gtp_rewrite_rule_alloc(gtp_apn_t *apn, list_head_t *l)
 {
 	gtp_rewrite_rule_t *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
 
+	pthread_mutex_lock(&apn->mutex);
+	list_add_tail(&new->next, l);
+	pthread_mutex_unlock(&apn->mutex);
+
 	return new;
+}
+
+static int
+gtp_rewrite_rule_destroy(gtp_apn_t *apn, list_head_t *l)
+{
+	gtp_rewrite_rule_t *r, *_r;
+
+	pthread_mutex_lock(&apn->mutex);
+	list_for_each_entry_safe(r, _r, l, next) {
+		list_head_del(&r->next);
+		FREE(r);
+	}
+	pthread_mutex_unlock(&apn->mutex);
+	return 0;
 }
 
 
@@ -262,6 +234,100 @@ apn_resolv_cache_signal(gtp_apn_t *apn)
 	pthread_mutex_lock(&apn->cache_mutex);
 	pthread_cond_signal(&apn->cache_cond);
 	pthread_mutex_unlock(&apn->cache_mutex);
+	return 0;
+}
+
+static int
+apn_resolv_cache_destroy(gtp_apn_t *apn)
+{
+	apn_resolv_cache_signal(apn);
+	pthread_join(apn->cache_task, NULL);
+	gtp_naptr_destroy(&apn->naptr);
+	return 0;
+}
+
+
+/*
+ *	APN related
+ */
+static gtp_apn_t *
+gtp_apn_alloc(const char *name)
+{
+	gtp_apn_t *new;
+
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->naptr);
+	INIT_LIST_HEAD(&new->service_selection);
+	INIT_LIST_HEAD(&new->imsi_match);
+	INIT_LIST_HEAD(&new->oi_match);
+	INIT_LIST_HEAD(&new->next);
+        pthread_mutex_init(&new->mutex, NULL);
+	strncpy(new->name, name, GTP_APN_MAX_LEN - 1);
+
+	/* FIXME: lookup before insert */
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_add_tail(&new->next, &daemon_data->gtp_apn);
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
+	/* Point default pGW to list head */
+
+	return new;
+}
+
+gtp_apn_t *
+gtp_apn_get(const char *name)
+{
+	gtp_apn_t *apn;
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
+		if (!strncmp(name, apn->name, strlen(name))) {
+			pthread_mutex_unlock(&gtp_apn_mutex);
+			return apn;
+		}
+
+	}
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
+	return NULL;
+}
+
+static int
+gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
+{
+	list_head_t *l = &daemon_data->gtp_apn;
+	gtp_apn_t *_apn;
+
+	if (apn) {
+		gtp_naptr_show(vty, apn);
+		return 0;
+	}
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry(_apn, l, next)
+		gtp_naptr_show(vty, _apn);
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
+	return 0;
+}
+
+int
+gtp_apn_destroy(void)
+{
+	list_head_t *l = &daemon_data->gtp_apn;
+	gtp_apn_t *apn, *_apn;
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry_safe(apn, _apn, l, next) {
+		gtp_service_destroy(apn);
+		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
+		gtp_rewrite_rule_destroy(apn, &apn->oi_match);
+		apn_resolv_cache_destroy(apn);
+		list_head_del(&apn->next);
+		FREE(apn);
+	}
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
 	return 0;
 }
 
@@ -462,9 +528,7 @@ DEFUN(apn_imsi_match,
 		return CMD_WARNING;
 	}
 
-	rule = gtp_rewrite_rule_alloc(apn);
-	list_add_tail(&rule->next, &apn->imsi_match);
-
+	rule = gtp_rewrite_rule_alloc(apn, &apn->imsi_match);
 	stringtohex(argv[0], 15, rule->match, GTP_MATCH_MAX_LEN);
 	swapbuffer((uint8_t *)rule->match, 8, (uint8_t *)rule->match);
 	rule->match_len = strlen(argv[0]);
@@ -503,8 +567,7 @@ DEFUN(apn_oi_match,
 		return CMD_WARNING;
 	}
 
-	rule = gtp_rewrite_rule_alloc(apn);
-	list_add_tail(&rule->next, &apn->oi_match);
+	rule = gtp_rewrite_rule_alloc(apn, &apn->oi_match);
 	strncpy(rule->match, argv[0], GTP_MATCH_MAX_LEN-1);
 	strncpy(rule->rewrite, argv[1], GTP_MATCH_MAX_LEN-1);
 

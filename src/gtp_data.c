@@ -66,6 +66,8 @@ free_daemon_data(void)
 	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
 	if (opts->filename[0])
 		gtp_xdp_unload_fwd(opts);
+	gtp_apn_destroy();
+	gtp_switch_destroy();
 	FREE(daemon_data);
 }
 

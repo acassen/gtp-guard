@@ -272,9 +272,19 @@ gtp_switch_worker_init(gtp_ctx_t *ctx, gtp_srv_t *srv)
 	return 0;
 }
 
-int
-gtp_switch_udp_destroy(gtp_srv_t *srv)
+static int
+gtp_switch_worker_destroy(gtp_srv_t *srv)
 {
+	gtp_srv_worker_t *w, *_w;
+
+	pthread_mutex_lock(&srv->workers_mutex);
+	list_for_each_entry_safe(w, _w, &srv->workers, next) {
+		pthread_cancel(w->task);
+		pthread_join(w->task, NULL);
+		list_head_del(&w->next);
+		FREE(w);
+	}
+	pthread_mutex_unlock(&srv->workers_mutex);
 
 	return 0;
 }
@@ -318,7 +328,7 @@ gtp_switch_init(const char *name)
 
 	PMALLOC(new);
         INIT_LIST_HEAD(&new->next);
-        memcpy(new->name, name, GTP_STR_MAX - 1);
+        strncpy(new->name, name, GTP_STR_MAX - 1);
         list_add_tail(&new->next, &daemon_data->gtp_ctx);
 
 	/* Init hashtab */
@@ -330,12 +340,30 @@ gtp_switch_init(const char *name)
 	return new;
 }
 
+
 int
-gtp_switch_destroy(gtp_ctx_t *ctx)
+gtp_ctx_destroy(gtp_ctx_t *ctx)
 {
 	gtp_htab_destroy(&ctx->gtpc_teid_tab);
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
 	gtp_htab_destroy(&ctx->vteid_tab);
 	gtp_htab_destroy(&ctx->vsqn_tab);
+
+	gtp_switch_worker_destroy(&ctx->gtpc);
+	gtp_switch_worker_destroy(&ctx->gtpu);
+	return 0;
+}
+
+int
+gtp_switch_destroy(void)
+{
+	gtp_ctx_t *c, *_c;
+
+	list_for_each_entry_safe(c, _c, &daemon_data->gtp_ctx, next) {
+		gtp_ctx_destroy(c);
+		list_head_del(&c->next);
+		FREE(c);
+	}
+
 	return 0;
 }

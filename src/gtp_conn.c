@@ -50,6 +50,8 @@
 #include "gtp_resolv.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
+#include "gtp_teid.h"
+#include "gtp_session.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -181,7 +183,7 @@ gtp_conn_unhash(gtp_conn_t *c)
 int
 gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
 {
-        struct hlist_node *n;
+	struct hlist_node *n;
 	gtp_conn_t *c;
 	int i;
 
@@ -245,6 +247,19 @@ gtp_conn_init(void)
 int
 gtp_conn_destroy(void)
 {
+	struct hlist_node *n, *n2;
+	gtp_conn_t *c;
+	int i;
+
+	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
+		gtp_conn_lock_id(i);
+		hlist_for_each_entry_safe(c, n, n2, &gtp_conn_tab[i], hlist) {
+			gtp_sessions_free(c);
+			FREE(c);
+		}
+		gtp_conn_unlock_id(i);
+	}
+
 	FREE(gtp_conn_tab);
 	gtp_conn_lock_destroy();
 	return 0;

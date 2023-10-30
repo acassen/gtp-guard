@@ -296,7 +296,7 @@ __gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 	if (__gtp_session_teid_del(s, teid) < 0)
 		return -1;
 
-	FREE(teid);
+	gtp_teid_free(teid);
 	return 0;
 }
 
@@ -325,7 +325,7 @@ __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 	/* Fast-Path cleanup */
 	gtp_xdpfwd_teid_action(XDPFWD_RULE_DEL, teid, 0);
 
-	FREE(teid);
+	gtp_teid_free(teid);
 	return 0;
 }
 
@@ -486,6 +486,21 @@ gtp_sessions_release(gtp_conn_t *c)
 		gtp_session_expire_now(s);
 	}
 	pthread_mutex_unlock(&c->gtp_session_mutex);
+
+	return 0;
+}
+
+int
+gtp_sessions_free(gtp_conn_t *c)
+{
+	list_head_t *l = &c->gtp_sessions;
+	gtp_session_t *s, *_s;
+
+	list_for_each_entry_safe(s, _s, l, next) {
+		__gtp_session_teid_destroy(c->ctx, s);
+		list_head_del(&s->next);
+		FREE(s);
+	}
 
 	return 0;
 }

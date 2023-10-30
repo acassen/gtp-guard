@@ -50,6 +50,80 @@
 #include "gtp_teid.h"
 #include "gtp_session.h"
 
+/*
+ *	Unuse queue
+ */
+static list_head_t gtp_teid_unuse;
+pthread_mutex_t gtp_teid_unuse_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int gtp_teid_unuse_count;
+
+static int
+gtp_teid_unuse_destroy(void)
+{
+	gtp_teid_t *t, *_t;
+
+	pthread_mutex_lock(&gtp_teid_unuse_mutex);
+	list_for_each_entry_safe(t, _t, &gtp_teid_unuse, next) {
+		list_head_del(&t->next);
+		FREE(t);
+	}
+	INIT_LIST_HEAD(&gtp_teid_unuse);
+	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
+
+	return 0;
+}
+
+int
+gtp_teid_unuse_queue_size(void)
+{
+	return gtp_teid_unuse_count;
+}
+
+static gtp_teid_t *
+gtp_teid_unuse_trim_head(void)
+{
+	gtp_teid_t *t;
+
+	pthread_mutex_lock(&gtp_teid_unuse_mutex);
+	if (!list_empty(&gtp_teid_unuse)) {
+		t = list_first_entry(&gtp_teid_unuse, gtp_teid_t, next);
+		list_head_del(&t->next);
+		memset(t, 0, sizeof(gtp_teid_t));
+		pthread_mutex_unlock(&gtp_teid_unuse_mutex);
+
+		__sync_sub_and_fetch(&gtp_teid_unuse_count, 1);
+		return t;
+	}
+	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
+
+	return NULL;
+}
+
+
+static gtp_teid_t *
+gtp_teid_malloc(void)
+{
+	gtp_teid_t *t;
+
+	t = gtp_teid_unuse_trim_head();
+	if (!t)
+		PMALLOC(t);
+
+	return t;
+}
+
+void
+gtp_teid_free(gtp_teid_t *t)
+{
+	INIT_LIST_HEAD(&t->next);
+
+	pthread_mutex_lock(&gtp_teid_unuse_mutex);
+	list_add_tail(&t->next, &gtp_teid_unuse);
+	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
+
+	__sync_add_and_fetch(&gtp_teid_unuse_count, 1);
+}
+
 
 /*
  *	TEID hashtab
@@ -134,7 +208,7 @@ gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
 {
 	gtp_teid_t *new;
 
-	PMALLOC(new);
+	new = gtp_teid_malloc();
 	new->version = f_teid->version;
 	new->id = *f_teid->teid_grekey;
 	new->ipv4 = *f_teid->ipv4;
@@ -287,5 +361,22 @@ gtp_vteid_alloc(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 
 	__gtp_vteid_hash(h, teid, vid);
 	dlock_unlock_id(h->dlock, vid, 0);
+	return 0;
+}
+
+/*
+ *	Tunnel ID tracking init
+ */
+int
+gtp_teid_init(void)
+{
+	INIT_LIST_HEAD(&gtp_teid_unuse);
+	return 0;
+}
+
+int
+gtp_teid_destroy(void)
+{
+	gtp_teid_unuse_destroy();
 	return 0;
 }

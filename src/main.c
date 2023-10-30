@@ -71,9 +71,11 @@ stop_gtp(void)
 	/* Just cleanup memory & exit */
 	vty_terminate();
 	cmd_terminate();
+	gtp_request_destroy();
 	gtp_sessions_destroy();
 	gtp_conn_destroy();
 	gtp_xdp_destroy();
+	gtp_teid_destroy();
 
 	free_daemon_data();
 	thread_destroy_master(master);
@@ -101,6 +103,7 @@ start_gtp(void)
 	sort_node();
 	gtp_xdp_init();
 	gtp_conn_init();
+	gtp_teid_init();
 	gtp_sessions_init();
 
 	ret = vty_read_config(conf_file, default_conf_file);

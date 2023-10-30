@@ -76,6 +76,10 @@ typedef struct _gtp_f_teid {
 
 
 /* Prototypes */
+extern int gtp_teid_init(void);
+extern int gtp_teid_destroy(void);
+extern void gtp_teid_free(gtp_teid_t *);
+extern int gtp_teid_unuse_queue_size(void);
 extern int gtp_teid_put(gtp_teid_t *);
 extern gtp_teid_t *gtp_teid_get(gtp_htab_t *, gtp_f_teid_t *);
 extern gtp_teid_t *gtp_teid_alloc(gtp_htab_t *, gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);

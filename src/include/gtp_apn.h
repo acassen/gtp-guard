@@ -75,6 +75,7 @@ typedef struct _gtp_apn {
 
 /* Prototypes */
 extern gtp_apn_t *gtp_apn_get(const char *);
+extern int gtp_apn_destroy(void);
 extern int gtp_apn_vty_init(void);
 
 #endif

@@ -117,8 +117,6 @@ typedef struct _gtp_ctx {
 	gtp_htab_t		vsqn_tab;	/* virtual Seqnum hashtab */
 	uint32_t		seqnum;		/* Global context Seqnum */
 
-	gtp_apn_t		*apn_resolv;
-	char			service_selection[GTP_STR_MAX];
 	gtp_naptr_t		*pgw;
 	struct sockaddr_storage	pgw_addr;
 
@@ -137,7 +135,7 @@ extern int gtp_switch_worker_launch(gtp_srv_t *);
 extern int gtp_switch_worker_start(gtp_ctx_t *);
 extern gtp_ctx_t *gtp_switch_get(const char *);
 extern gtp_ctx_t *gtp_switch_init(const char *);
-extern int gtp_switch_destroy(gtp_ctx_t *);
+extern int gtp_switch_destroy(void);
 extern int gtp_switch_vty_init(void);
 
 #endif

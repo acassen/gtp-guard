@@ -266,6 +266,10 @@ gtp_request_tcp_accept(thread_ref_t thread)
         fd = THREAD_FD(thread);
         w = THREAD_ARG(thread);
 
+	/* Terminate event */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		thread_add_terminate_event(thread->master);
+
         /* Wait until accept event */
         if (thread->type == THREAD_READ_TIMEOUT)
                 goto next_accept;
@@ -414,21 +418,6 @@ gtp_request_tcp_listen(gtp_req_worker_t *w)
         return -1;
 }
 
-
-static int
-gtp_request_worker_release(gtp_req_worker_t *w)
-{
-	gtp_req_channel_t *srv = w->channel;
-
-        thread_del_read(w->r_thread);
-        close(w->fd);
-
-        pthread_mutex_lock(&srv->workers_mutex);
-        list_head_del(&w->next);
-        pthread_mutex_unlock(&srv->workers_mutex);
-        return 0;
-}
-
 static void *
 gtp_request_worker_task(void *arg)
 {
@@ -464,8 +453,6 @@ gtp_request_worker_task(void *arg)
                             , ntohs(inet_sockaddrport(&srv->addr))
                             , w->id);
 	__clear_bit(GTP_FL_RUNNING_BIT, &w->flags);
-        gtp_request_worker_release(w);
-        thread_destroy_master(w->master);
 	return NULL;
 }
 
@@ -516,6 +503,14 @@ gtp_request_worker_alloc(gtp_req_channel_t *srv, int id)
 	return 0;
 }
 
+static int
+gtp_request_worker_release(gtp_req_worker_t *w)
+{
+	thread_destroy_master(w->master);
+	close(w->fd);
+	return 0;
+}
+
 
 /*
  *	GTP Request init
@@ -539,5 +534,20 @@ gtp_request_init(void)
 int
 gtp_request_destroy(void)
 {
+	gtp_req_channel_t *srv = &daemon_data->request_channel;
+	gtp_req_worker_t *w, *_w;
+
+	if (!__test_bit(GTP_FL_RUNNING_BIT, &srv->flags))
+		return -1;
+
+	pthread_mutex_lock(&srv->workers_mutex);
+	list_for_each_entry_safe(w, _w, &srv->workers, next) {
+		pthread_join(w->task, NULL);
+	        gtp_request_worker_release(w);
+		list_head_del(&w->next);
+		FREE(w);
+	}
+	pthread_mutex_unlock(&srv->workers_mutex);
+
 	return 0;
 }
