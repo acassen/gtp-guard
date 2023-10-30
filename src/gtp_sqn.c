@@ -158,19 +158,9 @@ gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
 		vsqn |= 1 << 31;
 
 	/* Hash it */
+	if (__test_bit(GTP_TEID_FL_VSQN_HASHED, &teid->flags))
+		gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
 	gtp_vsqn_hash(&ctx->vsqn_tab, teid, vsqn);
-
-	return 0;
-}
-
-int
-gtp_vsqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
-{
-	gtp_srv_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
-
-	gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
-	gtp_vsqn_alloc(w, teid, set_msb);
 
 	return 0;
 }

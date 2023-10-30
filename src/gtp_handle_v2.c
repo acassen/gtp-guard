@@ -485,7 +485,7 @@ gtpc_delete_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid, false);
+	gtp_vsqn_alloc(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Performing session translation */
@@ -604,7 +604,7 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid, false);
+	gtp_vsqn_alloc(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* Performing session translation */
@@ -753,7 +753,7 @@ gtpc_delete_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid, false);
+	gtp_vsqn_alloc(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
 	/* TEID set */
@@ -879,7 +879,7 @@ gtpc_generic_xlat_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr
 		}
 	} else {
 		gtp_sqn_update(w, teid);
-		gtp_vsqn_update(w, teid, false);
+		gtp_vsqn_alloc(w, teid, false);
 		gtp_sqn_masq(w, teid);
 	}
 
@@ -924,7 +924,7 @@ gtpc_generic_xlat_command_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
-	gtp_vsqn_update(w, teid, true);
+	gtp_vsqn_alloc(w, teid, true);
 	gtp_sqn_masq(w, teid);
 
 	/* TEID set */
