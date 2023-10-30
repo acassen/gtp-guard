@@ -23,8 +23,7 @@
 #define _GTP_DATA_H
 
 /* Default values */
-#define GTP_PATH_MAX		128
-#define GTP_STR_MAX		64
+#define GTP_STR_MAX_LEN		128
 #define GTP_NAMESERVER_PORT	53
 
 /* Flags */
@@ -34,21 +33,21 @@ enum daemon_flags {
 
 /* Main control block */
 typedef struct _gtp_bpf_opts {
-	char			filename[GTP_PATH_MAX];
-	char			progname[GTP_STR_MAX];
+	char			filename[GTP_STR_MAX_LEN];
+	char			progname[GTP_STR_MAX_LEN];
 	int			ifindex;
-	char			pin_root_path[GTP_PATH_MAX];
+	char			pin_root_path[GTP_STR_MAX_LEN];
 	struct bpf_object	*bpf_obj;
 	struct bpf_link		*bpf_lnk;
 	vty_t			*vty;
 } gtp_bpf_opts_t;
 
 typedef struct _data {
-	char			realm[GTP_PATH_MAX];
+	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
 	gtp_req_channel_t	request_channel;
 	gtp_bpf_opts_t		xdp_gtpu;
-	char			restart_counter_filename[GTP_PATH_MAX];
+	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 
 	/* APN resolver */

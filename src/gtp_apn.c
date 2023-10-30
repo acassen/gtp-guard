@@ -308,7 +308,7 @@ DEFUN(apn_realm,
                 return CMD_WARNING;
         }
 
-	memcpy(apn->realm, argv[0], GTP_PATH_MAX);
+	strncpy(apn->realm, argv[0], GTP_REALM_LEN-1);
 	apn_resolv_cache_realloc(apn);
 
         return CMD_SUCCESS;

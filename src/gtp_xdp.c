@@ -87,20 +87,20 @@ gtp_bpf_cleanup_maps(struct bpf_object *obj, gtp_bpf_opts_t *opts)
 	vty_t *vty = opts->vty;
 
 	bpf_object__for_each_map(map, obj) {
-		char buf[GTP_PATH_MAX];
+		char buf[GTP_STR_MAX_LEN];
 		int len, err;
 
-		len = snprintf(buf, GTP_PATH_MAX, "%s/%d/%s"
-						, pin_basedir
-						, opts->ifindex
-						, bpf_map__name(map));
+		len = snprintf(buf, GTP_STR_MAX_LEN, "%s/%d/%s"
+						   , pin_basedir
+						   , opts->ifindex
+						   , bpf_map__name(map));
 		if (len < 0) {
 			vty_out(vty, "%% eBPF: error preparing path for map(%s)%s"
 				   , bpf_map__name(map), VTY_NEWLINE);
 			return;
 		}
 
-		if (len > GTP_PATH_MAX) {
+		if (len > GTP_STR_MAX_LEN) {
 			vty_out(vty, "%% eBPF error, pathname too long to store map(%s)%s"
 				   , bpf_map__name(map), VTY_NEWLINE);
 			return;
@@ -171,7 +171,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	/* Preprare pin_dir. We decided ifindex to be part of
 	 * path to be able to load same bpf program on different
 	 * ifindex */
-	len = snprintf(opts->pin_root_path, GTP_PATH_MAX, "%s/%d"
+	len = snprintf(opts->pin_root_path, GTP_STR_MAX_LEN, "%s/%d"
 					  , pin_basedir, opts->ifindex);
 	if (len < 0) {
 		log_message(LOG_INFO, "%s(): Error preparing eBPF pin_dir for ifindex:%d"
@@ -180,7 +180,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 		return -1;
 	}
 
-	if (len > GTP_PATH_MAX) {
+	if (len > GTP_STR_MAX_LEN) {
 		log_message(LOG_INFO, "%s(): Error preparing eBPF pin_dir for ifindex:%d (path_too_long)"
 				    , __FUNCTION__
 				    , opts->ifindex);

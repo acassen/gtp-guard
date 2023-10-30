@@ -85,7 +85,7 @@ DEFUN(pdn_realm,
                 return CMD_WARNING;
         }
 
-	memcpy(daemon_data->realm, argv[0], GTP_PATH_MAX);
+	strncpy(daemon_data->realm, argv[0], GTP_STR_MAX_LEN-1);
 
         return CMD_SUCCESS;
 }
@@ -135,10 +135,10 @@ DEFUN(pdn_xdp_gtpu,
                 return CMD_WARNING;
         }
 
-	memcpy(opts->filename, argv[0], GTP_PATH_MAX);
+	strncpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
 	ifindex = if_nametoindex(argv[1]);
 	if (argc == 3)
-		memcpy(opts->progname, argv[2], GTP_STR_MAX);
+		strncpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
 	if (!ifindex) {
 		vty_out(vty, "%% Error resolving interface %s (%m)%s"
 			   , argv[1]
@@ -206,7 +206,7 @@ DEFUN(restart_counter_file,
                 return CMD_WARNING;
         }
 
-	memcpy(daemon_data->restart_counter_filename, argv[0], GTP_PATH_MAX);
+	strncpy(daemon_data->restart_counter_filename, argv[0], GTP_STR_MAX_LEN-1);
 
         ret = gtp_disk_read_restart_counter();
         if (ret < 0) {
