@@ -121,11 +121,12 @@ DEFUN(gtpc_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-        srv->thread_cnt = (argc == 3) ? strtoul(argv[2], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
-        gtp_switch_worker_init(ctx, srv);
-        gtp_switch_worker_start(ctx);
+	srv->thread_cnt = (argc == 3) ? strtoul(argv[2], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
+	gtp_switch_worker_init(ctx, srv);
+	gtp_switch_worker_start(ctx);
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(gtpu_tunnel_endpoint,
@@ -442,18 +443,18 @@ gtp_config_write(vty_t *vty)
 
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);
-		vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
-                           , inet_sockaddrtos(&ctx->gtpc.addr)
-                           , ntohs(inet_sockaddrport(&ctx->gtpc.addr))
-                           , VTY_NEWLINE);
+		srv = &ctx->gtpc;
+		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags))
+			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
+				   , inet_sockaddrtos(&srv->addr)
+				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , VTY_NEWLINE);
 		srv = &ctx->gtpu;
-		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
+		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
 			vty_out(vty, " gtpu-tunnel-endpoint %s port %d%s"
 				   , inet_sockaddrtos(&srv->addr)
 				   , ntohs(inet_sockaddrport(&srv->addr))
 				   , VTY_NEWLINE);
-		}
-
 		if (__test_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags))
 			vty_out(vty, " pgw-force-selection %s%s"
 	                           , inet_sockaddrtos(&ctx->pgw_addr)
