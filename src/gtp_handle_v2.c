@@ -614,25 +614,27 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 		return teid;
 	}
 
+	if (t->peer_teid)
+		goto end;
+
 	/* No peer teid so new teid */
-	if (!t->peer_teid) {
-		/* Set tunnel endpoint */
-		t->sgw_addr = *((struct sockaddr_in *) addr);
-		t->pgw_addr = teid->pgw_addr;
+	/* Set tunnel endpoint */
+	t->sgw_addr = *((struct sockaddr_in *) addr);
+	t->pgw_addr = teid->pgw_addr;
 
-		/* GTP-C old */
-		pteid = teid->peer_teid;
-		t->old_teid = pteid;
+	/* GTP-C old */
+	pteid = teid->peer_teid;
+	t->old_teid = pteid;
 
-		/* GTP-U old */
-		t_u = gtp_session_gtpu_teid_get_by_sqn(s, t->sqn);
-		if (t_u) {
-			t->bearer_teid = t_u;
-			t_u->old_teid = (pteid) ? pteid->bearer_teid : NULL;
-		}
+	/* GTP-U old */
+	t_u = gtp_session_gtpu_teid_get_by_sqn(s, t->sqn);
+	if (t_u) {
+		t->bearer_teid = t_u;
+		t_u->old_teid = (pteid) ? pteid->bearer_teid : NULL;
 	}
-	gtp_teid_put(t);
 
+  end:
+	gtp_teid_put(t);
 	return teid;
 }
 
@@ -690,22 +692,21 @@ gtpc_modify_bearer_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	/* Test cause code, destroy if <> success.
 	 * 3GPP.TS.29.274 8.4 */
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
-	if (cp) {
-		oteid = teid->old_teid;
-		ie_cause = (gtp_ie_cause_t *) cp;
-		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
-		    ie_cause->value <= 63) {
-			if (oteid) {
-				gtp_teid_bind(oteid->peer_teid, teid);
-				gtp_session_gtpc_teid_destroy(ctx, oteid);
-			}
-		} else {
-			if (oteid) {
-				/* SQN masq */
-				gtp_sqn_restore(w, oteid->peer_teid);
-			}
-			return teid;
-		}
+	if (!cp)
+		return teid;
+
+	oteid = teid->old_teid;
+	ie_cause = (gtp_ie_cause_t *) cp;
+	if (!(ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
+	      ie_cause->value <= 63)) {
+		if (oteid)
+			gtp_sqn_restore(w, oteid->peer_teid);
+		return teid;
+	}
+
+	if (oteid) {
+		gtp_teid_bind(oteid->peer_teid, teid);
+		gtp_session_gtpc_teid_destroy(ctx, oteid);
 	}
 
 	/* Bearer cause handling */
