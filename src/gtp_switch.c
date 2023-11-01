@@ -66,13 +66,29 @@ extern thread_master_t *master;
 static ssize_t
 gtp_switch_udp_recvfrom(gtp_srv_worker_t *w, struct sockaddr *addr, socklen_t *addrlen)
 {
-	return recvfrom(w->fd, w->buffer, GTP_BUFFER_SIZE, 0, addr, addrlen);
+	ssize_t nbytes = recvfrom(w->fd, w->buffer, GTP_BUFFER_SIZE, 0, addr, addrlen);
+	
+	/* Update stats */
+	if (nbytes > 0) {
+		w->rx_pkt++;
+		w->rx_bytes += nbytes;
+	}
+
+	return nbytes;
 }
 
-static int
+static ssize_t
 gtp_switch_udp_fwd(gtp_srv_worker_t *w, int fd, struct sockaddr_in *addr)
 {
-	return sendto(fd, w->buffer, w->buffer_size, 0, addr, sizeof(*addr));
+	ssize_t nbytes = sendto(fd, w->buffer, w->buffer_size, 0, addr, sizeof(*addr));
+
+	/* Update stats */
+	if (nbytes > 0) {
+		w->tx_pkt++;
+		w->tx_bytes += nbytes;
+	}
+
+	return nbytes;
 }
 
 static int
