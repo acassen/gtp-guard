@@ -65,26 +65,51 @@ cmd_node_t gtp_node = {
 /*
  *	Command
  */
-DEFUN(gtp,
-      gtp_cmd,
+DEFUN(gtp_switch,
+      gtp_switch_cmd,
       "gtp-switch WORD",
       "Configure GTP switching context\n"
       "Context Name")
 {
-        gtp_ctx_t *new;
+	gtp_ctx_t *new;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	/* Already existing ? */
 	new = gtp_switch_get(argv[0]);
 	if (!new)
-        	new = gtp_switch_init(argv[0]);
+		new = gtp_switch_init(argv[0]);
 
 	vty->node = GTP_NODE;
-        vty->index = new;
+	vty->index = new;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_gtp_switch,
+      no_gtp_switch_cmd,
+      "no gtp-switch WORD",
+      "Configure GTP switching context\n"
+      "Context Name")
+{
+	gtp_ctx_t *ctx;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* Already existing ? */
+	ctx = gtp_switch_get(argv[0]);
+	if (!ctx) {
+		vty_out(vty, "%% unknown gtp-switch %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_ctx_destroy(ctx);
+
 	return CMD_SUCCESS;
 }
 
@@ -308,14 +333,17 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 		return CMD_WARNING;
 	}
 
-	t->ifindex = ifindex;
-	t->flags |= IPTNL_FL_DPD;
-	ret = gtp_xdp_iptnl_action(XDPFWD_RULE_UPDATE, t);
+	ret = gtp_dpd_init(ctx);
 	if (ret < 0) {
-		vty_out(vty, "%% Unable to update XDP IPIP-Tunnel%s", VTY_NEWLINE);
+		vty_out(vty, "%% Error starting Dead-Peer-Detection on interface %s (%s)%s"
+			   , argv[1]
+			   , strerror(errno)
+			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	gtp_dpd_init(ctx);
+
+	t->ifindex = ifindex;
+	t->flags |= IPTNL_FL_DPD;
 
 	return CMD_SUCCESS;
 }
@@ -494,7 +522,8 @@ gtp_switch_vty_init(void)
 
 	/* Install PDN commands. */
 	install_node(&gtp_node, gtp_config_write);
-	install_element(CONFIG_NODE, &gtp_cmd);
+	install_element(CONFIG_NODE, &gtp_switch_cmd);
+	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 
 	install_default(GTP_NODE);
 	install_element(GTP_NODE, &gtpc_tunnel_endpoint_cmd);

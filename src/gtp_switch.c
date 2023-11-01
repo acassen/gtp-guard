@@ -53,6 +53,7 @@
 #include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_handle.h"
+#include "gtp_dpd.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -277,6 +278,9 @@ gtp_switch_worker_destroy(gtp_srv_t *srv)
 {
 	gtp_srv_worker_t *w, *_w;
 
+	if (!__test_bit(GTP_FL_RUNNING_BIT, &srv->flags))
+		return -1;
+
 	pthread_mutex_lock(&srv->workers_mutex);
 	list_for_each_entry_safe(w, _w, &srv->workers, next) {
 		pthread_cancel(w->task);
@@ -351,6 +355,8 @@ gtp_ctx_destroy(gtp_ctx_t *ctx)
 
 	gtp_switch_worker_destroy(&ctx->gtpc);
 	gtp_switch_worker_destroy(&ctx->gtpu);
+	gtp_dpd_destroy(ctx);
+	list_head_del(&ctx->next);
 	return 0;
 }
 
@@ -361,7 +367,6 @@ gtp_switch_destroy(void)
 
 	list_for_each_entry_safe(c, _c, &daemon_data->gtp_ctx, next) {
 		gtp_ctx_destroy(c);
-		list_head_del(&c->next);
 		FREE(c);
 	}
 

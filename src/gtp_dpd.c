@@ -310,7 +310,7 @@ gtp_dpd_read_thread(thread_ref_t thread)
 	t->expire = timer_long(time_now) + t->credit;
 
   end:
-	thread_add_read(master, gtp_dpd_read_thread, t, t->fd_in, TIMER_HZ, 0);
+	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, t, t->fd_in, TIMER_HZ, 0);
 }
 
 /*
@@ -423,13 +423,14 @@ gtp_dpd_init(gtp_ctx_t *ctx)
 	if (t->fd_out < 0) {
 		log_message(LOG_INFO, "%s(): Error creating egress DPD socket (%m)"
 				    , __FUNCTION__);
+		close(t->fd_in);
 		return -1;
 	}
 
 	gtp_dpd_build_pkt(t);
 
 	/* Scheduling submition */
-	thread_add_read(master, gtp_dpd_read_thread, t, t->fd_in, TIMER_HZ, 0);
+	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, t, t->fd_in, TIMER_HZ, 0);
 	thread_add_event(master, gtp_dpd_timer_thread, t, 0);
 	return 0;
 }
@@ -439,10 +440,11 @@ gtp_dpd_destroy(gtp_ctx_t *ctx)
 {
 	gtp_iptnl_t *t = &ctx->iptnl;
 
-	if (t->fd_in > 0)
-		close(t->fd_in);
-	if (t->fd_out > 0)
-		close(t->fd_out);
+	if (!(t->flags & IPTNL_FL_DPD))
+		return -1;
 
+	thread_del_read(t->r_thread);
+	close(t->fd_in);
+	close(t->fd_out);
 	return 0;
 }

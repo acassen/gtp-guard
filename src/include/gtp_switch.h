@@ -89,6 +89,7 @@ typedef struct _gtp_iptnl {
 	/* Dead-Peer-Detection */
 	int			fd_in;
 	int			fd_out;
+	thread_ref_t		r_thread;
 	uint8_t			recv_buffer[GTP_BUFFER_SIZE];
 	size_t			recv_buffer_size;
 	uint8_t			send_buffer[GTP_BUFFER_SIZE];
@@ -136,6 +137,7 @@ extern int gtp_switch_worker_launch(gtp_srv_t *);
 extern int gtp_switch_worker_start(gtp_ctx_t *);
 extern gtp_ctx_t *gtp_switch_get(const char *);
 extern gtp_ctx_t *gtp_switch_init(const char *);
+extern int gtp_ctx_destroy(gtp_ctx_t *);
 extern int gtp_switch_destroy(void);
 extern int gtp_switch_vty_init(void);
 
