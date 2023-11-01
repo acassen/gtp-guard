@@ -100,7 +100,7 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 			   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
 			   , VTY_NEWLINE);
 		if (t->vid)
-			gtp_xdpfwd_teid_vty(vty, ntohl(t->vid));
+			gtp_xdp_fwd_teid_vty(vty, ntohl(t->vid));
 	}
 	return 0;
 }
@@ -323,7 +323,7 @@ __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 		return -1;
 
 	/* Fast-Path cleanup */
-	gtp_xdpfwd_teid_action(XDPFWD_RULE_DEL, teid, 0);
+	gtp_xdp_fwd_teid_action(XDPFWD_RULE_DEL, teid, 0);
 
 	gtp_teid_free(teid);
 	return 0;

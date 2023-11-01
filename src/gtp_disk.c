@@ -27,7 +27,6 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
-#include "memory.h"
 
 /* local includes */
 #include "bitops.h"

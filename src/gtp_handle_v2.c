@@ -117,7 +117,7 @@ gtp_create_teid(uint8_t type, int direction, gtp_srv_worker_t *w, gtp_htab_t *h,
 		gtp_session_gtpu_teid_add(s, teid);
 
 		/* Fast-Path setup */
-		gtp_xdpfwd_teid_action(XDPFWD_RULE_ADD, teid, direction);
+		gtp_xdp_fwd_teid_action(XDPFWD_RULE_ADD, teid, direction);
 	}
 
   masq:

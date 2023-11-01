@@ -105,13 +105,13 @@ struct gtp_iptnl_rule {
 #define IPTNL_FL_UNTAG_VLAN			(1 << 5)
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
-struct mirror_rule {
+struct gtp_mirror_rule {
 	__be32	addr;
         __be16	port;
 	__u8	protocol;
 	int	ifindex;
 } __attribute__ ((__aligned__(8)));
-#define MAX_MIRROR_ENTRIES 10U
+#define MAX_MIRROR_ENTRIES 100U
 
 
 #endif

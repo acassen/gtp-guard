@@ -60,7 +60,8 @@ extern data_t *daemon_data;
 
 /* Local data */
 static const char *pin_basedir = "/sys/fs/bpf";
-static xdp_exported_maps_t xdpfwd_maps[XDPFWD_MAP_CNT];
+static xdp_exported_maps_t xdp_fwd_maps[XDPFWD_MAP_CNT];
+static xdp_exported_maps_t xdp_mirror_maps;
 
 /* Local defines */
 #define STRERR_BUFSIZE	128
@@ -158,15 +159,12 @@ gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 	return bpf_obj;
 }
 
-static int
-gtp_xdp_load(gtp_bpf_opts_t *opts)
+static struct bpf_program *
+gtp_xdp_load_prog(gtp_bpf_opts_t *opts)
 {
-	struct bpf_object *bpf_obj;
 	struct bpf_program *bpf_prog = NULL;
-	struct bpf_link *bpf_lnk;
-	char errmsg[STRERR_BUFSIZE];
-	vty_t *vty = opts->vty;
-	int len, err;
+	struct bpf_object *bpf_obj;
+	int len;
 
 	/* Preprare pin_dir. We decided ifindex to be part of
 	 * path to be able to load same bpf program on different
@@ -177,20 +175,20 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 		log_message(LOG_INFO, "%s(): Error preparing eBPF pin_dir for ifindex:%d"
 				    , __FUNCTION__
 				    , opts->ifindex);
-		return -1;
+		return NULL;
 	}
 
 	if (len > GTP_STR_MAX_LEN) {
 		log_message(LOG_INFO, "%s(): Error preparing eBPF pin_dir for ifindex:%d (path_too_long)"
 				    , __FUNCTION__
 				    , opts->ifindex);
-		return -1;
+		return NULL;
 	}
 
 	/* Load object */
 	bpf_obj = gtp_bpf_load_file(opts);
 	if (!bpf_obj)
-		return -1;
+		return NULL;
 
 	/* Attach prog to interface */
 	if (opts->progname[0]) {
@@ -212,6 +210,28 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 		}
 	}
 
+	opts->bpf_obj = bpf_obj;
+	return bpf_prog;
+
+  err:
+	bpf_object__close(bpf_obj);
+	return NULL;
+}
+
+
+static int
+gtp_xdp_load(gtp_bpf_opts_t *opts)
+{
+	struct bpf_program *bpf_prog = NULL;
+	struct bpf_link *bpf_lnk;
+	char errmsg[STRERR_BUFSIZE];
+	int err;
+
+	/* Load eBPF prog */
+	bpf_prog = gtp_xdp_load_prog(opts);
+	if (!bpf_prog)
+		return -1;
+
 	/* Detach previously stalled XDP programm */
 	err = bpf_xdp_detach(opts->ifindex, XDP_FLAGS_DRV_MODE, NULL);
 	if (err) {
@@ -229,16 +249,14 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 				    , __FUNCTION__
 				    , bpf_program__name(bpf_prog)
 				    , opts->ifindex
-				    , errno, errmsg, VTY_NEWLINE);
+				    , errno, errmsg);
 		goto err;
 	}
 
-	opts->bpf_obj = bpf_obj;
 	opts->bpf_lnk = bpf_lnk;
 	return 0;
 
   err:
-	bpf_object__close(bpf_obj);
 	return -1;
 }
 
@@ -251,7 +269,7 @@ gtp_xdp_unload(gtp_bpf_opts_t *opts)
 
 
 int
-gtp_xdp_load_fwd(gtp_bpf_opts_t *opts)
+gtp_xdp_fwd_load(gtp_bpf_opts_t *opts)
 {
 	int err;
 
@@ -260,15 +278,15 @@ gtp_xdp_load_fwd(gtp_bpf_opts_t *opts)
 		return -1;
 
 	/* MAP ref for faster access */
-	xdpfwd_maps[XDPFWD_MAP_TEID].map = bpf_object__find_map_by_name(opts->bpf_obj,
+	xdp_fwd_maps[XDPFWD_MAP_TEID].map = bpf_object__find_map_by_name(opts->bpf_obj,
 									"teid_xlat");
-	xdpfwd_maps[XDPFWD_MAP_IPTNL].map = bpf_object__find_map_by_name(opts->bpf_obj,
+	xdp_fwd_maps[XDPFWD_MAP_IPTNL].map = bpf_object__find_map_by_name(opts->bpf_obj,
 									 "iptnl_info");
 	return 0;
 }
 
 void
-gtp_xdp_unload_fwd(gtp_bpf_opts_t *opts)
+gtp_xdp_fwd_unload(gtp_bpf_opts_t *opts)
 {
 	gtp_xdp_unload(opts);
 }
@@ -430,29 +448,29 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 }
 
 int
-gtp_xdpfwd_teid_action(int action, gtp_teid_t *t, int direction)
+gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t, int direction)
 {
-	if (!xdpfwd_maps[XDPFWD_MAP_TEID].map)
+	if (!xdp_fwd_maps[XDPFWD_MAP_TEID].map)
 		return -1;
-	return gtp_xdp_teid_action(xdpfwd_maps[XDPFWD_MAP_TEID].map, action, t, direction);
+	return gtp_xdp_teid_action(xdp_fwd_maps[XDPFWD_MAP_TEID].map, action, t, direction);
 }
 
 int
-gtp_xdpfwd_teid_vty(vty_t *vty, __be32 id)
+gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
 {
-	if (!xdpfwd_maps[XDPFWD_MAP_TEID].map)
+	if (!xdp_fwd_maps[XDPFWD_MAP_TEID].map)
 		return -1;
-	return gtp_xdp_teid_vty(xdpfwd_maps[XDPFWD_MAP_TEID].map, vty, id);
+	return gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, id);
 }
 
 int
-gtp_xdpfwd_vty(vty_t *vty)
+gtp_xdp_fwd_vty(vty_t *vty)
 {
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(xdpfwd_maps[XDPFWD_MAP_TEID].map, vty, 0);
+	gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -496,7 +514,7 @@ gtp_xdp_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
 int
 gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 {
-	struct bpf_map *map = xdpfwd_maps[XDPFWD_MAP_IPTNL].map;
+	struct bpf_map *map = xdp_fwd_maps[XDPFWD_MAP_IPTNL].map;
 	struct gtp_iptnl_rule *new = NULL;
 	int ret = 0, err = 0;
 	char errmsg[STRERR_BUFSIZE];
@@ -568,7 +586,7 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 int
 gtp_xdp_iptnl_vty(vty_t *vty)
 {
-	struct bpf_map *map = xdpfwd_maps[XDPFWD_MAP_IPTNL].map;
+	struct bpf_map *map = xdp_fwd_maps[XDPFWD_MAP_IPTNL].map;
 	__be32 key, next_key;
 	struct gtp_iptnl_rule *r;
 	char errmsg[STRERR_BUFSIZE];
@@ -616,6 +634,87 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 /*
  *	Mirroring handling
  */
+static bool
+gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
+{
+	char errmsg[STRERR_BUFSIZE];
+	int err;
+
+	bpf_tc_hook_destroy(q_hook);	/* Release previously stalled entry */
+	err = bpf_tc_hook_create(q_hook);
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant create TC_HOOK to ifindex:%d (%s)"
+				    , __FUNCTION__
+				    , q_hook->ifindex
+				    , errmsg);
+		return true;
+	}
+
+	return false;
+}
+
+static bool
+gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direction,
+		      const struct bpf_program *bpf_prog)
+{
+	DECLARE_LIBBPF_OPTS(bpf_tc_opts, tc_opts, .handle = 1, .priority = 0,
+			    .flags = BPF_TC_F_REPLACE);
+	char errmsg[STRERR_BUFSIZE];
+	int err;
+
+	q_hook->attach_point = direction;
+	tc_opts.prog_fd = bpf_program__fd(bpf_prog);
+	err = bpf_tc_attach(q_hook, &tc_opts);
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant attach eBPF prog_fd:%d to ifindex:%d %s (%s)"
+				    , __FUNCTION__
+				    , tc_opts.prog_fd
+				    , q_hook->ifindex
+				    , (direction == BPF_TC_INGRESS) ? "ingress" : "egress"
+				    , errmsg);
+		return true;
+	}
+
+	return false;
+}
+
+int
+gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
+{
+	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
+			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
+	struct bpf_program *bpf_prog = NULL;
+	int ret = 0;
+
+	/* Load eBPF prog */
+	bpf_prog = gtp_xdp_load_prog(opts);
+	if (!bpf_prog)
+		return -1;
+
+	/* Create Qdisc Clsact & attach {in,e}gress filters */
+	ret = ret ? : gtp_xdp_qdisc_clsact_add(&q_hook);
+	ret = ret ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
+	ret = ret ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
+	if (ret < 0)
+		goto err;
+
+	return 0;
+
+  err:
+	bpf_object__close(opts->bpf_obj);
+	return -1;
+}
+
+void
+gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
+{
+	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
+			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
+	bpf_tc_hook_destroy(&q_hook);
+	bpf_object__close(opts->bpf_obj);
+}
 
 
 
