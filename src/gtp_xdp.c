@@ -634,7 +634,7 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 /*
  *	Mirroring handling
  */
-static bool
+static int
 gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
 {
 	char errmsg[STRERR_BUFSIZE];
@@ -648,13 +648,13 @@ gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
 				    , __FUNCTION__
 				    , q_hook->ifindex
 				    , errmsg);
-		return true;
+		return 1;
 	}
 
-	return false;
+	return 0;
 }
 
-static bool
+static int
 gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direction,
 		      const struct bpf_program *bpf_prog)
 {
@@ -674,10 +674,10 @@ gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direc
 				    , q_hook->ifindex
 				    , (direction == BPF_TC_INGRESS) ? "ingress" : "egress"
 				    , errmsg);
-		return true;
+		return 1;
 	}
 
-	return false;
+	return 0;
 }
 
 int
@@ -686,7 +686,7 @@ gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
 	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
 	struct bpf_program *bpf_prog = NULL;
-	int ret = 0;
+	int err = 0;
 
 	/* Load eBPF prog */
 	bpf_prog = gtp_xdp_load_prog(opts);
@@ -694,17 +694,15 @@ gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
 		return -1;
 
 	/* Create Qdisc Clsact & attach {in,e}gress filters */
-	ret = ret ? : gtp_xdp_qdisc_clsact_add(&q_hook);
-	ret = ret ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
-	ret = ret ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
-	if (ret < 0)
-		goto err;
+	err = err ? : gtp_xdp_qdisc_clsact_add(&q_hook);
+	err = err ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
+	err = err ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
+	if (err) {
+		bpf_object__close(opts->bpf_obj);
+		return -1;
+	}
 
 	return 0;
-
-  err:
-	bpf_object__close(opts->bpf_obj);
-	return -1;
 }
 
 void

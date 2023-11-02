@@ -33,44 +33,33 @@
 /*
  *	Scheduling decision
  */
-static uint16_t
-gtp_sched_get_lower_priority(gtp_naptr_t *naptr)
-{
-	uint16_t priority = 0;
-	gtp_pgw_t *pgw;
-
-	list_for_each_entry(pgw, &naptr->pgw, next) {
-		if (!priority) {
-			priority = pgw->priority;
-			continue;
-		}
-
-		if (pgw->priority < priority)
-			priority = pgw->priority;
-	}
-
-	return priority;
-}
-
 static gtp_pgw_t *
 gtp_sched_pgw_wlc(gtp_naptr_t *naptr, struct sockaddr_in *addr_skip)
 {
 	uint64_t loh = 0, doh;
 	gtp_pgw_t *pgw, *least = NULL;
 	struct sockaddr_in *paddr;
-	uint16_t priority;
-
-	/* First stage: find out lower priority */
-	priority = gtp_sched_get_lower_priority(naptr);
+	uint16_t priority = 0;
 
 	/* Second stage: wlc over lower priority */
 	list_for_each_entry(pgw, &naptr->pgw, next) {
-		/* weight=0 is quiesced and will not receive any connections */
-		if (!pgw->weight || pgw->priority != priority)
-			continue;
-
 		paddr = (struct sockaddr_in *) &pgw->addr;
 		if (paddr->sin_addr.s_addr == addr_skip->sin_addr.s_addr)
+			continue;
+
+		/* first least priority init */
+		if (!priority)
+			priority = pgw->priority;
+
+		/* weight=0 is quiesced and will not receive any connections */
+		if (!pgw->weight)
+			continue;
+
+		/* Switching to next priority */
+		if (!least && pgw->priority != priority)
+			priority = pgw->priority;
+
+		if (pgw->priority != priority)
 			continue;
 
 		doh = __sync_add_and_fetch(&pgw->cnt, 0);
@@ -120,9 +109,9 @@ gtp_sched_naptr(gtp_apn_t *apn, const char *service, struct sockaddr_in *addr_sk
 
 	pgw = gtp_sched_pgw_wlc(least, addr_skip);
 	if (!pgw) {
+		__set_bit(GTP_SCHEDULE_FL_SKIP, &least->fl);
 		least = NULL;
 		/* Same player */
-		__set_bit(GTP_SCHEDULE_FL_SKIP, &least->fl);
 		goto shoot_again;
 	}
 

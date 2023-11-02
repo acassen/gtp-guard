@@ -219,6 +219,17 @@ gtp_resolv_pgw_srv(gtp_naptr_t *naptr)
 }
 
 static int
+gtp_pgw_cmp(list_head_t *a, list_head_t *b)
+{
+	gtp_pgw_t *pa, *pb;
+
+	pa = container_of(a, gtp_pgw_t, next);
+	pb = container_of(b, gtp_pgw_t, next);
+
+	return pa->priority - pb->priority;
+}
+
+static int
 gtp_pgw_append(gtp_naptr_t *naptr, char *name, size_t len)
 {
 	gtp_pgw_t *new;
@@ -236,6 +247,7 @@ gtp_pgw_append(gtp_naptr_t *naptr, char *name, size_t len)
 	new->weight = 20;
 
 	list_add_tail(&new->next, &naptr->pgw);
+	list_sort(&naptr->pgw, gtp_pgw_cmp);
 	return 0;
 }
 
@@ -262,6 +274,7 @@ gtp_pgw_alloc(gtp_naptr_t *naptr, const u_char *rdata, size_t rdlen)
 	gtp_naptr_name_strncat(new->srv_name, GTP_DISPLAY_SRV_LEN, rdata, edata);
 
 	list_add_tail(&new->next, &naptr->pgw);
+	list_sort(&naptr->pgw, gtp_pgw_cmp);
 	return 0;
 }
 
