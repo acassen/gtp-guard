@@ -723,9 +723,14 @@ gtp_teid_t *
 gtpc_handle_v1(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_teid_t *teid;
 
-	if (*(gtpc_msg_hdl[gtph->type].hdl))
-		return (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);
+	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
+		teid = (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);
+		if (teid)
+			teid->family = GTP_INIT;
+		return teid;
+	}
 
 	log_message(LOG_INFO, "%s(): GTPv1 msg_type:0x%.2x not supported. Ignoring..."
 			    , __FUNCTION__

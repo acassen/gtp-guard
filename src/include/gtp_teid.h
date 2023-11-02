@@ -46,6 +46,7 @@ typedef struct _gtp_teid {
 	uint8_t			bearer_id;	/* Bearer we belong to */
 	struct sockaddr_in	sgw_addr;	/* Remote sGW endpoint */
 	struct sockaddr_in	pgw_addr;	/* Remote pGW endpoint */
+	uint8_t			family;
 
 	uint32_t		sqn;		/* Local Seqnum */
 	uint32_t		vsqn;		/* Local Virtual Seqnum */

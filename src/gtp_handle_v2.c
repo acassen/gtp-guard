@@ -1047,54 +1047,61 @@ gtpc_generic_xlat_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr, int di
  *	GTP-C Message handle
  */
 static const struct {
-	/* GTP_INGRESS : sGW -> pGW
-	 * GTP_EGRESS  : pGW -> sGW */
-	int direction;
+	uint8_t family;	/* GTP_INIT : Initial | GTP_TRIG : Triggered*/
+	int direction;	/* GTP_INGRESS : sGW -> pGW | GTP_EGRESS  : pGW -> sGW */
 	gtp_teid_t * (*hdl) (gtp_srv_worker_t *, struct sockaddr_storage *, int);
 } gtpc_msg_hdl[0xff] = {
-	[GTP_ECHO_REQUEST_TYPE]			= { GTP_INGRESS, gtpc_echo_request_hdl },
-	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { GTP_INGRESS, gtpc_create_session_request_hdl },
-	[GTP_CREATE_SESSION_RESPONSE_TYPE]	= { GTP_EGRESS, gtpc_create_session_response_hdl },
-	[GTP_DELETE_SESSION_REQUEST_TYPE]	= { GTP_INGRESS, gtpc_delete_session_request_hdl },
-	[GTP_DELETE_SESSION_RESPONSE_TYPE]	= { GTP_EGRESS, gtpc_delete_session_response_hdl },
-	[GTP_MODIFY_BEARER_REQUEST_TYPE]	= { GTP_INGRESS, gtpc_modify_bearer_request_hdl },
-	[GTP_MODIFY_BEARER_RESPONSE_TYPE]	= { GTP_EGRESS, gtpc_modify_bearer_response_hdl },
-	[GTP_DELETE_BEARER_REQUEST]		= { GTP_EGRESS, gtpc_delete_bearer_request_hdl },
-	[GTP_DELETE_BEARER_RESPONSE]		= { GTP_INGRESS, gtpc_delete_bearer_response_hdl },
+	[GTP_ECHO_REQUEST_TYPE]			= { GTP_INIT, GTP_INGRESS, gtpc_echo_request_hdl },
+	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { GTP_INIT, GTP_INGRESS, gtpc_create_session_request_hdl },
+	[GTP_CREATE_SESSION_RESPONSE_TYPE]	= { GTP_TRIG, GTP_EGRESS, gtpc_create_session_response_hdl },
+	[GTP_DELETE_SESSION_REQUEST_TYPE]	= { GTP_INIT, GTP_INGRESS, gtpc_delete_session_request_hdl },
+	[GTP_DELETE_SESSION_RESPONSE_TYPE]	= { GTP_TRIG, GTP_EGRESS, gtpc_delete_session_response_hdl },
+	[GTP_MODIFY_BEARER_REQUEST_TYPE]	= { GTP_INIT, GTP_INGRESS, gtpc_modify_bearer_request_hdl },
+	[GTP_MODIFY_BEARER_RESPONSE_TYPE]	= { GTP_TRIG, GTP_EGRESS, gtpc_modify_bearer_response_hdl },
+	[GTP_DELETE_BEARER_REQUEST]		= { GTP_INIT, GTP_EGRESS, gtpc_delete_bearer_request_hdl },
+	[GTP_DELETE_BEARER_RESPONSE]		= { GTP_TRIG, GTP_INGRESS, gtpc_delete_bearer_response_hdl },
 	/* Generic command xlat */
-	[GTP_MODIFY_BEARER_COMMAND]		= { GTP_INGRESS, gtpc_generic_xlat_command_hdl },
-	[GTP_DELETE_BEARER_COMMAND]		= { GTP_INGRESS, gtpc_generic_xlat_command_hdl },
-	[GTP_BEARER_RESSOURCE_COMMAND]		= { GTP_INGRESS, gtpc_generic_xlat_command_hdl },
+	[GTP_MODIFY_BEARER_COMMAND]		= { GTP_INIT, GTP_INGRESS, gtpc_generic_xlat_command_hdl },
+	[GTP_DELETE_BEARER_COMMAND]		= { GTP_INIT, GTP_INGRESS, gtpc_generic_xlat_command_hdl },
+	[GTP_BEARER_RESSOURCE_COMMAND]		= { GTP_INIT, GTP_INGRESS, gtpc_generic_xlat_command_hdl },
 	/* Generic request xlat */
-	[GTP_CHANGE_NOTIFICATION_REQUEST_REQUEST] = { GTP_INGRESS, gtpc_generic_xlat_request_hdl },
-	[GTP_RESUME_NOTIFICATION]		= { GTP_INGRESS, gtpc_generic_xlat_request_hdl },
-	[GTP_CREATE_BEARER_REQUEST]		= { GTP_EGRESS, gtpc_generic_xlat_request_hdl },
-	[GTP_UPDATE_BEARER_REQUEST]		= { GTP_EGRESS, gtpc_generic_xlat_request_hdl },
-	[GTP_UPDATE_PDN_CONNECTION_SET_REQUEST]	= { GTP_INGRESS, gtpc_generic_xlat_request_hdl },
+	[GTP_CHANGE_NOTIFICATION_REQUEST]	= { GTP_INIT, GTP_INGRESS, gtpc_generic_xlat_request_hdl },
+	[GTP_RESUME_NOTIFICATION]		= { GTP_INIT, GTP_INGRESS, gtpc_generic_xlat_request_hdl },
+	[GTP_CREATE_BEARER_REQUEST]		= { GTP_INIT, GTP_EGRESS, gtpc_generic_xlat_request_hdl },
+	[GTP_UPDATE_BEARER_REQUEST]		= { GTP_INIT, GTP_EGRESS, gtpc_generic_xlat_request_hdl },
+	[GTP_UPDATE_PDN_CONNECTION_SET_REQUEST]	= { GTP_INIT, GTP_INGRESS, gtpc_generic_xlat_request_hdl },
 	/* Generic response xlat */
-	[GTP_CHANGE_NOTIFICATION_REQUEST_RESPONSE] = { GTP_EGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_RESUME_ACK]			= { GTP_EGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_MODIFY_BEARER_FAILURE_IND]		= { GTP_EGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_DELETE_BEARER_FAILURE_IND]		= { GTP_EGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_BEARER_RESSOURCE_FAILURE_IND]	= { GTP_EGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_CREATE_BEARER_RESPONSE]		= { GTP_INGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_UPDATE_BEARER_RESPONSE]		= { GTP_INGRESS, gtpc_generic_xlat_response_hdl },
-	[GTP_UPDATE_PDN_CONNECTION_SET_RESPONSE] = { GTP_EGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_CHANGE_NOTIFICATION_RESPONSE]	= { GTP_TRIG, GTP_EGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_RESUME_ACK]			= { GTP_TRIG, GTP_EGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_MODIFY_BEARER_FAILURE_IND]		= { GTP_TRIG, GTP_EGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_DELETE_BEARER_FAILURE_IND]		= { GTP_TRIG, GTP_EGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_BEARER_RESSOURCE_FAILURE_IND]	= { GTP_TRIG, GTP_EGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_CREATE_BEARER_RESPONSE]		= { GTP_TRIG, GTP_INGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_UPDATE_BEARER_RESPONSE]		= { GTP_TRIG, GTP_INGRESS, gtpc_generic_xlat_response_hdl },
+	[GTP_UPDATE_PDN_CONNECTION_SET_RESPONSE] = { GTP_TRIG, GTP_EGRESS, gtpc_generic_xlat_response_hdl },
 };
 
 gtp_teid_t *
 gtpc_handle_v2(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_teid_t *teid;
 
 	/* Special care to create and delete session */
-	if (*(gtpc_msg_hdl[gtph->type].hdl))
-		return (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr, gtpc_msg_hdl[gtph->type].direction);
+	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
+		teid = (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr, gtpc_msg_hdl[gtph->type].direction);
+		if (teid)
+			teid->family = gtpc_msg_hdl[gtph->type].family;
+		return teid;
+	}
 
 	/* We are into transparent mode so the only important
 	 * matter here is to xlat F-TEID for both GTP-C and
 	 * GTP-U in order to force tunnel endpoint to be
 	 * our GTP Proxy... just like the lyrics: nothing else matters
 	 */
-	return gtpc_generic_xlat_hdl(w, addr, GTP_INGRESS);
+	teid = gtpc_generic_xlat_hdl(w, addr, GTP_INGRESS);
+	if (teid)
+		teid->family = GTP_INIT;
+	return teid;
 }

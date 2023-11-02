@@ -130,15 +130,19 @@ gtp_switch_udp_init(gtp_srv_t *srv)
 	return -1;
 }
 
-static struct sockaddr_in *
-gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *addr)
+static void
+gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct sockaddr_in *to)
 {
-	struct sockaddr_in *addr4 = (struct sockaddr_in *) addr;
+	struct sockaddr_in *addr4 = (struct sockaddr_in *) from;
 
-	if (addr4->sin_addr.s_addr == teid->sgw_addr.sin_addr.s_addr)
-		return &teid->pgw_addr;
+	if (addr4->sin_addr.s_addr == teid->sgw_addr.sin_addr.s_addr) {
+		*to = teid->pgw_addr;
+		return;
+	}
 
-	return &teid->sgw_addr;
+	*to = teid->sgw_addr;
+	if (teid->family == GTP_INIT)
+		to->sin_port = htons(GTP_C_PORT);
 }
 
 static void *
@@ -148,7 +152,7 @@ gtp_switch_worker_task(void *arg)
 	gtp_srv_t *srv = w->srv;
 	struct sockaddr_storage *addr = &srv->addr;
 	struct sockaddr_storage addr_from;
-	struct sockaddr_in *addr_to;
+	struct sockaddr_in addr_to;
 	socklen_t addrlen = sizeof(addr_from);
 	gtp_teid_t *teid;
 	gtp_ctx_t *ctx = srv->ctx;
@@ -210,10 +214,10 @@ gtp_switch_worker_task(void *arg)
 			continue;
 
 		/* Set destination address */
-		addr_to = gtp_switch_fwd_addr_get(teid, &addr_from);
+		gtp_switch_fwd_addr_get(teid, &addr_from, &addr_to);
 		gtp_switch_udp_fwd(w, w->fd
 				    , (teid->type == 0xff) ? (struct sockaddr_in *) &addr_from :
-					 		     addr_to);
+							     &addr_to);
 
 		gtpc_handle_post(w, teid);
 	}

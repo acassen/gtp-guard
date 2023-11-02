@@ -715,7 +715,6 @@ gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
 }
 
 
-
 /*
  *	XDP init
  */
