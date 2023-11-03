@@ -68,9 +68,9 @@ int tc_gtp_mirror(struct __sk_buff *skb)
 
 	/* First match destination address */
 	rule = bpf_map_lookup_elem(&mirror_rules, &iph->daddr);
-	rule = rule ? : bpf_map_lookup_elem(&mirror_rules, &iph->saddr);
+	rule = (rule) ? rule : bpf_map_lookup_elem(&mirror_rules, &iph->saddr);
 	if (!rule)
-        	return TC_ACT_OK;
+		return TC_ACT_OK;
 
 	if (iph->protocol != rule->protocol)
 		return TC_ACT_OK;

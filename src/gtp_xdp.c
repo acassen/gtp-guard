@@ -661,6 +661,7 @@ gtp_xdp_iptnl_vty(vty_t *vty)
         return 0;
 }
 
+
 /*
  *	Mirroring handling
  */
