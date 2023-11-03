@@ -137,10 +137,10 @@ gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct 
 
 	if (addr4->sin_addr.s_addr == teid->sgw_addr.sin_addr.s_addr) {
 		*to = teid->pgw_addr;
-		return;
+	} else {
+		*to = teid->sgw_addr;
 	}
 
-	*to = teid->sgw_addr;
 	if (teid->family == GTP_INIT)
 		to->sin_port = htons(GTP_C_PORT);
 }
