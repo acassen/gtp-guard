@@ -32,6 +32,7 @@
 #include <sys/param.h>
 #include <sys/utsname.h>
 #include <netdb.h>
+#include <stdbool.h>
 
 /* Evaluates to -1, 0 or 1 as appropriate.
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
@@ -74,6 +75,42 @@
 static inline void cpu_relax(void)
 {
 	asm volatile("rep; nop" ::: "memory");
+}
+
+/* inline stuff */
+static inline int __ip6_addr_equal(const struct in6_addr *a1,
+                                   const struct in6_addr *a2)
+{
+        return (((a1->s6_addr32[0] ^ a2->s6_addr32[0]) |
+                 (a1->s6_addr32[1] ^ a2->s6_addr32[1]) |
+                 (a1->s6_addr32[2] ^ a2->s6_addr32[2]) |
+                 (a1->s6_addr32[3] ^ a2->s6_addr32[3])) == 0);
+}
+
+static inline bool __attribute__((pure))
+sockstorage_equal(const struct sockaddr_storage *s1, const struct sockaddr_storage *s2)
+{
+        if (s1->ss_family != s2->ss_family)
+                return false;
+
+        if (s1->ss_family == AF_INET6) {
+                const struct sockaddr_in6 *a1 = (const struct sockaddr_in6 *) s1;
+                const struct sockaddr_in6 *a2 = (const struct sockaddr_in6 *) s2;
+
+                if (__ip6_addr_equal(&a1->sin6_addr, &a2->sin6_addr) &&
+                    (a1->sin6_port == a2->sin6_port))
+                        return true;
+        } else if (s1->ss_family == AF_INET) {
+                const struct sockaddr_in *a1 = (const struct sockaddr_in *) s1;
+                const struct sockaddr_in *a2 = (const struct sockaddr_in *) s2;
+
+                if ((a1->sin_addr.s_addr == a2->sin_addr.s_addr) &&
+                    (a1->sin_port == a2->sin_port))
+                        return true;
+        } else if (s1->ss_family == AF_UNSPEC)
+                return true;
+
+        return false;
 }
 
 /* global vars exported */

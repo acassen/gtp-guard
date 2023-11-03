@@ -323,7 +323,7 @@ __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 		return -1;
 
 	/* Fast-Path cleanup */
-	gtp_xdp_fwd_teid_action(XDPFWD_RULE_DEL, teid, 0);
+	gtp_xdp_fwd_teid_action(RULE_DEL, teid, 0);
 
 	gtp_teid_free(teid);
 	return 0;

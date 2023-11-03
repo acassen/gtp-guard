@@ -107,7 +107,7 @@ struct gtp_iptnl_rule {
 
 struct gtp_mirror_rule {
 	__be32	addr;
-        __be16	port;
+	__be16	port;
 	__u8	protocol;
 	int	ifindex;
 } __attribute__ ((__aligned__(8)));

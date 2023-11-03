@@ -235,7 +235,7 @@ DEFUN(pdn_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-	vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
+	vty_out(vty, "Success loading eBPF program:%s on ifindex:%d Qdisc%s"
 		   , opts->filename
 		   , opts->ifindex
 		   , VTY_NEWLINE);
@@ -250,11 +250,11 @@ DEFUN(no_pdn_xdp_mirror,
 {
 	gtp_bpf_opts_t *opts = &daemon_data->xdp_mirror;
 
-        if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
-                vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
-                           , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
         gtp_xdp_mirror_unload(opts);
 
@@ -267,6 +267,89 @@ DEFUN(no_pdn_xdp_mirror,
 	__clear_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags);
         return CMD_SUCCESS;
 }
+
+DEFUN(pdn_mirror,
+      pdn_mirror_cmd,
+      "mirror (A.B.C.D|X:X:X:X) port <1024-65535> protocol STRING interface STRING",
+      "Mirroring rule\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "UDP Port\n"
+      "Number\n"
+      "IP Protocol\n"
+      "UDP or TCP\n"
+      "Interface to redirect mirrored traffic to\n"
+      "Name\n")
+{
+	gtp_mirror_rule_t *r;
+	struct sockaddr_storage addr;
+	uint8_t protocol;
+	int port, ifindex, ret;
+
+	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc < 4) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+        VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
+	if (port) ; /* Dummy test */
+        ret = inet_stosockaddr(argv[0], argv[1], &addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* FIXME: complete support to IPv6 mirroring */
+	if (addr.ss_family != AF_INET) {
+		vty_out(vty, "%% shame on me, only IPv4 is currently supported%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (strstr(argv[2], "UDP"))
+		protocol = IPPROTO_UDP;
+	else if (strstr(argv[2], "TCP"))
+		protocol = IPPROTO_TCP;
+	else {
+		vty_out(vty, "%% Protocol %s not supported%s", argv[2], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ifindex = if_nametoindex(argv[1]);
+	if (!ifindex) {
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
+			   , argv[1]
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	r = gtp_mirror_rule_get(&addr, protocol, ifindex);
+	if (r) {
+		vty_out(vty, "%% Same mirroring rule already set%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	r = gtp_mirror_rule_add(&addr, protocol, ifindex);
+
+	ret = gtp_xdp_mirror_action(RULE_ADD, r);
+	if (ret < 0) {
+		vty_out(vty, "%% Error while setting XDP mirroring rule%s"
+			   , VTY_NEWLINE);
+		gtp_mirror_rule_del(r);
+		FREE(r);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
 
 
 DEFUN(restart_counter_file,
@@ -480,6 +563,7 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &no_pdn_xdp_gtpu_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_mirror_cmd);
+	install_element(PDN_NODE, &pdn_mirror_cmd);
 	install_element(PDN_NODE, &restart_counter_file_cmd);
 	install_element(PDN_NODE, &request_channel_cmd);
 

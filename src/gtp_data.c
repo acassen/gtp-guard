@@ -48,17 +48,81 @@
 /* Extern data */
 extern data_t *daemon_data;
 
+
+/*
+ *	Mirroring rules
+ */
+
+gtp_mirror_rule_t *
+gtp_mirror_rule_get(const struct sockaddr_storage *addr, uint8_t protocol, int ifindex)
+{
+	list_head_t *l = &daemon_data->mirror_rules;
+	gtp_mirror_rule_t *r;
+
+	list_for_each_entry(r, l, next) {
+		if (sockstorage_equal(addr, &r->addr) &&
+		    r->protocol == protocol &&
+		    r->ifindex == ifindex) {
+			return r;
+		}
+	}
+
+	return NULL;
+}
+
+
+gtp_mirror_rule_t *
+gtp_mirror_rule_add(const struct sockaddr_storage *addr, uint8_t protocol, int ifindex)
+{
+	list_head_t *l = &daemon_data->mirror_rules;
+	gtp_mirror_rule_t *r;
+
+	PMALLOC(r);
+	r->addr = *addr;
+	r->protocol = protocol;
+	r->ifindex = ifindex;
+	INIT_LIST_HEAD(&r->next);
+
+	list_add_tail(&r->next, l);
+
+	return r;
+}
+
+void
+gtp_mirror_rule_del(gtp_mirror_rule_t *r)
+{
+	list_head_del(&r->next);
+}
+
+static int
+gtp_mirror_destroy(void)
+{
+	list_head_t *l = &daemon_data->mirror_rules;
+	gtp_mirror_rule_t *r, *_r;
+
+	list_for_each_entry_safe(r, _r, l, next) {
+		list_head_del(&r->next);
+		FREE(r);
+	}
+
+	return 0;
+}
+
+
 /*
  *	Daemon Control Block helpers
  */
 data_t *
 alloc_daemon_data(void)
 {
-        data_t *new = (data_t *) MALLOC(sizeof(data_t));
-        INIT_LIST_HEAD(&new->gtp_apn);
-        INIT_LIST_HEAD(&new->gtp_ctx);
+	data_t *new;
 
-        return new;
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->gtp_apn);
+	INIT_LIST_HEAD(&new->gtp_ctx);
+	INIT_LIST_HEAD(&new->mirror_rules);
+
+	return new;
 }
 
 void
@@ -68,6 +132,7 @@ free_daemon_data(void)
 		gtp_xdp_fwd_unload(&daemon_data->xdp_gtpu);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_mirror_unload(&daemon_data->xdp_mirror);
+	gtp_mirror_destroy();
 	gtp_apn_destroy();
 	gtp_switch_destroy();
 	FREE(daemon_data);

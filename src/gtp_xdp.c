@@ -61,7 +61,7 @@ extern data_t *daemon_data;
 /* Local data */
 static const char *pin_basedir = "/sys/fs/bpf";
 static xdp_exported_maps_t xdp_fwd_maps[XDPFWD_MAP_CNT];
-static xdp_exported_maps_t xdp_mirror_maps;
+static struct bpf_map *xdp_mirror_map;
 
 /* Local defines */
 #define STRERR_BUFSIZE	128
@@ -78,6 +78,25 @@ gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list a
 
 	log_message(LOG_INFO, format, args);
 	return 0;
+}
+
+static struct bpf_map *
+gtp_bpf_load_map(struct bpf_object *obj, const char *map_name)
+{
+	struct bpf_map *map = NULL;
+	char errmsg[STRERR_BUFSIZE];
+
+	map = bpf_object__find_map_by_name(obj, map_name);
+	if (!map) {
+		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): XDP: error mapping tab:%s err:%d (%s)"
+				    , __FUNCTION__
+				    , map_name
+				    , errno, errmsg);
+		return NULL;
+	}
+
+	return map;
 }
 
 static void
@@ -271,6 +290,7 @@ gtp_xdp_unload(gtp_bpf_opts_t *opts)
 int
 gtp_xdp_fwd_load(gtp_bpf_opts_t *opts)
 {
+	struct bpf_map *map;
 	int err;
 
 	err = gtp_xdp_load(opts);
@@ -278,10 +298,20 @@ gtp_xdp_fwd_load(gtp_bpf_opts_t *opts)
 		return -1;
 
 	/* MAP ref for faster access */
-	xdp_fwd_maps[XDPFWD_MAP_TEID].map = bpf_object__find_map_by_name(opts->bpf_obj,
-									"teid_xlat");
-	xdp_fwd_maps[XDPFWD_MAP_IPTNL].map = bpf_object__find_map_by_name(opts->bpf_obj,
-									 "iptnl_info");
+	map = gtp_bpf_load_map(opts->bpf_obj, "teid_xlat");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_fwd_maps[XDPFWD_MAP_TEID].map = map;
+
+	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_fwd_maps[XDPFWD_MAP_IPTNL].map = map;
+
 	return 0;
 }
 
@@ -341,7 +371,7 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int directio
 	key = htonl(t->vid);
 
 	/* Set rule */
-	if (action == XDPFWD_RULE_ADD) {
+	if (action == RULE_ADD) {
 		/* fill per cpu rule */
 		new = gtp_xdp_teid_rule_alloc(&sz);
 		if (!new) {
@@ -352,7 +382,7 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int directio
 		}
 		gtp_xdp_teid_rule_set(new, t, direction);
 		err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
-	} else if (action == XDPFWD_RULE_DEL)
+	} else if (action == RULE_DEL)
 		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
 	else
 		return -1;
@@ -528,7 +558,7 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 	key = t->selector_addr;
 
 	/* Set rule */
-	if (action == XDPFWD_RULE_ADD || action == XDPFWD_RULE_UPDATE) {
+	if (action == RULE_ADD || action == RULE_UPDATE) {
 		/* fill per cpu rule */
 		new = gtp_xdp_iptnl_rule_alloc(&sz);
 		if (!new) {
@@ -539,9 +569,9 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 		}
 		gtp_xdp_iptnl_rule_set(new, t);
 
-		if (action == XDPFWD_RULE_ADD) {
+		if (action == RULE_ADD) {
 			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
-		} else if (action == XDPFWD_RULE_UPDATE) {
+		} else if (action == RULE_UPDATE) {
 			err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), new, sz, 0);
 			if (err) {
 				libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
@@ -556,7 +586,7 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 			gtp_xdp_iptnl_rule_set(new, t);
 			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_EXIST);
 		}
-	} else if (action == XDPFWD_RULE_DEL) {
+	} else if (action == RULE_DEL) {
 		action_str = "deleting";
 		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
 	} else
@@ -635,6 +665,59 @@ gtp_xdp_iptnl_vty(vty_t *vty)
  *	Mirroring handling
  */
 static int
+gtp_xdp_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
+{
+	r->addr = ((struct sockaddr_in *) &m->addr)->sin_addr.s_addr;
+	r->port = ((struct sockaddr_in *) &m->addr)->sin_port;
+	r->protocol = m->protocol;
+	r->ifindex = m->ifindex;
+	return 0;
+}
+
+int
+gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
+{
+	struct bpf_map *map = xdp_mirror_map;
+	struct gtp_mirror_rule r;
+	const char *action_str = "adding";
+	char errmsg[STRERR_BUFSIZE];
+	int err;
+
+	gtp_xdp_mirror_rule_set(&r, m);
+
+	if (action == RULE_ADD) {
+		err = bpf_map__update_elem(map, &r.addr, sizeof(uint32_t)
+					      , &r, sizeof(struct gtp_mirror_rule), BPF_NOEXIST);
+	} else if (action == RULE_DEL) {
+		action_str = "deleting";
+		err = bpf_map__delete_elem(map, &r.addr, sizeof(uint32_t), 0);
+	} else
+		return -1;
+
+	if (err) {
+		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant %s mirror_rule for [%s]:%d (%s)"
+				    , __FUNCTION__
+				    , (action) ? "del" : "add"
+				    , inet_sockaddrtos(&m->addr)
+				    , inet_sockaddrport(&m->addr)
+				    , errmsg);
+		return -1;
+	}
+
+	log_message(LOG_INFO, "%s(): %s XDP Mirroring rule "
+			      "{addr:%s port:%u, protocol:%s, ifindex:%d}"
+			    , __FUNCTION__
+			    , action_str
+			    , inet_sockaddrtos(&m->addr)
+			    , inet_sockaddrport(&m->addr)
+			    , (m->protocol == IPPROTO_UDP) ? "UDP" : "TCP"
+			    , m->ifindex);
+	return 0;
+}
+
+
+static int
 gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
 {
 	char errmsg[STRERR_BUFSIZE];
@@ -680,12 +763,23 @@ gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direc
 	return 0;
 }
 
+void
+gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
+{
+	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
+			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
+	bpf_tc_hook_destroy(&q_hook);
+	bpf_object__close(opts->bpf_obj);
+	xdp_mirror_map = NULL;
+}
+
 int
 gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
 {
 	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
 	struct bpf_program *bpf_prog = NULL;
+	struct bpf_map *map;
 	int err = 0;
 
 	/* Load eBPF prog */
@@ -702,16 +796,14 @@ gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
 		return -1;
 	}
 
-	return 0;
-}
+	map = gtp_bpf_load_map(opts->bpf_obj, "mirror_rules");
+	if (!map) {
+		gtp_xdp_mirror_unload(opts);
+		return -1;
+	}
+	xdp_mirror_map = map;
 
-void
-gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
-			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
-	bpf_tc_hook_destroy(&q_hook);
-	bpf_object__close(opts->bpf_obj);
+	return 0;
 }
 
 

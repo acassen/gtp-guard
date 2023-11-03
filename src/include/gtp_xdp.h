@@ -25,10 +25,10 @@
 #include <stddef.h>
 
 enum {
-	XDPFWD_RULE_ADD = 0,
-	XDPFWD_RULE_UPDATE,
-	XDPFWD_RULE_DEL,
-	XDPFWD_RULE_LIST
+	RULE_ADD = 0,
+	RULE_UPDATE,
+	RULE_DEL,
+	RULE_LIST
 };
 
 enum {
@@ -66,6 +66,13 @@ struct gtp_iptnl_rule {
 	__u8	flags;
 } __attribute__ ((__aligned__(8)));
 
+struct gtp_mirror_rule {
+	__be32	addr;
+	__be16	port;
+	__u8	protocol;
+	int	ifindex;
+} __attribute__ ((__aligned__(8)));
+
 
 /* Prototypes */
 extern int gtp_xdp_fwd_load(gtp_bpf_opts_t *);
@@ -76,6 +83,7 @@ extern int gtp_xdp_fwd_vty(vty_t *);
 extern int gtp_xdp_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_iptnl_vty(vty_t *);
 extern int gtp_xdp_iptnl_teid_vty(vty_t *);
+extern int gtp_xdp_mirror_action(int, gtp_mirror_rule_t *);
 extern int gtp_xdp_mirror_load(gtp_bpf_opts_t *);
 extern void gtp_xdp_mirror_unload(gtp_bpf_opts_t *);
 extern int gtp_xdp_init(void);

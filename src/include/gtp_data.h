@@ -44,6 +44,14 @@ typedef struct _gtp_bpf_opts {
 	vty_t			*vty;
 } gtp_bpf_opts_t;
 
+typedef struct _gtp_mirror_rule {
+	struct sockaddr_storage	addr;
+	uint8_t			protocol;
+	int			ifindex;
+
+	list_head_t		next;
+} gtp_mirror_rule_t;
+
 typedef struct _data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
@@ -52,6 +60,9 @@ typedef struct _data {
 	gtp_bpf_opts_t		xdp_mirror;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
+
+	/* Mirroring ruleset */
+	list_head_t		mirror_rules;
 
 	/* APN resolver */
 	list_head_t		gtp_apn;
@@ -63,6 +74,9 @@ typedef struct _data {
 } data_t;
 
 /* Prototypes */
+extern gtp_mirror_rule_t *gtp_mirror_rule_get(const struct sockaddr_storage *, uint8_t, int);
+extern gtp_mirror_rule_t *gtp_mirror_rule_add(const struct sockaddr_storage *, uint8_t, int);
+extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
 extern data_t *alloc_daemon_data(void);
 extern void free_daemon_data(void);
 
