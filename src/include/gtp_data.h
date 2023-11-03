@@ -49,6 +49,7 @@ typedef struct _gtp_mirror_rule {
 	struct sockaddr_storage	addr;
 	uint8_t			protocol;
 	int			ifindex;
+	bool			active;
 
 	list_head_t		next;
 } gtp_mirror_rule_t;
@@ -78,6 +79,7 @@ typedef struct _data {
 extern gtp_mirror_rule_t *gtp_mirror_rule_get(const struct sockaddr_storage *, uint8_t, int);
 extern gtp_mirror_rule_t *gtp_mirror_rule_add(const struct sockaddr_storage *, uint8_t, int);
 extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
+extern void gtp_mirror_action(int, int);
 extern int gtp_mirror_vty(vty_t *);
 extern data_t *alloc_daemon_data(void);
 extern void free_daemon_data(void);

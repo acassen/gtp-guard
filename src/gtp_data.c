@@ -94,6 +94,24 @@ gtp_mirror_rule_del(gtp_mirror_rule_t *r)
 	list_head_del(&r->next);
 }
 
+void
+gtp_mirror_action(int action, int ifindex)
+{
+	list_head_t *l = &daemon_data->mirror_rules;
+	gtp_mirror_rule_t *r;
+	int ret;
+
+	list_for_each_entry(r, l, next) {
+		if (r->ifindex == ifindex &&
+		    ((action == RULE_ADD && !r->active) ||
+		     (action == RULE_DEL && r->active))) {
+			ret = gtp_xdp_mirror_action(action, r);
+			if (!ret)
+				r->active = (action == RULE_ADD);
+		}
+	}
+}
+
 static int
 gtp_mirror_destroy(void)
 {

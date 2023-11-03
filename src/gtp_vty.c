@@ -347,6 +347,8 @@ DEFUN(pdn_mirror,
 		return CMD_WARNING;
 	}
 
+	r->active = true;
+
 	return CMD_SUCCESS;
 }
 
