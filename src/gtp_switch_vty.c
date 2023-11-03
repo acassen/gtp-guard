@@ -332,6 +332,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
+	t->ifindex = ifindex;
 
 	ret = gtp_dpd_init(ctx);
 	if (ret < 0) {
@@ -342,7 +343,6 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 		return CMD_WARNING;
 	}
 
-	t->ifindex = ifindex;
 	t->flags |= IPTNL_FL_DPD;
 
 	return CMD_SUCCESS;

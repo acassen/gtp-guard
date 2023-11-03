@@ -53,7 +53,6 @@ extern data_t *daemon_data;
 /*
  *	Mirroring rules
  */
-
 gtp_mirror_rule_t *
 gtp_mirror_rule_get(const struct sockaddr_storage *addr, uint8_t protocol, int ifindex)
 {

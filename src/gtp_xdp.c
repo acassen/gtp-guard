@@ -365,6 +365,12 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int directio
 	uint32_t key;
 	size_t sz;
 
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
 	if (!t)
 		return -1;
 
@@ -552,6 +558,12 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
 	uint32_t key;
 	size_t sz;
 
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
 	if (!t)
 		return -1;
 
@@ -684,6 +696,13 @@ gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
 	char errmsg[STRERR_BUFSIZE];
 	int err;
 
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
+	memset(&r, 0, sizeof(struct gtp_mirror_rule));
 	gtp_xdp_mirror_rule_set(&r, m);
 
 	if (action == RULE_ADD) {
@@ -736,6 +755,7 @@ gtp_xdp_mirror_vty(vty_t *vty)
 	/* Walk hashtab */
 	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
 		key = next_key;
+		memset(&r, 0, sizeof(struct gtp_mirror_rule));
 		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), &r, sz, 0);
 		if (err) {
 			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
