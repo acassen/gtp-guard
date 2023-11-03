@@ -31,6 +31,7 @@ enum daemon_flags {
 	GTP_FL_STOP_BIT,
 	GTP_FL_GTPU_LOADED_BIT,
 	GTP_FL_MIRROR_LOADED_BIT,
+	GTP_FL_RESTART_COUNTER_LOADED_BIT,
 };
 
 /* Main control block */
@@ -77,6 +78,7 @@ typedef struct _data {
 extern gtp_mirror_rule_t *gtp_mirror_rule_get(const struct sockaddr_storage *, uint8_t, int);
 extern gtp_mirror_rule_t *gtp_mirror_rule_add(const struct sockaddr_storage *, uint8_t, int);
 extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
+extern int gtp_mirror_vty(vty_t *);
 extern data_t *alloc_daemon_data(void);
 extern void free_daemon_data(void);
 

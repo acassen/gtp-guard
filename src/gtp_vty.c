@@ -463,6 +463,7 @@ DEFUN(restart_counter_file,
         vty_out(vty, "Success loading restart_counter:%d%s"
                    , daemon_data->restart_counter
                    , VTY_NEWLINE);
+	__set_bit(GTP_FL_RESTART_COUNTER_LOADED_BIT, &daemon_data->flags);
         return CMD_SUCCESS;
 }
 
@@ -623,13 +624,15 @@ DEFUN(gtp_send_echo_request,
 static int
 pdn_config_write(vty_t *vty)
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *opts;
 	char ifname[IF_NAMESIZE];
 
 	vty_out(vty, "pdn%s", VTY_NEWLINE);
 	vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
 	vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
-        if (opts->filename[0]) {
+	
+	opts = &daemon_data->xdp_gtpu;
+        if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
 		if (opts->progname[0])
 			vty_out(vty, " xdp-gtpu %s interface %s progname %s%s"
 				   , opts->filename
@@ -642,10 +645,18 @@ pdn_config_write(vty_t *vty)
 				   , if_indextoname(opts->ifindex, ifname)
 				   , VTY_NEWLINE);
         }
-	if (daemon_data->restart_counter_filename[0]) {
+	opts = &daemon_data->xdp_mirror;
+	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, " xdp-mirror %s interface %s%s"
+			   , opts->filename
+			   , if_indextoname(opts->ifindex, ifname)
+			   , VTY_NEWLINE);
+		gtp_mirror_vty(vty);
+	}
+	if (__test_bit(GTP_FL_RESTART_COUNTER_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, " restart-counter-file %s%s"
-                           , daemon_data->restart_counter_filename
-                           , VTY_NEWLINE);
+			   , daemon_data->restart_counter_filename
+			   , VTY_NEWLINE);
 	}
 	vty_out(vty, "!%s", VTY_NEWLINE);
 

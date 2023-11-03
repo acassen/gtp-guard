@@ -22,6 +22,7 @@
 /* system includes */
 #include <pthread.h>
 #include <sys/stat.h>
+#include <net/if.h>
 
 /* local includes */
 #include "bitops.h"
@@ -107,6 +108,26 @@ gtp_mirror_destroy(void)
 
 	return 0;
 }
+
+int
+gtp_mirror_vty(vty_t *vty)
+{
+	list_head_t *l = &daemon_data->mirror_rules;
+	gtp_mirror_rule_t *r;
+	char ifname[IF_NAMESIZE];
+
+	list_for_each_entry(r, l, next) {
+		vty_out(vty, " mirror %s port %d protocol %s interface %s%s"
+			   , inet_sockaddrtos(&r->addr)
+			   , inet_sockaddrport(&r->addr)
+			   , (r->protocol == IPPROTO_UDP) ? "UDP" : "TCP"
+			   , if_indextoname(r->ifindex, ifname)
+			   , VTY_NEWLINE);
+	}
+
+	return 0;
+}
+
 
 
 /*
