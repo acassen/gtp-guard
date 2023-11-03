@@ -501,7 +501,9 @@ DEFUN(request_channel,
         return CMD_SUCCESS;
 }
 
-/* Show */
+/*
+ *	Show
+ */
 DEFUN(show_gtp_uplane,
       show_gtp_uplane_cmd,
       "show gtp uplane",
@@ -545,6 +547,27 @@ DEFUN(show_xdp_iptnl,
 	return CMD_SUCCESS;
 }
 
+DEFUN(show_xdp_mirror,
+      show_xdp_mirror_cmd,
+      "show xdp-mirror",
+      SHOW_STR
+      "GTP XDP Mirroring ruleset\n")
+{
+	int ret;
+
+	ret = gtp_xdp_mirror_vty(vty);
+	if (ret < 0) {
+		vty_out(vty, "%% Error displaying XDP ruleset%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+/*
+ *	Command
+ */
 DEFUN(gtp_send_echo_request,
       gtp_send_echo_request_cmd,
       "gtp send echo-request version (1|2) remote-peer (A.B.C.D|X:X:X:X) remote-port <1024-65535> [count INTEGER]",
@@ -656,9 +679,11 @@ gtp_vty_init(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_uplane_cmd);
 	install_element(VIEW_NODE, &show_xdp_iptnl_cmd);
+	install_element(VIEW_NODE, &show_xdp_mirror_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_cmd);
 	install_element(ENABLE_NODE, &show_gtp_uplane_cmd);
 	install_element(ENABLE_NODE, &show_xdp_iptnl_cmd);
+	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_cmd);
 
 	/* Install other VTY */

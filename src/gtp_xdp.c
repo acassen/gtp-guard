@@ -621,7 +621,7 @@ gtp_xdp_iptnl_vty(vty_t *vty)
 	struct gtp_iptnl_rule *r;
 	char errmsg[STRERR_BUFSIZE];
 	char sip[16], lip[16], rip[16];
-        int err = 0;
+	int err = 0;
 	size_t sz;
 
 	/* Allocate temp rule */
@@ -716,6 +716,45 @@ gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
 	return 0;
 }
 
+int
+gtp_xdp_mirror_vty(vty_t *vty)
+{
+	struct bpf_map *map = xdp_mirror_map;
+	__be32 key, next_key;
+	struct gtp_mirror_rule r;
+	size_t sz = sizeof(struct gtp_mirror_rule);
+	char errmsg[STRERR_BUFSIZE];
+	char ipaddr[16], ifname[IF_NAMESIZE];
+	int err = 0;
+
+	vty_out(vty, "+------------------+--------+----------+-------------+%s"
+		     "|      Address     |  Port  | Protocol |  Interface  |%s"
+		     "+------------------+--------+----------+-------------+%s"
+		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
+
+	/* Walk hashtab */
+	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
+		key = next_key;
+		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), &r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+			vty_out(vty, "%% error fetching value for key:0x%.4x (%s)%s"
+				   , key, errmsg, VTY_NEWLINE);
+			continue;
+		}
+
+		vty_out(vty, "| %16s | %6d | %8s | %11s |%s"
+			   , inet_ntoa2(r.addr, ipaddr)
+			   , ntohs(r.port)
+			   , (r.protocol == IPPROTO_UDP) ? "UDP" : "TCP"
+			   , if_indextoname(r.ifindex, ifname)
+			   , VTY_NEWLINE);
+	}
+
+	vty_out(vty, "+------------------+--------+----------+-------------+%s"
+		   , VTY_NEWLINE);
+	return 0;
+}
 
 static int
 gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)

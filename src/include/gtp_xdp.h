@@ -84,6 +84,7 @@ extern int gtp_xdp_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_iptnl_vty(vty_t *);
 extern int gtp_xdp_iptnl_teid_vty(vty_t *);
 extern int gtp_xdp_mirror_action(int, gtp_mirror_rule_t *);
+extern int gtp_xdp_mirror_vty(vty_t *);
 extern int gtp_xdp_mirror_load(gtp_bpf_opts_t *);
 extern void gtp_xdp_mirror_unload(gtp_bpf_opts_t *);
 extern int gtp_xdp_init(void);
