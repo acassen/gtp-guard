@@ -347,9 +347,94 @@ DEFUN(pdn_mirror,
 		return CMD_WARNING;
 	}
 
+	vty_out(vty, "%% XDP mirroring rule successfully installed%s"
+		   , VTY_NEWLINE);
+
 	return CMD_SUCCESS;
 }
 
+DEFUN(no_pdn_mirror,
+      no_pdn_mirror_cmd,
+      "no mirror (A.B.C.D|X:X:X:X) port <1024-65535> protocol STRING interface STRING",
+      "Mirroring rule\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "UDP Port\n"
+      "Number\n"
+      "IP Protocol\n"
+      "UDP or TCP\n"
+      "Interface to redirect mirrored traffic to\n"
+      "Name\n")
+{
+	gtp_mirror_rule_t *r;
+	struct sockaddr_storage addr;
+	uint8_t protocol;
+	int port, ifindex, ret;
+
+	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc < 4) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+        VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
+	if (port) ; /* Dummy test */
+        ret = inet_stosockaddr(argv[0], argv[1], &addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* FIXME: complete support to IPv6 mirroring */
+	if (addr.ss_family != AF_INET) {
+		vty_out(vty, "%% shame on me, only IPv4 is currently supported%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (strstr(argv[2], "UDP"))
+		protocol = IPPROTO_UDP;
+	else if (strstr(argv[2], "TCP"))
+		protocol = IPPROTO_TCP;
+	else {
+		vty_out(vty, "%% Protocol %s not supported%s", argv[2], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ifindex = if_nametoindex(argv[1]);
+	if (!ifindex) {
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
+			   , argv[1]
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	r = gtp_mirror_rule_get(&addr, protocol, ifindex);
+	if (!r) {
+		vty_out(vty, "%% No matching rule to remove%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = gtp_xdp_mirror_action(RULE_DEL, r);
+	if (ret < 0) {
+		vty_out(vty, "%% Error while removing XDP mirroring rule%s"
+			   , VTY_NEWLINE);
+	}
+
+	gtp_mirror_rule_del(r);
+	FREE(r);
+
+	vty_out(vty, "%% XDP mirroring rule successfully removedd%s"
+		   , VTY_NEWLINE);
+
+	return CMD_SUCCESS;
+}
 
 
 DEFUN(restart_counter_file,
@@ -564,6 +649,7 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &pdn_mirror_cmd);
+	install_element(PDN_NODE, &no_pdn_mirror_cmd);
 	install_element(PDN_NODE, &restart_counter_file_cmd);
 	install_element(PDN_NODE, &request_channel_cmd);
 

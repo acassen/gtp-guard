@@ -78,10 +78,10 @@ gtp_mirror_rule_add(const struct sockaddr_storage *addr, uint8_t protocol, int i
 	gtp_mirror_rule_t *r;
 
 	PMALLOC(r);
+	INIT_LIST_HEAD(&r->next);
 	r->addr = *addr;
 	r->protocol = protocol;
 	r->ifindex = ifindex;
-	INIT_LIST_HEAD(&r->next);
 
 	list_add_tail(&r->next, l);
 
