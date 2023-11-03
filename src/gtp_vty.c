@@ -321,10 +321,10 @@ DEFUN(pdn_mirror,
 		return CMD_WARNING;
 	}
 
-	ifindex = if_nametoindex(argv[1]);
+	ifindex = if_nametoindex(argv[3]);
 	if (!ifindex) {
 		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[1]
+			   , argv[3]
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -346,9 +346,6 @@ DEFUN(pdn_mirror,
 		FREE(r);
 		return CMD_WARNING;
 	}
-
-	vty_out(vty, "%% XDP mirroring rule successfully installed%s"
-		   , VTY_NEWLINE);
 
 	return CMD_SUCCESS;
 }
@@ -406,10 +403,10 @@ DEFUN(no_pdn_mirror,
 		return CMD_WARNING;
 	}
 
-	ifindex = if_nametoindex(argv[1]);
+	ifindex = if_nametoindex(argv[3]);
 	if (!ifindex) {
 		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[1]
+			   , argv[3]
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -429,10 +426,6 @@ DEFUN(no_pdn_mirror,
 
 	gtp_mirror_rule_del(r);
 	FREE(r);
-
-	vty_out(vty, "%% XDP mirroring rule successfully removedd%s"
-		   , VTY_NEWLINE);
-
 	return CMD_SUCCESS;
 }
 
@@ -511,14 +504,13 @@ DEFUN(show_gtp_uplane,
       SHOW_STR
       "XDP GTP Dataplane ruleset\n")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
         int ret;
 
-        if (!opts->filename[0]) {
-                vty_out(vty, "%% No XDP program is currently configured. Ignoring%s"
-                           , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
         ret = gtp_xdp_fwd_vty(vty);
         if (ret < 0) {
@@ -538,6 +530,12 @@ DEFUN(show_xdp_iptnl,
 {
 	int ret;
 
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	ret = gtp_xdp_iptnl_vty(vty);
 	if (ret < 0) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
@@ -555,6 +553,12 @@ DEFUN(show_xdp_mirror,
       "GTP XDP Mirroring ruleset\n")
 {
 	int ret;
+
+	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% XDP Mirror is not configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	ret = gtp_xdp_mirror_vty(vty);
 	if (ret < 0) {

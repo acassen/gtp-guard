@@ -117,9 +117,9 @@ gtp_mirror_vty(vty_t *vty)
 	char ifname[IF_NAMESIZE];
 
 	list_for_each_entry(r, l, next) {
-		vty_out(vty, " mirror %s port %d protocol %s interface %s%s"
+		vty_out(vty, " mirror %s port %u protocol %s interface %s%s"
 			   , inet_sockaddrtos(&r->addr)
-			   , inet_sockaddrport(&r->addr)
+			   , ntohs(inet_sockaddrport(&r->addr))
 			   , (r->protocol == IPPROTO_UDP) ? "UDP" : "TCP"
 			   , if_indextoname(r->ifindex, ifname)
 			   , VTY_NEWLINE);

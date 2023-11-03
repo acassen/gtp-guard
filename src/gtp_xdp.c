@@ -700,7 +700,7 @@ gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
 				    , __FUNCTION__
 				    , (action) ? "del" : "add"
 				    , inet_sockaddrtos(&m->addr)
-				    , inet_sockaddrport(&m->addr)
+				    , ntohs(inet_sockaddrport(&m->addr))
 				    , errmsg);
 		return -1;
 	}
@@ -710,7 +710,7 @@ gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
 			    , __FUNCTION__
 			    , action_str
 			    , inet_sockaddrtos(&m->addr)
-			    , inet_sockaddrport(&m->addr)
+			    , ntohs(inet_sockaddrport(&m->addr))
 			    , (m->protocol == IPPROTO_UDP) ? "UDP" : "TCP"
 			    , m->ifindex);
 	return 0;
