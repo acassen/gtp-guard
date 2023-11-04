@@ -268,6 +268,59 @@ DEFUN(no_pdn_xdp_mirror,
         return CMD_SUCCESS;
 }
 
+static int
+pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
+		   struct sockaddr_storage *addr, uint8_t *protocol, int *ifindex)
+{
+	int ret, port;
+
+	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc < 4) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+        VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
+	if (port) ; /* Dummy test */
+        ret = inet_stosockaddr(argv[0], argv[1], addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* FIXME: complete support to IPv6 mirroring */
+	if (addr->ss_family != AF_INET) {
+		vty_out(vty, "%% shame on me, only IPv4 is currently supported%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (strstr(argv[2], "UDP"))
+		*protocol = IPPROTO_UDP;
+	else if (strstr(argv[2], "TCP"))
+		*protocol = IPPROTO_TCP;
+	else {
+		vty_out(vty, "%% Protocol %s not supported%s", argv[2], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	*ifindex = if_nametoindex(argv[3]);
+	if (!*ifindex) {
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
+			   , argv[3]
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+
 DEFUN(pdn_mirror,
       pdn_mirror_cmd,
       "mirror (A.B.C.D|X:X:X:X) port <1024-65535> protocol STRING interface STRING",
@@ -284,50 +337,11 @@ DEFUN(pdn_mirror,
 	gtp_mirror_rule_t *r;
 	struct sockaddr_storage addr;
 	uint8_t protocol;
-	int port, ifindex, ret;
+	int ifindex, ret;
 
-	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (argc < 4) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-        VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
-	if (port) ; /* Dummy test */
-        ret = inet_stosockaddr(argv[0], argv[1], &addr);
-	if (ret < 0) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* FIXME: complete support to IPv6 mirroring */
-	if (addr.ss_family != AF_INET) {
-		vty_out(vty, "%% shame on me, only IPv4 is currently supported%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (strstr(argv[2], "UDP"))
-		protocol = IPPROTO_UDP;
-	else if (strstr(argv[2], "TCP"))
-		protocol = IPPROTO_TCP;
-	else {
-		vty_out(vty, "%% Protocol %s not supported%s", argv[2], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	ifindex = if_nametoindex(argv[3]);
-	if (!ifindex) {
-		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[3]
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
+	ret = pdn_mirror_prepare(argc, argv, vty, &addr, &protocol, &ifindex);
+	if (ret != CMD_SUCCESS)
+		return ret;
 
 	r = gtp_mirror_rule_get(&addr, protocol, ifindex);
 	if (r) {
@@ -368,50 +382,11 @@ DEFUN(no_pdn_mirror,
 	gtp_mirror_rule_t *r;
 	struct sockaddr_storage addr;
 	uint8_t protocol;
-	int port, ifindex, ret;
+	int ifindex, ret;
 
-	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (argc < 4) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-        VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
-	if (port) ; /* Dummy test */
-        ret = inet_stosockaddr(argv[0], argv[1], &addr);
-	if (ret < 0) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* FIXME: complete support to IPv6 mirroring */
-	if (addr.ss_family != AF_INET) {
-		vty_out(vty, "%% shame on me, only IPv4 is currently supported%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (strstr(argv[2], "UDP"))
-		protocol = IPPROTO_UDP;
-	else if (strstr(argv[2], "TCP"))
-		protocol = IPPROTO_TCP;
-	else {
-		vty_out(vty, "%% Protocol %s not supported%s", argv[2], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	ifindex = if_nametoindex(argv[3]);
-	if (!ifindex) {
-		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[3]
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
+	ret = pdn_mirror_prepare(argc, argv, vty, &addr, &protocol, &ifindex);
+	if (ret != CMD_SUCCESS)
+		return ret;
 
 	r = gtp_mirror_rule_get(&addr, protocol, ifindex);
 	if (!r) {
