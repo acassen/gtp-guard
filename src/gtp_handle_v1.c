@@ -408,7 +408,7 @@ gtp1_create_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_sqn_restore(w, teid->peer_teid);
 
 	/* Set addr tunnel endpoint */
-	teid->pgw_addr = *((struct sockaddr_in *) addr);
+	gtp_teid_update_pgw(teid, addr);
 	teid->sgw_addr = t->sgw_addr;
 
 	/* Test cause code, destroy if <> success.
@@ -477,6 +477,10 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	h->teid = teid->id;
 	s = teid->session;
 
+	/* Update GTP-C with current sGW*/
+	gtp_teid_update_sgw(teid, addr);
+	gtp_teid_update_sgw(teid->peer_teid, addr);
+
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
 	gtp_vsqn_alloc(w, teid, false);
@@ -504,7 +508,7 @@ gtp1_update_pdp_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 
 	/* No peer teid so new teid */
 	/* Set tunnel endpoint */
-	t->sgw_addr = *((struct sockaddr_in *) addr);
+	gtp_teid_update_sgw(t, addr);
 	t->pgw_addr = teid->pgw_addr;
 
 	/* GTP-C old */

@@ -88,6 +88,8 @@ extern int gtp_teid_unhash(gtp_htab_t *, gtp_teid_t *);
 extern void gtp_teid_bind(gtp_teid_t *, gtp_teid_t *);
 extern int gtp_teid_masq(gtp_f_teid_t *, struct sockaddr_storage *, uint32_t);
 extern int gtp_teid_restore(gtp_teid_t *, gtp_f_teid_t *);
+extern int gtp_teid_update_sgw(gtp_teid_t *, struct sockaddr_storage *);
+extern int gtp_teid_update_pgw(gtp_teid_t *, struct sockaddr_storage *);
 extern void gtp_teid_dump(gtp_teid_t *);
 extern int gtp_vteid_alloc(gtp_htab_t *, gtp_teid_t *, unsigned int *);
 extern int gtp_vteid_unhash(gtp_htab_t *, gtp_teid_t *);

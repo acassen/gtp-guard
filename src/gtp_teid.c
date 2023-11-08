@@ -247,6 +247,26 @@ gtp_teid_restore(gtp_teid_t *teid, gtp_f_teid_t *f_teid)
 	return 0;
 }
 
+int
+gtp_teid_update_sgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
+{
+	if (!teid)
+		return -1;
+
+	teid->sgw_addr = *((struct sockaddr_in *) addr);
+	return 0;
+}
+
+int
+gtp_teid_update_pgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
+{
+	if (!teid)
+		return -1;
+
+	teid->pgw_addr = *((struct sockaddr_in *) addr);
+	return 0;
+}
+
 void
 gtp_teid_dump(gtp_teid_t *teid)
 {

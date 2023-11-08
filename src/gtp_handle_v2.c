@@ -206,23 +206,6 @@ gtpc_session_xlat(gtp_srv_worker_t *w, gtp_session_t *s, int direction)
 	return teid;
 }
 
-static void
-gtpc_session_update_sgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
-{
-	if (!teid)
-		return;
-
-	teid->sgw_addr = *((struct sockaddr_in *) addr);
-}
-
-static void
-gtpc_session_update_pgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
-{
-	if (!teid)
-		return;
-
-	teid->pgw_addr = *((struct sockaddr_in *) addr);
-}
 /*
  *	GTP-C Protocol helpers
  */
@@ -352,7 +335,7 @@ gtpc_create_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	gtp_sqn_masq(w, teid);
 
 	/* Set addr tunnel endpoint */
-	gtpc_session_update_sgw(teid, addr);
+	gtp_teid_update_sgw(teid, addr);
 
 	/* Update last sGW visited */
 	c->sgw_addr = *((struct sockaddr_in *) addr);
@@ -500,8 +483,8 @@ gtpc_delete_session_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *ad
 	s = teid->session;
 
 	/* Update addr tunnel endpoint */
-	gtpc_session_update_sgw(teid, addr);
-	gtpc_session_update_sgw(teid->peer_teid, addr);
+	gtp_teid_update_sgw(teid, addr);
+	gtp_teid_update_sgw(teid->peer_teid, addr);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
@@ -620,8 +603,8 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 	s = teid->session;
 
 	/* Update GTP-C with current sGW*/
-	gtpc_session_update_sgw(teid, addr);
-	gtpc_session_update_sgw(teid->peer_teid, addr);
+	gtp_teid_update_sgw(teid, addr);
+	gtp_teid_update_sgw(teid->peer_teid, addr);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
@@ -640,7 +623,7 @@ gtpc_modify_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 
 	/* No peer teid so new teid */
 	/* Set tunnel endpoint */
-	gtpc_session_update_sgw(t, addr);
+	gtp_teid_update_sgw(t, addr);
 	t->pgw_addr = teid->pgw_addr;
 
 	/* GTP-C old */
@@ -783,8 +766,8 @@ gtpc_delete_bearer_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *add
 	s = teid->session;
 
 	/* Msg from pGW, update pGW addr*/
-	gtpc_session_update_pgw(teid, addr);
-	gtpc_session_update_pgw(teid->peer_teid, addr);
+	gtp_teid_update_pgw(teid, addr);
+	gtp_teid_update_pgw(teid->peer_teid, addr);
 
 	cp = gtp_get_ie(GTP_IE_EPS_BEARER_ID, w->buffer, w->buffer_size);
 	if (!cp)
@@ -854,7 +837,7 @@ gtpc_generic_setaddr(struct sockaddr_storage *addr, int direction, gtp_teid_t *t
 {
 	if (direction == GTP_INGRESS) {
 		if (!t->sgw_addr.sin_addr.s_addr)
-			gtpc_session_update_sgw(t, addr);
+			gtp_teid_update_sgw(t, addr);
 		if (!t->pgw_addr.sin_addr.s_addr)
 			t->pgw_addr = teid->pgw_addr;
 		return 0;
@@ -863,7 +846,7 @@ gtpc_generic_setaddr(struct sockaddr_storage *addr, int direction, gtp_teid_t *t
 	if (!t->sgw_addr.sin_addr.s_addr)
 		t->sgw_addr = teid->sgw_addr;
 	if (!t->pgw_addr.sin_addr.s_addr)
-		gtpc_session_update_pgw(t, addr);
+		gtp_teid_update_pgw(t, addr);
 	return 0;
 }
 
@@ -871,13 +854,13 @@ static int
 gtpc_generic_updateaddr(int direction, gtp_teid_t *teid, struct sockaddr_storage *addr)
 {
 	if (direction == GTP_INGRESS) {
-		gtpc_session_update_sgw(teid, addr);
-		gtpc_session_update_sgw(teid->peer_teid, addr);
+		gtp_teid_update_sgw(teid, addr);
+		gtp_teid_update_sgw(teid->peer_teid, addr);
 		return 0;
 	}
 
-	gtpc_session_update_pgw(teid, addr);
-	gtpc_session_update_pgw(teid->peer_teid, addr);
+	gtp_teid_update_pgw(teid, addr);
+	gtp_teid_update_pgw(teid->peer_teid, addr);
 	return 0;
 }
 
