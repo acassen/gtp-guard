@@ -708,15 +708,16 @@ gtp1_delete_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
  *	GTP-C Message handle
  */
 static const struct {
+	uint8_t family; /* GTP_INIT : Initial | GTP_TRIG : Triggered*/
 	gtp_teid_t * (*hdl) (gtp_srv_worker_t *, struct sockaddr_storage *);
 } gtpc_msg_hdl[0xff] = {
-	[GTP_ECHO_REQUEST_TYPE]			= { gtp1_echo_request_hdl },
-	[GTP_CREATE_PDP_CONTEXT_REQUEST]	= { gtp1_create_pdp_request_hdl },
-	[GTP_CREATE_PDP_CONTEXT_RESPONSE]	= { gtp1_create_pdp_response_hdl },
-	[GTP_UPDATE_PDP_CONTEXT_REQUEST]	= { gtp1_update_pdp_request_hdl },
-	[GTP_UPDATE_PDP_CONTEXT_RESPONSE]	= { gtp1_update_pdp_response_hdl },
-	[GTP_DELETE_PDP_CONTEXT_REQUEST]	= { gtp1_delete_pdp_request_hdl },
-	[GTP_DELETE_PDP_CONTEXT_RESPONSE]	= { gtp1_delete_pdp_response_hdl },
+	[GTP_ECHO_REQUEST_TYPE]			= { GTP_INIT, gtp1_echo_request_hdl },
+	[GTP_CREATE_PDP_CONTEXT_REQUEST]	= { GTP_INIT, gtp1_create_pdp_request_hdl },
+	[GTP_CREATE_PDP_CONTEXT_RESPONSE]	= { GTP_TRIG, gtp1_create_pdp_response_hdl },
+	[GTP_UPDATE_PDP_CONTEXT_REQUEST]	= { GTP_INIT, gtp1_update_pdp_request_hdl },
+	[GTP_UPDATE_PDP_CONTEXT_RESPONSE]	= { GTP_TRIG, gtp1_update_pdp_response_hdl },
+	[GTP_DELETE_PDP_CONTEXT_REQUEST]	= { GTP_INIT, gtp1_delete_pdp_request_hdl },
+	[GTP_DELETE_PDP_CONTEXT_RESPONSE]	= { GTP_TRIG, gtp1_delete_pdp_response_hdl },
 };
 
 gtp_teid_t *
@@ -728,7 +729,7 @@ gtpc_handle_v1(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
 		teid = (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);
 		if (teid)
-			teid->family = GTP_INIT;
+			teid->family = gtpc_msg_hdl[gtph->type].family;
 		return teid;
 	}
 
