@@ -19,14 +19,23 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _CONFIG_H
-#define _CONFIG_H
+#ifndef _GTP_CMD_H
+#define _GTP_CMD_H
 
-#define LOG_FACILITY_MAX        7
-#define PROG                    "gtp-guard"
-#define PROG_PID_FILE		"/var/run/gtp-guard.pid"
-#define VERSION_STRING PROG	" v1.0.3-pre2 (2023/11/06)"
-#define COPYRIGHT_STRING	"Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>"
+typedef struct _gtp_cmd_args {
+	struct sockaddr_storage addr;
+	vty_t			*vty;
+	int			version;
+	int			count;
+	uint32_t		sqn;
+	int			fd;
+	char			buffer[64];
+	size_t			buffer_len;
+	thread_ref_t		t_read;
+	thread_ref_t		t_write;
+} gtp_cmd_args_t;
 
+/* Prototypes */
+extern int gtp_cmd_echo_request(gtp_cmd_args_t *);
 
 #endif

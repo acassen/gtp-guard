@@ -22,21 +22,6 @@
 #ifndef _GTP_UTILS_H
 #define _GTP_UTILS_H
 
-
-typedef struct _gtp_cmd_args {
-	struct sockaddr_storage addr;
-	vty_t			*vty;
-	int			version;
-	int			count;
-	uint32_t		sqn;
-	int			fd;
-	char			buffer[64];
-	size_t			buffer_len;
-	thread_ref_t		t_read;
-	thread_ref_t		t_write;
-} gtp_cmd_args_t;
-
-
 /* Prototypes */
 
 /* GTPv1 */
@@ -66,6 +51,5 @@ extern int gtp_foreach_ie(uint8_t, uint8_t *, size_t, uint8_t *,
                           gtp_srv_worker_t *, gtp_session_t *, int, void *,
 	                  gtp_teid_t * (*hdl) (gtp_srv_worker_t *, gtp_session_t *, int, void *, uint8_t *));
 extern ssize_t gtpu_get_header_len(uint8_t *, size_t);
-extern int gtp_cmd_echo_request(gtp_cmd_args_t *);
 
 #endif

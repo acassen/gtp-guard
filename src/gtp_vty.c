@@ -50,7 +50,7 @@
 #include "gtp_session.h"
 #include "gtp_xdp.h"
 #include "gtp_disk.h"
-#include "gtp_utils.h"
+#include "gtp_cmd.h"
 
 /* Extern data */
 extern data_t *daemon_data;
