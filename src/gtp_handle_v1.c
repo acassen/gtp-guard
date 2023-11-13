@@ -591,7 +591,7 @@ gtp1_update_pdp_response_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	oteid = teid->old_teid;
 	ie_cause = (gtp1_ie_cause_t *) cp;
 	if (!(ie_cause->value >= GTP1_CAUSE_REQUEST_ACCEPTED &&
-	      ie_cause->value < GTP1_CAUSE_NON_EXISTENT)) {
+	      ie_cause->value <= GTP1_CAUSE_NON_EXISTENT)) {
 		if (oteid)
 			gtp_sqn_restore(w, oteid->peer_teid);
 		return teid;
@@ -729,6 +729,10 @@ gtpc_handle_v1(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp_teid_t *teid;
+
+	/* Ignore echo-response messages */
+	if (gtph->type == GTP_ECHO_RESPONSE_TYPE)
+		return NULL;
 
 	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
 		teid = (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);

@@ -22,15 +22,27 @@
 #ifndef _GTP_CMD_H
 #define _GTP_CMD_H
 
+#define GTP_CMD_BUFFER_SIZE	128
+
+enum {
+	GTP_CMD_ECHO_REQUEST = 0,
+	GTP_CMD_ECHO_REQUEST_EXTENDED,
+};
+
 typedef struct _gtp_cmd_args {
-	struct sockaddr_storage addr;
+	int			type;
+	struct sockaddr_storage src_addr;
+	struct sockaddr_storage dst_addr;
+	int			ifindex;
 	vty_t			*vty;
 	int			version;
 	int			count;
 	uint32_t		sqn;
-	int			fd;
-	char			buffer[64];
+	int			fd_in;
+	int			fd_out;
+	char			buffer[GTP_CMD_BUFFER_SIZE];
 	size_t			buffer_len;
+	size_t			buffer_offset;
 	thread_ref_t		t_read;
 	thread_ref_t		t_write;
 } gtp_cmd_args_t;

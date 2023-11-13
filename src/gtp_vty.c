@@ -550,12 +550,13 @@ DEFUN(show_xdp_mirror,
 /*
  *	Command
  */
-DEFUN(gtp_send_echo_request,
-      gtp_send_echo_request_cmd,
-      "gtp send echo-request version (1|2) remote-peer (A.B.C.D|X:X:X:X) remote-port <1024-65535> [count INTEGER]",
-      "Tool to send GTP-C or GTP-U Protocol messages\n"
+DEFUN(gtp_send_echo_request_standard,
+      gtp_send_echo_request_standard_cmd,
+      "gtp send echo-request standard version (1|2) remote-peer (A.B.C.D|X:X:X:X) remote-port <1024-65535> [count <1-20>]",
+      "Tool to send GTP-C or GTP-U Echo-Request Protocol messages\n"
       "Send Action\n"
       "Echo Request message\n"
+      "Basic mode\n"
       "GTP Protocol Version\n"
       "Version 1\n"
       "Version 2\n"
@@ -563,7 +564,7 @@ DEFUN(gtp_send_echo_request,
       "IPv4 Address\n"
       "IPv6 Address\n"
       "Remote GTP Peer Port\n"
-      "Port\n"
+      "Port between 1024 and 65535\n"
       "Number of message to send\n"
       "Number between 1 and 20\n")
 {
@@ -580,19 +581,21 @@ DEFUN(gtp_send_echo_request,
 	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[0], 1, 2);
 	if (version) ; /* Dummy test */
 
-        VTY_GET_INTEGER_RANGE("remote-port", port, argv[2], 1024, 65535);
+	VTY_GET_INTEGER_RANGE("remote-port", port, argv[2], 1024, 65535);
 	if (port) ; /* Dummy test */
-        ret = inet_stosockaddr(argv[1], argv[2], &gtp_cmd_args->addr);
+	ret = inet_stosockaddr(argv[1], argv[2], &gtp_cmd_args->dst_addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		FREE(gtp_cmd_args);
 		return CMD_WARNING;
 	}
 
-	if (argc > 3) {
-	        VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
+	if (argc > 4) {
+		VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
 		if (count) ; /* Dummy test */
 	}
 
+	gtp_cmd_args->type = GTP_CMD_ECHO_REQUEST;
 	gtp_cmd_args->version = version;
 	gtp_cmd_args->count = count;
 	gtp_cmd_args->sqn = 0x2bad;
@@ -600,6 +603,84 @@ DEFUN(gtp_send_echo_request,
 	gtp_cmd_echo_request(gtp_cmd_args);
 	return CMD_SUCCESS;
 }
+
+DEFUN(gtp_send_echo_request_extended,
+      gtp_send_echo_request_extended_cmd,
+      "gtp send echo-request extended version (1|2) ip-src (A.B.C.D|X:X:X:X) port-src <1024-65535> ip-dst (A.B.C.D|X:X:X:X) port-dst <1024-65535> [count <1-20>]",
+      "Tool to send GTP-C or GTP-U Echo-Request Protocol messages\n"
+      "Send Action\n"
+      "Echo Request message\n"
+      "Expert mode\n"
+      "GTP Protocol Version\n"
+      "Version 1\n"
+      "Version 2\n"
+      "Local GTP IP Address\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "Local GTP UDP Port\n"
+      "Port between 1024 and 65535\n"
+      "Remote GTP IP Address\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "Remote GTP UDP Port\n"
+      "Port between 1024 and 65535\n"
+      "Number of message to send\n"
+      "Number between 1 and 20\n")
+{
+	gtp_cmd_args_t *gtp_cmd_args;
+	int version, port, ret = 0, count = 3, ifindex;
+
+	if (argc < 5) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	PMALLOC(gtp_cmd_args);
+
+	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[0], 1, 2);
+	if (version) ; /* Dummy test */
+
+	VTY_GET_INTEGER_RANGE("port-src", port, argv[2], 1024, 65535);
+	if (port) ; /* Dummy test */
+	ret = inet_stosockaddr(argv[1], argv[2], &gtp_cmd_args->src_addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		FREE(gtp_cmd_args);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("port-dst", port, argv[4], 1024, 65535);
+	if (port) ; /* Dummy test */
+	ret = inet_stosockaddr(argv[3], argv[4], &gtp_cmd_args->dst_addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		FREE(gtp_cmd_args);
+		return CMD_WARNING;
+	}
+
+	if (argc > 5) {
+		VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
+		if (count) ; /* Dummy test */
+	}
+
+	ifindex = inet_sockaddrifindex(&gtp_cmd_args->src_addr);
+	if (ifindex < 0) {
+		vty_out(vty, "%% IP address %s not found on local system%s"
+			   , argv[1], VTY_NEWLINE);
+		FREE(gtp_cmd_args);
+		return CMD_WARNING;
+	}
+
+	gtp_cmd_args->type = GTP_CMD_ECHO_REQUEST_EXTENDED;
+	gtp_cmd_args->version = version;
+	gtp_cmd_args->ifindex = ifindex;
+	gtp_cmd_args->count = count;
+	gtp_cmd_args->sqn = 0x2bad;
+	gtp_cmd_args->vty = vty;
+	gtp_cmd_echo_request(gtp_cmd_args);
+	return CMD_SUCCESS;
+}
+
 
 /* Configuration writer */
 static int
@@ -672,11 +753,13 @@ gtp_vty_init(void)
 	install_element(VIEW_NODE, &show_gtp_uplane_cmd);
 	install_element(VIEW_NODE, &show_xdp_iptnl_cmd);
 	install_element(VIEW_NODE, &show_xdp_mirror_cmd);
-	install_element(VIEW_NODE, &gtp_send_echo_request_cmd);
+	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
+	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
 	install_element(ENABLE_NODE, &show_gtp_uplane_cmd);
 	install_element(ENABLE_NODE, &show_xdp_iptnl_cmd);
 	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
-	install_element(ENABLE_NODE, &gtp_send_echo_request_cmd);
+	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
+	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
 
 	/* Install other VTY */
         gtp_apn_vty_init();

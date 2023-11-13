@@ -1117,6 +1117,10 @@ gtpc_handle_v2(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp_teid_t *teid;
 
+	/* Ignore echo-response messages */
+	if (gtph->type == GTP_ECHO_RESPONSE_TYPE)
+		return NULL;
+
 	/* Special care to create and delete session */
 	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
 		teid = (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr, gtpc_msg_hdl[gtph->type].direction);
