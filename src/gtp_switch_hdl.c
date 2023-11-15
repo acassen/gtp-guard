@@ -53,8 +53,8 @@
 #include "gtp_session.h"
 #include "gtp_teid.h"
 #include "gtp_utils.h"
-#include "gtp_handle_v1.h"
-#include "gtp_handle_v2.h"
+#include "gtp_switch_hdl_v1.h"
+#include "gtp_switch_hdl_v2.h"
 
 /* Extern data */
 extern data_t *daemon_data;

@@ -19,8 +19,8 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_HANDLE_H
-#define _GTP_HANDLE_H
+#ifndef _GTP_SWITCH_HDL_H
+#define _GTP_SWITCH_HDL_H
 
 /* Defines */
 

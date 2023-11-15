@@ -19,12 +19,12 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_HANDLE_V2_H
-#define _GTP_HANDLE_V2_H
+#ifndef _GTP_SWITCH_HDL_V1_H
+#define _GTP_SWITCH_HDL_V1_H
 
 /* Defines */
 
 /* Prototypes */
-extern gtp_teid_t *gtpc_handle_v2(gtp_srv_worker_t *, struct sockaddr_storage *);
+extern gtp_teid_t *gtpc_handle_v1(gtp_srv_worker_t *, struct sockaddr_storage *);
 
 #endif

@@ -324,10 +324,7 @@ gtp_cmd_write_thread(thread_ref_t thread)
 		args->buffer_offset = gtp_cmd_build_pkt(args);
 
 	/* GTP */
-	if (args->version == 1)
-		gtp_cmd_build_gtp_v1(args);
-	else if (args->version == 2)
-		gtp_cmd_build_gtp_v2(args);
+	ret = (args->version == 1) ? gtp_cmd_build_gtp_v1(args) : gtp_cmd_build_gtp_v2(args);
 
 	/* Warm the road */
 	ret = gtp_cmd_sendmsg(args);

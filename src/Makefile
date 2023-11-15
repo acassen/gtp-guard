@@ -27,7 +27,7 @@ DEFS	 =
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 
 OBJS = 	main.o gtp_data.o gtp_vty.o gtp_if.o gtp_switch.o gtp_switch_vty.o	\
-	gtp_handle.o gtp_handle_v1.o gtp_handle_v2.o gtp_conn.o gtp_dlock.o	\
+	gtp_switch_hdl.o gtp_switch_hdl_v1.o gtp_switch_hdl_v2.o gtp_conn.o gtp_dlock.o	\
 	gtp_session.o gtp_teid.o gtp_sqn.o gtp_apn.o gtp_resolv.o gtp_sched.o	\
 	gtp_disk.o gtp_xdp.o gtp_utils.o gtp_cmd.o gtp_request.o gtp_dpd.o
 

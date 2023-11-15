@@ -52,7 +52,7 @@
 #include "gtp_conn.h"
 #include "gtp_teid.h"
 #include "gtp_session.h"
-#include "gtp_handle.h"
+#include "gtp_switch_hdl.h"
 #include "gtp_dpd.h"
 
 /* Extern data */
