@@ -63,7 +63,8 @@ typedef enum _node_type {
 
 	PDN_NODE,					/* PDN daemon commands. */
 	APN_NODE,					/* APN commands. */
-	GTP_NODE,					/* GTP commands. */
+	GTP_SWITCH_NODE,				/* GTP Switch commands. */
+	GTP_ROUTER_NODE,				/* GTP Router commands. */
 
 	VTY_NODE,					/* Vty node. */
 } node_type_t;

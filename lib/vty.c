@@ -612,6 +612,8 @@ vty_end_config(vty_t *vty)
 		break;
 	case CONFIG_NODE:
 	case PDN_NODE:
+	case GTP_SWITCH_NODE:
+	case GTP_ROUTER_NODE:
 	case VTY_NODE:
 		vty_config_unlock(vty);
 		vty->node = ENABLE_NODE;

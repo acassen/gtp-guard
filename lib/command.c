@@ -1923,7 +1923,8 @@ DEFUN(config_exit,
 		vty->node = ENABLE_NODE;
 		vty_config_unlock(vty);
 		break;
-	case GTP_NODE:
+	case GTP_SWITCH_NODE:
+	case GTP_ROUTER_NODE:
 	case VTY_NODE:
 	case CFG_LOG_NODE:
 		vty->node = CONFIG_NODE;
@@ -1957,7 +1958,8 @@ DEFUN(config_end,
 		break;
 	case CFG_LOG_NODE:
 	case CONFIG_NODE:
-	case GTP_NODE:
+	case GTP_SWITCH_NODE:
+	case GTP_ROUTER_NODE:
 	case PDN_NODE:
 	case VTY_NODE:
 		vty_config_unlock(vty);

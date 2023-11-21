@@ -57,7 +57,7 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 cmd_node_t gtp_node = {
-        GTP_NODE,
+        GTP_SWITCH_NODE,
         "%s(gtp-switch)# ",
         1,
 };
@@ -84,7 +84,7 @@ DEFUN(gtp_switch,
 	if (!new)
 		new = gtp_switch_init(argv[0]);
 
-	vty->node = GTP_NODE;
+	vty->node = GTP_SWITCH_NODE;
 	vty->index = new;
 	return CMD_SUCCESS;
 }
@@ -525,16 +525,16 @@ gtp_switch_vty_init(void)
 	install_element(CONFIG_NODE, &gtp_switch_cmd);
 	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 
-	install_default(GTP_NODE);
-	install_element(GTP_NODE, &gtpc_tunnel_endpoint_cmd);
-	install_element(GTP_NODE, &gtpu_tunnel_endpoint_cmd);
-	install_element(GTP_NODE, &gtpc_force_pgw_selection_cmd);
-	install_element(GTP_NODE, &gtpu_ipip_cmd);
-	install_element(GTP_NODE, &gtpu_ipip_dead_peer_detection_cmd);
-	install_element(GTP_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);
-	install_element(GTP_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
-	install_element(GTP_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
-	install_element(GTP_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
+	install_default(GTP_SWITCH_NODE);
+	install_element(GTP_SWITCH_NODE, &gtpc_tunnel_endpoint_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_tunnel_endpoint_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpc_force_pgw_selection_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_ipip_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_ipip_dead_peer_detection_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
 
 	/* Install show commands */
 //	install_element(VIEW_NODE, &show_gtp_cmd);
