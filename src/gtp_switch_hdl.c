@@ -47,6 +47,7 @@
 #include "gtp_dlock.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_teid.h"
@@ -68,11 +69,11 @@ gtp_teid_t dummy_teid = { .type = 0xff };
  *	GTP-C Message handle
  */
 gtp_session_t *
-gtpc_retransmit_detected(gtp_srv_worker_t *w)
+gtpc_retransmit_detected(gtp_server_worker_t *w)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) w->buffer;
-	gtp_srv_t *srv = w->srv;
+	gtp_server_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
 	gtp_session_t *s = NULL;
@@ -123,14 +124,14 @@ gtpc_retransmit_detected(gtp_srv_worker_t *w)
  *	GTP-C Message handle
  */
 static const struct {
-	gtp_teid_t * (*hdl) (gtp_srv_worker_t *, struct sockaddr_storage *);
+	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
 } gtpc_msg_hdl[7] = {
 	[1]	= { gtpc_handle_v1 },
 	[2]	= { gtpc_handle_v2 },
 };
 
 gtp_teid_t *
-gtpc_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+gtpc_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 
@@ -149,9 +150,9 @@ gtpc_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 }
 
 int
-gtpc_handle_post(gtp_srv_worker_t *w, gtp_teid_t *teid)
+gtpc_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
-	gtp_srv_t *srv = w->srv;
+	gtp_server_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_session_t *s;
 
@@ -174,7 +175,7 @@ gtpc_handle_post(gtp_srv_worker_t *w, gtp_teid_t *teid)
  *	GTP-U Message handle
  */
 static gtp_teid_t *
-gtpu_echo_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+gtpu_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
 	gtp1_ie_recovery_t *rec;
@@ -192,9 +193,9 @@ gtpu_echo_request_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 }
 
 static gtp_teid_t *
-gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+gtpu_error_indication_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_srv_t *srv = w->srv;
+	gtp_server_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
@@ -240,10 +241,10 @@ gtpu_error_indication_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 }
 
 static gtp_teid_t *
-gtpu_end_marker_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
-	gtp_srv_t *srv = w->srv;
+	gtp_server_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
@@ -281,7 +282,7 @@ gtpu_end_marker_hdl(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
 }
 
 static const struct {
-	gtp_teid_t * (*hdl) (gtp_srv_worker_t *, struct sockaddr_storage *);
+	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
 } gtpu_msg_hdl[0xff] = {
 	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
@@ -289,7 +290,7 @@ static const struct {
 };
 
 gtp_teid_t *
-gtpu_handle(gtp_srv_worker_t *w, struct sockaddr_storage *addr)
+gtpu_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	ssize_t len;

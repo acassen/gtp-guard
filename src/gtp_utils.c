@@ -44,6 +44,7 @@
 #include "gtp_dlock.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_teid.h"
@@ -436,8 +437,8 @@ gtp_get_ie(uint8_t type, uint8_t *buffer, size_t size)
 
 int
 gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buffer_end,
-	       gtp_srv_worker_t *w, gtp_session_t *s, int direction, void *arg,
-	       gtp_teid_t * (*hdl) (gtp_srv_worker_t *, gtp_session_t *, int, void *, uint8_t *))
+	       gtp_server_worker_t *w, gtp_session_t *s, int direction, void *arg,
+	       gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *))
 {
 	uint8_t *cp, *end = w->buffer + w->buffer_size;
 	size_t offset = buffer_offset;

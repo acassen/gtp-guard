@@ -44,6 +44,7 @@
 #include "gtp_dlock.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_teid.h"
@@ -123,7 +124,7 @@ DEFUN(gtpc_tunnel_endpoint,
       "Number\n")
 {
         gtp_ctx_t *ctx = vty->index;
-        gtp_srv_t *srv = &ctx->gtpc;
+        gtp_server_t *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, ret = 0;
 
@@ -148,8 +149,8 @@ DEFUN(gtpc_tunnel_endpoint,
 
 	srv->thread_cnt = (argc == 3) ? strtoul(argv[2], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
 	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
-	gtp_switch_worker_init(ctx, srv);
-	gtp_switch_worker_start(ctx);
+	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_start(srv);
 
 	return CMD_SUCCESS;
 }
@@ -164,7 +165,7 @@ DEFUN(gtpu_tunnel_endpoint,
       "Number\n")
 {
         gtp_ctx_t *ctx = vty->index;
-        gtp_srv_t *srv = &ctx->gtpu;
+        gtp_server_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port, ret = 0;
 
@@ -189,8 +190,8 @@ DEFUN(gtpu_tunnel_endpoint,
 
         srv->thread_cnt = GTP_DEFAULT_THREAD_CNT;
         __set_bit(GTP_FL_UPF_BIT, &srv->flags);
-        gtp_switch_worker_init(ctx, srv);
-        gtp_switch_worker_launch(srv);
+        gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+        gtp_server_start(srv);
 
 	return CMD_SUCCESS;
 }
@@ -465,7 +466,7 @@ static int
 gtp_config_write(vty_t *vty)
 {
         list_head_t *l = &daemon_data->gtp_ctx;
-        gtp_srv_t *srv;
+        gtp_server_t *srv;
         gtp_ctx_t *ctx;
 
         list_for_each_entry(ctx, l, next) {

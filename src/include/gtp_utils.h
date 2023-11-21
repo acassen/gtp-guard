@@ -48,8 +48,8 @@ extern int gtp_dump_ie(uint8_t *, size_t);
 extern uint8_t *gtp_get_ie_offset(uint8_t, uint8_t *, size_t, size_t);
 extern uint8_t *gtp_get_ie(uint8_t, uint8_t *, size_t);
 extern int gtp_foreach_ie(uint8_t, uint8_t *, size_t, uint8_t *,
-                          gtp_srv_worker_t *, gtp_session_t *, int, void *,
-	                  gtp_teid_t * (*hdl) (gtp_srv_worker_t *, gtp_session_t *, int, void *, uint8_t *));
+                          gtp_server_worker_t *, gtp_session_t *, int, void *,
+	                  gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *));
 extern ssize_t gtpu_get_header_len(uint8_t *, size_t);
 
 #endif

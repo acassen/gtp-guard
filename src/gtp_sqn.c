@@ -45,6 +45,7 @@
 #include "gtp_dlock.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
 #include "gtp_teid.h"
@@ -137,10 +138,10 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 }
 
 int
-gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
+gtp_vsqn_alloc(gtp_server_worker_t *w, gtp_teid_t *teid, bool set_msb)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
-	gtp_srv_t *srv = w->srv;
+	gtp_server_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
 	uint32_t *sqn = &ctx->seqnum;
 	uint32_t sqn_max = ~(1 << 31) >> 8; /* MSB is reserved */
@@ -166,7 +167,7 @@ gtp_vsqn_alloc(gtp_srv_worker_t *w, gtp_teid_t *teid, bool set_msb)
 }
 
 int
-gtp_sqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid)
+gtp_sqn_update(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
 	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
@@ -184,7 +185,7 @@ gtp_sqn_update(gtp_srv_worker_t *w, gtp_teid_t *teid)
 }
 
 int
-gtp_sqn_masq(gtp_srv_worker_t *w, gtp_teid_t *teid)
+gtp_sqn_masq(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
 	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
@@ -205,7 +206,7 @@ gtp_sqn_masq(gtp_srv_worker_t *w, gtp_teid_t *teid)
 }
 
 int
-gtp_sqn_restore(gtp_srv_worker_t *w, gtp_teid_t *teid)
+gtp_sqn_restore(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
 	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;

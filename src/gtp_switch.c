@@ -47,6 +47,7 @@
 #include "gtp_dlock.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_if.h"
 #include "gtp_conn.h"
@@ -63,73 +64,6 @@ extern thread_master_t *master;
 /*
  *	Worker
  */
-static ssize_t
-gtp_switch_udp_recvfrom(gtp_srv_worker_t *w, struct sockaddr *addr, socklen_t *addrlen)
-{
-	ssize_t nbytes = recvfrom(w->fd, w->buffer, GTP_BUFFER_SIZE, 0, addr, addrlen);
-	
-	/* Update stats */
-	if (nbytes > 0) {
-		w->rx_pkt++;
-		w->rx_bytes += nbytes;
-	}
-
-	return nbytes;
-}
-
-static ssize_t
-gtp_switch_udp_fwd(gtp_srv_worker_t *w, int fd, struct sockaddr_in *addr)
-{
-	ssize_t nbytes = sendto(fd, w->buffer, w->buffer_size, 0, addr, sizeof(*addr));
-
-	/* Update stats */
-	if (nbytes > 0) {
-		w->tx_pkt++;
-		w->tx_bytes += nbytes;
-	}
-
-	return nbytes;
-}
-
-static int
-gtp_switch_udp_init(gtp_srv_t *srv)
-{
-	struct sockaddr_storage *addr = &srv->addr;
-	socklen_t addrlen;
-	int fd, err;
-
-	/* Create UDP Listener */
-	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
-	fd = (fd < 0) ? fd : if_setsockopt_reuseaddr(fd, 1);
-	fd = (fd < 0) ? fd : if_setsockopt_reuseport(fd, 1);
-	fd = (fd < 0) ? fd : if_setsockopt_rcvtimeo(fd, 1000);
-	fd = (fd < 0) ? fd : if_setsockopt_sndtimeo(fd, 1000);
-	if (fd < 0) {
-		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
-				    , __FUNCTION__
-				    , inet_sockaddrtos(addr)
-				    , ntohs(inet_sockaddrport(addr)));
-		goto socket_error;
-	}
-
-        /* Bind listening channel */
-        addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
-                                                 sizeof(struct sockaddr_in6);
-        err = bind(fd, (struct sockaddr *) addr, addrlen);
-        if (err < 0) {
-                log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
-				    , __FUNCTION__
-                		    , inet_sockaddrtos(addr)
-                		    , ntohs(inet_sockaddrport(addr)));
-                goto socket_error;
-        }
-
-	return fd;
-
-  socket_error:
-	return -1;
-}
-
 static void
 gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct sockaddr_in *to)
 {
@@ -145,173 +79,56 @@ gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct 
 		to->sin_port = htons(GTP_C_PORT);
 }
 
-static void *
-gtp_switch_worker_task(void *arg)
+int
+gtp_switch_ingress_init(gtp_server_worker_t *w)
 {
-	gtp_srv_worker_t *w = arg;
-	gtp_srv_t *srv = w->srv;
-	struct sockaddr_storage *addr = &srv->addr;
-	struct sockaddr_storage addr_from;
-	struct sockaddr_in addr_to;
-	socklen_t addrlen = sizeof(addr_from);
-	gtp_teid_t *teid;
+	gtp_server_t *srv = w->srv;
 	gtp_ctx_t *ctx = srv->ctx;
-	char pname[128];
 	const char *ptype = "gtpc";
-	int fd;
 
 	/* Create Process Name */
 	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
 		ptype = "upf";
-	snprintf(pname, 127, "%s-%s-%d"
-		      , ctx->name
-		      , ptype
-		      , w->id);
-	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
+	snprintf(w->pname, 127, "%s-%s-%d"
+			 , ctx->name
+			 , ptype
+			 , w->id);
+	prctl(PR_SET_NAME, w->pname, 0, 0, 0, 0);
 
-	/* Create UDP Listener */
-	fd = gtp_switch_udp_init(srv);
-        if (fd < 0) {
-                log_message(LOG_INFO, "%s(): %s: Error creating GTP on [%s]:%d"
-				    , __FUNCTION__
-				    , pname
-                		    , inet_sockaddrtos(addr)
-                		    , ntohs(inet_sockaddrport(addr)));
-		return NULL;
-        }
+	return 0;
+}
 
-	/* So far so good */
-	w->fd = fd;
-	__set_bit(GTP_FL_RUNNING_BIT, &w->flags);
+int
+gtp_switch_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
+{
+	gtp_server_t *srv = w->srv;
+	struct sockaddr_in addr_to;
+	gtp_teid_t *teid;
 
-	/* Infinita tristessa */
-	for (;;) {
-		/* Perform ingress packet handling */
-		w->buffer_size = gtp_switch_udp_recvfrom(w, (struct sockaddr *) &addr_from
-							  , &addrlen);
-		if (w->buffer_size == -1) {
-			if (errno == EAGAIN || errno == EINTR)
-				continue;
-			log_message(LOG_INFO, "%s(): %s: Error recv (%m). Exiting"
-					    , __FUNCTION__
-					    , pname);
-			goto end;
-		}
-
-		/* GTP-U handling */
-		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
-			teid = gtpu_handle(w, &addr_from);
-			if (!teid)
-				continue;
-
-			gtp_switch_udp_fwd(w, w->fd, (struct sockaddr_in *) &addr_from);
-			continue;
-		}
-
-		/* GTP-C handling */
-		teid = gtpc_handle(w, &addr_from);
+	/* GTP-U handling */
+	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
+		teid = gtpu_handle(w, addr_from);
 		if (!teid)
-			continue;
+			return -1;
 
-		/* Set destination address */
-		gtp_switch_fwd_addr_get(teid, &addr_from, &addr_to);
-		gtp_switch_udp_fwd(w, w->fd
-				    , (teid->type == 0xff) ? (struct sockaddr_in *) &addr_from :
-							     &addr_to);
-
-		gtpc_handle_post(w, teid);
+		gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
+		return -1;
 	}
 
-  end:
-	close(fd);
-	return NULL;
-}
-
-
-/*
- *	UDP listener init
- */
-int
-gtp_switch_worker_launch(gtp_srv_t *srv)
-{
-	gtp_srv_worker_t *worker;
-
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry(worker, &srv->workers, next) {
-		pthread_create(&worker->task, NULL, gtp_switch_worker_task, worker);
-	}
-	pthread_mutex_unlock(&srv->workers_mutex);
-
-	return 0;
-}
-
-int
-gtp_switch_worker_start(gtp_ctx_t *ctx)
-{
-	gtp_srv_t *gtpc = &ctx->gtpc;
-
-	if (!__test_bit(GTP_FL_RUNNING_BIT, &gtpc->flags))
-	    return -1;
-
-	gtp_switch_worker_launch(gtpc);
-
-	return 0;
-}
-
-static int
-gtp_switch_worker_alloc(gtp_srv_t *srv, int id)
-{
-	gtp_srv_worker_t *worker;
-
-	PMALLOC(worker);
-	INIT_LIST_HEAD(&worker->next);
-	worker->srv = srv;
-	worker->id = id;
-	worker->seed = time(NULL);
-	srand(worker->seed);
-
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_add_tail(&worker->next, &srv->workers);
-	pthread_mutex_unlock(&srv->workers_mutex);
-
-	return 0;
-}
-
-int
-gtp_switch_worker_init(gtp_ctx_t *ctx, gtp_srv_t *srv)
-{
-	int i;
-
-	/* Init worker related */
-        INIT_LIST_HEAD(&srv->workers);
-	srv->ctx = ctx;
-	for (i = 0; i < srv->thread_cnt; i++)
-		gtp_switch_worker_alloc(srv, i);
-
-	__set_bit(GTP_FL_RUNNING_BIT, &srv->flags);
-
-	return 0;
-}
-
-static int
-gtp_switch_worker_destroy(gtp_srv_t *srv)
-{
-	gtp_srv_worker_t *w, *_w;
-
-	if (!__test_bit(GTP_FL_RUNNING_BIT, &srv->flags))
+	/* GTP-C handling */
+	teid = gtpc_handle(w, addr_from);
+	if (!teid)
 		return -1;
 
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry_safe(w, _w, &srv->workers, next) {
-		pthread_cancel(w->task);
-		pthread_join(w->task, NULL);
-		list_head_del(&w->next);
-		FREE(w);
-	}
-	pthread_mutex_unlock(&srv->workers_mutex);
+	/* Set destination address */
+	gtp_switch_fwd_addr_get(teid, addr_from, &addr_to);
+	gtp_server_send(w, w->fd
+			 , (teid->type == 0xff) ? (struct sockaddr_in *) addr_from : &addr_to);
+	gtpc_handle_post(w, teid);
 
 	return 0;
 }
+
 
 /*
  *	GTP Switch init
@@ -373,8 +190,8 @@ gtp_ctx_destroy(gtp_ctx_t *ctx)
 	gtp_htab_destroy(&ctx->vteid_tab);
 	gtp_htab_destroy(&ctx->vsqn_tab);
 
-	gtp_switch_worker_destroy(&ctx->gtpc);
-	gtp_switch_worker_destroy(&ctx->gtpu);
+	gtp_server_destroy(&ctx->gtpc);
+	gtp_server_destroy(&ctx->gtpu);
 	gtp_dpd_destroy(ctx);
 	list_head_del(&ctx->next);
 	return 0;

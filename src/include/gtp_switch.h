@@ -49,41 +49,10 @@ enum gtp_flags {
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
 /* GTP Switching context */
-typedef struct _gtp_srv_worker {
-	int			id;
-	pthread_t		task;
-	int			fd;
-	struct _gtp_srv		*srv;		/* backpointer */
-	uint8_t			buffer[GTP_BUFFER_SIZE];
-	size_t			buffer_size;
-	unsigned int		seed;
-
-	/* stats */
-	uint64_t		rx_bytes;
-	uint64_t		tx_bytes;
-	uint64_t		rx_pkt;
-	uint64_t		tx_pkt;
-
-	list_head_t		next;
-
-	unsigned long		flags;
-} gtp_srv_worker_t;
-
 typedef struct _gtp_htab {
 	struct hlist_head	*htab;
 	dlock_mutex_t		*dlock;
 } gtp_htab_t;
-
-typedef struct _gtp_srv {
-	struct sockaddr_storage	addr;
-	int			thread_cnt;
-	struct _gtp_ctx		*ctx;		/* backpointer */
-
-	pthread_mutex_t		workers_mutex;
-	list_head_t		workers;
-
-	unsigned long		flags;
-} gtp_srv_t;
 
 typedef struct _gtp_iptnl {
 	/* Dead-Peer-Detection */
@@ -110,8 +79,8 @@ typedef struct _gtp_iptnl {
 
 typedef struct _gtp_ctx {
 	char			name[GTP_STR_MAX];
-	gtp_srv_t		gtpc;
-	gtp_srv_t		gtpu;
+	gtp_server_t		gtpc;
+	gtp_server_t		gtpu;
 
 	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
 	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
@@ -132,9 +101,8 @@ typedef struct _gtp_ctx {
 
 
 /* Prototypes */
-extern int gtp_switch_worker_init(gtp_ctx_t *, gtp_srv_t *);
-extern int gtp_switch_worker_launch(gtp_srv_t *);
-extern int gtp_switch_worker_start(gtp_ctx_t *);
+extern int gtp_switch_ingress_init(gtp_server_worker_t *);
+extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
 extern gtp_ctx_t *gtp_switch_get(const char *);
 extern gtp_ctx_t *gtp_switch_init(const char *);
 extern int gtp_ctx_destroy(gtp_ctx_t *);
