@@ -86,7 +86,7 @@ gtp_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t 
 {
 	gtp_teid_t *teid;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 
 	/* Determine if this is related to an existing VTEID.
 	 * If so need to restore original TEID related, otherwise
@@ -138,7 +138,7 @@ static gtp_teid_t *
 gtp_append_gtpu(gtp_server_worker_t *w, gtp_session_t *s, int direction, void *arg, uint8_t *ie_buffer)
 {
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_ie_eps_bearer_id_t *bearer_id = arg;
 	gtp_f_teid_t f_teid;
 
@@ -170,7 +170,7 @@ static gtp_teid_t *
 gtpc_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 {
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
 	gtp_teid_t *teid = NULL;
 	uint8_t *cp, *cp_bid, *end;
@@ -234,7 +234,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_ie_imsi_t *ie_imsi;
 	gtp_ie_apn_t *ie_apn;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
@@ -365,7 +365,7 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *teid_u, *t_u;
 	uint8_t *cp;
 
@@ -458,7 +458,7 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_session_t *s;
 	gtp_teid_t *teid, *t;
 	uint8_t *cp;
@@ -506,7 +506,7 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid;
 	uint8_t *cp;
 
@@ -569,7 +569,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
 	gtp_session_t *s;
 	bool mobility = false;
@@ -649,7 +649,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *teid_u, *oteid;
 	uint8_t *cp;
 
@@ -735,7 +735,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
 	gtp_session_t *s;
 	gtp_ie_eps_bearer_id_t *bearer_id = NULL;
@@ -788,7 +788,7 @@ gtpc_delete_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_teid_t *teid = NULL;
 	gtp_session_t *s;
@@ -870,7 +870,7 @@ gtpc_generic_xlat_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *a
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
 	gtp_session_t *s;
 	uint8_t *cp;
@@ -928,7 +928,7 @@ gtpc_generic_xlat_command_hdl(gtp_server_worker_t *w, struct sockaddr_storage *a
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
 	gtp_session_t *s;
 	uint8_t *cp;
@@ -979,7 +979,7 @@ gtpc_generic_xlat_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
 	gtp_session_t *s;
 	uint8_t *cp;
@@ -1037,7 +1037,7 @@ gtpc_generic_xlat_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
 	gtp_session_t *s;
 	uint8_t *cp;

@@ -216,7 +216,7 @@ gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
  *	New connection
  */
 gtp_conn_t *
-gtp_conn_alloc(uint64_t imsi, gtp_ctx_t *ctx)
+gtp_conn_alloc(uint64_t imsi, gtp_switch_t *ctx)
 {
 	gtp_conn_t *new;
 

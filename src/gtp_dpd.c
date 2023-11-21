@@ -409,10 +409,8 @@ gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
  *      Dead-Peer-Detection channel
  */
 int
-gtp_dpd_init(gtp_ctx_t *ctx)
+gtp_dpd_init(gtp_iptnl_t *t)
 {
-	gtp_iptnl_t *t = &ctx->iptnl;
-
 	/* Ingress Channel */
 	t->fd_in = gtp_dpd_ingress_socket_init(t);
 	if (t->fd_in < 0) {
@@ -439,10 +437,8 @@ gtp_dpd_init(gtp_ctx_t *ctx)
 }
 
 int
-gtp_dpd_destroy(gtp_ctx_t *ctx)
+gtp_dpd_destroy(gtp_iptnl_t *t)
 {
-	gtp_iptnl_t *t = &ctx->iptnl;
-
 	if (!(t->flags & IPTNL_FL_DPD))
 		return -1;
 

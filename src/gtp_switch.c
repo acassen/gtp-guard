@@ -83,7 +83,7 @@ int
 gtp_switch_ingress_init(gtp_server_worker_t *w)
 {
 	gtp_server_t *srv = w->srv;
-	gtp_ctx_t *ctx = srv->ctx;
+	gtp_switch_t *ctx = srv->ctx;
 	const char *ptype = "gtpc";
 
 	/* Create Process Name */
@@ -133,10 +133,10 @@ gtp_switch_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr
 /*
  *	GTP Switch init
  */
-gtp_ctx_t *
+gtp_switch_t *
 gtp_switch_get(const char *name)
 {
-	gtp_ctx_t *ctx;
+	gtp_switch_t *ctx;
 	size_t len = strlen(name);
 
 	list_for_each_entry(ctx, &daemon_data->gtp_ctx, next) {
@@ -162,10 +162,10 @@ gtp_htab_destroy(gtp_htab_t *h)
 	FREE(h->dlock);
 }
 
-gtp_ctx_t *
+gtp_switch_t *
 gtp_switch_init(const char *name)
 {
-	gtp_ctx_t *new;
+	gtp_switch_t *new;
 
 	PMALLOC(new);
         INIT_LIST_HEAD(&new->next);
@@ -183,7 +183,7 @@ gtp_switch_init(const char *name)
 
 
 int
-gtp_ctx_destroy(gtp_ctx_t *ctx)
+gtp_ctx_destroy(gtp_switch_t *ctx)
 {
 	gtp_htab_destroy(&ctx->gtpc_teid_tab);
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
@@ -192,7 +192,7 @@ gtp_ctx_destroy(gtp_ctx_t *ctx)
 
 	gtp_server_destroy(&ctx->gtpc);
 	gtp_server_destroy(&ctx->gtpu);
-	gtp_dpd_destroy(ctx);
+	gtp_dpd_destroy(&ctx->iptnl);
 	list_head_del(&ctx->next);
 	return 0;
 }
@@ -200,7 +200,7 @@ gtp_ctx_destroy(gtp_ctx_t *ctx)
 int
 gtp_switch_destroy(void)
 {
-	gtp_ctx_t *c, *_c;
+	gtp_switch_t *c, *_c;
 
 	list_for_each_entry_safe(c, _c, &daemon_data->gtp_ctx, next) {
 		gtp_ctx_destroy(c);

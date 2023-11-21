@@ -287,7 +287,7 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn)
 
 
 static int
-__gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
+__gtp_session_gtpc_teid_destroy(gtp_switch_t *ctx, gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
 
@@ -302,7 +302,7 @@ __gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 }
 
 int
-gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
+gtp_session_gtpc_teid_destroy(gtp_switch_t *ctx, gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
 	gtp_conn_t *c = s->conn;
@@ -314,7 +314,7 @@ gtp_session_gtpc_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 }
 
 static int
-__gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
+__gtp_session_gtpu_teid_destroy(gtp_switch_t *ctx, gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
 
@@ -331,7 +331,7 @@ __gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 }
 
 int
-gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
+gtp_session_gtpu_teid_destroy(gtp_switch_t *ctx, gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
 	gtp_conn_t *c = s->conn;
@@ -343,7 +343,7 @@ gtp_session_gtpu_teid_destroy(gtp_ctx_t *ctx, gtp_teid_t *teid)
 }
 
 static int
-__gtp_session_teid_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
+__gtp_session_teid_destroy(gtp_switch_t *ctx, gtp_session_t *s)
 {
 	gtp_teid_t *t, *_t;
 
@@ -359,7 +359,7 @@ __gtp_session_teid_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 }
 
 static int
-__gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
+__gtp_session_destroy(gtp_switch_t *ctx, gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 
@@ -387,7 +387,7 @@ __gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 }
 
 int
-gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
+gtp_session_destroy(gtp_switch_t *ctx, gtp_session_t *s)
 {
 	if (timerisset(&s->sands))
 		return gtp_session_expire_now(s);
@@ -396,7 +396,7 @@ gtp_session_destroy(gtp_ctx_t *ctx, gtp_session_t *s)
 }
 
 int
-gtp_session_set_delete_bearer(gtp_ctx_t *ctx, gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
+gtp_session_set_delete_bearer(gtp_switch_t *ctx, gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
 {
 	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t;
@@ -413,7 +413,7 @@ gtp_session_set_delete_bearer(gtp_ctx_t *ctx, gtp_session_t *s, gtp_ie_eps_beare
 }
 
 int
-gtp_session_destroy_bearer(gtp_ctx_t *ctx, gtp_session_t *s)
+gtp_session_destroy_bearer(gtp_switch_t *ctx, gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t, *_t;
@@ -465,7 +465,7 @@ static int
 __gtp_session_expire(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
-	gtp_ctx_t *ctx = c->ctx;
+	gtp_switch_t *ctx = c->ctx;
 
 	log_message(LOG_INFO, "IMSI:%ld - Expiring sesion-id:0x%.8x"
 			    , s->conn->imsi, s->id);

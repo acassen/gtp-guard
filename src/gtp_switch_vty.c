@@ -72,7 +72,7 @@ DEFUN(gtp_switch,
       "Configure GTP switching context\n"
       "Context Name")
 {
-	gtp_ctx_t *new;
+	gtp_switch_t *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -95,7 +95,7 @@ DEFUN(no_gtp_switch,
       "Configure GTP switching context\n"
       "Context Name")
 {
-	gtp_ctx_t *ctx;
+	gtp_switch_t *ctx;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -123,7 +123,7 @@ DEFUN(gtpc_tunnel_endpoint,
       "listening UDP Port\n"
       "Number\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, ret = 0;
@@ -164,7 +164,7 @@ DEFUN(gtpu_tunnel_endpoint,
       "listening UDP Port\n"
       "Number\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port, ret = 0;
@@ -203,7 +203,7 @@ DEFUN(gtpc_force_pgw_selection,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
 	struct sockaddr_storage *addr = &ctx->pgw_addr;
 	int ret;
 
@@ -239,7 +239,7 @@ DEFUN(gtpu_ipip,
       "Vlan ID\n"
       "Number\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
@@ -299,7 +299,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
       "Payload attached to DPD GTP packet\n"
       "Number\n")
 {
-	gtp_ctx_t *ctx = vty->index;
+	gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int credit, ifindex, plen, ret;
 
@@ -335,7 +335,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	}
 	t->ifindex = ifindex;
 
-	ret = gtp_dpd_init(ctx);
+	ret = gtp_dpd_init(&ctx->iptnl);
 	if (ret < 0) {
 		vty_out(vty, "%% Error starting Dead-Peer-Detection on interface %s (%s)%s"
 			   , argv[1]
@@ -355,7 +355,7 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent ingress encapsulation mode\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
@@ -380,7 +380,7 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent egress encapsulation mode\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
@@ -405,7 +405,7 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Untag VLAN header during decap\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
@@ -430,7 +430,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Untag VLAN header during decap\n")
 {
-        gtp_ctx_t *ctx = vty->index;
+        gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret, vlan;
 
@@ -467,7 +467,7 @@ gtp_config_write(vty_t *vty)
 {
         list_head_t *l = &daemon_data->gtp_ctx;
         gtp_server_t *srv;
-        gtp_ctx_t *ctx;
+        gtp_switch_t *ctx;
 
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);

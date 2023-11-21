@@ -24,7 +24,7 @@
 
 /* prototypes */
 extern int gtp_dpd_build_pkt(gtp_iptnl_t *);
-extern int gtp_dpd_init(gtp_ctx_t *);
-extern int gtp_dpd_destroy(gtp_ctx_t *);
+extern int gtp_dpd_init(gtp_iptnl_t *);
+extern int gtp_dpd_destroy(gtp_iptnl_t *);
 
 #endif

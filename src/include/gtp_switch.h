@@ -77,7 +77,7 @@ typedef struct _gtp_iptnl {
 	uint8_t			flags;
 } gtp_iptnl_t;
 
-typedef struct _gtp_ctx {
+typedef struct _gtp_switch {
 	char			name[GTP_STR_MAX];
 	gtp_server_t		gtpc;
 	gtp_server_t		gtpu;
@@ -97,15 +97,15 @@ typedef struct _gtp_ctx {
 	uint32_t		refcnt;
 
 	list_head_t		next;
-} gtp_ctx_t;
+} gtp_switch_t;
 
 
 /* Prototypes */
 extern int gtp_switch_ingress_init(gtp_server_worker_t *);
 extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
-extern gtp_ctx_t *gtp_switch_get(const char *);
-extern gtp_ctx_t *gtp_switch_init(const char *);
-extern int gtp_ctx_destroy(gtp_ctx_t *);
+extern gtp_switch_t *gtp_switch_get(const char *);
+extern gtp_switch_t *gtp_switch_init(const char *);
+extern int gtp_ctx_destroy(gtp_switch_t *);
 extern int gtp_switch_destroy(void);
 extern int gtp_switch_vty_init(void);
 
