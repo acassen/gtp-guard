@@ -158,7 +158,8 @@ alloc_daemon_data(void)
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->gtp_apn);
-	INIT_LIST_HEAD(&new->gtp_ctx);
+	INIT_LIST_HEAD(&new->gtp_switch_ctx);
+	INIT_LIST_HEAD(&new->gtp_router_ctx);
 	INIT_LIST_HEAD(&new->mirror_rules);
 
 	return new;

@@ -109,7 +109,8 @@ DEFUN(no_gtp_switch,
 		return CMD_WARNING;
 	}
 
-	gtp_ctx_destroy(ctx);
+	gtp_switch_ctx_destroy(ctx);
+	FREE(ctx);
 
 	return CMD_SUCCESS;
 }
@@ -465,7 +466,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 static int
 gtp_config_write(vty_t *vty)
 {
-        list_head_t *l = &daemon_data->gtp_ctx;
+        list_head_t *l = &daemon_data->gtp_switch_ctx;
         gtp_server_t *srv;
         gtp_switch_t *ctx;
 

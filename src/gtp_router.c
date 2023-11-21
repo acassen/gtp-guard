@@ -49,12 +49,8 @@
 #include "gtp_resolv.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
-#include "gtp_if.h"
+#include "gtp_router.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
-#include "gtp_session.h"
-#include "gtp_switch_hdl.h"
-#include "gtp_dpd.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -64,26 +60,11 @@ extern thread_master_t *master;
 /*
  *	Worker
  */
-static void
-gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct sockaddr_in *to)
-{
-	struct sockaddr_in *addr4 = (struct sockaddr_in *) from;
-
-	if (addr4->sin_addr.s_addr == teid->sgw_addr.sin_addr.s_addr) {
-		*to = teid->pgw_addr;
-	} else {
-		*to = teid->sgw_addr;
-	}
-
-	if (teid->family == GTP_INIT)
-		to->sin_port = htons(GTP_C_PORT);
-}
-
 int
-gtp_switch_ingress_init(gtp_server_worker_t *w)
+gtp_router_ingress_init(gtp_server_worker_t *w)
 {
 	gtp_server_t *srv = w->srv;
-	gtp_switch_t *ctx = srv->ctx;
+	gtp_router_t *ctx = srv->ctx;
 	const char *ptype = "gtpc";
 
 	/* Create Process Name */
@@ -99,47 +80,22 @@ gtp_switch_ingress_init(gtp_server_worker_t *w)
 }
 
 int
-gtp_switch_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
+gtp_router_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
 {
-	gtp_server_t *srv = w->srv;
-	struct sockaddr_in addr_to;
-	gtp_teid_t *teid;
-
-	/* GTP-U handling */
-	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
-		teid = gtpu_handle(w, addr_from);
-		if (!teid)
-			return -1;
-
-		gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
-		return -1;
-	}
-
-	/* GTP-C handling */
-	teid = gtpc_handle(w, addr_from);
-	if (!teid)
-		return -1;
-
-	/* Set destination address */
-	gtp_switch_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(w, w->fd
-			 , (teid->type == 0xff) ? (struct sockaddr_in *) addr_from : &addr_to);
-	gtpc_handle_post(w, teid);
-
 	return 0;
 }
 
 
 /*
- *	GTP Switch init
+ *	GTP Router init
  */
-gtp_switch_t *
-gtp_switch_get(const char *name)
+gtp_router_t *
+gtp_router_get(const char *name)
 {
-	gtp_switch_t *ctx;
+	gtp_router_t *ctx;
 	size_t len = strlen(name);
 
-	list_for_each_entry(ctx, &daemon_data->gtp_switch_ctx, next) {
+	list_for_each_entry(ctx, &daemon_data->gtp_router_ctx, next) {
 		if (!memcmp(ctx->name, name, len))
 			return ctx;
 	}
@@ -147,48 +103,42 @@ gtp_switch_get(const char *name)
 	return NULL;
 }
 
-gtp_switch_t *
-gtp_switch_init(const char *name)
+gtp_router_t *
+gtp_router_init(const char *name)
 {
-	gtp_switch_t *new;
+	gtp_router_t *new;
 
 	PMALLOC(new);
         INIT_LIST_HEAD(&new->next);
         strncpy(new->name, name, GTP_NAME_MAX_LEN - 1);
-        list_add_tail(&new->next, &daemon_data->gtp_switch_ctx);
+        list_add_tail(&new->next, &daemon_data->gtp_router_ctx);
 
 	/* Init hashtab */
 	gtp_htab_init(&new->gtpc_teid_tab, CONN_HASHTAB_SIZE);
 	gtp_htab_init(&new->gtpu_teid_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&new->vteid_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&new->vsqn_tab, CONN_HASHTAB_SIZE);
 
 	return new;
 }
 
 
 int
-gtp_switch_ctx_destroy(gtp_switch_t *ctx)
+gtp_router_ctx_destroy(gtp_router_t *ctx)
 {
 	gtp_htab_destroy(&ctx->gtpc_teid_tab);
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
-	gtp_htab_destroy(&ctx->vteid_tab);
-	gtp_htab_destroy(&ctx->vsqn_tab);
-
 	gtp_server_destroy(&ctx->gtpc);
 	gtp_server_destroy(&ctx->gtpu);
-	gtp_dpd_destroy(&ctx->iptnl);
 	list_head_del(&ctx->next);
 	return 0;
 }
 
 int
-gtp_switch_destroy(void)
+gtp_router_destroy(void)
 {
-	gtp_switch_t *c, *_c;
+	gtp_router_t *c, *_c;
 
-	list_for_each_entry_safe(c, _c, &daemon_data->gtp_switch_ctx, next) {
-		gtp_switch_ctx_destroy(c);
+	list_for_each_entry_safe(c, _c, &daemon_data->gtp_router_ctx, next) {
+		gtp_router_ctx_destroy(c);
 		FREE(c);
 	}
 

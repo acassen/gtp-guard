@@ -22,6 +22,18 @@
 #ifndef _GTP_H
 #define _GTP_H
 
+/* Flags */
+enum gtp_flags {
+	GTP_FL_RUNNING_BIT,
+	GTP_FL_STARTING_BIT,
+	GTP_FL_STOPING_BIT,
+	GTP_FL_HASHED_BIT,
+	GTP_FL_CTL_BIT,
+	GTP_FL_UPF_BIT,
+	GTP_FL_FORCE_PGW_BIT,
+	GTP_FL_IPTNL_BIT,
+};
+
 /* default values */
 #define GTP_MAX_PACKET_SIZE		4096
 #define GTPV1C_HEADER_LEN_SHORT		8

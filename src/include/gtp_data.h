@@ -24,7 +24,11 @@
 
 /* Default values */
 #define GTP_STR_MAX_LEN		128
+#define GTP_NAME_MAX_LEN	64
 #define GTP_NAMESERVER_PORT	53
+#define GTP_DEFAULT_THREAD_CNT	10
+#define GTP_BUFFER_SIZE		4096
+
 
 /* Flags */
 enum daemon_flags {
@@ -69,8 +73,9 @@ typedef struct _data {
 	/* APN resolver */
 	list_head_t		gtp_apn;
 
-	/* GTP switching context */
-	list_head_t		gtp_ctx;
+	/* GTP context */
+	list_head_t		gtp_switch_ctx;
+	list_head_t		gtp_router_ctx;
 
 	unsigned long		flags;
 } data_t;

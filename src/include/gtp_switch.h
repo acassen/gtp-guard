@@ -22,24 +22,7 @@
 #ifndef _GTP_SWITCH_H
 #define _GTP_SWITCH_H
 
-/* Default values */
-#define GTP_STR_MAX		64
-#define GTPC_PORT		2123
-#define GTP_DEFAULT_THREAD_CNT	10
-#define GTP_BUFFER_SIZE		4096
-
-/* Flags */
-enum gtp_flags {
-	GTP_FL_RUNNING_BIT,
-	GTP_FL_STARTING_BIT,
-	GTP_FL_STOPING_BIT,
-	GTP_FL_HASHED_BIT,
-	GTP_FL_CTL_BIT,
-	GTP_FL_UPF_BIT,
-	GTP_FL_FORCE_PGW_BIT,
-	GTP_FL_IPTNL_BIT,
-};
-
+/* IP-IP tunneling related */
 #define IPTNL_FL_TRANSPARENT_INGRESS_ENCAP	(1 << 0)
 #define IPTNL_FL_TRANSPARENT_EGRESS_ENCAP	(1 << 1)
 #define IPTNL_FL_TRANSPARENT_EGRESS_BYPASS	(1 << 2)
@@ -48,7 +31,6 @@ enum gtp_flags {
 #define IPTNL_FL_UNTAG_VLAN			(1 << 5)
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
-/* GTP Switching context */
 typedef struct _gtp_iptnl {
 	/* Dead-Peer-Detection */
 	int			fd_in;
@@ -72,8 +54,9 @@ typedef struct _gtp_iptnl {
 	uint8_t			flags;
 } gtp_iptnl_t;
 
+/* GTP Switching context */
 typedef struct _gtp_switch {
-	char			name[GTP_STR_MAX];
+	char			name[GTP_NAME_MAX_LEN];
 	gtp_server_t		gtpc;
 	gtp_server_t		gtpu;
 
@@ -100,7 +83,7 @@ extern int gtp_switch_ingress_init(gtp_server_worker_t *);
 extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
 extern gtp_switch_t *gtp_switch_get(const char *);
 extern gtp_switch_t *gtp_switch_init(const char *);
-extern int gtp_ctx_destroy(gtp_switch_t *);
+extern int gtp_switch_ctx_destroy(gtp_switch_t *);
 extern int gtp_switch_destroy(void);
 extern int gtp_switch_vty_init(void);
 
