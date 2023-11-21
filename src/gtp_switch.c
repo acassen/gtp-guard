@@ -44,7 +44,7 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
-#include "gtp_dlock.h"
+#include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
 #include "gtp_server.h"
@@ -147,21 +147,6 @@ gtp_switch_get(const char *name)
 	return NULL;
 }
 
-static void
-gtp_htab_init(gtp_htab_t *h)
-{
-	h->htab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) *
-					       CONN_HASHTAB_SIZE);
-	h->dlock = dlock_init();
-}
-
-static void
-gtp_htab_destroy(gtp_htab_t *h)
-{
-	FREE(h->htab);
-	FREE(h->dlock);
-}
-
 gtp_switch_t *
 gtp_switch_init(const char *name)
 {
@@ -173,10 +158,10 @@ gtp_switch_init(const char *name)
         list_add_tail(&new->next, &daemon_data->gtp_ctx);
 
 	/* Init hashtab */
-	gtp_htab_init(&new->gtpc_teid_tab);
-	gtp_htab_init(&new->gtpu_teid_tab);
-	gtp_htab_init(&new->vteid_tab);
-	gtp_htab_init(&new->vsqn_tab);
+	gtp_htab_init(&new->gtpc_teid_tab, CONN_HASHTAB_SIZE);
+	gtp_htab_init(&new->gtpu_teid_tab, CONN_HASHTAB_SIZE);
+	gtp_htab_init(&new->vteid_tab, CONN_HASHTAB_SIZE);
+	gtp_htab_init(&new->vsqn_tab, CONN_HASHTAB_SIZE);
 
 	return new;
 }

@@ -33,7 +33,7 @@
 #include "logger.h"
 #include "list_head.h"
 #include "jhash.h"
-#include "gtp_dlock.h"
+#include "gtp_htab.h"
 
 /*
  *      Distributate lock handling
@@ -75,4 +75,21 @@ dlock_destroy(dlock_mutex_t *__array)
 {
 	FREE(__array);
 	return 0;
+}
+
+/*
+ *	HTAB handling
+ */
+void
+gtp_htab_init(gtp_htab_t *h, size_t size)
+{
+	h->htab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) * size);
+	h->dlock = dlock_init();
+}
+
+void
+gtp_htab_destroy(gtp_htab_t *h)
+{
+	FREE(h->htab);
+	FREE(h->dlock);
 }

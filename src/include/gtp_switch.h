@@ -49,11 +49,6 @@ enum gtp_flags {
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
 /* GTP Switching context */
-typedef struct _gtp_htab {
-	struct hlist_head	*htab;
-	dlock_mutex_t		*dlock;
-} gtp_htab_t;
-
 typedef struct _gtp_iptnl {
 	/* Dead-Peer-Detection */
 	int			fd_in;

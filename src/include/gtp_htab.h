@@ -19,8 +19,8 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_DLOCK_H
-#define _GTP_DLOCK_H
+#ifndef _GTP_HTAB_H
+#define _GTP_HTAB_H
 
 /* Distributed lock */
 #define DLOCK_HASHTAB_BITS    10
@@ -32,10 +32,18 @@ typedef struct _dlock_mutex {
 	uint32_t		refcnt;
 } dlock_mutex_t;
 
+/* htab */
+typedef struct _gtp_htab {
+	struct hlist_head	*htab;
+	dlock_mutex_t		*dlock;
+} gtp_htab_t;
+
 /* Prototypes */
 extern int dlock_lock_id(dlock_mutex_t *, uint32_t, uint32_t);
 extern int dlock_unlock_id(dlock_mutex_t *, uint32_t, uint32_t);
 extern dlock_mutex_t *dlock_init(void);
 extern int dlock_destroy(dlock_mutex_t *);
+extern void gtp_htab_init(gtp_htab_t *, size_t);
+extern void gtp_htab_destroy(gtp_htab_t *);
 
 #endif
