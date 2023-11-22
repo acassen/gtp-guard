@@ -251,10 +251,9 @@ gtp_session_add_timer(gtp_session_t *s)
 	if (!apn->session_lifetime)
 		return;
 
-	s->sands = timer_add_now_sec(s->sands, apn->session_lifetime);
-
 	/* Sort it by timeval */
 	pthread_mutex_lock(&gtp_session_timer_mutex);
+	s->sands = timer_add_now_sec(s->sands, apn->session_lifetime);
 	rb_add_cached(&s->n, &gtp_session_timer, gtp_session_timer_less);
 	pthread_mutex_unlock(&gtp_session_timer_mutex);
 }
@@ -370,19 +369,18 @@ __gtp_session_destroy(gtp_switch_t *ctx, gtp_session_t *s)
 
 	/* Release session */
 	list_head_del(&s->next);
-	__sync_sub_and_fetch(&c->refcnt, 1);
 	FREE(s);
 
+	pthread_mutex_unlock(&c->gtp_session_mutex);
+
 	/* Release connection if no more sessions */
-	if (list_empty(&c->gtp_sessions)) {
-		log_message(LOG_INFO, "IMSI:%ld - no more sessions - Releasing tracking", c->imsi);
+	if (__sync_sub_and_fetch(&c->refcnt, 1) == 0) {
 		gtp_conn_unhash(c);
-		pthread_mutex_unlock(&c->gtp_session_mutex);
+		log_message(LOG_INFO, "IMSI:%ld - no more sessions - Releasing tracking", c->imsi);
 		FREE(c);
 		return 0;
 	}
 
-	pthread_mutex_unlock(&c->gtp_session_mutex);
 	return 0;
 }
 
@@ -467,10 +465,9 @@ __gtp_session_expire(gtp_session_t *s)
 	gtp_conn_t *c = s->conn;
 	gtp_switch_t *ctx = c->ctx;
 
-	log_message(LOG_INFO, "IMSI:%ld - Expiring sesion-id:0x%.8x"
+	log_message(LOG_INFO, "IMSI:%ld - Expiring session-id:0x%.8x"
 			    , s->conn->imsi, s->id);
 
-	rb_erase_cached(&s->n, &gtp_session_timer);
 	__gtp_session_destroy(ctx, s);
 	return 0;
 }
@@ -519,7 +516,11 @@ gtp_sessions_expire(timeval_t *now)
 		if (timercmp(now, &s->sands, <))
 			break;
 
+		rb_erase_cached(&s->n, &gtp_session_timer);
+
+		pthread_mutex_unlock(&gtp_session_timer_mutex);
 		__gtp_session_expire(s);
+		pthread_mutex_lock(&gtp_session_timer_mutex);
 	}
 	pthread_mutex_unlock(&gtp_session_timer_mutex);
 }

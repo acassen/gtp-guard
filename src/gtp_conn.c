@@ -135,8 +135,8 @@ gtp_conn_get_by_imsi(uint64_t imsi)
 	gtp_conn_lock_id(imsi);
 	hlist_for_each_entry(c, n, head, hlist) {
 		if (c->imsi == imsi) {
-			gtp_conn_unlock_id(imsi);
 			__sync_add_and_fetch(&c->refcnt, 1);
+			gtp_conn_unlock_id(imsi);
 			return c;
 		}
 	}
