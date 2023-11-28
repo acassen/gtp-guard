@@ -35,7 +35,7 @@ enum conn_flags {
 typedef struct _gtp_conn {
         uint64_t                imsi;
 	struct sockaddr_in	sgw_addr;
-	gtp_switch_t		*ctx;
+	void			*ctx;
 
 	/* FIXME: maybe use a global dlock here */
 	list_head_t		gtp_sessions;
@@ -54,7 +54,7 @@ typedef struct _gtp_conn {
 /* Prototypes */
 extern int gtp_conn_get(gtp_conn_t *);
 extern int gtp_conn_put(gtp_conn_t *);
-extern gtp_conn_t *gtp_conn_alloc(uint64_t, gtp_switch_t *);
+extern gtp_conn_t *gtp_conn_alloc(uint64_t, void *);
 extern gtp_conn_t *gtp_conn_get_by_imsi(uint64_t);
 extern int gtp_conn_hash(gtp_conn_t *);
 extern int gtp_conn_unhash(gtp_conn_t *);

@@ -44,16 +44,18 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_if.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_switch_hdl.h"
+#include "gtp_sqn.h"
 #include "gtp_dpd.h"
 
 /* Extern data */
@@ -62,8 +64,33 @@ extern thread_master_t *master;
 
 
 /*
- *	Worker
+ *	Helpers
  */
+int
+gtp_switch_gtpc_teid_destroy(gtp_teid_t *teid)
+{
+	gtp_session_t *s = teid->session;
+	gtp_conn_t *conn = s->conn;
+	gtp_switch_t *ctx = conn->ctx;
+
+	gtp_vteid_unhash(&ctx->vteid_tab, teid);
+	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
+	gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
+	return 0;
+}
+
+int
+gtp_switch_gtpu_teid_destroy(gtp_teid_t *teid)
+{
+	gtp_session_t *s = teid->session;
+	gtp_conn_t *conn = s->conn;
+	gtp_switch_t *ctx = conn->ctx;
+
+	gtp_vteid_unhash(&ctx->vteid_tab, teid);
+	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
+	return 0;
+}
+
 static void
 gtp_switch_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct sockaddr_in *to)
 {

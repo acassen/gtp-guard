@@ -42,13 +42,14 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 
 /*
@@ -353,6 +354,7 @@ gtp_vteid_unhash(gtp_htab_t *h, gtp_teid_t *t)
 		dlock_unlock_id(h->dlock, t->vid, 0);
 		return -1;
 	}
+
 	hlist_del_init(&t->hlist_vteid);
 	__sync_sub_and_fetch(&t->refcnt, 1);
 	dlock_unlock_id(h->dlock, t->vid, 0);

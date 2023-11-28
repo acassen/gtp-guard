@@ -44,15 +44,15 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
-#include "gtp_teid.h"
 #include "gtp_utils.h"
 #include "gtp_switch_hdl_v1.h"
 #include "gtp_switch_hdl_v2.h"
@@ -152,8 +152,6 @@ gtpc_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 int
 gtpc_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
-	gtp_server_t *srv = w->srv;
-	gtp_switch_t *ctx = srv->ctx;
 	gtp_session_t *s;
 
 	if (!teid || teid->type == 0xff)
@@ -162,7 +160,7 @@ gtpc_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
 	s = teid->session;
 	if (s->action == GTP_ACTION_DELETE_SESSION) {
 		gtp_teid_put(teid);
-		gtp_session_destroy(ctx, s);
+		gtp_session_destroy(s);
 		return 0;
 	}
 

@@ -36,6 +36,10 @@ typedef struct _gtp_session {
 	list_head_t		gtpc_teid;
 	list_head_t		gtpu_teid;
 
+	/* local method */
+	int (*gtpc_teid_destroy) (gtp_teid_t *);
+	int (*gtpu_teid_destroy) (gtp_teid_t *);
+
 	gtp_conn_t		*conn;		/* backpointer */
 
 	uint8_t			action;
@@ -57,12 +61,14 @@ extern void gtp_session_dump(gtp_session_t *s);
 extern gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
 extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
 extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *);
-extern gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *);
-extern int gtp_session_gtpu_teid_destroy(gtp_switch_t *, gtp_teid_t *);
-extern int gtp_session_gtpc_teid_destroy(gtp_switch_t *, gtp_teid_t *);
-extern int gtp_session_destroy(gtp_switch_t *, gtp_session_t *);
-extern int gtp_session_set_delete_bearer(gtp_switch_t *, gtp_session_t *, gtp_ie_eps_bearer_id_t *);
-extern int gtp_session_destroy_bearer(gtp_switch_t *, gtp_session_t *);
+extern gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *,
+					int (*gtpc_destroy) (gtp_teid_t *),
+					int (*gtpu_destroy) (gtp_teid_t *));
+extern int gtp_session_gtpu_teid_destroy(gtp_teid_t *);
+extern int gtp_session_gtpc_teid_destroy(gtp_teid_t *);
+extern int gtp_session_destroy(gtp_session_t *);
+extern int gtp_session_set_delete_bearer(gtp_session_t *, gtp_ie_eps_bearer_id_t *);
+extern int gtp_session_destroy_bearer(gtp_session_t *);
 extern int gtp_session_expire_now(gtp_session_t *);
 extern int gtp_sessions_free(gtp_conn_t *);
 extern int gtp_sessions_init(void);

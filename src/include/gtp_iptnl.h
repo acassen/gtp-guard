@@ -19,32 +19,39 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_ROUTER_H
-#define _GTP_ROUTER_H
+#ifndef _GTP_IPTNL_H
+#define _GTP_IPTNL_H
 
-typedef struct _gtp_router {
-	char			name[GTP_NAME_MAX_LEN];
-	gtp_server_t		gtpc;
-	gtp_server_t		gtpu;
+/* IP-IP tunneling related */
+#define IPTNL_FL_TRANSPARENT_INGRESS_ENCAP	(1 << 0)
+#define IPTNL_FL_TRANSPARENT_EGRESS_ENCAP	(1 << 1)
+#define IPTNL_FL_TRANSPARENT_EGRESS_BYPASS	(1 << 2)
+#define IPTNL_FL_DPD				(1 << 3)
+#define IPTNL_FL_DEAD				(1 << 4)
+#define IPTNL_FL_UNTAG_VLAN			(1 << 5)
+#define IPTNL_FL_TAG_VLAN			(1 << 6)
 
-	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
-	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
-	uint32_t		seqnum;		/* Global context Seqnum */
+typedef struct _gtp_iptnl {
+	/* Dead-Peer-Detection */
+	int			fd_in;
+	int			fd_out;
+	thread_ref_t		r_thread;
+	uint8_t			recv_buffer[GTP_BUFFER_SIZE];
+	size_t			recv_buffer_size;
+	uint8_t			send_buffer[GTP_BUFFER_SIZE];
+	size_t			send_buffer_size;
+	unsigned long		credit;
+	unsigned long		expire;
+	size_t			payload_len;
 
-	unsigned long		flags;
-	uint32_t		refcnt;
-
-	list_head_t		next;
-} gtp_router_t;
-
-
-/* Prototypes */
-extern int gtp_router_ingress_init(gtp_server_worker_t *);
-extern int gtp_router_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
-extern gtp_router_t *gtp_router_get(const char *);
-extern gtp_router_t *gtp_router_init(const char *);
-extern int gtp_router_ctx_destroy(gtp_router_t *);
-extern int gtp_router_destroy(void);
-extern int gtp_router_vty_init(void);
+	/* Tunnel declaration */
+	int			ifindex;
+	uint32_t		selector_addr;
+	uint32_t		local_addr;
+	uint32_t		remote_addr;
+	uint16_t		encap_vlan_id;
+	uint16_t		decap_vlan_id;
+	uint8_t			flags;
+} gtp_iptnl_t;
 
 #endif

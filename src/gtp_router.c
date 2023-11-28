@@ -46,9 +46,8 @@
 #include "gtp_data.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
-#include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
-#include "gtp_switch.h"
 #include "gtp_router.h"
 #include "gtp_conn.h"
 
@@ -58,7 +57,7 @@ extern thread_master_t *master;
 
 
 /*
- *	Worker
+ *	Helpers
  */
 int
 gtp_router_ingress_init(gtp_server_worker_t *w)

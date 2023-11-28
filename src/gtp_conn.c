@@ -45,13 +45,14 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 
 /* Extern data */
@@ -216,7 +217,7 @@ gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
  *	New connection
  */
 gtp_conn_t *
-gtp_conn_alloc(uint64_t imsi, gtp_switch_t *ctx)
+gtp_conn_alloc(uint64_t imsi, void *ctx)
 {
 	gtp_conn_t *new;
 

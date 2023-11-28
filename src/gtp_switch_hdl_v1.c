@@ -44,14 +44,15 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
 #include "gtp_sched.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_switch_hdl.h"
 #include "gtp_sqn.h"
@@ -292,7 +293,8 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 
 	/* Create a new session object */
 	if (!retransmit)
-		s = gtp_session_alloc(c, apn);
+		s = gtp_session_alloc(c, apn, gtp_switch_gtpc_teid_destroy
+					    , gtp_switch_gtpu_teid_destroy);
 
 	/* Performing session translation */
 	teid = gtp1_session_xlat(w, s, GTP_INGRESS);
@@ -600,7 +602,7 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 
 	if (oteid) {
 		gtp_teid_bind(oteid->peer_teid, teid);
-		gtp_session_gtpc_teid_destroy(ctx, oteid);
+		gtp_session_gtpc_teid_destroy(oteid);
 	}
 
 	/* Bearer cause handling */
@@ -609,7 +611,7 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 		oteid = teid_u->old_teid;
 		if (oteid->peer_teid)
 			gtp_teid_bind(oteid->peer_teid, teid_u);
-		gtp_session_gtpu_teid_destroy(ctx, oteid);
+		gtp_session_gtpu_teid_destroy(oteid);
 	}
 
   end:

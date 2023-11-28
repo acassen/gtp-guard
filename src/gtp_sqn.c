@@ -42,13 +42,14 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 
 
 /*
@@ -127,7 +128,7 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 	if (!__test_and_clear_bit(GTP_TEID_FL_VSQN_HASHED, &t->flags)) {
 		log_message(LOG_INFO, "%s(): VSQN:0x%.8x for TEID:0x%.8x already unhashed !!!"
 				    , __FUNCTION__, t->vsqn, ntohl(t->id));
-		dlock_unlock_id(h->dlock, t->vid, 0);
+		dlock_unlock_id(h->dlock, t->vsqn, 0);
 		return -1;
 	}
 	hlist_del_init(&t->hlist_vsqn);

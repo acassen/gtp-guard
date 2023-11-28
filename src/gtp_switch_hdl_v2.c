@@ -44,14 +44,15 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
 #include "gtp_sched.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_switch_hdl.h"
 #include "gtp_sqn.h"
@@ -313,7 +314,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* Create a new session object */
 	if (!retransmit)
-		s = gtp_session_alloc(c, apn);
+		s = gtp_session_alloc(c, apn, gtp_switch_gtpc_teid_destroy
+					    , gtp_switch_gtpu_teid_destroy);
 
 	/* Performing session translation */
 	teid = gtpc_session_xlat(w, s, direction);
@@ -711,7 +713,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	if (oteid) {
 		gtp_teid_bind(oteid->peer_teid, teid);
-		gtp_session_gtpc_teid_destroy(ctx, oteid);
+		gtp_session_gtpc_teid_destroy(oteid);
 	}
 
 	/* Bearer cause handling */
@@ -720,7 +722,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		oteid = teid_u->old_teid;
 		if (oteid->peer_teid)
 			gtp_teid_bind(oteid->peer_teid, teid_u);
-		gtp_session_gtpu_teid_destroy(ctx, oteid);
+		gtp_session_gtpu_teid_destroy(oteid);
 	}
 
   end:
@@ -778,7 +780,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 
 	/* Flag related TEID */
 	teid->action = GTP_ACTION_DELETE_BEARER;
-	gtp_session_set_delete_bearer(ctx, s, bearer_id);
+	gtp_session_set_delete_bearer(s, bearer_id);
 
 	return teid;
 }
@@ -826,7 +828,7 @@ gtpc_delete_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		    ie_cause->value <= GTP_CAUSE_CONTEXT_NOT_FOUND) {
 			if (ie_cause->value == GTP_CAUSE_CONTEXT_NOT_FOUND)
 				teid->session->action = GTP_ACTION_DELETE_SESSION;
-			gtp_session_destroy_bearer(ctx, s);
+			gtp_session_destroy_bearer(s);
 		}
 	}
 

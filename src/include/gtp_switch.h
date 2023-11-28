@@ -22,38 +22,6 @@
 #ifndef _GTP_SWITCH_H
 #define _GTP_SWITCH_H
 
-/* IP-IP tunneling related */
-#define IPTNL_FL_TRANSPARENT_INGRESS_ENCAP	(1 << 0)
-#define IPTNL_FL_TRANSPARENT_EGRESS_ENCAP	(1 << 1)
-#define IPTNL_FL_TRANSPARENT_EGRESS_BYPASS	(1 << 2)
-#define IPTNL_FL_DPD				(1 << 3)
-#define IPTNL_FL_DEAD				(1 << 4)
-#define IPTNL_FL_UNTAG_VLAN			(1 << 5)
-#define IPTNL_FL_TAG_VLAN			(1 << 6)
-
-typedef struct _gtp_iptnl {
-	/* Dead-Peer-Detection */
-	int			fd_in;
-	int			fd_out;
-	thread_ref_t		r_thread;
-	uint8_t			recv_buffer[GTP_BUFFER_SIZE];
-	size_t			recv_buffer_size;
-	uint8_t			send_buffer[GTP_BUFFER_SIZE];
-	size_t			send_buffer_size;
-	unsigned long		credit;
-	unsigned long		expire;
-	size_t			payload_len;
-
-	/* Tunnel declaration */
-	int			ifindex;
-	uint32_t		selector_addr;
-	uint32_t		local_addr;
-	uint32_t		remote_addr;
-	uint16_t		encap_vlan_id;
-	uint16_t		decap_vlan_id;
-	uint8_t			flags;
-} gtp_iptnl_t;
-
 /* GTP Switching context */
 typedef struct _gtp_switch {
 	char			name[GTP_NAME_MAX_LEN];
@@ -79,6 +47,8 @@ typedef struct _gtp_switch {
 
 
 /* Prototypes */
+extern int gtp_switch_gtpc_teid_destroy(gtp_teid_t *);
+extern int gtp_switch_gtpu_teid_destroy(gtp_teid_t *);
 extern int gtp_switch_ingress_init(gtp_server_worker_t *);
 extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
 extern gtp_switch_t *gtp_switch_get(const char *);

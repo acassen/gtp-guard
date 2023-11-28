@@ -38,7 +38,7 @@ typedef uint8_t ub1;
  * the input key.
  */
 static inline ub4
-jhash(register ub1 * k, register ub4 length, register ub4 initval)
+jhash(register ub1 *k, register ub4 length, register ub4 initval)
 {
 	register ub4 a, b, c, len;
 
@@ -95,7 +95,7 @@ jhash(register ub1 * k, register ub4 length, register ub4 initval)
  * The length parameter here is the number of ub4s in the key.
  */
 static inline ub4
-jhash2(register ub4 * k, register ub4 length, register ub4 initval)
+jhash2(register ub4 *k, register ub4 length, register ub4 initval)
 {
 	register ub4 a, b, c, len;
 
@@ -159,10 +159,10 @@ jhash_1word(register ub4 a, register ub4 initval)
 
 /* One-At-A-Time string hashing */
 static inline ub4
-jhash_oaat(const char *k)
+jhash_oaat(register ub1 *k)
 {
 	register ub4 hash;
-	const char *cp;
+	const ub1 *cp;
 
 	for (cp = k; *cp; cp++) {
 		hash += *cp;

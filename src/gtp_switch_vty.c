@@ -41,13 +41,14 @@
 #include "gtp.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
+#include "gtp_iptnl.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_xdp.h"
 #include "gtp_dpd.h"
@@ -56,7 +57,7 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-cmd_node_t gtp_node = {
+cmd_node_t gtp_switch_node = {
         GTP_SWITCH_NODE,
         "%s(gtp-switch)# ",
         1,
@@ -522,7 +523,7 @@ gtp_switch_vty_init(void)
 {
 
 	/* Install PDN commands. */
-	install_node(&gtp_node, gtp_config_write);
+	install_node(&gtp_switch_node, gtp_config_write);
 	install_element(CONFIG_NODE, &gtp_switch_cmd);
 	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 

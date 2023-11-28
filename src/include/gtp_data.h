@@ -76,6 +76,7 @@ typedef struct _data {
 	/* GTP context */
 	list_head_t		gtp_switch_ctx;
 	list_head_t		gtp_router_ctx;
+        pthread_mutex_t		gtp_ctx_mutex;
 
 	unsigned long		flags;
 } data_t;

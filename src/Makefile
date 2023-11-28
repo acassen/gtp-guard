@@ -32,7 +32,7 @@ OBJS = 	main.o gtp_data.o gtp_vty.o gtp_if.o gtp_server.o		\
 	gtp_request.o gtp_dpd.o						\
 	gtp_switch.o gtp_switch_vty.o					\
 	gtp_switch_hdl.o gtp_switch_hdl_v1.o gtp_switch_hdl_v2.o	\
-	gtp_router.o
+	gtp_router.o gtp_router_vty.o
 
 HEADERS = $(OBJS:.o=.h)
 
