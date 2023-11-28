@@ -65,11 +65,11 @@ gtp_router_ingress_init(gtp_server_worker_t *w)
 {
 	gtp_server_t *srv = w->srv;
 	gtp_router_t *ctx = srv->ctx;
-	const char *ptype = "gtpc";
+	const char *ptype = "rt-gtpc";
 
 	/* Create Process Name */
 	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
-		ptype = "upf";
+		ptype = "rt-upf";
 	snprintf(w->pname, 127, "%s-%s-%d"
 			 , ctx->name
 			 , ptype

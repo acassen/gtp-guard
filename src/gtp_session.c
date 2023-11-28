@@ -73,110 +73,6 @@ pthread_mutex_t gtp_session_expiration_mutex;
 /*
  *	Session handling
  */
-static int
-__gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
-{
-	gtp_teid_t *t;
-
-	/* Walk the line */
-	list_for_each_entry(t, l, next)
-		vty_out(vty, "  [CP] vteid:0x%.8x teid:0x%.8x vsqn:0x%.8x sqn:0x%.8x"
-			     " ipaddr:%u.%u.%u.%u sGW:%u.%u.%u.%u pGW:%u.%u.%u.%u%s"
-			   , t->vid, ntohl(t->id), t->vsqn, t->sqn, NIPQUAD(t->ipv4)
-			   , NIPQUAD(t->sgw_addr.sin_addr.s_addr)
-			   , NIPQUAD(t->pgw_addr.sin_addr.s_addr)
-			   , VTY_NEWLINE);
-	return 0;
-}
-
-static int
-__gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
-{
-	gtp_teid_t *t;
-
-	/* Walk the line */
-	list_for_each_entry(t, l, next) {
-		vty_out(vty, "  [UP] vteid:0x%.8x teid:0x%.8x sqn:0x%.8x"
-			     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
-			   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
-			   , VTY_NEWLINE);
-		if (t->vid)
-			gtp_xdp_fwd_teid_vty(vty, ntohl(t->vid));
-	}
-	return 0;
-}
-
-int
-gtp_session_vty(vty_t *vty, gtp_conn_t *c)
-{
-	list_head_t *l = &c->gtp_sessions;
-	time_t timeout = 0;
-	gtp_session_t *s;
-	struct tm *t;
-
-	/* Walk the line */
-	pthread_mutex_lock(&c->gtp_session_mutex);
-	list_for_each_entry(s, l, next) {
-		if (timerisset(&s->sands)) {
-			timeout = s->sands.tv_sec - time_now.tv_sec;
-			snprintf(s->tmp_str, 63, "%ld secs", timeout);
-		}
-
-		t = &s->creation_time;
-		vty_out(vty, " session-id:0x%.8x apn:%s creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d expire:%s%s"
-			   , s->id, s->apn->name
-			   , t->tm_mday, t->tm_mon+1, t->tm_year+1900
-			   , t->tm_hour, t->tm_min, t->tm_sec
-			   , timerisset(&s->sands) ? s->tmp_str : "never"
-			   , VTY_NEWLINE);
-		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
-		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
-	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
-	return 0;
-}
-
-int
-gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
-{
-	list_head_t *l = &c->gtp_sessions;
-	time_t timeout = 0;
-	gtp_session_t *s;
-	gtp_apn_t *apn = NULL;
-
-	/* Walk the line */
-	pthread_mutex_lock(&c->gtp_session_mutex);
-	list_for_each_entry(s, l, next) {
-		if (timerisset(&s->sands)) {
-			timeout = s->sands.tv_sec - time_now.tv_sec;
-			snprintf(s->tmp_str, 63, "%ld secs", timeout);
-		}
-
-		if (!apn) {
-			vty_out(vty, "| %.15ld | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
-				   , c->imsi, s->apn->name, s->id, s->refcnt
-				   , timerisset(&s->sands) ? s->tmp_str : "never"
-				   , VTY_NEWLINE);
-			apn = s->apn;
-			continue;
-		}
-
-		vty_out(vty, "|                 | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
-			   , (apn == s->apn) ? "" : s->apn->name
-			   , s->id, s->refcnt
-			   , timerisset(&s->sands) ? s->tmp_str : "never"
-			   , VTY_NEWLINE);
-		apn = s->apn;
-	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
-
-	/* Footer */
-	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"
-		   , VTY_NEWLINE);
-	return 0;
-}
-
-
 gtp_teid_t *
 gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 {
@@ -378,7 +274,6 @@ __gtp_session_destroy(gtp_switch_t *ctx, gtp_session_t *s)
 		gtp_conn_unhash(c);
 		log_message(LOG_INFO, "IMSI:%ld - no more sessions - Releasing tracking", c->imsi);
 		FREE(c);
-		return 0;
 	}
 
 	return 0;
@@ -591,6 +486,109 @@ gtp_sessions_destroy(void)
 /*
  *	VTY Command
  */
+static int
+__gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
+{
+	gtp_teid_t *t;
+
+	/* Walk the line */
+	list_for_each_entry(t, l, next)
+		vty_out(vty, "  [CP] vteid:0x%.8x teid:0x%.8x vsqn:0x%.8x sqn:0x%.8x"
+			     " ipaddr:%u.%u.%u.%u sGW:%u.%u.%u.%u pGW:%u.%u.%u.%u%s"
+			   , t->vid, ntohl(t->id), t->vsqn, t->sqn, NIPQUAD(t->ipv4)
+			   , NIPQUAD(t->sgw_addr.sin_addr.s_addr)
+			   , NIPQUAD(t->pgw_addr.sin_addr.s_addr)
+			   , VTY_NEWLINE);
+	return 0;
+}
+
+static int
+__gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
+{
+	gtp_teid_t *t;
+
+	/* Walk the line */
+	list_for_each_entry(t, l, next) {
+		vty_out(vty, "  [UP] vteid:0x%.8x teid:0x%.8x sqn:0x%.8x"
+			     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
+			   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
+			   , VTY_NEWLINE);
+		if (t->vid)
+			gtp_xdp_fwd_teid_vty(vty, ntohl(t->vid));
+	}
+	return 0;
+}
+
+int
+gtp_session_vty(vty_t *vty, gtp_conn_t *c)
+{
+	list_head_t *l = &c->gtp_sessions;
+	time_t timeout = 0;
+	gtp_session_t *s;
+	struct tm *t;
+
+	/* Walk the line */
+	pthread_mutex_lock(&c->gtp_session_mutex);
+	list_for_each_entry(s, l, next) {
+		if (timerisset(&s->sands)) {
+			timeout = s->sands.tv_sec - time_now.tv_sec;
+			snprintf(s->tmp_str, 63, "%ld secs", timeout);
+		}
+
+		t = &s->creation_time;
+		vty_out(vty, " session-id:0x%.8x apn:%s creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d expire:%s%s"
+			   , s->id, s->apn->name
+			   , t->tm_mday, t->tm_mon+1, t->tm_year+1900
+			   , t->tm_hour, t->tm_min, t->tm_sec
+			   , timerisset(&s->sands) ? s->tmp_str : "never"
+			   , VTY_NEWLINE);
+		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
+		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
+	}
+	pthread_mutex_unlock(&c->gtp_session_mutex);
+	return 0;
+}
+
+int
+gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
+{
+	list_head_t *l = &c->gtp_sessions;
+	time_t timeout = 0;
+	gtp_session_t *s;
+	gtp_apn_t *apn = NULL;
+
+	/* Walk the line */
+	pthread_mutex_lock(&c->gtp_session_mutex);
+	list_for_each_entry(s, l, next) {
+		if (timerisset(&s->sands)) {
+			timeout = s->sands.tv_sec - time_now.tv_sec;
+			snprintf(s->tmp_str, 63, "%ld secs", timeout);
+		}
+
+		if (!apn) {
+			vty_out(vty, "| %.15ld | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
+				   , c->imsi, s->apn->name, s->id, s->refcnt
+				   , timerisset(&s->sands) ? s->tmp_str : "never"
+				   , VTY_NEWLINE);
+			apn = s->apn;
+			continue;
+		}
+
+		vty_out(vty, "|                 | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
+			   , (apn == s->apn) ? "" : s->apn->name
+			   , s->id, s->refcnt
+			   , timerisset(&s->sands) ? s->tmp_str : "never"
+			   , VTY_NEWLINE);
+		apn = s->apn;
+	}
+	pthread_mutex_unlock(&c->gtp_session_mutex);
+
+	/* Footer */
+	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"
+		   , VTY_NEWLINE);
+	return 0;
+}
+
 DEFUN(show_gtp_session,
       show_gtp_session_cmd,
       "show gtp session [INTEGER]",

@@ -70,6 +70,7 @@ static int
 gtp_request_json_parse_cmd(gtp_req_session_t *s, json_node_t *json)
 {
 	char *cmd_str = NULL, *apn_str = NULL, *imsi_str = NULL;
+	char addr_str[INET6_ADDRSTRLEN];
 	gtp_apn_t *apn;
 	gtp_conn_t *c;
 	uint8_t imsi_swap[8];
@@ -117,6 +118,13 @@ gtp_request_json_parse_cmd(gtp_req_session_t *s, json_node_t *json)
 	jsonw_string_field_fmt(s->jwriter, "sgw-ip-address", "%u.%u.%u.%u"
 					 , NIPQUAD(c->sgw_addr.sin_addr.s_addr));
 
+	log_message(LOG_INFO, "%s(): imsi_info:={imsi:%s sgw-ip-address:%u.%u.%u.%u} with peer [%s]:%d"
+			    , __FUNCTION__
+			    , imsi_str
+			    ,  NIPQUAD(c->sgw_addr.sin_addr.s_addr)
+			    , inet_sockaddrtos2(&s->addr, addr_str)
+			    , ntohs(inet_sockaddrport(&s->addr)));
+
 	gtp_conn_put(c);
   end:
 	jsonw_end_object(s->jwriter);
@@ -142,21 +150,12 @@ gtp_request_json_parse(gtp_req_session_t *s)
 }
 
 
-
-
 /*
  *	Main TCP thread
  */
 static int
 gtp_request_session_close(gtp_req_session_t *s)
 {
-	char addr_str[INET6_ADDRSTRLEN];
-
-	log_message(LOG_INFO, "%s(): Closing connecting with client [%s]:%d"
-			    , __FUNCTION__
-			    , inet_sockaddrtos2(&s->addr, addr_str)
-			    , ntohs(inet_sockaddrport(&s->addr)));
-
 	jsonw_destroy(&s->jwriter);
 	fclose(s->fp);	/* Also close s->fd */
 	FREE(s);
@@ -285,13 +284,6 @@ gtp_request_tcp_accept(thread_ref_t thread)
                                     , ntohs(inet_sockaddrport(&addr)));
                 goto next_accept;
         }
-
-        /* Register read thread on accept fd */
-        log_message(LOG_INFO, "%s(): #%d Accepting connection from Peer [%s]:%d"
-                            , __FUNCTION__
-                            , w->id
-                            , inet_sockaddrtos(&addr)
-                            , ntohs(inet_sockaddrport(&addr)));
 
         /* remote client session allocation */
 	PMALLOC(s);

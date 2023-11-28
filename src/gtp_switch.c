@@ -84,11 +84,11 @@ gtp_switch_ingress_init(gtp_server_worker_t *w)
 {
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
-	const char *ptype = "gtpc";
+	const char *ptype = "sw-gtpc";
 
 	/* Create Process Name */
 	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
-		ptype = "upf";
+		ptype = "sw-upf";
 	snprintf(w->pname, 127, "%s-%s-%d"
 			 , ctx->name
 			 , ptype
