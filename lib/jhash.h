@@ -157,4 +157,23 @@ jhash_1word(register ub4 a, register ub4 initval)
 	return jhash_3words(a, 0, 0, initval);
 }
 
+/* One-At-A-Time string hashing */
+static inline ub4
+jhash_oaat(const char *k)
+{
+	register ub4 hash;
+	const char *cp;
+
+	for (cp = k; *cp; cp++) {
+		hash += *cp;
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
+
+	hash += (hash << 3);
+	hash ^= (hash >> 11);
+	hash += (hash << 15);
+	return hash;
+}
+
 #endif
