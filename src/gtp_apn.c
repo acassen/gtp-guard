@@ -599,7 +599,7 @@ DEFUN(apn_session_lifetime,
 DEFUN(apn_eps_bearer_id,
       apn_eps_bearer_id_cmd,
       "eps-bearer-id <0-255>",
-      "Define Beare Context EPS Bearer ID\n"
+      "Define Bearer Context EPS Bearer ID\n"
       "INTERGER\n")
 {
 	gtp_apn_t *apn = vty->index;
@@ -616,7 +616,25 @@ DEFUN(apn_eps_bearer_id,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_restriction,
+      apn_restriction_cmd,
+      "restriction <0-255>",
+      "Define Restriction\n"
+      "INTERGER\n")
+{
+	gtp_apn_t *apn = vty->index;
+	uint8_t value = 0;
 
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("restriction", value, argv[0], 0, 255);
+	apn->restriction = value;
+
+	return CMD_SUCCESS;
+}
 
 /* Show */
 DEFUN(show_apn,
@@ -720,6 +738,7 @@ apn_config_write(vty_t *vty)
 		if (apn->eps_bearer_id)
 			vty_out(vty, " eps-bearer-id %d%s"
 				   , apn->eps_bearer_id, VTY_NEWLINE);
+		vty_out(vty, " restriction %d%s", apn->restriction, VTY_NEWLINE);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
@@ -747,6 +766,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_oi_match_cmd);
 	install_element(APN_NODE, &apn_session_lifetime_cmd);
 	install_element(APN_NODE, &apn_eps_bearer_id_cmd);
+	install_element(APN_NODE, &apn_restriction_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);
