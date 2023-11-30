@@ -39,6 +39,8 @@ typedef struct _gtp_router {
 
 
 /* Prototypes */
+extern int gtp_router_gtpc_teid_destroy(gtp_teid_t *);
+extern int gtp_router_gtpu_teid_destroy(gtp_teid_t *);
 extern int gtp_router_ingress_init(gtp_server_worker_t *);
 extern int gtp_router_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
 extern gtp_router_t *gtp_router_get(const char *);

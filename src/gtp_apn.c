@@ -596,6 +596,27 @@ DEFUN(apn_session_lifetime,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_eps_bearer_id,
+      apn_eps_bearer_id_cmd,
+      "eps-bearer-id <0-255>",
+      "Define Beare Context EPS Bearer ID\n"
+      "INTERGER\n")
+{
+	gtp_apn_t *apn = vty->index;
+	uint8_t id = 0;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("eps-bearer-id", id, argv[0], 0, 255);
+	apn->eps_bearer_id = id;
+
+	return CMD_SUCCESS;
+}
+
+
 
 /* Show */
 DEFUN(show_apn,
@@ -696,6 +717,9 @@ apn_config_write(vty_t *vty)
 		if (apn->session_lifetime)
 			vty_out(vty, " session-lifetime %d%s"
 				   , apn->session_lifetime, VTY_NEWLINE);
+		if (apn->eps_bearer_id)
+			vty_out(vty, " eps-bearer-id %d%s"
+				   , apn->eps_bearer_id, VTY_NEWLINE);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
@@ -722,7 +746,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_imsi_match_cmd);
 	install_element(APN_NODE, &apn_oi_match_cmd);
 	install_element(APN_NODE, &apn_session_lifetime_cmd);
-//	install_element(APN_NODE, &apn_force_pgw_selection_cmd);
+	install_element(APN_NODE, &apn_eps_bearer_id_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);

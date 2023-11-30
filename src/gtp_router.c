@@ -50,6 +50,7 @@
 #include "gtp_server.h"
 #include "gtp_router.h"
 #include "gtp_conn.h"
+#include "gtp_session.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -59,6 +60,28 @@ extern thread_master_t *master;
 /*
  *	Helpers
  */
+int
+gtp_router_gtpc_teid_destroy(gtp_teid_t *teid)
+{
+	gtp_session_t *s = teid->session;
+	gtp_conn_t *conn = s->conn;
+	gtp_router_t *ctx = conn->ctx;
+
+	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
+	return 0;
+}
+
+int
+gtp_router_gtpu_teid_destroy(gtp_teid_t *teid)
+{
+	gtp_session_t *s = teid->session;
+	gtp_conn_t *conn = s->conn;
+	gtp_router_t *ctx = conn->ctx;
+
+	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
+	return 0;
+}
+
 int
 gtp_router_ingress_init(gtp_server_worker_t *w)
 {

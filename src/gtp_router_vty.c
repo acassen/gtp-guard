@@ -44,10 +44,10 @@
 #include "gtp_htab.h"
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
+#include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_router.h"
 #include "gtp_conn.h"
-#include "gtp_teid.h"
 #include "gtp_session.h"
 #include "gtp_iptnl.h"
 #include "gtp_xdp.h"
@@ -115,10 +115,10 @@ DEFUN(no_gtp_router,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpc_listener,
-      gtpc_listener_cmd,
-      "gtpc-listener (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
-      "GTP Control channel listener\n"
+DEFUN(gtpc_router_tunnel_endpoint,
+      gtpc_router_tunnel_endpoint_cmd,
+      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
+      "GTP Control channel tunnel endpoint\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
       "listening UDP Port\n"
@@ -156,9 +156,9 @@ DEFUN(gtpc_listener,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_listener,
-      gtpu_listener_cmd,
-      "gtpu-listener (A.B.C.D|X:X:X:X) port <1024-65535>",
+DEFUN(gtpu_router_tunnel_endpoint,
+      gtpu_router_tunnel_endpoint_cmd,
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
       "GTP Userplane channel tunnel endpoint\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
@@ -239,8 +239,8 @@ gtp_router_vty_init(void)
 	install_element(CONFIG_NODE, &no_gtp_router_cmd);
 
 	install_default(GTP_ROUTER_NODE);
-	install_element(GTP_ROUTER_NODE, &gtpc_listener_cmd);
-	install_element(GTP_ROUTER_NODE, &gtpu_listener_cmd);
+	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_cmd);
+	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_cmd);
 
 	return 0;
 }

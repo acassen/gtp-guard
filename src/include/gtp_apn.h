@@ -36,7 +36,22 @@ enum gtp_resolv_flags {
 	GTP_RESOLV_FL_CACHE_UPDATE,
 };
 
-/* GTP APN */
+/* Protocol Configuration Option */
+typedef struct _gtp_ns {
+	struct sockaddr_storage	addr;
+
+	list_head_t		next;
+} gtp_ns_t;
+
+typedef struct _gtp_pco {
+	list_head_t		ns;
+	struct sockaddr_storage	ipcp_primary_ns;
+	struct sockaddr_storage	ipcp_secondary_ns;
+	uint16_t		link_mtu;
+	uint8_t			selected_bearer_control_mode;
+} gtp_pco_t;
+
+/* Rewriting rule */
 typedef struct _gtp_rewrite_rule {
 	char			match[GTP_MATCH_MAX_LEN];
 	size_t			match_len;
@@ -46,6 +61,7 @@ typedef struct _gtp_rewrite_rule {
 	list_head_t		next;
 } gtp_rewrite_rule_t;
 
+/* Access-Point-Name */
 typedef struct _gtp_apn {
 	char			name[GTP_APN_MAX_LEN];
 	u_char			nsbuffer[GTP_RESOLV_BUFFER_LEN];
@@ -55,6 +71,8 @@ typedef struct _gtp_apn {
 	uint8_t			resolv_max_retry;
 	int			resolv_cache_update;
 	int			session_lifetime;
+	uint8_t			eps_bearer_id;
+	gtp_pco_t		pco;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;

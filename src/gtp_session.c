@@ -120,11 +120,11 @@ gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
 		pthread_mutex_unlock(&c->gtp_session_mutex);
 		return -1;
 	}
+
 	list_add_tail(&teid->next, l);
 	__sync_add_and_fetch(&teid->refcnt, 1);
 	__sync_add_and_fetch(&s->refcnt, 1);
 	pthread_mutex_unlock(&c->gtp_session_mutex);
-
 	return 0;
 }
 

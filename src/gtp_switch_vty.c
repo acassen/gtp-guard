@@ -116,8 +116,8 @@ DEFUN(no_gtp_switch,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpc_tunnel_endpoint,
-      gtpc_tunnel_endpoint_cmd,
+DEFUN(gtpc_switch_tunnel_endpoint,
+      gtpc_switch_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Control channel ingress tunnel endpoint\n"
       "IPv4 Address\n"
@@ -157,8 +157,8 @@ DEFUN(gtpc_tunnel_endpoint,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_tunnel_endpoint,
-      gtpu_tunnel_endpoint_cmd,
+DEFUN(gtpu_switch_tunnel_endpoint,
+      gtpu_switch_tunnel_endpoint_cmd,
       "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
       "GTP Userplane channel tunnel endpoint\n"
       "IPv4 Address\n"
@@ -528,8 +528,8 @@ gtp_switch_vty_init(void)
 	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 
 	install_default(GTP_SWITCH_NODE);
-	install_element(GTP_SWITCH_NODE, &gtpc_tunnel_endpoint_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_tunnel_endpoint_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpc_switch_tunnel_endpoint_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_switch_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_force_pgw_selection_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_ipip_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_ipip_dead_peer_detection_cmd);

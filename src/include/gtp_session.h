@@ -32,6 +32,8 @@ enum {
 /* GTP session */
 typedef struct _gtp_session {
 	uint32_t		id;
+	uint32_t		charging_id;
+
 	gtp_apn_t		*apn;
 	list_head_t		gtpc_teid;
 	list_head_t		gtpu_teid;
