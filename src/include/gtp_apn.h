@@ -36,6 +36,11 @@ enum gtp_resolv_flags {
 	GTP_RESOLV_FL_CACHE_UPDATE,
 };
 
+enum gtp_pco_flags {
+	GTP_PCO_IPCP_PRIMARY_NS,
+	GTP_PCO_IPCP_SECONDARY_NS,
+};
+
 /* Protocol Configuration Option */
 typedef struct _gtp_ns {
 	struct sockaddr_storage	addr;
@@ -49,6 +54,8 @@ typedef struct _gtp_pco {
 	struct sockaddr_storage	ipcp_secondary_ns;
 	uint16_t		link_mtu;
 	uint8_t			selected_bearer_control_mode;
+
+	unsigned long		flags;
 } gtp_pco_t;
 
 /* Rewriting rule */

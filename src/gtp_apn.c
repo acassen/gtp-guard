@@ -389,14 +389,14 @@ DEFUN(apn_nameserver,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-        gtp_apn_t *apn = vty->index;
+	gtp_apn_t *apn = vty->index;
 	struct sockaddr_storage *addr = &apn->nameserver;
 	int ret;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	ret = inet_stosockaddr(argv[0], "53", addr);
 	if (ret < 0) {
@@ -407,7 +407,7 @@ DEFUN(apn_nameserver,
 
 	gtp_resolv_init();
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(apn_resolv_max_retry,
@@ -483,6 +483,25 @@ DEFUN(apn_resolv_cache_reload,
 	return CMD_SUCCESS;
 }
 
+static int
+apn_service_selection_config_write(vty_t *vty, gtp_apn_t *apn)
+{
+	gtp_service_t *service;
+
+	list_for_each_entry(service, &apn->service_selection, next) {
+		if (service->prio)
+			vty_out(vty, " service-selection %s prio %d%s"
+				   , service->str
+				   , service->prio
+				   , VTY_NEWLINE);
+		else
+			vty_out(vty, " service-selection %s%s"
+				   , service->str
+				   , VTY_NEWLINE);
+	}
+
+	return 0;
+}
 
 DEFUN(apn_service_selection,
       apn_service_selection_cmd,
@@ -704,6 +723,22 @@ apn_indication_dump_vty(vty_t *vty)
 	return 0;
 }
 
+static int
+apn_indication_config_write(vty_t *vty, gtp_apn_t *apn)
+{
+	int i;
+
+	for (i = 0; i < 32; i++) {
+		if (__test_bit(i, &apn->indication_flags)) {
+			vty_out(vty, " indication-flags %s%s"
+				   , apn_indication_fl[i].vty_str
+				   , VTY_NEWLINE);
+		}
+	}
+
+	return 0;
+}
+
 DEFUN(apn_indication_flags,
       apn_indication_flags_cmd,
       "indication-flags STRING",
@@ -727,6 +762,62 @@ DEFUN(apn_indication_flags,
 	}
 
 	__set_bit(fl, &apn->indication_flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_pco_ipcp_primary_ns,
+      apn_pco_ipcp_primary_ns_cmd,
+      "protocol-configuration-option ipcp primary-nameserver (A.B.C.D|X:X:X:X)",
+      "Procol Configuration Option IPCP Primary Nameserver\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n")
+{
+	gtp_apn_t *apn = vty->index;
+	gtp_pco_t *pco = &apn->pco;
+	struct sockaddr_storage *addr = &pco->ipcp_primary_ns;
+	int ret;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = inet_stosockaddr(argv[0], "53", addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		memset(addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+
+	__set_bit(GTP_PCO_IPCP_PRIMARY_NS, &pco->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_pco_ipcp_secondary_ns,
+      apn_pco_ipcp_secondary_ns_cmd,
+      "protocol-configuration-option ipcp secondary-nameserver (A.B.C.D|X:X:X:X)",
+      "Procol Configuration Option IPCP Secondary Nameserver\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n")
+{
+	gtp_apn_t *apn = vty->index;
+	gtp_pco_t *pco = &apn->pco;
+	struct sockaddr_storage *addr = &pco->ipcp_secondary_ns;
+	int ret;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = inet_stosockaddr(argv[0], "53", addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		memset(addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+
+	__set_bit(GTP_PCO_IPCP_SECONDARY_NS, &pco->flags);
 	return CMD_SUCCESS;
 }
 
@@ -802,9 +893,11 @@ apn_config_write(vty_t *vty)
 {
         list_head_t *l = &daemon_data->gtp_apn;
         gtp_apn_t *apn;
-	gtp_service_t *service;
+	gtp_pco_t *pco;
 
         list_for_each_entry(apn, l, next) {
+		pco = &apn->pco;
+
         	vty_out(vty, "access-point-name %s%s", apn->name, VTY_NEWLINE);
 		vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&apn->nameserver), VTY_NEWLINE);
 		if (apn->resolv_max_retry)
@@ -812,19 +905,8 @@ apn_config_write(vty_t *vty)
 		if (apn->resolv_cache_update)
 			vty_out(vty, " resolv-cache-update %d%s", apn->resolv_cache_update, VTY_NEWLINE);
 		vty_out(vty, " realm %s%s", apn->realm, VTY_NEWLINE);
-		if (__test_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags)) {
-			list_for_each_entry(service, &apn->service_selection, next) {
-				if (service->prio)
-					vty_out(vty, " service-selection %s prio %d%s"
-						   , service->str
-						   , service->prio
-						   , VTY_NEWLINE);
-				else
-					vty_out(vty, " service-selection %s%s"
-						   , service->str
-						   , VTY_NEWLINE);
-			}
-		}
+		if (__test_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags))
+			apn_service_selection_config_write(vty, apn);
 		apn_config_imsi_match(vty, apn);
 		apn_config_apn_oi_match(vty, apn);
 		if (apn->session_lifetime)
@@ -835,8 +917,15 @@ apn_config_write(vty_t *vty)
 				   , apn->eps_bearer_id, VTY_NEWLINE);
 		vty_out(vty, " restriction %d%s", apn->restriction, VTY_NEWLINE);
 		if (apn->indication_flags)
-			vty_out(vty, " indication-flags %d%s"
-				   , ntohl(apn->indication_flags), VTY_NEWLINE);
+			apn_indication_config_write(vty, apn);
+		if (__test_bit(GTP_PCO_IPCP_PRIMARY_NS, &pco->flags))
+			vty_out(vty, " protocol-configuration-option ipcp primary-nameserver %s%s"
+				   , inet_sockaddrtos(&pco->ipcp_primary_ns)
+				   , VTY_NEWLINE);
+		if (__test_bit(GTP_PCO_IPCP_SECONDARY_NS, &pco->flags))
+			vty_out(vty, " protocol-configuration-option ipcp secondary-nameserver %s%s"
+				   , inet_sockaddrtos(&pco->ipcp_secondary_ns)
+				   , VTY_NEWLINE);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
