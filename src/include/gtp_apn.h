@@ -59,6 +59,14 @@ typedef struct _gtp_pco {
 	unsigned long		flags;
 } gtp_pco_t;
 
+typedef struct _gtp_ip_pool {
+	uint32_t		network;
+	uint32_t		netmask;
+	bool			*lease;
+	int			next_lease_idx;
+} gtp_ip_pool_t;
+
+
 /* Rewriting rule */
 typedef struct _gtp_rewrite_rule {
 	char			match[GTP_MATCH_MAX_LEN];
@@ -83,6 +91,7 @@ typedef struct _gtp_apn {
 	uint8_t			restriction;
 	unsigned long		indication_flags;
 	gtp_pco_t		pco;
+	gtp_ip_pool_t		*ip_pool;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;
@@ -102,6 +111,8 @@ typedef struct _gtp_apn {
 
 
 /* Prototypes */
+extern uint32_t gtp_ip_pool_get(gtp_apn_t *);
+extern int gtp_ip_pool_put(gtp_apn_t *, uint32_t);
 extern gtp_apn_t *gtp_apn_get(const char *);
 extern int gtp_apn_destroy(void);
 extern int gtp_apn_vty_init(void);

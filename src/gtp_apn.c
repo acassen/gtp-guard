@@ -339,6 +339,68 @@ gtp_apn_destroy(void)
 
 
 /*
+ *	Static IP Pool related
+ */
+static gtp_ip_pool_t *
+gtp_ip_pool_alloc(uint32_t network, uint32_t netmask)
+{
+	gtp_ip_pool_t *new;
+
+	PMALLOC(new);
+	new->network = network;
+	new->netmask = netmask;
+	new->lease = (bool *) MALLOC(ntohl(~netmask) * sizeof(bool));
+	new->next_lease_idx = 10;
+
+	return new;
+}
+
+uint32_t
+gtp_ip_pool_get(gtp_apn_t *apn)
+{
+	gtp_ip_pool_t *ip_pool = apn->ip_pool;
+	int idx;
+
+	if (!ip_pool)
+		return 0;
+
+	/* fast-path */
+	idx = ip_pool->next_lease_idx;
+	if (!ip_pool->lease[idx])
+		goto match;
+
+	/* slow-path */
+	for (idx = 10; idx < ntohl(~ip_pool->netmask)-10; idx++) {
+		if (!ip_pool->lease[idx]) {
+			goto match;
+		}
+	}
+
+	return 0;
+
+  match:
+	ip_pool->lease[idx] = true;
+	ip_pool->next_lease_idx = idx + 1;
+	return htonl(ntohl(ip_pool->network) + idx);
+}
+
+int
+gtp_ip_pool_put(gtp_apn_t *apn, uint32_t addr_ip)
+{
+	gtp_ip_pool_t *ip_pool = apn->ip_pool;
+	int idx;
+
+	if (!ip_pool)
+		return 0;
+
+	idx = ntohl(addr_ip & ~ip_pool->network);
+	ip_pool->lease[idx] = false;
+	ip_pool->next_lease_idx = idx;
+	return 0;
+}
+
+
+/*
  *	VTY Command
  */
 DEFUN(apn,
@@ -390,6 +452,7 @@ DEFUN(apn_nameserver,
       apn_nameserver_cmd,
       "nameserver (A.B.C.D|X:X:X:X)",
       "Set Global PDN nameserver\n"
+      "IP Address\n"
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
@@ -746,8 +809,7 @@ apn_indication_config_write(vty_t *vty, gtp_apn_t *apn)
 DEFUN(apn_indication_flags,
       apn_indication_flags_cmd,
       "indication-flags STRING",
-      "Define Indication Flags\n"
-      "STRING\n")
+      "Define Indication Flags\n")
 {
 	gtp_apn_t *apn = vty->index;
 	int fl;
@@ -773,6 +835,9 @@ DEFUN(apn_pco_ipcp_primary_ns,
       apn_pco_ipcp_primary_ns_cmd,
       "protocol-configuration-option ipcp primary-nameserver (A.B.C.D|X:X:X:X)",
       "Procol Configuration Option IPCP Primary Nameserver\n"
+      "Internet Protocol Control Protocol\n"
+      "Primary Nameserver\n"
+      "IP Address\n"
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
@@ -801,6 +866,9 @@ DEFUN(apn_pco_ipcp_secondary_ns,
       apn_pco_ipcp_secondary_ns_cmd,
       "protocol-configuration-option ipcp secondary-nameserver (A.B.C.D|X:X:X:X)",
       "Procol Configuration Option IPCP Secondary Nameserver\n"
+      "Internet Protocol Control Protocol\n"
+      "Secondary Nameserver\n"
+      "IP Address\n"
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
@@ -845,6 +913,9 @@ DEFUN(apn_pco_ip_ns,
       apn_pco_ip_ns_cmd,
       "protocol-configuration-option ip nameserver (A.B.C.D|X:X:X:X)",
       "Procol Configuration Option IP Nameserver\n"
+      "Internet Protocol\n"
+      "Nameserver\n"
+      "IP Address\n"
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
@@ -877,7 +948,8 @@ DEFUN(apn_pco_ip_link_mtu,
       apn_pco_ip_link_mtu_cmd,
       "protocol-configuration-option ip link-mtu INTEGER",
       "Procol Configuration Option IP Link MTU\n"
-      "INTEGER\n")
+      "Internet Protocol\n"
+      "MTU\n")
 {
 	gtp_apn_t *apn = vty->index;
 	gtp_pco_t *pco = &apn->pco;
@@ -896,7 +968,7 @@ DEFUN(apn_pco_selected_bearer_control_mode,
       apn_pco_selected_bearer_control_mode_cmd,
       "protocol-configuration-option selected-bearer-control-mode INTEGER",
       "Procol Configuration Option Selected Bearer Control Mode\n"
-      "INTEGER\n")
+      "Bearer Control Mode\n")
 {
 	gtp_apn_t *apn = vty->index;
 	gtp_pco_t *pco = &apn->pco;
@@ -907,6 +979,36 @@ DEFUN(apn_pco_selected_bearer_control_mode,
 	}
 
 	pco->selected_bearer_control_mode = strtoul(argv[0], NULL, 10);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_pdn_address_allocation_pool,
+      apn_pdn_address_allocation_pool_cmd,
+      "pdn-address-allocation-pool local network A.B.C.D netmask A.B.C.D",
+      "PDN IP Address Allocation Pool\n"
+      "locally configured\n"
+      "Network\n"
+      "IPv4 Address\n"
+      "Netmask\n"
+      "IPv4 Address\n")
+{
+	gtp_apn_t *apn = vty->index;
+	uint32_t network, netmask;
+
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (apn->ip_pool) {
+		vty_out(vty, "%% IP Pool already configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	inet_ston(argv[0], &network);
+	inet_ston(argv[1], &netmask);
+	apn->ip_pool = gtp_ip_pool_alloc(network, netmask);
 
 	return CMD_SUCCESS;
 }
@@ -989,11 +1091,17 @@ apn_config_write(vty_t *vty)
 		pco = &apn->pco;
 
         	vty_out(vty, "access-point-name %s%s", apn->name, VTY_NEWLINE);
-		vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&apn->nameserver), VTY_NEWLINE);
+		vty_out(vty, " nameserver %s%s"
+			   , inet_sockaddrtos(&apn->nameserver)
+			   , VTY_NEWLINE);
 		if (apn->resolv_max_retry)
-			vty_out(vty, " resolv-max-retry %d%s", apn->resolv_max_retry, VTY_NEWLINE);
+			vty_out(vty, " resolv-max-retry %d%s"
+				   , apn->resolv_max_retry
+				   , VTY_NEWLINE);
 		if (apn->resolv_cache_update)
-			vty_out(vty, " resolv-cache-update %d%s", apn->resolv_cache_update, VTY_NEWLINE);
+			vty_out(vty, " resolv-cache-update %d%s"
+				   , apn->resolv_cache_update
+				   , VTY_NEWLINE);
 		vty_out(vty, " realm %s%s", apn->realm, VTY_NEWLINE);
 		if (__test_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags))
 			apn_service_selection_config_write(vty, apn);
@@ -1060,6 +1168,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_pco_ip_ns_cmd);
 	install_element(APN_NODE, &apn_pco_ip_link_mtu_cmd);
 	install_element(APN_NODE, &apn_pco_selected_bearer_control_mode_cmd);
+	install_element(APN_NODE, &apn_pdn_address_allocation_pool_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);
