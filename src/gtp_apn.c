@@ -636,21 +636,97 @@ DEFUN(apn_restriction,
 	return CMD_SUCCESS;
 }
 
+
+static const struct {
+	char *vty_str;
+	char *description;
+} apn_indication_fl[32] = {
+	{ "CPSR" ,	"CS to PS SRVCC Indication"				},
+	{ "CLII" ,	"Change of Location Information Indication"		},
+	{ "CSFBI" ,	"CSFB Indication"					},
+	{ "PPSI" ,	"PDN Pause Support Indication"				},
+	{ "PPON" ,	"PDN Pause On Indication"				},
+	{ "PPOFF" ,	"PDN Pause Off Indication"				},
+	{ "ARRL" ,	"Abnormal Release of Radio Link"			},
+	{ "CPRAI" ,	"Change of Presence Reporting Area Information"		},
+	{ "CCRSI" ,	"CSG Change Reporting support Indication"		},
+	{ "ISRAU" ,	"ISR is activated for the UE"				},
+	{ "MBMDT" ,	"Management Based MDT allowed Flag"			},
+	{ "S4AF" ,	"Static IPv4 Address Flag"				},
+	{ "S6AF" ,	"Static IPv6 Address Flag"				},
+	{ "SRNI" ,	"SGW Restoration Needed Indication"			},
+	{ "PBIC" ,	"Propagate BBAI Information Change"			},
+	{ "RetLoc" ,	"Retrieve Location Indication Flag"			},
+	{ "MSV" ,	"MS Validated"						},
+	{ "SI" ,	"Scope Indication"					},
+	{ "PT" ,	"Protocol Type"						},
+	{ "PS" ,	"Piggybacking Supported"				},
+	{ "CRSI" ,	"Change Reporting Support Indication"			},
+	{ "CFSI" ,	"Change F-TEID Support Indication"			},
+	{ "UIMSI" ,	"Unauthenticated IMSI"					},
+	{ "SQCI" ,	"Subscribed QoS Change Indication"			},
+	{ "SGWCI" ,	"sGW Change Indication"					},
+	{ "ISRAI" ,	"Idle mode Signalling Reduction Activation Indication"	},
+	{ "ISRSI" ,	"Idle mode Signalling Reduction Supported Indication"	},
+	{ "OI" ,	"Operation Identication"				},
+	{ "DFI" ,	"Direct Forwarding Indication"				},
+	{ "HI" ,	"Handover Indication"					},
+	{ "DTF" ,	"Direct Tunnel Flag"					},
+	{ "DAF" ,	"Dual Address Bearer Flag"				}
+};
+
+static int
+apn_indication_bit_get(const char *str, size_t str_len)
+{
+	int i;
+
+	for (i = 0; i < 32; i++) {
+		if (strlen(apn_indication_fl[i].vty_str) != str_len)
+			continue;
+		if (strncmp(str, apn_indication_fl[i].vty_str, str_len) == 0)
+			return i;
+	}
+
+	return -1;
+}
+
+static int
+apn_indication_dump_vty(vty_t *vty)
+{
+	int i;
+
+	for (i = 0; i < 32; i++)
+		vty_out(vty, " %s\t: %s%s"
+			   , apn_indication_fl[i].vty_str
+			   , apn_indication_fl[i].description
+			   , VTY_NEWLINE);
+
+	return 0;
+}
+
 DEFUN(apn_indication_flags,
       apn_indication_flags_cmd,
-      "indication-flags INTEGER",
+      "indication-flags STRING",
       "Define Indication Flags\n"
-      "INTEGER\n")
+      "STRING\n")
 {
 	gtp_apn_t *apn = vty->index;
+	int fl;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	apn->indication_flags = htonl(strtoul(argv[0], NULL, 10));
+	fl = apn_indication_bit_get(argv[0], strlen(argv[0]));
+	if (fl < 0) {
+		vty_out(vty, "%% Unknwon flag:%s%s", argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% flags supported are :%s", VTY_NEWLINE);
+		apn_indication_dump_vty(vty);
+		return CMD_WARNING;
+	}
 
+	__set_bit(fl, &apn->indication_flags);
 	return CMD_SUCCESS;
 }
 
