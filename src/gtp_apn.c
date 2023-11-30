@@ -892,6 +892,25 @@ DEFUN(apn_pco_ip_link_mtu,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_pco_selected_bearer_control_mode,
+      apn_pco_selected_bearer_control_mode_cmd,
+      "protocol-configuration-option selected-bearer-control-mode INTEGER",
+      "Procol Configuration Option Selected Bearer Control Mode\n"
+      "INTEGER\n")
+{
+	gtp_apn_t *apn = vty->index;
+	gtp_pco_t *pco = &apn->pco;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pco->selected_bearer_control_mode = strtoul(argv[0], NULL, 10);
+
+	return CMD_SUCCESS;
+}
+
 
 /* Show */
 DEFUN(show_apn,
@@ -1003,6 +1022,10 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " protocol-configuration-option ip link-mtu %d%s"
 				   , pco->link_mtu
 				   , VTY_NEWLINE);
+		if (pco->selected_bearer_control_mode)
+			vty_out(vty, " protocol-configuration-option selected-bearer-control-mode %d%s"
+				   , pco->selected_bearer_control_mode
+				   , VTY_NEWLINE);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
@@ -1036,6 +1059,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_pco_ipcp_secondary_ns_cmd);
 	install_element(APN_NODE, &apn_pco_ip_ns_cmd);
 	install_element(APN_NODE, &apn_pco_ip_link_mtu_cmd);
+	install_element(APN_NODE, &apn_pco_selected_bearer_control_mode_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);
