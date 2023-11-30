@@ -873,6 +873,25 @@ DEFUN(apn_pco_ip_ns,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_pco_ip_link_mtu,
+      apn_pco_ip_link_mtu_cmd,
+      "protocol-configuration-option ip link-mtu INTEGER",
+      "Procol Configuration Option IP Link MTU\n"
+      "INTEGER\n")
+{
+	gtp_apn_t *apn = vty->index;
+	gtp_pco_t *pco = &apn->pco;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pco->link_mtu = strtoul(argv[0], NULL, 10);
+
+	return CMD_SUCCESS;
+}
+
 
 /* Show */
 DEFUN(show_apn,
@@ -980,6 +999,10 @@ apn_config_write(vty_t *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(GTP_PCO_IP_NS, &pco->flags))
 			apn_pco_ip_ns_config_write(vty, apn);
+		if (pco->link_mtu)
+			vty_out(vty, " protocol-configuration-option ip link-mtu %d%s"
+				   , pco->link_mtu
+				   , VTY_NEWLINE);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
@@ -1009,6 +1032,10 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_eps_bearer_id_cmd);
 	install_element(APN_NODE, &apn_restriction_cmd);
 	install_element(APN_NODE, &apn_indication_flags_cmd);
+	install_element(APN_NODE, &apn_pco_ipcp_primary_ns_cmd);
+	install_element(APN_NODE, &apn_pco_ipcp_secondary_ns_cmd);
+	install_element(APN_NODE, &apn_pco_ip_ns_cmd);
+	install_element(APN_NODE, &apn_pco_ip_link_mtu_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);
