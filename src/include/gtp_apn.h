@@ -73,6 +73,7 @@ typedef struct _gtp_apn {
 	int			session_lifetime;
 	uint8_t			eps_bearer_id;
 	uint8_t			restriction;
+	uint32_t		indication_flags;
 	gtp_pco_t		pco;
 
 	list_head_t		naptr;

@@ -600,7 +600,7 @@ DEFUN(apn_eps_bearer_id,
       apn_eps_bearer_id_cmd,
       "eps-bearer-id <0-255>",
       "Define Bearer Context EPS Bearer ID\n"
-      "INTERGER\n")
+      "INTEGER\n")
 {
 	gtp_apn_t *apn = vty->index;
 	uint8_t id = 0;
@@ -620,7 +620,7 @@ DEFUN(apn_restriction,
       apn_restriction_cmd,
       "restriction <0-255>",
       "Define Restriction\n"
-      "INTERGER\n")
+      "INTEGER\n")
 {
 	gtp_apn_t *apn = vty->index;
 	uint8_t value = 0;
@@ -635,6 +635,25 @@ DEFUN(apn_restriction,
 
 	return CMD_SUCCESS;
 }
+
+DEFUN(apn_indication_flags,
+      apn_indication_flags_cmd,
+      "indication-flags INTEGER",
+      "Define Indication Flags\n"
+      "INTEGER\n")
+{
+	gtp_apn_t *apn = vty->index;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	apn->indication_flags = htonl(strtoul(argv[0], NULL, 10));
+
+	return CMD_SUCCESS;
+}
+
 
 /* Show */
 DEFUN(show_apn,
@@ -739,6 +758,9 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " eps-bearer-id %d%s"
 				   , apn->eps_bearer_id, VTY_NEWLINE);
 		vty_out(vty, " restriction %d%s", apn->restriction, VTY_NEWLINE);
+		if (apn->indication_flags)
+			vty_out(vty, " indication-flags %d%s"
+				   , ntohl(apn->indication_flags), VTY_NEWLINE);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
@@ -767,6 +789,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_session_lifetime_cmd);
 	install_element(APN_NODE, &apn_eps_bearer_id_cmd);
 	install_element(APN_NODE, &apn_restriction_cmd);
+	install_element(APN_NODE, &apn_indication_flags_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);
