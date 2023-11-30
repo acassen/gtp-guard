@@ -39,6 +39,7 @@ enum gtp_resolv_flags {
 enum gtp_pco_flags {
 	GTP_PCO_IPCP_PRIMARY_NS,
 	GTP_PCO_IPCP_SECONDARY_NS,
+	GTP_PCO_IP_NS,
 };
 
 /* Protocol Configuration Option */

@@ -256,6 +256,7 @@ static gtp_apn_t *
 gtp_apn_alloc(const char *name)
 {
 	gtp_apn_t *new;
+	gtp_pco_t *pco;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->naptr);
@@ -265,6 +266,9 @@ gtp_apn_alloc(const char *name)
 	INIT_LIST_HEAD(&new->next);
         pthread_mutex_init(&new->mutex, NULL);
 	strncpy(new->name, name, GTP_APN_MAX_LEN - 1);
+
+	pco = &new->pco;
+	INIT_LIST_HEAD(&pco->ns);
 
 	/* FIXME: lookup before insert */
 	pthread_mutex_lock(&gtp_apn_mutex);
@@ -822,6 +826,54 @@ DEFUN(apn_pco_ipcp_secondary_ns,
 }
 
 
+static int
+apn_pco_ip_ns_config_write(vty_t *vty, gtp_apn_t *apn)
+{
+	list_head_t *l = &apn->pco.ns;
+	gtp_ns_t *ns;
+
+	list_for_each_entry(ns, l, next) {
+		vty_out(vty, " protocol-configuration-option ip nameserver %s%s"
+			   , inet_sockaddrtos(&ns->addr)
+			   , VTY_NEWLINE);
+	}
+
+	return 0;
+}
+
+DEFUN(apn_pco_ip_ns,
+      apn_pco_ip_ns_cmd,
+      "protocol-configuration-option ip nameserver (A.B.C.D|X:X:X:X)",
+      "Procol Configuration Option IP Nameserver\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n")
+{
+	gtp_apn_t *apn = vty->index;
+	gtp_pco_t *pco = &apn->pco;
+	gtp_ns_t *new;
+	int ret;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->next);
+	ret = inet_stosockaddr(argv[0], "53", &new->addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		FREE(new);
+		return CMD_WARNING;
+	}
+
+	list_add_tail(&new->next, &pco->ns);
+
+	__set_bit(GTP_PCO_IP_NS, &pco->flags);
+	return CMD_SUCCESS;
+}
+
+
 /* Show */
 DEFUN(show_apn,
       show_apn_cmd,
@@ -926,6 +978,8 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " protocol-configuration-option ipcp secondary-nameserver %s%s"
 				   , inet_sockaddrtos(&pco->ipcp_secondary_ns)
 				   , VTY_NEWLINE);
+		if (__test_bit(GTP_PCO_IP_NS, &pco->flags))
+			apn_pco_ip_ns_config_write(vty, apn);
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 
