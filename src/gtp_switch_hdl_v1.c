@@ -728,7 +728,7 @@ static const struct {
 };
 
 gtp_teid_t *
-gtpc_handle_v1(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpc_switch_handle_v1(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	gtp_teid_t *teid;

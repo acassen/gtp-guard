@@ -1102,7 +1102,8 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " resolv-cache-update %d%s"
 				   , apn->resolv_cache_update
 				   , VTY_NEWLINE);
-		vty_out(vty, " realm %s%s", apn->realm, VTY_NEWLINE);
+		if (apn->realm[0])
+			vty_out(vty, " realm %s%s", apn->realm, VTY_NEWLINE);
 		if (__test_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags))
 			apn_service_selection_config_write(vty, apn);
 		apn_config_imsi_match(vty, apn);
@@ -1134,6 +1135,12 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " protocol-configuration-option selected-bearer-control-mode %d%s"
 				   , pco->selected_bearer_control_mode
 				   , VTY_NEWLINE);
+		if (apn->ip_pool)
+			vty_out(vty, " pdn-address-allocation-pool local network %u.%u.%u.%u netmask %u.%u.%u.%u%s"
+				   , NIPQUAD(apn->ip_pool->network)
+				   , NIPQUAD(apn->ip_pool->netmask)
+				   , VTY_NEWLINE);
+
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
 

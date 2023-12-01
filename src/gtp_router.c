@@ -49,6 +49,7 @@
 #include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_router.h"
+#include "gtp_router_hdl.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
 
@@ -104,6 +105,15 @@ gtp_router_ingress_init(gtp_server_worker_t *w)
 int
 gtp_router_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
 {
+	gtp_server_t *srv = w->srv;
+	int ret;
+
+	ret = __test_bit(GTP_FL_UPF_BIT, &srv->flags) ? gtpu_router_handle(w, addr_from) :
+							gtpc_router_handle(w, addr_from);
+	if (ret < 0)
+		return -1;
+
+	gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
 	return 0;
 }
 

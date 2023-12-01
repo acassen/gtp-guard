@@ -26,8 +26,8 @@
 
 /* Prototypes */
 extern gtp_session_t *gtpc_retransmit_detected(gtp_server_worker_t *);
-extern gtp_teid_t *gtpu_handle(gtp_server_worker_t *, struct sockaddr_storage *);
-extern gtp_teid_t *gtpc_handle(gtp_server_worker_t *, struct sockaddr_storage *);
-extern int gtpc_handle_post(gtp_server_worker_t *, gtp_teid_t *);
+extern gtp_teid_t *gtpu_switch_handle(gtp_server_worker_t *, struct sockaddr_storage *);
+extern gtp_teid_t *gtpc_switch_handle(gtp_server_worker_t *, struct sockaddr_storage *);
+extern int gtpc_switch_handle_post(gtp_server_worker_t *, gtp_teid_t *);
 
 #endif

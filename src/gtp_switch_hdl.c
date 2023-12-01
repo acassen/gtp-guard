@@ -126,12 +126,12 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 static const struct {
 	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
 } gtpc_msg_hdl[7] = {
-	[1]	= { gtpc_handle_v1 },
-	[2]	= { gtpc_handle_v2 },
+	[1]	= { gtpc_switch_handle_v1 },
+	[2]	= { gtpc_switch_handle_v2 },
 };
 
 gtp_teid_t *
-gtpc_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpc_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 
@@ -150,7 +150,7 @@ gtpc_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 }
 
 int
-gtpc_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
+gtpc_switch_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
 	gtp_session_t *s;
 
@@ -288,7 +288,7 @@ static const struct {
 };
 
 gtp_teid_t *
-gtpu_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpu_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
 	ssize_t len;
