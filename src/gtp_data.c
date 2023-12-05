@@ -44,6 +44,7 @@
 #include "gtp_teid.h"
 #include "gtp_server.h"
 #include "gtp_switch.h"
+#include "gtp_router.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
 #include "gtp_xdp.h"
@@ -176,6 +177,7 @@ free_daemon_data(void)
 	gtp_mirror_destroy();
 	gtp_apn_destroy();
 	gtp_switch_destroy();
+	gtp_router_destroy();
 	FREE(daemon_data);
 }
 

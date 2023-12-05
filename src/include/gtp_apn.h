@@ -90,7 +90,7 @@ typedef struct _gtp_apn {
 	uint8_t			eps_bearer_id;
 	uint8_t			restriction;
 	unsigned long		indication_flags;
-	gtp_pco_t		pco;
+	gtp_pco_t		*pco;
 	gtp_ip_pool_t		*ip_pool;
 
 	list_head_t		naptr;

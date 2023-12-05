@@ -51,6 +51,7 @@
 #include "gtp_conn.h"
 #include "gtp_session.h"
 #include "gtp_utils.h"
+#include "gtp_msg.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -180,16 +181,17 @@ str_imsi_to_bcd_swap(char *buffer_in, size_t size, uint8_t *buffer_out)
 }
 
 int64_t
-bcd_to_int64(uint8_t *data, int count)
+bcd_to_int64(const void *data, int count)
 {
+	uint8_t *datab = (uint8_t *) data;
 	int64_t value = 0;
         uint8_t high, low;
 	int i;
 
 	/* With bit swapping */
         for (i = 0; i < count; i++) {
-                low = (data[i] & 0xf0) >> 4;
-                high = data[i] & 0x0f;
+                low = (datab[i] & 0xf0) >> 4;
+                high = datab[i] & 0x0f;
                 if (high > 9)
                         return value;
                 value = (value * 10) + high;
@@ -200,17 +202,6 @@ bcd_to_int64(uint8_t *data, int count)
         }
 
         return value;
-}
-
-size_t
-gtpc_get_header_len(gtp_hdr_t *h)
-{
-	size_t len = GTPV2C_HEADER_LEN;
-
-	if (!h->teid_presence)
-		len -= GTP_TEID_LEN;
-
-	return len;
 }
 
 int
@@ -396,7 +387,7 @@ gtp_dump_ie(uint8_t *buffer, size_t size)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) buffer;
 	uint8_t *cp, *end = buffer + size;
-	size_t offset = gtpc_get_header_len(h);
+	size_t offset = gtp_msg_hlen(h);
 	gtp_ie_t *ie;
 
 	printf("==> Size = %ld, offset = %ld\n", size, offset);
@@ -431,7 +422,7 @@ uint8_t *
 gtp_get_ie(uint8_t type, uint8_t *buffer, size_t size)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) buffer;
-	size_t offset = gtpc_get_header_len(h);
+	size_t offset = gtp_msg_hlen(h);
 
 	return gtp_get_ie_offset(type, buffer, size, offset);
 }

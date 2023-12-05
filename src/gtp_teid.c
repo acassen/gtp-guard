@@ -205,6 +205,35 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 	return 0;
 }
 
+#if 0
+static gtp_teid_t *
+gtp_teid_generate(gtp_teid_t *teid)
+{
+	uint32_t id;
+	gtp_teid_t *new, *t;
+
+	new = gtp_teid_malloc();
+
+  shoot_again:
+	id = gtp_vteid_generate(seed);
+	/* Add some kind of enthropy to workaround rand() crappiness */
+	id ^= teid->id;
+
+	dlock_lock_id(h->dlock, vid, 0);
+	t = __gtp_vteid_get(h, vid);
+	if (t) {
+		dlock_unlock_id(h->dlock, vid, 0);
+		/* same player */
+		__sync_sub_and_fetch(&t->refcnt, 1);
+		goto shoot_again;
+	}
+
+	__gtp_vteid_hash(h, teid, vid);
+	dlock_unlock_id(h->dlock, vid, 0);
+	return 0;
+}
+#endif
+
 gtp_teid_t *
 gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
 {

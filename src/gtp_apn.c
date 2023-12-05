@@ -250,95 +250,6 @@ apn_resolv_cache_destroy(gtp_apn_t *apn)
 
 
 /*
- *	APN related
- */
-static gtp_apn_t *
-gtp_apn_alloc(const char *name)
-{
-	gtp_apn_t *new;
-	gtp_pco_t *pco;
-
-	PMALLOC(new);
-	INIT_LIST_HEAD(&new->naptr);
-	INIT_LIST_HEAD(&new->service_selection);
-	INIT_LIST_HEAD(&new->imsi_match);
-	INIT_LIST_HEAD(&new->oi_match);
-	INIT_LIST_HEAD(&new->next);
-        pthread_mutex_init(&new->mutex, NULL);
-	strncpy(new->name, name, GTP_APN_MAX_LEN - 1);
-
-	pco = &new->pco;
-	INIT_LIST_HEAD(&pco->ns);
-
-	/* FIXME: lookup before insert */
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_add_tail(&new->next, &daemon_data->gtp_apn);
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	/* Point default pGW to list head */
-
-	return new;
-}
-
-gtp_apn_t *
-gtp_apn_get(const char *name)
-{
-	gtp_apn_t *apn;
-
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
-		if (!strncmp(name, apn->name, strlen(name))) {
-			pthread_mutex_unlock(&gtp_apn_mutex);
-			return apn;
-		}
-
-	}
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	return NULL;
-}
-
-static int
-gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
-{
-	list_head_t *l = &daemon_data->gtp_apn;
-	gtp_apn_t *_apn;
-
-	if (apn) {
-		gtp_naptr_show(vty, apn);
-		return 0;
-	}
-
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_for_each_entry(_apn, l, next)
-		gtp_naptr_show(vty, _apn);
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	return 0;
-}
-
-int
-gtp_apn_destroy(void)
-{
-	list_head_t *l = &daemon_data->gtp_apn;
-	gtp_apn_t *apn, *_apn;
-
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_for_each_entry_safe(apn, _apn, l, next) {
-		gtp_service_destroy(apn);
-		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
-		gtp_rewrite_rule_destroy(apn, &apn->oi_match);
-		apn_resolv_cache_destroy(apn);
-		list_head_del(&apn->next);
-		FREE(apn);
-	}
-	pthread_mutex_unlock(&gtp_apn_mutex);
-
-	return 0;
-}
-
-
-/*
  *	Static IP Pool related
  */
 static gtp_ip_pool_t *
@@ -347,12 +258,24 @@ gtp_ip_pool_alloc(uint32_t network, uint32_t netmask)
 	gtp_ip_pool_t *new;
 
 	PMALLOC(new);
+	if (!new)
+		return NULL;
 	new->network = network;
 	new->netmask = netmask;
 	new->lease = (bool *) MALLOC(ntohl(~netmask) * sizeof(bool));
 	new->next_lease_idx = 10;
 
 	return new;
+}
+
+static void
+gtp_ip_pool_destroy(gtp_ip_pool_t *ip_pool)
+{
+	if (!ip_pool)
+		return;
+
+	FREE(ip_pool->lease);
+	FREE(ip_pool);
 }
 
 uint32_t
@@ -396,6 +319,135 @@ gtp_ip_pool_put(gtp_apn_t *apn, uint32_t addr_ip)
 	idx = ntohl(addr_ip & ~ip_pool->network);
 	ip_pool->lease[idx] = false;
 	ip_pool->next_lease_idx = idx;
+	return 0;
+}
+
+/*
+ *	PCO related
+ */
+static gtp_pco_t *
+gtp_pco_alloc(void)
+{
+	gtp_pco_t *pco;
+
+	PMALLOC(pco);
+	if (!pco)
+		return NULL;
+	INIT_LIST_HEAD(&pco->ns);
+
+	return pco;
+}
+
+static void
+gtp_pco_destroy(gtp_pco_t *pco)
+{
+	gtp_ns_t *ns, *_ns;
+
+	if (!pco)
+		return;
+
+	list_for_each_entry_safe(ns, _ns, &pco->ns, next) {
+		list_head_del(&ns->next);
+		FREE(ns);
+	}
+
+	FREE(pco);
+}
+
+
+/*
+ *	APN related
+ */
+static gtp_apn_t *
+gtp_apn_alloc(const char *name)
+{
+	gtp_apn_t *new;
+
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->naptr);
+	INIT_LIST_HEAD(&new->service_selection);
+	INIT_LIST_HEAD(&new->imsi_match);
+	INIT_LIST_HEAD(&new->oi_match);
+	INIT_LIST_HEAD(&new->next);
+        pthread_mutex_init(&new->mutex, NULL);
+	strncpy(new->name, name, GTP_APN_MAX_LEN - 1);
+
+	/* FIXME: lookup before insert */
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_add_tail(&new->next, &daemon_data->gtp_apn);
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
+	/* Point default pGW to list head */
+
+	return new;
+}
+
+static gtp_pco_t *
+gtp_apn_pco(gtp_apn_t *apn)
+{
+	if (apn->pco)
+		return apn->pco;
+	apn->pco = gtp_pco_alloc();
+	
+	return apn->pco;
+}
+
+int
+gtp_apn_destroy(void)
+{
+	list_head_t *l = &daemon_data->gtp_apn;
+	gtp_apn_t *apn, *_apn;
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry_safe(apn, _apn, l, next) {
+		gtp_service_destroy(apn);
+		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
+		gtp_rewrite_rule_destroy(apn, &apn->oi_match);
+		gtp_ip_pool_destroy(apn->ip_pool);
+		gtp_pco_destroy(apn->pco);
+		apn_resolv_cache_destroy(apn);
+		list_head_del(&apn->next);
+		FREE(apn);
+	}
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
+	return 0;
+}
+
+gtp_apn_t *
+gtp_apn_get(const char *name)
+{
+	gtp_apn_t *apn;
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
+		if (!strncmp(name, apn->name, strlen(name))) {
+			pthread_mutex_unlock(&gtp_apn_mutex);
+			return apn;
+		}
+
+	}
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
+	return NULL;
+}
+
+static int
+gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
+{
+	list_head_t *l = &daemon_data->gtp_apn;
+	gtp_apn_t *_apn;
+
+	if (apn) {
+		gtp_naptr_show(vty, apn);
+		return 0;
+	}
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry(_apn, l, next)
+		gtp_naptr_show(vty, _apn);
+	pthread_mutex_unlock(&gtp_apn_mutex);
+
 	return 0;
 }
 
@@ -842,12 +894,18 @@ DEFUN(apn_pco_ipcp_primary_ns,
       "IPv6 Address\n")
 {
 	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = &apn->pco;
+	gtp_pco_t *pco = gtp_apn_pco(apn);
 	struct sockaddr_storage *addr = &pco->ipcp_primary_ns;
 	int ret;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pco) {
+		vty_out(vty, "%% Cant allocate PCO for APN:%s%s"
+			   , apn->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -873,12 +931,18 @@ DEFUN(apn_pco_ipcp_secondary_ns,
       "IPv6 Address\n")
 {
 	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = &apn->pco;
+	gtp_pco_t *pco = gtp_apn_pco(apn);
 	struct sockaddr_storage *addr = &pco->ipcp_secondary_ns;
 	int ret;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pco) {
+		vty_out(vty, "%% Cant allocate PCO for APN:%s%s"
+			   , apn->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -895,9 +959,8 @@ DEFUN(apn_pco_ipcp_secondary_ns,
 
 
 static int
-apn_pco_ip_ns_config_write(vty_t *vty, gtp_apn_t *apn)
+apn_pco_ip_ns_config_write(vty_t *vty, list_head_t *l)
 {
-	list_head_t *l = &apn->pco.ns;
 	gtp_ns_t *ns;
 
 	list_for_each_entry(ns, l, next) {
@@ -908,6 +971,34 @@ apn_pco_ip_ns_config_write(vty_t *vty, gtp_apn_t *apn)
 
 	return 0;
 }
+
+static int
+apn_pco_config_write(vty_t *vty, gtp_pco_t *pco)
+{
+	if (!pco)
+		return -1;
+
+	if (__test_bit(GTP_PCO_IPCP_PRIMARY_NS, &pco->flags))
+		vty_out(vty, " protocol-configuration-option ipcp primary-nameserver %s%s"
+			   , inet_sockaddrtos(&pco->ipcp_primary_ns)
+			   , VTY_NEWLINE);
+	if (__test_bit(GTP_PCO_IPCP_SECONDARY_NS, &pco->flags))
+		vty_out(vty, " protocol-configuration-option ipcp secondary-nameserver %s%s"
+			   , inet_sockaddrtos(&pco->ipcp_secondary_ns)
+			   , VTY_NEWLINE);
+	if (__test_bit(GTP_PCO_IP_NS, &pco->flags))
+		apn_pco_ip_ns_config_write(vty, &pco->ns);
+	if (pco->link_mtu)
+		vty_out(vty, " protocol-configuration-option ip link-mtu %d%s"
+			   , pco->link_mtu
+			   , VTY_NEWLINE);
+	if (pco->selected_bearer_control_mode)
+		vty_out(vty, " protocol-configuration-option selected-bearer-control-mode %d%s"
+			   , pco->selected_bearer_control_mode
+			   , VTY_NEWLINE);
+	return 0;
+}
+
 
 DEFUN(apn_pco_ip_ns,
       apn_pco_ip_ns_cmd,
@@ -920,12 +1011,18 @@ DEFUN(apn_pco_ip_ns,
       "IPv6 Address\n")
 {
 	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = &apn->pco;
+	gtp_pco_t *pco = gtp_apn_pco(apn);
 	gtp_ns_t *new;
 	int ret;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pco) {
+		vty_out(vty, "%% Cant allocate PCO for APN:%s%s"
+			   , apn->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -952,10 +1049,16 @@ DEFUN(apn_pco_ip_link_mtu,
       "MTU\n")
 {
 	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = &apn->pco;
+	gtp_pco_t *pco = gtp_apn_pco(apn);
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pco) {
+		vty_out(vty, "%% Cant allocate PCO for APN:%s%s"
+			   , apn->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -971,10 +1074,16 @@ DEFUN(apn_pco_selected_bearer_control_mode,
       "Bearer Control Mode\n")
 {
 	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = &apn->pco;
+	gtp_pco_t *pco = gtp_apn_pco(apn);
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pco) {
+		vty_out(vty, "%% Cant allocate PCO for APN:%s%s"
+			   , apn->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -1085,11 +1194,8 @@ apn_config_write(vty_t *vty)
 {
         list_head_t *l = &daemon_data->gtp_apn;
         gtp_apn_t *apn;
-	gtp_pco_t *pco;
 
         list_for_each_entry(apn, l, next) {
-		pco = &apn->pco;
-
         	vty_out(vty, "access-point-name %s%s", apn->name, VTY_NEWLINE);
 		vty_out(vty, " nameserver %s%s"
 			   , inet_sockaddrtos(&apn->nameserver)
@@ -1117,24 +1223,7 @@ apn_config_write(vty_t *vty)
 		vty_out(vty, " restriction %d%s", apn->restriction, VTY_NEWLINE);
 		if (apn->indication_flags)
 			apn_indication_config_write(vty, apn);
-		if (__test_bit(GTP_PCO_IPCP_PRIMARY_NS, &pco->flags))
-			vty_out(vty, " protocol-configuration-option ipcp primary-nameserver %s%s"
-				   , inet_sockaddrtos(&pco->ipcp_primary_ns)
-				   , VTY_NEWLINE);
-		if (__test_bit(GTP_PCO_IPCP_SECONDARY_NS, &pco->flags))
-			vty_out(vty, " protocol-configuration-option ipcp secondary-nameserver %s%s"
-				   , inet_sockaddrtos(&pco->ipcp_secondary_ns)
-				   , VTY_NEWLINE);
-		if (__test_bit(GTP_PCO_IP_NS, &pco->flags))
-			apn_pco_ip_ns_config_write(vty, apn);
-		if (pco->link_mtu)
-			vty_out(vty, " protocol-configuration-option ip link-mtu %d%s"
-				   , pco->link_mtu
-				   , VTY_NEWLINE);
-		if (pco->selected_bearer_control_mode)
-			vty_out(vty, " protocol-configuration-option selected-bearer-control-mode %d%s"
-				   , pco->selected_bearer_control_mode
-				   , VTY_NEWLINE);
+		apn_pco_config_write(vty, apn->pco);
 		if (apn->ip_pool)
 			vty_out(vty, " pdn-address-allocation-pool local network %u.%u.%u.%u netmask %u.%u.%u.%u%s"
 				   , NIPQUAD(apn->ip_pool->network)

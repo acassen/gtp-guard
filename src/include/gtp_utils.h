@@ -33,7 +33,7 @@ extern uint8_t *gtp1_get_ie(uint8_t type, uint8_t *buffer, size_t size);
 /* GTPv2 */
 extern int bcd_buffer_swap(uint8_t *, int, uint8_t *);
 extern int str_imsi_to_bcd_swap(char *, size_t, uint8_t *);
-extern int64_t bcd_to_int64(uint8_t *, int);
+extern int64_t bcd_to_int64(const void *, int);
 extern size_t gtpc_get_header_len(gtp_hdr_t *);
 extern int gtp_imsi_rewrite(gtp_apn_t *, uint8_t *);
 extern int gtp_ie_imsi_rewrite(gtp_apn_t *, uint8_t *);

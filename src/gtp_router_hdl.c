@@ -51,13 +51,14 @@
 #include "gtp_sched.h"
 #include "gtp_teid.h"
 #include "gtp_server.h"
-#include "gtp_switch.h"
+#include "gtp_router.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
 #include "gtp_router_hdl.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
 #include "gtp_xdp.h"
+#include "gtp_msg.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -70,9 +71,114 @@ extern gtp_teid_t dummy_teid;
 /*
  *	Utilities
  */
+static gtp_session_t *
+gtpc_msg_retransmit(gtp_router_t *ctx, gtp_hdr_t *h, uint8_t *ie_buffer)
+{
+	gtp_teid_t *teid;
+	gtp_f_teid_t f_teid;
 
+	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
+	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+	teid = gtp_teid_get(&ctx->gtpc_teid_tab, &f_teid);
+	if (!teid)
+		return NULL;
 
+	if (h->teid_presence)
+		return (h->sqn == teid->sqn) ? teid->session : NULL;
+	if (h->sqn_only == teid->sqn)
+		return teid->session;
 
+	return NULL;
+}
+
+static gtp_teid_t *
+gtp_teid_create(uint8_t type, int direction, gtp_session_t *s, gtp_htab_t *h,
+		uint32_t sqn, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bearer_id)
+{
+	gtp_teid_t *teid = NULL;
+
+	teid = gtp_teid_get(h, f_teid);
+	if (teid) {
+		/* update sqn */
+		teid->sqn = sqn;
+		return teid;
+	}
+
+	teid = gtp_teid_alloc(h, f_teid, bearer_id);
+	teid->type = type;
+	teid->session = s;
+	teid->sqn = sqn;
+
+	/* Add to list */
+	if (type == GTP_TEID_C) {
+		gtp_session_gtpc_teid_add(s, teid);
+	} else if (type == GTP_TEID_U) {
+		gtp_session_gtpu_teid_add(s, teid);
+
+		/* Fast-Path setup */
+//		gtp_xdp_rt_teid_action(RULE_ADD, teid, direction);
+	}
+
+	return teid;
+}
+
+static gtp_teid_t *
+gtp_session_append_gtpu(gtp_server_worker_t *w, gtp_session_t *s, int direction, void *arg, uint8_t *ie_buffer)
+{
+	gtp_server_t *srv = w->srv;
+	gtp_router_t *ctx = srv->ctx;
+	gtp_ie_eps_bearer_id_t *bearer_id = arg;
+	gtp_f_teid_t f_teid;
+
+	f_teid.version = 2;
+	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
+	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+
+	return gtp_teid_create(GTP_TEID_U, direction, s
+					 , &ctx->gtpu_teid_tab
+					 , 0, &f_teid, bearer_id);
+}
+
+static gtp_teid_t *
+gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
+{
+	gtp_hdr_t *h = msg->h;
+	gtp_conn_t *c = s->conn;
+	gtp_router_t *ctx = c->ctx;
+	gtp_teid_t *teid = NULL;
+	gtp_msg_ie_t *msg_ie;
+	gtp_f_teid_t f_teid;
+	gtp_ie_eps_bearer_id_t *bearer_id = NULL;
+	uint8_t *ie_buffer, *cp_bid;
+	uint32_t sqn;
+
+	/* GTP-C create */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
+	if (msg_ie) {
+		ie_buffer = (uint8_t *) msg_ie->h;
+		f_teid.version = 2;
+		f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
+		f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+		sqn = (h->teid_presence) ? h->sqn : h->sqn_only;
+		teid = gtp_teid_create(GTP_TEID_C, GTP_INGRESS, s
+						 , &ctx->gtpc_teid_tab
+						 , sqn, &f_teid, NULL);
+	}
+
+	/* GTP-U create */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_BEARER_CONTEXT_TYPE);
+	if (!msg_ie)
+		return teid;
+
+	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID,(uint8_t *) msg_ie->data, ntohs(msg_ie->h->length), 0);
+	bearer_id = (cp_bid) ? (gtp_ie_eps_bearer_id_t *) cp_bid : NULL;
+	gtp_foreach_ie(GTP_IE_F_TEID_TYPE, (uint8_t *) msg_ie->data, 0
+					 , (uint8_t *) msg_ie->data + ntohs(msg_ie->h->length)
+					 , w, s, GTP_INGRESS
+					 , bearer_id, gtp_session_append_gtpu);
+
+	return teid;
+}
 
 
 /*
@@ -99,8 +205,77 @@ gtpc_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 static int
 gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
+	gtp_msg_t *msg;
+	gtp_msg_ie_t *msg_ie;
+	gtp_server_t *srv = w->srv;
+	gtp_router_t *ctx = srv->ctx;
+	gtp_conn_t *c;
+	gtp_session_t *s = NULL;
+	gtp_teid_t *teid;
+	gtp_apn_t *apn;
+	char apn_str[64];
+	uint64_t imsi;
+	int ret, rc = -1;
 
-	return 0;
+	msg = gtp_msg_alloc(w->buffer, w->buffer_size);
+	if (!msg)
+		return -1;
+
+	/* IMSI */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_IMSI_TYPE);
+	if (!msg_ie) {
+		log_message(LOG_INFO, "%s(): no IMSI IE present. ignoring..."
+				    , __FUNCTION__);
+		goto end;
+	}
+
+	imsi = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
+	c = gtp_conn_get_by_imsi(imsi);
+	if (!c)
+		c = gtp_conn_alloc(imsi, ctx);
+
+	/* APN */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_APN_TYPE);
+	if (!msg_ie) {
+		log_message(LOG_INFO, "%s(): no Access-Point-Name IE present. ignoring..."
+				    , __FUNCTION__);
+		goto end;
+	}
+
+	memset(apn_str, 0, 63);
+	ret = gtp_ie_apn_extract_ni((gtp_ie_apn_t *) msg_ie->h, apn_str, 63);
+	if (ret < 0) {
+		log_message(LOG_INFO, "%s(): Error parsing Access-Point-Name IE. ignoring..."
+				    , __FUNCTION__);
+		goto end;
+	}
+
+	apn = gtp_apn_get(apn_str);
+	if (!apn) {
+		log_message(LOG_INFO, "%s(): Unknown Access-Point-Name:%s. ignoring..."
+				    , __FUNCTION__, apn_str);
+		goto end;
+	}
+
+	/* At least F-TEID present for create session */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
+	if (!msg_ie) {
+		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
+				    , __FUNCTION__);
+		goto end;
+	}
+
+	s = gtpc_msg_retransmit(ctx, msg->h, (uint8_t *) msg_ie->h);
+	if (!s)
+		s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
+					    , gtp_router_gtpu_teid_destroy);
+	teid = gtpc_session_create(w, msg, s);
+
+
+	rc = 0;
+  end:
+	gtp_msg_destroy(msg);
+	return rc;
 }
 
 static int
