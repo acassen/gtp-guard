@@ -92,19 +92,11 @@ gtpc_msg_retransmit(gtp_router_t *ctx, gtp_hdr_t *h, uint8_t *ie_buffer)
 }
 
 static gtp_teid_t *
-gtp_teid_create(uint8_t type, int direction, gtp_session_t *s, gtp_htab_t *h,
-		uint32_t sqn, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bearer_id)
+gtp_teid_set(gtp_teid_t *teid, uint8_t type, int direction, gtp_session_t *s, uint32_t sqn)
 {
-	gtp_teid_t *teid = NULL;
+	if (!teid)
+		return NULL;
 
-	teid = gtp_teid_get(h, f_teid);
-	if (teid) {
-		/* update sqn */
-		teid->sqn = sqn;
-		return teid;
-	}
-
-	teid = gtp_teid_alloc(h, f_teid, bearer_id);
 	teid->type = type;
 	teid->session = s;
 	teid->sqn = sqn;
@@ -123,20 +115,41 @@ gtp_teid_create(uint8_t type, int direction, gtp_session_t *s, gtp_htab_t *h,
 }
 
 static gtp_teid_t *
+gtp_teid_create(uint8_t type, int direction, gtp_session_t *s, gtp_htab_t *h,
+		uint32_t sqn, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bearer_id)
+{
+	gtp_teid_t *teid = NULL;
+
+	teid = gtp_teid_get(h, f_teid);
+	if (teid) {
+		/* update sqn */
+		teid->sqn = sqn;
+		return teid;
+	}
+
+	teid = gtp_teid_alloc(h, f_teid, bearer_id);
+	return gtp_teid_set(teid, type, direction, s, sqn);
+}
+
+static gtp_teid_t *
 gtp_session_append_gtpu(gtp_server_worker_t *w, gtp_session_t *s, int direction, void *arg, uint8_t *ie_buffer)
 {
 	gtp_server_t *srv = w->srv;
 	gtp_router_t *ctx = srv->ctx;
 	gtp_ie_eps_bearer_id_t *bearer_id = arg;
 	gtp_f_teid_t f_teid;
+	gtp_teid_t *teid, *pteid;
 
 	f_teid.version = 2;
 	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
 	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
 
-	return gtp_teid_create(GTP_TEID_U, direction, s
+	teid = gtp_teid_create(GTP_TEID_U, direction, s
 					 , &ctx->gtpu_teid_tab
 					 , 0, &f_teid, bearer_id);
+	pteid = gtp_teid_alloc_peer(&ctx->gtpu_teid_tab, teid, &w->seed);
+	gtp_teid_set(pteid, GTP_TEID_U, !direction, s, 0);
+	return teid;
 }
 
 static gtp_teid_t *
@@ -145,7 +158,7 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 	gtp_hdr_t *h = msg->h;
 	gtp_conn_t *c = s->conn;
 	gtp_router_t *ctx = c->ctx;
-	gtp_teid_t *teid = NULL;
+	gtp_teid_t *teid = NULL, *pteid;
 	gtp_msg_ie_t *msg_ie;
 	gtp_f_teid_t f_teid;
 	gtp_ie_eps_bearer_id_t *bearer_id = NULL;
@@ -163,6 +176,8 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 		teid = gtp_teid_create(GTP_TEID_C, GTP_INGRESS, s
 						 , &ctx->gtpc_teid_tab
 						 , sqn, &f_teid, NULL);
+		pteid = gtp_teid_alloc_peer(&ctx->gtpc_teid_tab, teid, &w->seed);
+		gtp_teid_set(pteid, GTP_TEID_U, GTP_EGRESS, s, 0);
 	}
 
 	/* GTP-U create */
@@ -176,7 +191,6 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 					 , (uint8_t *) msg_ie->data + ntohs(msg_ie->h->length)
 					 , w, s, GTP_INGRESS
 					 , bearer_id, gtp_session_append_gtpu);
-
 	return teid;
 }
 
@@ -270,6 +284,19 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
 					    , gtp_router_gtpu_teid_destroy);
 	teid = gtpc_session_create(w, msg, s);
+	if (!teid) {
+		log_message(LOG_INFO, "%s(): Cant create session. ignoring..."
+				    , __FUNCTION__);
+		goto end;
+	}
+
+	gtp_teid_update_sgw(teid, addr);
+
+	/* Update last sGW visited */
+	c->sgw_addr = *((struct sockaddr_in *) addr);
+
+
+
 
 
 	rc = 0;

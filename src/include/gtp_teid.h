@@ -84,6 +84,7 @@ extern int gtp_teid_unuse_queue_size(void);
 extern int gtp_teid_put(gtp_teid_t *);
 extern gtp_teid_t *gtp_teid_get(gtp_htab_t *, gtp_f_teid_t *);
 extern gtp_teid_t *gtp_teid_alloc(gtp_htab_t *, gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
+extern gtp_teid_t *gtp_teid_alloc_peer(gtp_htab_t *, gtp_teid_t *, unsigned int *);
 extern int gtp_teid_unhash(gtp_htab_t *, gtp_teid_t *);
 extern void gtp_teid_bind(gtp_teid_t *, gtp_teid_t *);
 extern int gtp_teid_masq(gtp_f_teid_t *, struct sockaddr_storage *, uint32_t);
