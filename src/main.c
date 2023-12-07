@@ -28,33 +28,10 @@
 #include <libbpf.h>
 
 /* local includes */
-#include "daemon.h"
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "pidfile.h"
-#include "signals.h"
-#include "scheduler.h"
+#include "gtp_guard.h"
 #include "config.h"
-#include "vty.h"
-#include "command.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "gtp.h"
-#include "gtp_vty.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
-#include "gtp_xdp.h"
 #include "main.h"
+
 
 /* Log facility table */
 struct {

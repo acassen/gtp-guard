@@ -29,64 +29,47 @@
 #include <errno.h>
 
 /* local includes */
-#include "gtp_guard.h"
-
-
-/*
- *      Distributate lock handling
- */
-static dlock_mutex_t *
-dlock_hash(dlock_mutex_t *__array, uint32_t w1, uint32_t w2)
-{
-	return __array + (jhash_2words(w1, w2, 0) & DLOCK_HASHTAB_MASK);
-}
+#include "memory.h"
+#include "pkt_buffer.h"
 
 int
-dlock_lock_id(dlock_mutex_t *__array, uint32_t w1, uint32_t w2)
+pkt_buffer_put_zero(pkt_buffer_t *b, unsigned int size)
 {
-	dlock_mutex_t *m = dlock_hash(__array, w1, w2);
-	pthread_mutex_lock(&m->mutex);
-	__sync_add_and_fetch(&m->refcnt, 1);
+	if (pkt_buffer_tailroom(b) < size)
+		return -1;
+
+	memset(b->end, 0, size);
+	b->end += size;
 	return 0;
 }
 
-int
-dlock_unlock_id(dlock_mutex_t *__array, uint32_t w1, uint32_t w2)
+pkt_buffer_t *
+pkt_buffer_alloc(unsigned int size)
 {
-	dlock_mutex_t *m = dlock_hash(__array, w1, w2);
-	if (__sync_sub_and_fetch(&m->refcnt, 1) == 0)
-		pthread_mutex_unlock(&m->mutex);
-	return 0;
-}
+	pkt_buffer_t *new;
+	void *data;
 
-dlock_mutex_t *
-dlock_init(void)
-{
-	dlock_mutex_t *new;
-	new = (dlock_mutex_t *) MALLOC(DLOCK_HASHTAB_SIZE * sizeof(dlock_mutex_t));
-        return new;
-}
+	PMALLOC(new);
+	if (!new)
+		return NULL;
+	data = MALLOC(size);
+	if (!data) {
+		FREE(new);
+		return NULL;
+	}
 
-int
-dlock_destroy(dlock_mutex_t *__array)
-{
-	FREE(__array);
-	return 0;
-}
+	new->head = data;
+	new->data = new->end = data;
+	new->tail = data + size;
 
-/*
- *	HTAB handling
- */
-void
-gtp_htab_init(gtp_htab_t *h, size_t size)
-{
-	h->htab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) * size);
-	h->dlock = dlock_init();
+	return new;
 }
 
 void
-gtp_htab_destroy(gtp_htab_t *h)
+pkt_buffer_free(pkt_buffer_t *b)
 {
-	FREE(h->htab);
-	FREE(h->dlock);
+	if (b) {
+		FREE(b->head);
+		FREE(b);
+	}
 }

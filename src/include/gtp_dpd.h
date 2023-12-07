@@ -23,7 +23,6 @@
 #define _GTP_DPD_H
 
 /* prototypes */
-extern int gtp_dpd_build_pkt(gtp_iptnl_t *);
 extern int gtp_dpd_init(gtp_iptnl_t *);
 extern int gtp_dpd_destroy(gtp_iptnl_t *);
 

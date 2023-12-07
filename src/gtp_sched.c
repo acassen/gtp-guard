@@ -23,11 +23,7 @@
 #include <pthread.h>
 
 /* local includes */
-#include "bitops.h"
-#include "vty.h"
-#include "list_head.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
+#include "gtp_guard.h"
 
 
 /*

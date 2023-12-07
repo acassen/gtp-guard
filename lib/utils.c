@@ -597,3 +597,19 @@ integer_to_string(const int value, char *str, size_t size)
 
         return len;
 }
+
+/*
+ *	poor PRNG
+ */
+uint32_t
+poor_prng(unsigned int *seed)
+{
+	uint32_t shuffle;
+
+	shuffle = rand_r(seed) & 0xff;
+	shuffle |= (rand_r(seed) & 0xff) << 8;
+	shuffle |= (rand_r(seed) & 0xff) << 16;
+	shuffle |= (rand_r(seed) & 0xff) << 24;
+
+	return shuffle;
+}

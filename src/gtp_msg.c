@@ -29,13 +29,7 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "container.h"
-#include "rbtree_api.h"
-#include "gtp.h"
-#include "gtp_msg.h"
+#include "gtp_guard.h"
 
 
 size_t
@@ -104,9 +98,9 @@ gtp_msg_ie_get(gtp_msg_t *msg, uint8_t type)
 }
 
 gtp_msg_t *
-gtp_msg_alloc(const uint8_t *buffer, size_t size)
+gtp_msg_alloc(const pkt_buffer_t *buffer)
 {
-	const uint8_t *cp, *end = buffer + size;
+	const uint8_t *cp;
 	size_t offset;
 	gtp_msg_t *msg;
 	gtp_ie_t *ie;
@@ -114,16 +108,16 @@ gtp_msg_alloc(const uint8_t *buffer, size_t size)
 	PMALLOC(msg);
 	if (!msg)
 		return NULL;
-	msg->h = (gtp_hdr_t *) buffer;
+	msg->h = (gtp_hdr_t *) buffer->head;
 	msg->ie = RB_ROOT_CACHED;
 	offset = gtp_msg_hlen(msg->h);
 
-	for (cp = buffer+offset; cp < end; cp += offset) {
+	for (cp = buffer->head + offset; cp < buffer->end; cp += offset) {
 		ie = (gtp_ie_t *) cp;
 		offset = sizeof(gtp_ie_t) + ntohs(ie->length);
 
 		/* if not the case length is bogus ?! */
-		if (cp + offset > end)
+		if (cp + offset > buffer->end)
 			continue;
 
 		gtp_msg_ie_alloc(cp, &msg->ie);

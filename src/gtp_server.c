@@ -29,31 +29,8 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "timer.h"
-#include "mpool.h"
-#include "vector.h"
-#include "command.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "rbtree.h"
-#include "vty.h"
-#include "logger.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_if.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
+#include "gtp_guard.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -66,7 +43,9 @@ extern thread_master_t *master;
 static ssize_t
 gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *addrlen)
 {
-	ssize_t nbytes = recvfrom(w->fd, w->buffer, GTP_BUFFER_SIZE, 0, addr, addrlen);
+	ssize_t nbytes = recvfrom(w->fd, w->pbuff->head
+				       , pkt_buffer_size(w->pbuff)
+				       , 0, addr, addrlen);
 	
 	/* Update stats */
 	if (nbytes > 0) {
@@ -80,7 +59,9 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 ssize_t
 gtp_server_send(gtp_server_worker_t *w, int fd, struct sockaddr_in *addr)
 {
-	ssize_t nbytes = sendto(fd, w->buffer, w->buffer_size, 0, addr, sizeof(*addr));
+	ssize_t nbytes = sendto(fd, w->pbuff->head
+				  , pkt_buffer_len(w->pbuff)
+				  , 0, addr, sizeof(*addr));
 
 	/* Update stats */
 	if (nbytes > 0) {
@@ -138,6 +119,7 @@ gtp_server_worker_task(void *arg)
 	struct sockaddr_storage *addr = &srv->addr;
 	struct sockaddr_storage addr_from;
 	socklen_t addrlen = sizeof(addr_from);
+	ssize_t nbytes;
 	int fd;
 
 	/* Initialize */
@@ -161,9 +143,8 @@ gtp_server_worker_task(void *arg)
 	/* Infinita tristessa */
 	for (;;) {
 		/* Perform ingress packet handling */
-		w->buffer_size = gtp_server_recvfrom(w, (struct sockaddr *) &addr_from
-						      , &addrlen);
-		if (w->buffer_size == -1) {
+		nbytes = gtp_server_recvfrom(w, (struct sockaddr *) &addr_from, &addrlen);
+		if (nbytes == -1) {
 			if (errno == EAGAIN || errno == EINTR)
 				continue;
 			log_message(LOG_INFO, "%s(): %s: Error recv (%m). Exiting"
@@ -171,6 +152,7 @@ gtp_server_worker_task(void *arg)
 					    , w->pname);
 			goto end;
 		}
+		pkt_buffer_set_end_pointer(w->pbuff, nbytes);
 
 		/* Process incoming buffer */
 		(*srv->process) (w, &addr_from);
@@ -210,6 +192,7 @@ gtp_server_worker_alloc(gtp_server_t *srv, int id)
 	worker->id = id;
 	worker->seed = time(NULL);
 	srand(worker->seed);
+	worker->pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 
 	pthread_mutex_lock(&srv->workers_mutex);
 	list_add_tail(&worker->next, &srv->workers);
@@ -218,6 +201,14 @@ gtp_server_worker_alloc(gtp_server_t *srv, int id)
 	return 0;
 }
 
+static int
+gtp_server_worker_destroy(gtp_server_worker_t *w)
+{
+	list_head_del(&w->next);
+	pkt_buffer_free(w->pbuff);
+	FREE(w);
+	return 0;
+}
 
 /*
  *	GTP Server related
@@ -265,8 +256,7 @@ gtp_server_destroy(gtp_server_t *srv)
 	list_for_each_entry_safe(w, _w, &srv->workers, next) {
 		pthread_cancel(w->task);
 		pthread_join(w->task, NULL);
-		list_head_del(&w->next);
-		FREE(w);
+		gtp_server_worker_destroy(w);
 	}
 	pthread_mutex_unlock(&srv->workers_mutex);
 

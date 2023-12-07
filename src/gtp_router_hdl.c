@@ -29,36 +29,7 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "timer.h"
-#include "mpool.h"
-#include "vector.h"
-#include "command.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "rbtree.h"
-#include "vty.h"
-#include "logger.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_sched.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_router.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
-#include "gtp_router_hdl.h"
-#include "gtp_sqn.h"
-#include "gtp_utils.h"
-#include "gtp_xdp.h"
-#include "gtp_msg.h"
+#include "gtp_guard.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -71,7 +42,7 @@ extern gtp_teid_t dummy_teid;
 /*
  *	Utilities
  */
-static gtp_session_t *
+static gtp_teid_t *
 gtpc_msg_retransmit(gtp_router_t *ctx, gtp_hdr_t *h, uint8_t *ie_buffer)
 {
 	gtp_teid_t *teid;
@@ -84,9 +55,9 @@ gtpc_msg_retransmit(gtp_router_t *ctx, gtp_hdr_t *h, uint8_t *ie_buffer)
 		return NULL;
 
 	if (h->teid_presence)
-		return (h->sqn == teid->sqn) ? teid->session : NULL;
+		return (h->sqn == teid->sqn) ? teid : NULL;
 	if (h->sqn_only == teid->sqn)
-		return teid->session;
+		return teid;
 
 	return NULL;
 }
@@ -194,6 +165,39 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 	return teid;
 }
 
+static int
+gtpc_build_cause(pkt_buffer_t *pbuff, uint8_t cause)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	size_t nbytes = sizeof(gtp_hdr_t);
+
+	/* Header update */
+	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
+	h->length = 0;
+
+	 
+
+	return 0;
+}
+
+
+static int
+gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	size_t nbytes = 0;
+
+	/* Header update */
+	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
+	h->length = 0;
+
+
+	dump_buffer("Response ", (char *) pbuff->head, pkt_buffer_len(pbuff));
+
+
+	return 0;
+}
+
 
 /*
  *	GTP-C Protocol helpers
@@ -201,11 +205,11 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 static int
 gtpc_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_ie_recovery_t *rec;
 	uint8_t *cp;
 
-	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, w->pbuff);
 	if (cp) {
 		rec = (gtp_ie_recovery_t *) cp;
 		rec->recovery = daemon_data->restart_counter;
@@ -231,7 +235,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	uint64_t imsi;
 	int ret, rc = -1;
 
-	msg = gtp_msg_alloc(w->buffer, w->buffer_size);
+	msg = gtp_msg_alloc(w->pbuff);
 	if (!msg)
 		return -1;
 
@@ -279,10 +283,17 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
-	s = gtpc_msg_retransmit(ctx, msg->h, (uint8_t *) msg_ie->h);
-	if (!s)
-		s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
-					    , gtp_router_gtpu_teid_destroy);
+	teid = gtpc_msg_retransmit(ctx, msg->h, (uint8_t *) msg_ie->h);
+	if (teid) {
+		log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
+				    , imsi, apn_str, ntohl(teid->id)
+				    , "(retransmit)");
+		goto end;
+	}
+	
+	s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
+				    , gtp_router_gtpu_teid_destroy);
+
 	teid = gtpc_session_create(w, msg, s);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): Cant create session. ignoring..."
@@ -290,10 +301,28 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
+	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}"
+		    , imsi, apn_str, ntohl(teid->id));
+
+	/* MEI */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_MEI_TYPE);
+	if (msg_ie)
+		s->mei = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
+
 	gtp_teid_update_sgw(teid, addr);
 
 	/* Update last sGW visited */
 	c->sgw_addr = *((struct sockaddr_in *) addr);
+
+	/* Allocate IP Address from APN pool if configured */
+	s->ipv4 = gtp_ip_pool_get(apn);
+
+	/* Generate Charging-ID */
+	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
+
+	gtpc_build_create_session_response(w->pbuff, s);
+
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_PCO_TYPE);
 
 
 
@@ -344,7 +373,7 @@ static const struct {
 int
 gtpc_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 
 	if (*(gtpc_msg_hdl[gtph->type].hdl))
 		return (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);
@@ -361,17 +390,20 @@ gtpc_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 static int
 gtpu_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->pbuff->head;
 	gtp1_ie_recovery_t *rec;
 
 	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
 	h->type = GTPU_ECHO_RSP_TYPE;
 	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
-	w->buffer_size += sizeof(gtp1_ie_recovery_t);
+	pkt_buffer_set_end_pointer(w->pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_data_pointer(w->pbuff, gtp1_get_header_len(h));
 
-	rec = (gtp1_ie_recovery_t *) (w->buffer + gtp1_get_header_len(h));
+	gtp1_ie_add_tail(w->pbuff, sizeof(gtp1_ie_recovery_t));
+	rec = (gtp1_ie_recovery_t *) w->pbuff->data;
 	rec->type = GTP1_IE_RECOVERY_TYPE;
 	rec->recovery = 0;
+	pkt_buffer_put_data(w->pbuff, sizeof(gtp1_ie_recovery_t));
 
 	return 0;
 }
@@ -399,10 +431,10 @@ static const struct {
 int
 gtpu_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	ssize_t len;
 
-	len = gtpu_get_header_len(w->buffer, w->buffer_size);
+	len = gtpu_get_header_len(w->pbuff);
 	if (len < 0)
 		return -1;
 

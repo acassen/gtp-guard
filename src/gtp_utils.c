@@ -29,29 +29,7 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "vty.h"
-#include "logger.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "scheduler.h"
-#include "jhash.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
-#include "gtp_utils.h"
-#include "gtp_msg.h"
+#include "gtp_guard.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -124,13 +102,21 @@ gtp1_get_ie_offset(uint8_t type, uint8_t *buffer, uint8_t *end)
 }
 
 uint8_t *
-gtp1_get_ie(uint8_t type, uint8_t *buffer, size_t size)
+gtp1_get_ie(uint8_t type, pkt_buffer_t *pbuff)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) buffer;
-	uint8_t *end = buffer + size;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) pbuff->head;
 	size_t offset = gtp1_get_header_len(h);
 
-	return gtp1_get_ie_offset(type, buffer+offset, end);
+	return gtp1_get_ie_offset(type, pbuff->head+offset, pbuff->end);
+}
+
+size_t
+gtp1_ie_add_tail(pkt_buffer_t *pbuff, uint16_t ie_length)
+{
+	if (pkt_buffer_put_zero(pbuff, ie_length) < 0)
+		return 0;
+
+	return ie_length;
 }
 
 int
@@ -419,12 +405,12 @@ gtp_get_ie_offset(uint8_t type, uint8_t *buffer, size_t size, size_t off)
 }
 
 uint8_t *
-gtp_get_ie(uint8_t type, uint8_t *buffer, size_t size)
+gtp_get_ie(uint8_t type, pkt_buffer_t *pbuff)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 	size_t offset = gtp_msg_hlen(h);
 
-	return gtp_get_ie_offset(type, buffer, size, offset);
+	return gtp_get_ie_offset(type, pbuff->head, pkt_buffer_len(pbuff), offset);
 }
 
 int
@@ -432,8 +418,9 @@ gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buf
 	       gtp_server_worker_t *w, gtp_session_t *s, int direction, void *arg,
 	       gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *))
 {
-	uint8_t *cp, *end = w->buffer + w->buffer_size;
 	size_t offset = buffer_offset;
+	uint8_t *end = pkt_buffer_end(w->pbuff);
+	uint8_t *cp;
 	gtp_ie_t *ie;
 
 	for (cp = buffer+offset; cp < buffer_end && cp < end; cp += offset) {
@@ -448,23 +435,43 @@ gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buf
 	return 0;
 }
 
+size_t
+gtp_ie_add_tail(pkt_buffer_t *buffer, uint8_t ie_type, uint16_t ie_length)
+{
+	size_t size = ie_length + sizeof(gtp_ie_t);
+	gtp_ie_t *ie;
+
+	if (pkt_buffer_put_zero(buffer, size) < 0)
+		return 0;
+
+	ie = (gtp_ie_t *) buffer->data;
+	ie->type = ie_type;
+	ie->length = htons(ie_length);
+
+	pkt_buffer_put_data(buffer, sizeof(gtp_ie_t));
+
+	return size;
+}
+
+
+
 /*
  *      GTP-U related
  */
 ssize_t
-gtpu_get_header_len(uint8_t *buffer, size_t buffer_size)
+gtpu_get_header_len(pkt_buffer_t *buffer)
 {
 	ssize_t len = GTPV1U_HEADER_LEN;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) buffer->head;
 	uint8_t *ext_h = NULL;
 
-	if (buffer_size < len)
+	if (pkt_buffer_len(buffer) < len)
 		return -1;
 
 	if (gtph->flags & GTPU_FL_E) {
 	        len += GTPV1U_EXTENSION_HEADER_LEN;
 
-		if (buffer_size < len)
+		if (pkt_buffer_len(buffer) < len)
 			return -1;
 
 	        /*
@@ -473,14 +480,14 @@ gtpu_get_header_len(uint8_t *buffer, size_t buffer_size)
 	         *
 	         * If no such Header follows,
 	         * then the value of the Next Extension Header Type shall be 0. */
-		while (*(ext_h = (buffer + len - 1))) {
+		while (*(ext_h = (buffer->head + len - 1))) {
 			/*
 		 	 * The length of the Extension header shall be defined
 		 	 * in a variable length of 4 octets, i.e. m+1 = n*4 octets,
 			 * where n is a positive integer.
 			 */
 			len += (*(++ext_h)) * 4;
-			if (buffer_size < len)
+			if (pkt_buffer_len(buffer) < len)
 				return -1;
 		}
 	} else if (gtph->flags & (GTPU_FL_S|GTPU_FL_PN)) {
@@ -497,5 +504,5 @@ gtpu_get_header_len(uint8_t *buffer, size_t buffer_size)
 		len += 4;
 	}
 
-	return (buffer_size < len) ? -1 : len;
+	return (pkt_buffer_len(buffer) < len) ? -1 : len;
 }

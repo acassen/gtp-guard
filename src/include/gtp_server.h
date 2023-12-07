@@ -27,6 +27,7 @@
 #define GTP_BUFFER_SIZE		4096
 #define GTP_PNAME		128
 
+
 /* GTP Switching context */
 typedef struct _gtp_server_worker {
 	char			pname[GTP_PNAME];
@@ -34,8 +35,7 @@ typedef struct _gtp_server_worker {
 	pthread_t		task;
 	int			fd;
 	struct _gtp_server	*srv;		/* backpointer */
-	uint8_t			buffer[GTP_BUFFER_SIZE];
-	size_t			buffer_size;
+	pkt_buffer_t		*pbuff;
 	unsigned int		seed;
 
 	/* stats */

@@ -29,21 +29,8 @@
 #include <errno.h>
 
 /* local includes */
-#include "bitops.h"
-#include "utils.h"
-#include "timer.h"
-#include "mpool.h"
-#include "vector.h"
-#include "command.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "scheduler.h"
-#include "rbtree.h"
-#include "vty.h"
-#include "logger.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
+#include "gtp_guard.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;

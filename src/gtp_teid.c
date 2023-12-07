@@ -30,27 +30,7 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "vty.h"
-#include "logger.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "scheduler.h"
-#include "jhash.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
+#include "gtp_guard.h"
 
 /*
  *	Unuse queue
@@ -221,19 +201,6 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 	return 0;
 }
 
-static uint32_t
-gtp_teid_generate(unsigned int *seed)
-{
-	uint32_t shuffle;
-
-	shuffle = rand_r(seed) & 0xff;
-	shuffle |= (rand_r(seed) & 0xff) << 8;
-	shuffle |= (rand_r(seed) & 0xff) << 16;
-	shuffle |= (rand_r(seed) & 0xff) << 24;
-
-	return shuffle;
-}
-
 gtp_teid_t *
 gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 {
@@ -254,7 +221,7 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 	}
 
   shoot_again:
-	id = gtp_teid_generate(seed);
+	id = poor_prng(seed);
 	/* Add some kind of enthropy to workaround rand() crappiness */
 	id ^= teid->id;
 
@@ -428,7 +395,7 @@ gtp_vteid_alloc(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 	gtp_teid_t *t;
 
   shoot_again:
-	vid = gtp_teid_generate(seed);
+	vid = poor_prng(seed);
 	/* Add some kind of enthropy to workaround rand() crappiness */
 	vid ^= teid->id;
 

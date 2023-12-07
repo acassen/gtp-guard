@@ -29,33 +29,8 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "timer.h"
-#include "mpool.h"
-#include "vector.h"
-#include "command.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "rbtree.h"
-#include "vty.h"
-#include "logger.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
-#include "gtp_utils.h"
-#include "gtp_switch_hdl_v1.h"
-#include "gtp_switch_hdl_v2.h"
+#include "gtp_guard.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -71,8 +46,8 @@ gtp_teid_t dummy_teid = { .type = 0xff };
 gtp_session_t *
 gtpc_retransmit_detected(gtp_server_worker_t *w)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
-	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
@@ -81,7 +56,7 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 	uint8_t *cp;
 
 	if (gtph->version == 2) {
-		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
+		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->pbuff);
 		if (!cp)
 			return NULL;
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, teid_grekey));
@@ -100,11 +75,11 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 		return s;
 	}
 
-	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
@@ -133,7 +108,7 @@ static const struct {
 gtp_teid_t *
 gtpc_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 
 	/* Only support GTPv1 & GTPv2 */
 	if (*(gtpc_msg_hdl[gtph->version].hdl))
@@ -175,17 +150,20 @@ gtpc_switch_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
 static gtp_teid_t *
 gtpu_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) w->buffer;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) w->pbuff->head;
 	gtp1_ie_recovery_t *rec;
 
 	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
 	h->type = GTPU_ECHO_RSP_TYPE;
 	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
-	w->buffer_size += sizeof(gtp1_ie_recovery_t);
+	pkt_buffer_set_end_pointer(w->pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_data_pointer(w->pbuff, gtp1_get_header_len(h));
 
-	rec = (gtp1_ie_recovery_t *) (w->buffer + gtp1_get_header_len(h));
+	gtp1_ie_add_tail(w->pbuff, sizeof(gtp1_ie_recovery_t));
+	rec = (gtp1_ie_recovery_t *) w->pbuff->data;
 	rec->type = GTP1_IE_RECOVERY_TYPE;
 	rec->recovery = 0;
+	pkt_buffer_put_data(w->pbuff, sizeof(gtp1_ie_recovery_t));
 
 	return &dummy_teid;
 }
@@ -200,12 +178,12 @@ gtpu_error_indication_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 	uint8_t *cp;
 
 	/* Data Plane IE */
-	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->buffer, w->buffer_size);
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
@@ -241,7 +219,7 @@ gtpu_error_indication_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
@@ -290,10 +268,10 @@ static const struct {
 gtp_teid_t *
 gtpu_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	ssize_t len;
 
-	len = gtpu_get_header_len(w->buffer, w->buffer_size);
+	len = gtpu_get_header_len(w->pbuff);
 	if (len < 0)
 		return NULL;
 

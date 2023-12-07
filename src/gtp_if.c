@@ -31,9 +31,7 @@
 #include <linux/ip.h>
 
 /* local includes */
-#include "utils.h"
-#include "logger.h"
-#include "gtp_if.h"
+#include "gtp_guard.h"
 
 
 /* Set Reuse addr option */

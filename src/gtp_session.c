@@ -29,33 +29,8 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "timer.h"
-#include "mpool.h"
-#include "vector.h"
-#include "command.h"
-#include "rbtree.h"
-#include "vty.h"
-#include "logger.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "jhash.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
-#include "gtp_sqn.h"
-#include "gtp_xdp.h"
+#include "gtp_guard.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -154,6 +129,8 @@ gtp_session_add_timer(gtp_session_t *s)
 	rb_add_cached(&s->n, &gtp_session_timer, gtp_session_timer_less);
 	pthread_mutex_unlock(&gtp_session_timer_mutex);
 }
+
+
 
 gtp_session_t *
 gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,

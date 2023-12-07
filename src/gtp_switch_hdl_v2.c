@@ -29,35 +29,8 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "timer.h"
-#include "mpool.h"
-#include "vector.h"
-#include "command.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "rbtree.h"
-#include "vty.h"
-#include "logger.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_sched.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
-#include "gtp_session.h"
-#include "gtp_switch_hdl.h"
-#include "gtp_sqn.h"
-#include "gtp_utils.h"
-#include "gtp_xdp.h"
+#include "gtp_guard.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -159,7 +132,7 @@ gtpc_session_xlat_recovery(gtp_server_worker_t *w)
 	gtp_ie_recovery_t *rec;
 	uint8_t *cp;
 
-	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, w->pbuff);
 	if (cp) {
 		rec = (gtp_ie_recovery_t *) cp;
 		rec->recovery = daemon_data->restart_counter;
@@ -181,7 +154,7 @@ gtpc_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 
 	gtpc_session_xlat_recovery(w);
 
-	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->pbuff);
 	if (cp) {
 		f_teid.version = 2;
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, teid_grekey));
@@ -193,11 +166,11 @@ gtpc_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 	}
 
 	/* Bearer Context handling */
-	cp = gtp_get_ie(GTP_IE_BEARER_CONTEXT_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_BEARER_CONTEXT_TYPE, w->pbuff);
 	if (!cp)
 		return teid;
 
-	size = w->buffer_size - (cp - w->buffer);
+	size = pkt_buffer_size(w->pbuff) - (cp - w->pbuff->head);
 	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID, cp, size, sizeof(gtp_ie_t));
 	bearer_id = (cp_bid) ? (gtp_ie_eps_bearer_id_t *) cp_bid : NULL;
 	ie = (gtp_ie_t *) cp;
@@ -214,11 +187,11 @@ gtpc_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 static gtp_teid_t *
 gtpc_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_ie_recovery_t *rec;
 	uint8_t *cp;
 
-	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, w->pbuff);
 	if (cp) {
 		rec = (gtp_ie_recovery_t *) cp;
 		rec->recovery = daemon_data->restart_counter;
@@ -259,7 +232,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		retransmit = true;
 
 	/* At least F-TEID present for create session */
-	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->pbuff);
 	if (!cp) {
 		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
 				    , __FUNCTION__);
@@ -267,7 +240,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	}
 
 	/* APN selection */
-	cp = gtp_get_ie(GTP_IE_APN_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_APN_TYPE, w->pbuff);
 	if (!cp) {
 		log_message(LOG_INFO, "%s(): no Access-Point-Name IE present. ignoring..."
 				    , __FUNCTION__);
@@ -295,7 +268,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* TODO: Maybe optimize this stuff by creating a mapping offset table
 	 * to avoid a global walking from the buffer begining */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (!cp) {
 		log_message(LOG_INFO, "%s(): no IMSI IE present. ignoring..."
 				    , __FUNCTION__);
@@ -364,7 +337,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 static gtp_teid_t *
 gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
@@ -384,7 +357,7 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 		}
 
 		/* IMSI rewrite if needed */
-		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 		if (cp) {
 			gtp_ie_imsi_rewrite(t->session->apn, cp);
 		}
@@ -399,7 +372,7 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(t->session->apn, cp);
 	}
@@ -442,7 +415,7 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 
 	/* Test cause code, destroy if <> success.
 	 * 3GPP.TS.29.274 8.4 */
-	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->pbuff);
 	if (cp) {
 		ie_cause = (gtp_ie_cause_t *) cp;
 		if (!(ie_cause->value >= 16 && ie_cause->value <= 63)) {
@@ -458,7 +431,7 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 static gtp_teid_t *
 gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_session_t *s;
@@ -476,7 +449,7 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	log_message(LOG_INFO, "Delete-Session-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -505,7 +478,7 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 static gtp_teid_t *
 gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
@@ -525,7 +498,7 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 		}
 
 		/* IMSI rewrite if needed */
-		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 		if (cp) {
 			gtp_ie_imsi_rewrite(teid->session->apn, cp);
 		}
@@ -540,7 +513,7 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -553,7 +526,7 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 
 	/* Test cause code, destroy if == success.
 	 * 3GPP.TS.29.274 8.4 */
-	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->pbuff);
 	if (cp) {
 		ie_cause = (gtp_ie_cause_t *) cp;
 		if ((ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
@@ -569,7 +542,7 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 static gtp_teid_t *
 gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
@@ -596,7 +569,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 			    , mobility ? " (3G Mobility)" : "");
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -648,7 +621,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 static gtp_teid_t *
 gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_ie_cause_t *ie_cause = NULL;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
@@ -669,7 +642,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		}
 
 		/* IMSI rewrite if needed */
-		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 		if (cp) {
 			gtp_ie_imsi_rewrite(teid->session->apn, cp);
 		}
@@ -681,7 +654,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -698,7 +671,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* Test cause code, destroy if <> success.
 	 * 3GPP.TS.29.274 8.4 */
-	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->pbuff);
 	if (!cp)
 		return teid;
 
@@ -735,7 +708,7 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 static gtp_teid_t *
 gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
@@ -754,7 +727,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	log_message(LOG_INFO, "Delete-Bearer-Req:={F-TEID:0x%.8x}", ntohl(teid->id));
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -772,7 +745,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	gtp_teid_update_pgw(teid, addr);
 	gtp_teid_update_pgw(teid->peer_teid, addr);
 
-	cp = gtp_get_ie(GTP_IE_EPS_BEARER_ID, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_EPS_BEARER_ID, w->pbuff);
 	if (!cp)
 		return teid;
 
@@ -788,7 +761,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 static gtp_teid_t *
 gtpc_delete_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_ie_cause_t *ie_cause = NULL;
@@ -821,7 +794,7 @@ gtpc_delete_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* Test cause code, destroy if == success.
 	 * 3GPP.TS.29.274 8.4 */
-	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, w->pbuff);
 	if (cp) {
 		ie_cause = (gtp_ie_cause_t *) cp;
 		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
@@ -870,7 +843,7 @@ gtpc_generic_updateaddr(int direction, gtp_teid_t *teid, struct sockaddr_storage
 static gtp_teid_t *
 gtpc_generic_xlat_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
@@ -888,7 +861,7 @@ gtpc_generic_xlat_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *a
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -928,7 +901,7 @@ gtpc_generic_xlat_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *a
 static gtp_teid_t *
 gtpc_generic_xlat_command_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
@@ -945,7 +918,7 @@ gtpc_generic_xlat_command_hdl(gtp_server_worker_t *w, struct sockaddr_storage *a
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -979,7 +952,7 @@ gtpc_generic_xlat_command_hdl(gtp_server_worker_t *w, struct sockaddr_storage *a
 static gtp_teid_t *
 gtpc_generic_xlat_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
@@ -1000,7 +973,7 @@ gtpc_generic_xlat_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 		}
 
 		/* IMSI rewrite if needed */
-		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+		cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 		if (cp) {
 			gtp_ie_imsi_rewrite(teid->session->apn, cp);
 		}
@@ -1012,7 +985,7 @@ gtpc_generic_xlat_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -1037,7 +1010,7 @@ gtpc_generic_xlat_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 static gtp_teid_t *
 gtpc_generic_xlat_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *t;
@@ -1054,7 +1027,7 @@ gtpc_generic_xlat_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int
 	}
 
 	/* IMSI rewrite if needed */
-	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->buffer, w->buffer_size);
+	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
@@ -1117,7 +1090,7 @@ static const struct {
 gtp_teid_t *
 gtpc_switch_handle_v2(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	gtp_teid_t *teid;
 
 	/* Ignore echo-response messages */

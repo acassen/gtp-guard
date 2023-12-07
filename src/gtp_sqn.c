@@ -30,26 +30,7 @@
 #include <errno.h>
 
 /* local includes */
-#include "memory.h"
-#include "bitops.h"
-#include "utils.h"
-#include "vty.h"
-#include "logger.h"
-#include "list_head.h"
-#include "json_writer.h"
-#include "scheduler.h"
-#include "jhash.h"
-#include "gtp.h"
-#include "gtp_request.h"
-#include "gtp_data.h"
-#include "gtp_iptnl.h"
-#include "gtp_htab.h"
-#include "gtp_apn.h"
-#include "gtp_resolv.h"
-#include "gtp_teid.h"
-#include "gtp_server.h"
-#include "gtp_switch.h"
-#include "gtp_conn.h"
+#include "gtp_guard.h"
 
 
 /*
@@ -141,7 +122,7 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 int
 gtp_vsqn_alloc(gtp_server_worker_t *w, gtp_teid_t *teid, bool set_msb)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	uint32_t *sqn = &ctx->seqnum;
@@ -170,8 +151,8 @@ gtp_vsqn_alloc(gtp_server_worker_t *w, gtp_teid_t *teid, bool set_msb)
 int
 gtp_sqn_update(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 
 	if (!teid)
 		return -1;
@@ -188,8 +169,8 @@ gtp_sqn_update(gtp_server_worker_t *w, gtp_teid_t *teid)
 int
 gtp_sqn_masq(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 
 	if (gtph->version == 1) {
 		if (gtp1h->seq)
@@ -209,8 +190,8 @@ gtp_sqn_masq(gtp_server_worker_t *w, gtp_teid_t *teid)
 int
 gtp_sqn_restore(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->buffer;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->buffer;
+	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 
 	if (!teid)
 		return -1;

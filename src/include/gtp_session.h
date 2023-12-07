@@ -34,6 +34,7 @@ typedef struct _gtp_session {
 	uint32_t		id;
 	uint32_t		charging_id;
 	uint32_t		ipv4;
+	uint64_t		mei;
 
 	gtp_apn_t		*apn;
 	list_head_t		gtpc_teid;

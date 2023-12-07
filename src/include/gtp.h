@@ -90,7 +90,16 @@ enum gtp_flags {
 /* GTP-C Cause */
 #define GTP_CAUSE_REQUEST_ACCEPTED			16
 #define GTP_CAUSE_CONTEXT_NOT_FOUND			64
+#define GTP_CAUSE_MISSING_OR_UNKNOWN_APN		78
+#define GTP_CAUSE_ALL_DYNAMIC_ADDRESS_OCCUPIED		84
+#define GTP_CAUSE_USER_AUTH_FAILED			92
+#define GTP_CAUSE_APN_ACCESS_DENIED			93
+#define GTP_CAUSE_REQUEST_REJECTED			94
 #define GTP_CAUSE_INVALID_PEER				109
+#define GTP_CAUSE_APN_CONGESTION			113
+#define GTP_CAUSE_MULTIPLE_PDN_NOT_ALLOWED		116
+#define GTP_CAUSE_TIMED_OUT_REQUEST			122
+#define GTP_CAUSE_5GC_NOT_ALLOWED			129
 #define GTP1_CAUSE_REQUEST_ACCEPTED			128
 #define GTP1_CAUSE_NON_EXISTENT				192
 
@@ -192,6 +201,7 @@ typedef struct _gtp_ie_imsi {
 typedef struct _gtp_ie_cause {
 	gtp_ie_t	h;
 	uint8_t		value;
+	uint8_t		spare;
 } __attribute__((packed)) gtp_ie_cause_t;
 
 #define GTP_IE_RECOVERY_TYPE				3
@@ -205,6 +215,25 @@ typedef struct _gtp_ie_apn {
 	gtp_ie_t	h;
 	uint8_t		apn[64];
 } __attribute__((packed)) gtp_ie_apn_t;
+
+#define GTP_IE_MEI_TYPE					75
+typedef struct _gtp_ie_mei {
+	gtp_ie_t	h;
+	uint8_t		mei[8];
+} __attribute__((packed)) gtp_ie_mei_t;
+
+#define GTP_IE_INDICATION_TYPE				77
+typedef struct _gtp_ie_indication {
+	gtp_ie_t	h;
+	uint32_t	bits;
+} __attribute__((packed)) gtp_ie_indication_t;
+
+#define GTP_IE_PCO_TYPE					78
+typedef struct _gtp_ie_pco {
+	gtp_ie_t	h;
+	uint8_t		ext;
+} __attribute__((packed)) gtp_ie_pco_t;
+
 
 #define GTP_IE_F_TEID_TYPE				87
 typedef struct _gtp_ie_f_teid {
