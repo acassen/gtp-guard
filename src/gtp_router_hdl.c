@@ -404,6 +404,21 @@ gtpc_pkt_put_apn_restriction(pkt_buffer_t *pbuff, gtp_apn_t *apn)
 }
 
 static int
+gtpc_pkt_put_paa(pkt_buffer_t *pbuff, uint32_t addr)
+{
+	gtp_ie_paa_t *paa;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_PAA_TYPE, sizeof(gtp_ie_paa_t)) < 0)
+		return 1;
+
+	paa = (gtp_ie_paa_t *) pbuff->data;
+	paa->type = GTP_PAA_IPV4_TYPE;
+	paa->addr = addr;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_paa_t));
+	return 0;
+}
+
+static int
 gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
 {
 	gtp_apn_t *apn = s->apn;
@@ -424,6 +439,7 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
 	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid);
 	err = (err) ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
+	err = (err) ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?");
 		return -1;

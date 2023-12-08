@@ -305,6 +305,14 @@ typedef struct _gtp_ie_eps_bearer_id {
 	uint8_t		id;
 } __attribute__((packed)) gtp_ie_eps_bearer_id_t;
 
+#define GTP_IE_PAA_TYPE		79
+typedef struct _gtp_ie_paa {
+	gtp_ie_t	h;
+	uint8_t		type;
+	uint32_t	addr;
+} __attribute__((packed)) gtp_ie_paa_t;
+#define GTP_PAA_IPV4_TYPE	1
+
 #define GTP_IE_BEARER_CONTEXT_TYPE			93
 typedef struct _gtp_ie_bearer_context {
 	gtp_ie_t			h;
