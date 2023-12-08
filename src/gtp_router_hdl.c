@@ -124,6 +124,29 @@ gtp_session_append_gtpu(gtp_server_worker_t *w, gtp_session_t *s, int direction,
 	return teid;
 }
 
+static int
+gtpc_teid_set_bearer(gtp_session_t *s)
+{
+	gtp_teid_t *teid_c, *teid_u;
+
+	if (list_empty(&s->gtpc_teid) || list_empty(&s->gtpu_teid))
+		return -1;
+
+	/* Bearer settings. First teid in gtp-c reference first one in gtp_u.
+	 * FIXME: At the time of coding, we only support one GTP-C F-TEID
+	 *        which sound Ok for most use-cases.
+	 *        So just keep it simple that way for now */
+	teid_c = list_first_entry(&s->gtpc_teid, gtp_teid_t, next);
+	teid_u = list_first_entry(&s->gtpu_teid, gtp_teid_t, next);
+	teid_c->bearer_teid = teid_u;
+
+	/* Peer setting */
+	teid_c = (teid_c->peer_teid) ? teid_c->peer_teid : NULL;
+	teid_u = (teid_u->peer_teid) ? teid_u->peer_teid : NULL;
+	teid_c->bearer_teid = teid_u;
+	return 0;
+}
+
 static gtp_teid_t *
 gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 {
@@ -158,12 +181,13 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 	if (!msg_ie)
 		return teid;
 
-	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID,(uint8_t *) msg_ie->data, ntohs(msg_ie->h->length), 0);
+	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID_TYPE, (uint8_t *) msg_ie->data, ntohs(msg_ie->h->length), 0);
 	bearer_id = (cp_bid) ? (gtp_ie_eps_bearer_id_t *) cp_bid : NULL;
 	gtp_foreach_ie(GTP_IE_F_TEID_TYPE, (uint8_t *) msg_ie->data, 0
 					 , (uint8_t *) msg_ie->data + ntohs(msg_ie->h->length)
 					 , w, s, GTP_INGRESS
 					 , bearer_id, gtp_session_append_gtpu);
+
 	return teid;
 }
 
@@ -284,7 +308,7 @@ gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 		return 1;
 
 	pid->h.length = ntohs(pid->length); /* protocol encoding legacy stuff */
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + ntohs(pid->length));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
 	return 0;
 }
 
@@ -302,7 +326,7 @@ gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_p
 		pid->h.length = 4;
 		pid->addr = inet_sockaddrip4(&ns->addr);
 		pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_dns_t));
-		ie_pco->h.length = htons(ntohs(ie_pco->h.length) + pid->h.length);
+		ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
 	}
 
 	return 0;
@@ -323,7 +347,7 @@ gtpc_pkt_put_pco_pid_mtu(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_p
 	pid->h.length = 2;
 	pid->mtu = htons(pco->link_mtu);
 	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_mtu_t));
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + pid->h.length);
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
 	return 0;
 }
 
@@ -342,13 +366,14 @@ gtpc_pkt_put_pco_pid_sbcm(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 	pid->h.length = 1;
 	pid->sbcm = pco->selected_bearer_control_mode;
 	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_sbcm_t));
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + pid->h.length);
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
 	return 0;
 }
 
 static int
 gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
 {
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 	gtp_ie_pco_t *ie_pco;
 	int err = 0;
 
@@ -365,14 +390,21 @@ gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
 	err = (err) ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ie_pco);
 	err = (err) ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ie_pco);
 	err = (err) ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
-	return err;
+	if (err)
+		return 1;
+
+	h->length = htons(ntohs(h->length) + ntohs(ie_pco->h.length) - 1);
+	return 0;
 }
 
 static int
-gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid)
+gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t instance)
 {
 	gtp_ie_f_teid_t *f_teid;
 	uint16_t len = sizeof(gtp_ie_f_teid_t);
+
+	if (!teid)
+		return 1;
 
 	len -= (teid->ipv4) ? 3*sizeof(uint32_t) : 0;
 
@@ -380,10 +412,10 @@ gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid)
 		return 1;
 
 	f_teid = (gtp_ie_f_teid_t *) pbuff->data;
-	f_teid->h.instance = 1;
+	f_teid->h.instance = instance;
 	f_teid->v4 = 1;
 	f_teid->interface_type = GTP_TEID_INTERFACE_TYPE_SGW_GTPC;
-	f_teid->teid_grekey = htonl(teid->id);
+	f_teid->teid_grekey = teid->id;
 	f_teid->ipv4 = teid->ipv4;
 	pkt_buffer_put_data(pbuff, len);
 	return 0;
@@ -419,34 +451,102 @@ gtpc_pkt_put_paa(pkt_buffer_t *pbuff, uint32_t addr)
 }
 
 static int
-gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+gtpc_pkt_put_eps_bearer_id(pkt_buffer_t *pbuff, uint8_t id)
 {
+	gtp_ie_eps_bearer_id_t *bearer_id;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_EPS_BEARER_ID_TYPE, sizeof(gtp_ie_eps_bearer_id_t)) < 0)
+		return 1;
+
+	bearer_id = (gtp_ie_eps_bearer_id_t *) pbuff->data;
+	bearer_id->id = id;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_eps_bearer_id_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_charging_id(pkt_buffer_t *pbuff, uint32_t id)
+{
+	gtp_ie_charging_id_t *charging_id;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_CHARGING_ID_TYPE, sizeof(gtp_ie_charging_id_t)) < 0)
+		return 1;
+
+	charging_id = (gtp_ie_charging_id_t *) pbuff->data;
+	charging_id->id = htonl(id);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_charging_id_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+{
+	gtp_ie_bearer_context_t *bearer_ctx;
 	gtp_apn_t *apn = s->apn;
+	int err = 0, len;
+
+	if (!teid->peer_teid)
+		return 1;
+	teid = teid->peer_teid->bearer_teid;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_BEARER_CONTEXT_TYPE, sizeof(gtp_ie_bearer_context_t)) < 0)
+		return 1;
+
+	bearer_ctx = (gtp_ie_bearer_context_t *) pbuff->data;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_bearer_context_t));
+
+	err = (err) ? : gtpc_pkt_put_eps_bearer_id(pbuff, apn->eps_bearer_id);
+	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid, 2);
+	err = (err) ? : gtpc_pkt_put_charging_id(pbuff, s->charging_id);
+	if (err)
+		return 1;
+
+	/* Update header length if no error */
+	len = sizeof(gtp_ie_eps_bearer_id_t) +
+	      sizeof(gtp_ie_cause_t) +
+	      sizeof(gtp_ie_f_teid_t) +
+	      sizeof(gtp_ie_charging_id_t);
+	if (teid)
+		len -= (teid->ipv4) ? 3*sizeof(uint32_t) : 0;
+	bearer_ctx->h.length = htons(len);
+	return 0;
+}
+
+static int
+gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid, uint8_t cause)
+{
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	gtp_apn_t *apn = s->apn;
 	int err = 0;
 
 	/* Header update */
 	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
+	h->teid_presence = 1;
 	h->length = 0;
-	h->teid = htonl(teid->id);
+	h->teid = teid->id;
 	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
 	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
 
 	/* Put IE */
-	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	err = (err) ? : gtpc_pkt_put_cause(pbuff, cause);
+	if (cause != GTP_CAUSE_REQUEST_ACCEPTED)
+		return 0;
+
 	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
 	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
 	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
-	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid);
+	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1);
 	err = (err) ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
 	err = (err) ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
+	err = (err) ? : gtpc_pkt_put_bearer_context(pbuff, s, teid);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?");
 		return -1;
 	}
 
-	dump_buffer("", (char *) pbuff->head, pkt_buffer_len(pbuff));
-
+	/* 3GPP TS 129.274 Section 5.5.1 */
+	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
 	return 0;
 }
 
@@ -548,13 +648,14 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	teid = gtpc_session_create(w, msg, s);
 	if (!teid) {
-		log_message(LOG_INFO, "%s(): Cant create session. ignoring..."
+		log_message(LOG_INFO, "%s(): No GTP-C F-TEID, cant create session. ignoring..."
 				    , __FUNCTION__);
 		goto end;
 	}
 
 	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}"
 		    , imsi, apn_str, ntohl(teid->id));
+	gtpc_teid_set_bearer(s);
 
 	/* MEI */
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_MEI_TYPE);
@@ -572,13 +673,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
-	gtpc_build_create_session_response(w->pbuff, s, teid);
-
-	msg_ie = gtp_msg_ie_get(msg, GTP_IE_PCO_TYPE);
-
-
-
-
+	gtpc_build_create_session_response(w->pbuff, s, teid, GTP_CAUSE_REQUEST_ACCEPTED);
 
 	rc = 0;
   end:

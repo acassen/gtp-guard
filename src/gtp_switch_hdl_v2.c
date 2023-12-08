@@ -171,7 +171,7 @@ gtpc_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 		return teid;
 
 	size = pkt_buffer_size(w->pbuff) - (cp - w->pbuff->head);
-	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID, cp, size, sizeof(gtp_ie_t));
+	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID_TYPE, cp, size, sizeof(gtp_ie_t));
 	bearer_id = (cp_bid) ? (gtp_ie_eps_bearer_id_t *) cp_bid : NULL;
 	ie = (gtp_ie_t *) cp;
 	end = cp + sizeof(gtp_ie_t) + ntohs(ie->length);
@@ -745,7 +745,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	gtp_teid_update_pgw(teid, addr);
 	gtp_teid_update_pgw(teid->peer_teid, addr);
 
-	cp = gtp_get_ie(GTP_IE_EPS_BEARER_ID, w->pbuff);
+	cp = gtp_get_ie(GTP_IE_EPS_BEARER_ID_TYPE, w->pbuff);
 	if (!cp)
 		return teid;
 

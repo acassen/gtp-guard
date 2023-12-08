@@ -299,7 +299,7 @@ typedef struct _gtp_ie_f_teid {
 #define GTP_TEID_INTERFACE_TYPE_SGW_GTPU	5
 #define GTP_TEID_INTERFACE_TYPE_SGW_GTPC	7
 
-#define GTP_IE_EPS_BEARER_ID				73
+#define GTP_IE_EPS_BEARER_ID_TYPE			73
 typedef struct _gtp_ie_eps_bearer_id {
 	gtp_ie_t	h;
 	uint8_t		id;
@@ -315,9 +315,15 @@ typedef struct _gtp_ie_paa {
 
 #define GTP_IE_BEARER_CONTEXT_TYPE			93
 typedef struct _gtp_ie_bearer_context {
-	gtp_ie_t			h;
+	gtp_ie_t	h;
 	/* Grouped IE here */
 } __attribute__((packed)) gtp_ie_bearer_context_t;
+
+#define GTP_IE_CHARGING_ID_TYPE				94
+typedef struct _gtp_ie_charging_id {
+	gtp_ie_t	h;
+	uint32_t	id;
+} __attribute__((packed)) gtp_ie_charging_id_t;
 
 #define GTP_IE_APN_RESTRICTION_TYPE			127
 typedef struct _gtp_ie_apn_restriction {
