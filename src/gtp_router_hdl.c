@@ -485,9 +485,9 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 	gtp_apn_t *apn = s->apn;
 	int err = 0, len;
 
-	if (!teid->peer_teid)
+	if (!teid)
 		return 1;
-	teid = teid->peer_teid->bearer_teid;
+	teid = teid->bearer_teid;
 
 	if (gtpc_pkt_put_ie(pbuff, GTP_IE_BEARER_CONTEXT_TYPE, sizeof(gtp_ie_bearer_context_t)) < 0)
 		return 1;
@@ -524,14 +524,14 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
 	h->teid_presence = 1;
 	h->length = 0;
-	h->teid = teid->id;
+	h->teid = (teid) ? teid->id : 0;
 	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
 	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
 
 	/* Put IE */
 	err = (err) ? : gtpc_pkt_put_cause(pbuff, cause);
 	if (cause != GTP_CAUSE_REQUEST_ACCEPTED)
-		return 0;
+		goto end;
 
 	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
 	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
@@ -539,12 +539,13 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1);
 	err = (err) ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
 	err = (err) ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
-	err = (err) ? : gtpc_pkt_put_bearer_context(pbuff, s, teid);
+	err = (err) ? : gtpc_pkt_put_bearer_context(pbuff, s, teid->peer_teid);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?");
 		return -1;
 	}
 
+  end:
 	/* 3GPP TS 129.274 Section 5.5.1 */
 	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
 	return 0;
@@ -586,16 +587,33 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	char apn_str[64];
 	uint64_t imsi;
 	int ret, rc = -1;
+	bool retransmit = false;
 
 	msg = gtp_msg_alloc(w->pbuff);
 	if (!msg)
 		return -1;
+
+	/* At least F-TEID present for create session */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
+	if (!msg_ie) {
+		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
+				    , __FUNCTION__);
+		rc = gtpc_build_create_session_response(w->pbuff, s, NULL
+								, GTP_CAUSE_REQUEST_REJECTED);
+		goto end;
+	}
+
+	teid = gtpc_msg_retransmit(ctx, msg->h, (uint8_t *) msg_ie->h);
+	if (teid)
+		retransmit = true;
 
 	/* IMSI */
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_IMSI_TYPE);
 	if (!msg_ie) {
 		log_message(LOG_INFO, "%s(): no IMSI IE present. ignoring..."
 				    , __FUNCTION__);
+		rc = gtpc_build_create_session_response(w->pbuff, s, teid
+								, GTP_CAUSE_REQUEST_REJECTED);
 		goto end;
 	}
 
@@ -609,6 +627,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!msg_ie) {
 		log_message(LOG_INFO, "%s(): no Access-Point-Name IE present. ignoring..."
 				    , __FUNCTION__);
+		rc = gtpc_build_create_session_response(w->pbuff, s, teid
+								, GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -617,6 +637,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (ret < 0) {
 		log_message(LOG_INFO, "%s(): Error parsing Access-Point-Name IE. ignoring..."
 				    , __FUNCTION__);
+		rc = gtpc_build_create_session_response(w->pbuff, s, teid
+								, GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -624,22 +646,15 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!apn) {
 		log_message(LOG_INFO, "%s(): Unknown Access-Point-Name:%s. ignoring..."
 				    , __FUNCTION__, apn_str);
+		rc = gtpc_build_create_session_response(w->pbuff, s, teid
+								, GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
-	/* At least F-TEID present for create session */
-	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
-	if (!msg_ie) {
-		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
-				    , __FUNCTION__);
-		goto end;
-	}
-
-	teid = gtpc_msg_retransmit(ctx, msg->h, (uint8_t *) msg_ie->h);
-	if (teid) {
+	if (retransmit) {
 		log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
 				    , imsi, apn_str, ntohl(teid->id)
-				    , "(retransmit)");
+				    , " (retransmit)");
 		goto end;
 	}
 	
@@ -650,6 +665,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): No GTP-C F-TEID, cant create session. ignoring..."
 				    , __FUNCTION__);
+		rc = gtpc_build_create_session_response(w->pbuff, s, teid
+								, GTP_CAUSE_REQUEST_REJECTED);
 		goto end;
 	}
 
@@ -673,9 +690,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
-	gtpc_build_create_session_response(w->pbuff, s, teid, GTP_CAUSE_REQUEST_ACCEPTED);
-
-	rc = 0;
+	rc = gtpc_build_create_session_response(w->pbuff, s, teid, GTP_CAUSE_REQUEST_ACCEPTED);
   end:
 	gtp_msg_destroy(msg);
 	return rc;
