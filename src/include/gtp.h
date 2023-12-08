@@ -234,6 +234,47 @@ typedef struct _gtp_ie_pco {
 	uint8_t		ext;
 } __attribute__((packed)) gtp_ie_pco_t;
 
+/* PPP Protocol or Container ID */
+#define GTP_PCO_PID_IPCP	0x8021
+#define GTP_PCO_PID_DNS		0x000d
+#define GTP_PCO_PID_SBCM	0x0005
+#define GTP_PCO_PID_MTU		0x0010
+typedef struct _gtp_pco_pid {
+	uint16_t	type;
+	uint8_t		length;
+} __attribute__((packed)) gtp_pco_pid_t;
+
+#define PPP_CONF_NAK		0x03
+typedef struct _gtp_pco_pid_ipcp {
+	gtp_pco_pid_t	h;
+	uint8_t		code;
+	uint8_t		id;
+	uint16_t	length;
+} __attribute__((packed)) gtp_pco_pid_ipcp_t;
+
+#define PPP_IPCP_PRIMARY_NS		0x81
+#define PPP_IPCP_SECONDARY_NS		0x83
+typedef struct _gtp_ppp_ipcp_option_ip4 {
+	uint8_t		type;
+	uint8_t		length;
+	uint32_t	addr;
+} __attribute__((packed)) gtp_ppp_ipcp_option_ip4_t;
+
+typedef struct _gtp_pco_pid_dns {
+	gtp_pco_pid_t	h;
+	uint32_t	addr;
+} __attribute__((packed)) gtp_pco_pid_dns_t;
+
+typedef struct _gtp_pco_pid_mtu {
+	gtp_pco_pid_t	h;
+	uint16_t	mtu;
+} __attribute__((packed)) gtp_pco_pid_mtu_t;
+
+typedef struct _gtp_pco_pid_sbcm {
+	gtp_pco_pid_t	h;
+	uint8_t		sbcm;
+} __attribute__((packed)) gtp_pco_pid_sbcm_t;
+
 
 #define GTP_IE_F_TEID_TYPE				87
 typedef struct _gtp_ie_f_teid {

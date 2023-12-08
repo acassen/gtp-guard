@@ -165,35 +165,233 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 	return teid;
 }
 
+
+/*
+ *	Packet factory
+ */
 static int
-gtpc_build_cause(pkt_buffer_t *pbuff, uint8_t cause)
+gtpc_pkt_put_ie(pkt_buffer_t *pbuff, uint8_t type, uint16_t length)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-	size_t nbytes = sizeof(gtp_hdr_t);
+	gtp_ie_t *ie;
 
-	/* Header update */
-	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
-	h->length = 0;
+	if (pkt_buffer_put_zero(pbuff, length) < 0)
+		return 1;
 
-	 
+	ie = (gtp_ie_t *) pbuff->data;
+	ie->type = type;
+	ie->length = htons(length - sizeof(gtp_ie_t));
+	h->length = htons(ntohs(h->length) + length);
+	return 0;
+}
+
+static int
+gtpc_pkt_put_pid(pkt_buffer_t *pbuff,  uint16_t type, uint8_t length)
+{
+	gtp_pco_pid_t *pid;
+
+	if (pkt_buffer_put_zero(pbuff, length) < 0)
+		return 1;
+
+	pid = (gtp_pco_pid_t *) pbuff->data;
+	pid->type = htons(type);
+	return 0;
+}
+
+static int
+gtpc_pkt_put_cause(pkt_buffer_t *pbuff, uint8_t cause)
+{
+	gtp_ie_cause_t *ie;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_CAUSE_TYPE, sizeof(gtp_ie_cause_t)) < 0)
+		return 1;
+
+	ie = (gtp_ie_cause_t *) pbuff->data;
+	ie->value = cause;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_cause_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_recovery(pkt_buffer_t *pbuff)
+{
+	gtp_ie_recovery_t *ie;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_RECOVERY_TYPE, sizeof(gtp_ie_recovery_t)) < 0)
+		return 1;
+
+	ie = (gtp_ie_recovery_t *) pbuff->data;
+	ie->recovery = daemon_data->restart_counter;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_recovery_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_indication(pkt_buffer_t *pbuff, uint32_t bits)
+{
+	gtp_ie_indication_t *ie;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_INDICATION_TYPE, sizeof(gtp_ie_indication_t)) < 0)
+		return 1;
+
+	ie = (gtp_ie_indication_t *) pbuff->data;
+	ie->bits = htonl(bits);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_indication_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_ppp_ipcp_ip4(pkt_buffer_t *pbuff, gtp_pco_pid_ipcp_t *pid,
+			  struct sockaddr_storage *addr, uint8_t type)
+{
+	gtp_ppp_ipcp_option_ip4_t *ppp_ipcp_ip4;
+
+	if (!addr->ss_family)
+		return 0;
+
+	if (pkt_buffer_put_zero(pbuff, sizeof(gtp_ppp_ipcp_option_ip4_t)) < 0)
+		return 1;
+
+	ppp_ipcp_ip4 = (gtp_ppp_ipcp_option_ip4_t *) pbuff->data;
+	ppp_ipcp_ip4->type = type;
+	ppp_ipcp_ip4->length = 6;
+	ppp_ipcp_ip4->addr = inet_sockaddrip4(addr);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ppp_ipcp_option_ip4_t));
+	pid->length = htons(ntohs(pid->length) + sizeof(gtp_ppp_ipcp_option_ip4_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+{
+	gtp_pco_pid_ipcp_t *pid;
+	int err = 0;
+
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_IPCP, sizeof(gtp_pco_pid_ipcp_t)) < 0)
+		return 1;
+
+	pid = (gtp_pco_pid_ipcp_t *) pbuff->data;
+	pid->code = PPP_CONF_NAK;
+	pid->id = 0;
+	pid->length = htons(sizeof(gtp_pco_pid_ipcp_t)-sizeof(gtp_pco_pid_t));
+	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_ipcp_t));
+
+	err = (err) ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_primary_ns, PPP_IPCP_PRIMARY_NS);
+	err = (err) ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_secondary_ns, PPP_IPCP_SECONDARY_NS);
+	if (err)
+		return 1;
+
+	pid->h.length = ntohs(pid->length); /* protocol encoding legacy stuff */
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + ntohs(pid->length));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+{
+	list_head_t *l = &pco->ns;
+	gtp_ns_t *ns;
+	gtp_pco_pid_dns_t *pid;
+
+	list_for_each_entry(ns, l, next) {
+		if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_DNS, sizeof(gtp_pco_pid_dns_t)) < 0)
+			return 1;
+		pid = (gtp_pco_pid_dns_t *) pbuff->data;
+		pid->h.length = 4;
+		pid->addr = inet_sockaddrip4(&ns->addr);
+		pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_dns_t));
+		ie_pco->h.length = htons(ntohs(ie_pco->h.length) + pid->h.length);
+	}
 
 	return 0;
 }
 
+static int
+gtpc_pkt_put_pco_pid_mtu(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+{
+	gtp_pco_pid_mtu_t *pid;
+
+	if (!pco->link_mtu)
+		return 0;
+
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_MTU, sizeof(gtp_pco_pid_mtu_t)) < 0)
+		return 1;
+
+	pid = (gtp_pco_pid_mtu_t *) pbuff->data;
+	pid->h.length = 2;
+	pid->mtu = htons(pco->link_mtu);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_mtu_t));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + pid->h.length);
+	return 0;
+}
 
 static int
-gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s)
+gtpc_pkt_put_pco_pid_sbcm(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
 {
+	gtp_pco_pid_sbcm_t *pid;
+
+	if (!pco->selected_bearer_control_mode)
+		return 0;
+
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_SBCM, sizeof(gtp_pco_pid_sbcm_t)) < 0)
+		return 1;
+
+	pid = (gtp_pco_pid_sbcm_t *) pbuff->data;
+	pid->h.length = 1;
+	pid->sbcm = pco->selected_bearer_control_mode;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_sbcm_t));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + pid->h.length);
+	return 0;
+}
+
+static int
+gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
+{
+	gtp_ie_pco_t *ie_pco;
+	int err = 0;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_PCO_TYPE, sizeof(gtp_ie_pco_t)) < 0)
+		return 1;
+
+	ie_pco = (gtp_ie_pco_t *) pbuff->data;
+	ie_pco->ext = 1 << 7; /* Extension is TRUE */
+	ie_pco->h.length = htons(1);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_pco_t));
+
+	/* Put Protocol or Container ID */
+	err = (err) ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ie_pco);
+	err = (err) ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ie_pco);
+	err = (err) ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ie_pco);
+	err = (err) ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
+	return (err) ? -1 : 0;
+}
+
+
+static int
+gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+{
+	gtp_apn_t *apn = s->apn;
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-	size_t nbytes = 0;
+	int err = 0;
 
 	/* Header update */
 	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
 	h->length = 0;
+	h->teid = htonl(teid->id);
+	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
+	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
 
+	/* Put IE */
+	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
+	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
+	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error building PKT !?");
+		return -1;
+	}
 
-	dump_buffer("Response ", (char *) pbuff->head, pkt_buffer_len(pbuff));
-
+//	dump_buffer("", (char *) pbuff->head, pkt_buffer_len(pbuff));
 
 	return 0;
 }
@@ -320,7 +518,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
-	gtpc_build_create_session_response(w->pbuff, s);
+	gtpc_build_create_session_response(w->pbuff, s, teid);
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_PCO_TYPE);
 

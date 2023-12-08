@@ -98,7 +98,7 @@ gtp_msg_ie_get(gtp_msg_t *msg, uint8_t type)
 }
 
 gtp_msg_t *
-gtp_msg_alloc(const pkt_buffer_t *buffer)
+gtp_msg_alloc(const pkt_buffer_t *pbuff)
 {
 	const uint8_t *cp;
 	size_t offset;
@@ -108,16 +108,16 @@ gtp_msg_alloc(const pkt_buffer_t *buffer)
 	PMALLOC(msg);
 	if (!msg)
 		return NULL;
-	msg->h = (gtp_hdr_t *) buffer->head;
+	msg->h = (gtp_hdr_t *) pbuff->head;
 	msg->ie = RB_ROOT_CACHED;
 	offset = gtp_msg_hlen(msg->h);
 
-	for (cp = buffer->head + offset; cp < buffer->end; cp += offset) {
+	for (cp = pbuff->head + offset; cp < pbuff->end; cp += offset) {
 		ie = (gtp_ie_t *) cp;
 		offset = sizeof(gtp_ie_t) + ntohs(ie->length);
 
 		/* if not the case length is bogus ?! */
-		if (cp + offset > buffer->end)
+		if (cp + offset > pbuff->end)
 			continue;
 
 		gtp_msg_ie_alloc(cp, &msg->ie);
