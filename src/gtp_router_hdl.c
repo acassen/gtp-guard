@@ -390,6 +390,20 @@ gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid)
 }
 
 static int
+gtpc_pkt_put_apn_restriction(pkt_buffer_t *pbuff, gtp_apn_t *apn)
+{
+	gtp_ie_apn_restriction_t *restriction;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_APN_RESTRICTION_TYPE, sizeof(gtp_ie_apn_restriction_t)) < 0)
+		return 1;
+
+	restriction = (gtp_ie_apn_restriction_t *) pbuff->data;
+	restriction->value = apn->restriction;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_apn_restriction_t));
+	return 0;
+}
+
+static int
 gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
 {
 	gtp_apn_t *apn = s->apn;
@@ -409,6 +423,7 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
 	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
 	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid);
+	err = (err) ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?");
 		return -1;

@@ -311,6 +311,14 @@ typedef struct _gtp_ie_bearer_context {
 	/* Grouped IE here */
 } __attribute__((packed)) gtp_ie_bearer_context_t;
 
+#define GTP_IE_APN_RESTRICTION_TYPE			127
+typedef struct _gtp_ie_apn_restriction {
+	gtp_ie_t	h;
+	uint8_t		value;
+} __attribute__((packed)) gtp_ie_apn_restriction_t;
+
+
+
 
 /*
  *	GTP Protocol headers
