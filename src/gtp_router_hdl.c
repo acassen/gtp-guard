@@ -118,7 +118,8 @@ gtp_session_append_gtpu(gtp_server_worker_t *w, gtp_session_t *s, int direction,
 	teid = gtp_teid_create(GTP_TEID_U, direction, s
 					 , &ctx->gtpu_teid_tab
 					 , 0, &f_teid, bearer_id);
-	pteid = gtp_teid_alloc_peer(&ctx->gtpu_teid_tab, teid, &w->seed);
+	pteid = gtp_teid_alloc_peer(&ctx->gtpu_teid_tab, teid,
+				    inet_sockaddrip4(&w->srv->addr), &w->seed);
 	gtp_teid_set(pteid, GTP_TEID_U, !direction, s, 0);
 	return teid;
 }
@@ -147,8 +148,9 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 		teid = gtp_teid_create(GTP_TEID_C, GTP_INGRESS, s
 						 , &ctx->gtpc_teid_tab
 						 , sqn, &f_teid, NULL);
-		pteid = gtp_teid_alloc_peer(&ctx->gtpc_teid_tab, teid, &w->seed);
-		gtp_teid_set(pteid, GTP_TEID_U, GTP_EGRESS, s, 0);
+		pteid = gtp_teid_alloc_peer(&ctx->gtpc_teid_tab, teid,
+					    inet_sockaddrip4(&w->srv->addr), &w->seed);
+		gtp_teid_set(pteid, GTP_TEID_C, GTP_EGRESS, s, 0);
 	}
 
 	/* GTP-U create */
@@ -363,9 +365,29 @@ gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
 	err = (err) ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ie_pco);
 	err = (err) ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ie_pco);
 	err = (err) ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
-	return (err) ? -1 : 0;
+	return err;
 }
 
+static int
+gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid)
+{
+	gtp_ie_f_teid_t *f_teid;
+	uint16_t len = sizeof(gtp_ie_f_teid_t);
+
+	len -= (teid->ipv4) ? 3*sizeof(uint32_t) : 0;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_F_TEID_TYPE, len) < 0)
+		return 1;
+
+	f_teid = (gtp_ie_f_teid_t *) pbuff->data;
+	f_teid->h.instance = 1;
+	f_teid->v4 = 1;
+	f_teid->interface_type = GTP_TEID_INTERFACE_TYPE_SGW_GTPC;
+	f_teid->teid_grekey = htonl(teid->id);
+	f_teid->ipv4 = teid->ipv4;
+	pkt_buffer_put_data(pbuff, len);
+	return 0;
+}
 
 static int
 gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
@@ -386,12 +408,13 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
 	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
 	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
+	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?");
 		return -1;
 	}
 
-//	dump_buffer("", (char *) pbuff->head, pkt_buffer_len(pbuff));
+	dump_buffer("", (char *) pbuff->head, pkt_buffer_len(pbuff));
 
 	return 0;
 }

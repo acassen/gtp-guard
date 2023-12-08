@@ -202,10 +202,13 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 }
 
 gtp_teid_t *
-gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
+gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4, unsigned int *seed)
 {
 	uint32_t id;
 	gtp_teid_t *new, *t;
+
+	if (!teid)
+		return NULL;
 
 	if (teid->peer_teid) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already peered !!!"
@@ -225,18 +228,19 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 	/* Add some kind of enthropy to workaround rand() crappiness */
 	id ^= teid->id;
 
-	dlock_lock_id(h->dlock, id, 0);
-	t = __gtp_teid_get(h, id, 0);
+	dlock_lock_id(h->dlock, id, ipv4);
+	t = __gtp_teid_get(h, id, ipv4);
 	if (t) {
-		dlock_unlock_id(h->dlock, id, 0);
+		dlock_unlock_id(h->dlock, id, ipv4);
 		/* same player */
 		__sync_sub_and_fetch(&t->refcnt, 1);
 		goto shoot_again;
 	}
 
 	new->id = id;
+	new->ipv4 = ipv4;
 	__gtp_teid_hash(h, new);
-	dlock_unlock_id(h->dlock, id, 0);
+	dlock_unlock_id(h->dlock, id, ipv4);
 
 	/* bind new TEID */
 	teid->peer_teid = new;

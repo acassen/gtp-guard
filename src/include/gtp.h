@@ -296,8 +296,8 @@ typedef struct _gtp_ie_f_teid {
 		uint32_t		ipv6[4];
 	};
 } __attribute__((packed)) gtp_ie_f_teid_t;
-#define GTP_TEID_INTERFACE_TYPE_SGW_GTPU	4
-#define GTP_TEID_INTERFACE_TYPE_SGW_GTPC	6
+#define GTP_TEID_INTERFACE_TYPE_SGW_GTPU	5
+#define GTP_TEID_INTERFACE_TYPE_SGW_GTPC	7
 
 #define GTP_IE_EPS_BEARER_ID				73
 typedef struct _gtp_ie_eps_bearer_id {
