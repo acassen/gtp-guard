@@ -514,25 +514,31 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 }
 
 static int
-gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid, uint8_t cause)
+gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+
+	h->type = type;
+	h->teid_presence = 1;
+	h->length = 0;
+	h->teid = (teid) ? teid->id : 0;
+	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
+	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
+	return 0;
+}
+
+static int
+gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 	gtp_apn_t *apn = s->apn;
 	int err = 0;
 
 	/* Header update */
-	h->type = GTP_CREATE_SESSION_RESPONSE_TYPE;
-	h->teid_presence = 1;
-	h->length = 0;
-	h->teid = (teid) ? teid->id : 0;
-	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
-	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
+	gtpc_build_header(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE);
 
 	/* Put IE */
-	err = (err) ? : gtpc_pkt_put_cause(pbuff, cause);
-	if (cause != GTP_CAUSE_REQUEST_ACCEPTED)
-		goto end;
-
+	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
 	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
 	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
 	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
@@ -541,11 +547,31 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = (err) ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
 	err = (err) ? : gtpc_pkt_put_bearer_context(pbuff, s, teid->peer_teid);
 	if (err) {
-		log_message(LOG_INFO, "%s(): Error building PKT !?");
+		log_message(LOG_INFO, "%s(): Error building PKT !?"
+				    , __FUNCTION__);
 		return -1;
 	}
 
-  end:
+	/* 3GPP TS 129.274 Section 5.5.1 */
+	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	return 0;
+}
+
+static int
+gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t cause)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	int err = 0;
+
+	/* Header update */
+	gtpc_build_header(pbuff, teid, type);
+
+	/* Put IE */
+	err = (err) ? : gtpc_pkt_put_cause(pbuff, cause);
+	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
+	if (err)
+		return -1;
+
 	/* 3GPP TS 129.274 Section 5.5.1 */
 	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
 	return 0;
@@ -598,8 +624,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!msg_ie) {
 		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
 				    , __FUNCTION__);
-		rc = gtpc_build_create_session_response(w->pbuff, s, NULL
-								, GTP_CAUSE_REQUEST_REJECTED);
+		rc = gtpc_build_errmsg(w->pbuff, NULL, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_REQUEST_REJECTED);
 		goto end;
 	}
 
@@ -612,8 +638,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!msg_ie) {
 		log_message(LOG_INFO, "%s(): no IMSI IE present. ignoring..."
 				    , __FUNCTION__);
-		rc = gtpc_build_create_session_response(w->pbuff, s, teid
-								, GTP_CAUSE_REQUEST_REJECTED);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_REQUEST_REJECTED);
 		goto end;
 	}
 
@@ -627,8 +653,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!msg_ie) {
 		log_message(LOG_INFO, "%s(): no Access-Point-Name IE present. ignoring..."
 				    , __FUNCTION__);
-		rc = gtpc_build_create_session_response(w->pbuff, s, teid
-								, GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -637,8 +663,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (ret < 0) {
 		log_message(LOG_INFO, "%s(): Error parsing Access-Point-Name IE. ignoring..."
 				    , __FUNCTION__);
-		rc = gtpc_build_create_session_response(w->pbuff, s, teid
-								, GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -646,8 +672,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!apn) {
 		log_message(LOG_INFO, "%s(): Unknown Access-Point-Name:%s. ignoring..."
 				    , __FUNCTION__, apn_str);
-		rc = gtpc_build_create_session_response(w->pbuff, s, teid
-								, GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -665,8 +691,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): No GTP-C F-TEID, cant create session. ignoring..."
 				    , __FUNCTION__);
-		rc = gtpc_build_create_session_response(w->pbuff, s, teid
-								, GTP_CAUSE_REQUEST_REJECTED);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_REQUEST_REJECTED);
 		goto end;
 	}
 
@@ -690,7 +716,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
-	rc = gtpc_build_create_session_response(w->pbuff, s, teid, GTP_CAUSE_REQUEST_ACCEPTED);
+	rc = gtpc_build_create_session_response(w->pbuff, s, teid);
   end:
 	gtp_msg_destroy(msg);
 	return rc;
@@ -699,6 +725,9 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 static int
 gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
+
+
+
 
 	return 0;
 }
