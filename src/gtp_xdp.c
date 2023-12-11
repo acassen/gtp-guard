@@ -306,7 +306,7 @@ gtp_xdp_fwd_unload(gtp_bpf_opts_t *opts)
 
 
 /*
- *	TEID handling
+ *	TEID Switching handling
  */
 static 
 struct gtp_teid_rule *
@@ -492,6 +492,21 @@ gtp_xdp_fwd_vty(vty_t *vty)
 	gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
+	return 0;
+}
+
+/*
+ *	TEID Routing handling
+ */
+int
+gtp_xdp_rt_teid_action(int action, gtp_teid_t *t, int direction)
+{
+	return 0;
+}
+
+int
+gtp_xdp_rt_teid_vty(vty_t *vty, __be32 id)
+{
 	return 0;
 }
 

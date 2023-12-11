@@ -110,8 +110,14 @@ gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 }
 
 int
-gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid)
+gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid, int direction)
 {
+	/* Fast-Path setup */
+	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
+		gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
+	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
+		gtp_xdp_rt_teid_action(RULE_ADD, teid, direction);
+
 	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
 }
 
@@ -197,7 +203,10 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 		return -1;
 
 	/* Fast-Path cleanup */
-	gtp_xdp_fwd_teid_action(RULE_DEL, teid, 0);
+	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
+		gtp_xdp_fwd_teid_action(RULE_DEL, teid, 0);
+	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
+		gtp_xdp_rt_teid_action(RULE_DEL, teid, 0);
 
 	gtp_teid_free(teid);
 	return 0;
@@ -467,13 +476,21 @@ __gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
 	gtp_teid_t *t;
 
 	/* Walk the line */
-	list_for_each_entry(t, l, next)
-		vty_out(vty, "  [CP] vteid:0x%.8x teid:0x%.8x vsqn:0x%.8x sqn:0x%.8x"
-			     " ipaddr:%u.%u.%u.%u sGW:%u.%u.%u.%u pGW:%u.%u.%u.%u%s"
-			   , t->vid, ntohl(t->id), t->vsqn, t->sqn, NIPQUAD(t->ipv4)
-			   , NIPQUAD(t->sgw_addr.sin_addr.s_addr)
-			   , NIPQUAD(t->pgw_addr.sin_addr.s_addr)
-			   , VTY_NEWLINE);
+	list_for_each_entry(t, l, next) {
+		if (__test_bit(GTP_TEID_FL_FWD, &t->flags))
+			vty_out(vty, "  [CP] vteid:0x%.8x teid:0x%.8x vsqn:0x%.8x sqn:0x%.8x"
+				     " ipaddr:%u.%u.%u.%u sGW:%u.%u.%u.%u pGW:%u.%u.%u.%u%s"
+				   , t->vid, ntohl(t->id), t->vsqn, t->sqn, NIPQUAD(t->ipv4)
+				   , NIPQUAD(t->sgw_addr.sin_addr.s_addr)
+				   , NIPQUAD(t->pgw_addr.sin_addr.s_addr)
+				   , VTY_NEWLINE);
+		else if (__test_bit(GTP_TEID_FL_RT, &t->flags))
+			vty_out(vty, "  [CP] teid:0x%.8x sqn:0x%.8x"
+				     " ipaddr:%u.%u.%u.%u sGW:%u.%u.%u.%u%s"
+				   , ntohl(t->id), t->sqn, NIPQUAD(t->ipv4)
+				   , NIPQUAD(t->sgw_addr.sin_addr.s_addr)
+				   , VTY_NEWLINE);
+	}
 	return 0;
 }
 
@@ -484,12 +501,20 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 
 	/* Walk the line */
 	list_for_each_entry(t, l, next) {
-		vty_out(vty, "  [UP] vteid:0x%.8x teid:0x%.8x sqn:0x%.8x"
-			     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
-			   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
-			   , VTY_NEWLINE);
-		if (t->vid)
-			gtp_xdp_fwd_teid_vty(vty, ntohl(t->vid));
+		if (__test_bit(GTP_TEID_FL_FWD, &t->flags)) {
+			vty_out(vty, "  [UP] vteid:0x%.8x teid:0x%.8x sqn:0x%.8x"
+				     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
+				   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
+				   , VTY_NEWLINE);
+			if (t->vid)
+				gtp_xdp_fwd_teid_vty(vty, ntohl(t->vid));
+		} else if (__test_bit(GTP_TEID_FL_RT, &t->flags)) {
+			vty_out(vty, "  [UP] teid:0x%.8x"
+				     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
+				   , ntohl(t->id), t->bearer_id, NIPQUAD(t->ipv4)
+				   , VTY_NEWLINE);
+			gtp_xdp_rt_teid_vty(vty, ntohl(t->id));
+		}
 	}
 	return 0;
 }

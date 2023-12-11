@@ -71,16 +71,13 @@ gtp_teid_set(gtp_teid_t *teid, uint8_t type, int direction, gtp_session_t *s, ui
 	teid->type = type;
 	teid->session = s;
 	teid->sqn = sqn;
+	__set_bit(GTP_TEID_FL_RT, &teid->flags);
 
 	/* Add to list */
-	if (type == GTP_TEID_C) {
+	if (type == GTP_TEID_C)
 		gtp_session_gtpc_teid_add(s, teid);
-	} else if (type == GTP_TEID_U) {
-		gtp_session_gtpu_teid_add(s, teid);
-
-		/* Fast-Path setup */
-//		gtp_xdp_rt_teid_action(RULE_ADD, teid, direction);
-	}
+	else if (type == GTP_TEID_U)
+		gtp_session_gtpu_teid_add(s, teid, direction);
 
 	return teid;
 }
@@ -119,7 +116,7 @@ gtp_session_append_gtpu(gtp_server_worker_t *w, gtp_session_t *s, int direction,
 					 , &ctx->gtpu_teid_tab
 					 , 0, &f_teid, bearer_id);
 	pteid = gtp_teid_alloc_peer(&ctx->gtpu_teid_tab, teid,
-				    inet_sockaddrip4(&w->srv->addr), &w->seed);
+				    inet_sockaddrip4(&w->srv->addr), bearer_id, &w->seed);
 	gtp_teid_set(pteid, GTP_TEID_U, !direction, s, 0);
 	return teid;
 }
@@ -148,6 +145,14 @@ gtpc_teid_set_bearer(gtp_session_t *s)
 }
 
 static gtp_teid_t *
+gtpc_teid_get(gtp_router_t *ctx, uint32_t id, uint32_t ipv4)
+{
+	gtp_f_teid_t f_teid = { .version = 2, .teid_grekey = &id, .ipv4 = &ipv4 };
+
+	return gtp_teid_get(&ctx->gtpc_teid_tab, &f_teid);
+}
+
+static gtp_teid_t *
 gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 {
 	gtp_hdr_t *h = msg->h;
@@ -172,7 +177,7 @@ gtpc_session_create(gtp_server_worker_t *w, gtp_msg_t *msg, gtp_session_t *s)
 						 , &ctx->gtpc_teid_tab
 						 , sqn, &f_teid, NULL);
 		pteid = gtp_teid_alloc_peer(&ctx->gtpc_teid_tab, teid,
-					    inet_sockaddrip4(&w->srv->addr), &w->seed);
+					    inet_sockaddrip4(&w->srv->addr), NULL, &w->seed);
 		gtp_teid_set(pteid, GTP_TEID_C, GTP_EGRESS, s, 0);
 	}
 
@@ -725,11 +730,66 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 static int
 gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
+	gtp_server_t *srv = w->srv;
+	gtp_router_t *ctx = srv->ctx;
+	gtp_teid_t *teid, *pteid;
+	gtp_msg_t *msg;
+	gtp_msg_ie_t *msg_ie;
+	uint32_t id, ipv4;
+	uint8_t *ie_buffer;
+	int rc = -1;
 
+	msg = gtp_msg_alloc(w->pbuff);
+	if (!msg)
+		return -1;
 
+	id = h->teid;
+	ipv4 = inet_sockaddrip4(&srv->addr);
+	teid = gtpc_teid_get(ctx, id, ipv4);
+	if (!teid) {
+		rc = gtpc_build_errmsg(w->pbuff, NULL, GTP_DELETE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_CONTEXT_NOT_FOUND);
+		goto end;
+	}
 
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
+	if (!msg_ie) {
+		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
+				    , __FUNCTION__);
+		rc = gtpc_build_errmsg(w->pbuff, NULL, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_INVALID_PEER);
+		goto end;
+	}
 
-	return 0;
+	ie_buffer = (uint8_t *) msg_ie->h;
+	id = *(uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
+	ipv4 = *(uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+	pteid = gtpc_teid_get(ctx, id, ipv4);
+	if (!pteid) {
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_DELETE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_INVALID_PEER);
+		goto end;
+	}
+
+	if (teid->peer_teid && pteid != teid->peer_teid) {
+		/* Information */
+		log_message(LOG_INFO, "%s(): F-TEID 0x%.8x not binded F-TEID 0x%.8x"
+				    , __FUNCTION__
+				    , ntohl(pteid->id)
+				    , ntohl(teid->peer_teid->id));
+	}
+
+	rc = gtpc_build_errmsg(w->pbuff, pteid
+				       , GTP_DELETE_SESSION_RESPONSE_TYPE
+				       , GTP_CAUSE_REQUEST_ACCEPTED);
+
+	gtp_teid_put(teid);
+	gtp_teid_put(pteid);
+	gtp_session_destroy(teid->session);
+  end:
+	gtp_msg_destroy(msg);
+	return rc;
 }
 
 static int

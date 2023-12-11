@@ -64,7 +64,7 @@ typedef struct _gtp_session {
 extern void gtp_session_dump(gtp_session_t *s);
 extern gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
 extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
-extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *);
+extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *, int);
 extern gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *,
 					int (*gtpc_destroy) (gtp_teid_t *),
 					int (*gtpu_destroy) (gtp_teid_t *));

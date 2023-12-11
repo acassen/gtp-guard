@@ -202,7 +202,8 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 }
 
 gtp_teid_t *
-gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4, unsigned int *seed)
+gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
+		    gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
 {
 	uint32_t id;
 	gtp_teid_t *new, *t;
@@ -239,11 +240,13 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4, unsigned int
 
 	new->id = id;
 	new->ipv4 = ipv4;
+	if (bid)
+		new->bearer_id = bid->id;
 	__gtp_teid_hash(h, new);
 	dlock_unlock_id(h->dlock, id, ipv4);
 
 	/* bind new TEID */
-	teid->peer_teid = new;
+	gtp_teid_bind(teid, new);
 
 	return new;
 }

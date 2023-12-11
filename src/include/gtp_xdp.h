@@ -80,6 +80,8 @@ extern void gtp_xdp_fwd_unload(gtp_bpf_opts_t *);
 extern int gtp_xdp_fwd_teid_action(int, gtp_teid_t *, int);
 extern int gtp_xdp_fwd_teid_vty(vty_t *, __be32);
 extern int gtp_xdp_fwd_vty(vty_t *);
+extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *, int);
+extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
 extern int gtp_xdp_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_iptnl_vty(vty_t *);
 extern int gtp_xdp_iptnl_teid_vty(vty_t *);

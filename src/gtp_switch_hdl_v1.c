@@ -71,14 +71,10 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t
 	gtp_vteid_alloc(vh, teid, &w->seed);
 
 	/* Add to list */
-	if (type == GTP_TEID_C) {
+	if (type == GTP_TEID_C)
 		gtp_session_gtpc_teid_add(s, teid);
-	} else if (type == GTP_TEID_U) {
-		gtp_session_gtpu_teid_add(s, teid);
-
-		/* Fast-Path setup */
-		gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
-	}
+	else if (type == GTP_TEID_U)
+		gtp_session_gtpu_teid_add(s, teid, direction);
 
   masq:
 	/* Keep sqn track */
