@@ -435,25 +435,6 @@ gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buf
 	return 0;
 }
 
-size_t
-gtp_ie_add_tail(pkt_buffer_t *buffer, uint8_t ie_type, uint16_t ie_length)
-{
-	size_t size = ie_length + sizeof(gtp_ie_t);
-	gtp_ie_t *ie;
-
-	if (pkt_buffer_put_zero(buffer, size) < 0)
-		return 0;
-
-	ie = (gtp_ie_t *) buffer->data;
-	ie->type = ie_type;
-	ie->length = htons(ie_length);
-
-	pkt_buffer_put_data(buffer, sizeof(gtp_ie_t));
-
-	return size;
-}
-
-
 
 /*
  *      GTP-U related

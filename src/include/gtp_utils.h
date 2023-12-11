@@ -51,7 +51,6 @@ extern uint8_t *gtp_get_ie(uint8_t, pkt_buffer_t *);
 extern int gtp_foreach_ie(uint8_t, uint8_t *, size_t, uint8_t *,
 			  gtp_server_worker_t *, gtp_session_t *, int, void *,
 			  gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *));
-extern size_t gtp_ie_add_tail(pkt_buffer_t *, uint8_t, uint16_t);
 extern ssize_t gtpu_get_header_len(pkt_buffer_t *);
 
 #endif
