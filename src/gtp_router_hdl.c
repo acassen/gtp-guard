@@ -197,9 +197,7 @@ gtpc_teid_create(gtp_server_worker_t *w, gtp_session_t *s, gtp_msg_t *msg, bool 
 					 , (uint8_t *) msg_ie->data + ntohs(msg_ie->h->length)
 					 , w, s, GTP_INGRESS
 					 , bearer_id
-					 , (create_peer) ? gtpu_teid_create :
-							   gtpu_teid_add);
-
+					 , (create_peer) ? gtpu_teid_create : gtpu_teid_add);
 	return teid;
 }
 
@@ -233,6 +231,40 @@ gtpc_pkt_put_pid(pkt_buffer_t *pbuff,  uint16_t type, uint8_t length)
 
 	pid = (gtp_pco_pid_t *) pbuff->data;
 	pid->type = htons(type);
+	return 0;
+}
+
+static int
+gtpc_pkt_put_imsi(pkt_buffer_t *pbuff, uint64_t imsi)
+{
+	gtp_ie_imsi_t *ie;
+
+	if (!imsi)
+		return 0;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_IMSI_TYPE, sizeof(gtp_ie_imsi_t)) < 0)
+		return 1;
+
+	ie = (gtp_ie_imsi_t *) pbuff->data;
+	int64_to_bcd_swap(imsi, ie->imsi, 8);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_imsi_t));
+	return 0;
+}
+
+static int
+gtpc_pkt_put_mei(pkt_buffer_t *pbuff, uint64_t mei)
+{
+	gtp_ie_mei_t *ie;
+
+	if (!mei)
+		return 0;
+
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_MEI_TYPE, sizeof(gtp_ie_mei_t)) < 0)
+		return 1;
+
+	ie = (gtp_ie_mei_t *) pbuff->data;
+	int64_to_bcd_swap(mei, ie->mei, 8);
+	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_mei_t));
 	return 0;
 }
 
@@ -570,6 +602,30 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 }
 
 static int
+gtpc_build_change_notification_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	int err = 0;
+
+	/* Header update */
+	gtpc_build_header(pbuff, teid, GTP_CHANGE_NOTIFICATION_RESPONSE);
+
+	/* Put IE */
+	err = (err) ? : gtpc_pkt_put_imsi(pbuff, s->conn->imsi);
+	err = (err) ? : gtpc_pkt_put_mei(pbuff, s->mei);
+	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error building PKT !?"
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	/* 3GPP TS 129.274 Section 5.5.1 */
+	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	return 0;
+}
+
+static int
 gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t cause)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
@@ -814,6 +870,9 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 
 	teid = gtpc_teid_get(ctx, h->teid, inet_sockaddrip4(&srv->addr));
 	if (!teid) {
+		log_message(LOG_INFO, "%s(): Unknown TEID 0x%.8x..."
+				    , __FUNCTION__
+				    , ntohl(h->teid));
 		rc = gtpc_build_errmsg(w->pbuff, NULL, GTP_MODIFY_BEARER_RESPONSE_TYPE
 						     , GTP_CAUSE_CONTEXT_NOT_FOUND);
 		goto end;
@@ -854,6 +913,35 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	return rc;
 }
 
+static int
+gtpc_change_notification_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
+	gtp_server_t *srv = w->srv;
+	gtp_router_t *ctx = srv->ctx;
+	gtp_teid_t *teid;
+	gtp_msg_t *msg;
+	int rc = -1;
+
+	msg = gtp_msg_alloc(w->pbuff);
+	if (!msg)
+		return -1;
+
+	teid = gtpc_teid_get(ctx, h->teid, inet_sockaddrip4(&srv->addr));
+	if (!teid) {
+		log_message(LOG_INFO, "%s(): Unknown TEID 0x%.8x..."
+				    , __FUNCTION__
+				    , ntohl(h->teid));
+		rc = gtpc_build_errmsg(w->pbuff, NULL, GTP_CHANGE_NOTIFICATION_RESPONSE
+						     , GTP_CAUSE_IMSI_IMEI_NOT_KNOWN);
+		goto end;
+	}
+
+	rc = gtpc_build_change_notification_response(w->pbuff, teid->session, teid->peer_teid);
+  end:
+	gtp_msg_destroy(msg);
+	return rc;
+}
 
 /*
  *	GTP-C Message handle
@@ -865,7 +953,7 @@ static const struct {
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { gtpc_create_session_request_hdl },
 	[GTP_DELETE_SESSION_REQUEST_TYPE]	= { gtpc_delete_session_request_hdl },
 	[GTP_MODIFY_BEARER_REQUEST_TYPE]	= { gtpc_modify_bearer_request_hdl },
-	[GTP_CHANGE_NOTIFICATION_REQUEST]	= { NULL },
+	[GTP_CHANGE_NOTIFICATION_REQUEST]	= { gtpc_change_notification_request_hdl },
 	[GTP_REMOTE_UE_REPORT_NOTIFICATION]	= { NULL },
 	[GTP_RESUME_NOTIFICATION]		= { NULL },
 	[GTP_MODIFY_BEARER_COMMAND]		= { NULL },

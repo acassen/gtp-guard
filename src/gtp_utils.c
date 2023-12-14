@@ -191,6 +191,32 @@ bcd_to_int64(const void *data, int count)
 }
 
 int
+int64_to_bcd_swap(const uint64_t value, uint8_t *str, size_t size)
+{
+	int len = 0, i;
+	uint64_t v;
+	uint8_t tmp;
+
+	/* math would provide it simply with Log:
+	 * [floor(log10(value)) + 1] but iterative approach on integer
+	 * is best... At least with Intel FPU (sound weird...) */
+	for (v = value; v; v/=10) {
+		if (++len > size*2)
+			return -1;
+	}
+
+	if (!!(len % 2))
+		str[len / 2] = 0xf0;
+
+	for (i = len-1, v=value; i >= 0; i--, v/=10) {
+		tmp = (uint8_t) (v % 10);
+		str[i / 2] |= (!!(i % 2)) ? tmp << 4 : tmp;
+	}
+
+	return 0;
+}
+
+int
 gtp_imsi_rewrite(gtp_apn_t *apn, uint8_t *imsi)
 {
 	list_head_t *l = &apn->imsi_match;
