@@ -773,6 +773,11 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (msg_ie)
 		s->mei = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
 
+	/* MSISDN */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_MSISDN_TYPE);
+	if (msg_ie)
+		s->msisdn = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
+
 	gtp_teid_update_sgw(teid, addr);
 
 	/* Update last sGW visited */
@@ -954,14 +959,11 @@ static const struct {
 	[GTP_DELETE_SESSION_REQUEST_TYPE]	= { gtpc_delete_session_request_hdl },
 	[GTP_MODIFY_BEARER_REQUEST_TYPE]	= { gtpc_modify_bearer_request_hdl },
 	[GTP_CHANGE_NOTIFICATION_REQUEST]	= { gtpc_change_notification_request_hdl },
-	[GTP_REMOTE_UE_REPORT_NOTIFICATION]	= { NULL },
-	[GTP_RESUME_NOTIFICATION]		= { NULL },
 	[GTP_MODIFY_BEARER_COMMAND]		= { NULL },
 	[GTP_DELETE_BEARER_COMMAND]		= { NULL },
 	[GTP_BEARER_RESSOURCE_COMMAND]		= { NULL },
-	[GTP_DELETE_PDN_CONNECTION_SET_REQUEST]	= { NULL },
-	[GTP_SUSPEND_NOTIFICATION]		= { NULL },
-	[GTP_UPDATE_PDN_CONNECTION_SET_REQUEST]	= { NULL },
+	[GTP_UPDATE_BEARER_REQUEST]		= { NULL },
+	[GTP_UPDATE_BEARER_RESPONSE]		= { NULL },
 };
 
 int

@@ -167,17 +167,16 @@ str_imsi_to_bcd_swap(char *buffer_in, size_t size, uint8_t *buffer_out)
 }
 
 int64_t
-bcd_to_int64(const void *data, int count)
+bcd_to_int64(const uint8_t *buffer, size_t size)
 {
-	uint8_t *datab = (uint8_t *) data;
 	int64_t value = 0;
         uint8_t high, low;
 	int i;
 
 	/* With bit swapping */
-        for (i = 0; i < count; i++) {
-                low = (datab[i] & 0xf0) >> 4;
-                high = datab[i] & 0x0f;
+        for (i = 0; i < size; i++) {
+                low = (buffer[i] & 0xf0) >> 4;
+                high = buffer[i] & 0x0f;
                 if (high > 9)
                         return value;
                 value = (value * 10) + high;
@@ -191,7 +190,7 @@ bcd_to_int64(const void *data, int count)
 }
 
 int
-int64_to_bcd_swap(const uint64_t value, uint8_t *str, size_t size)
+int64_to_bcd_swap(const uint64_t value, uint8_t *buffer, size_t size)
 {
 	int len = 0, i;
 	uint64_t v;
@@ -206,11 +205,11 @@ int64_to_bcd_swap(const uint64_t value, uint8_t *str, size_t size)
 	}
 
 	if (!!(len % 2))
-		str[len / 2] = 0xf0;
+		buffer[len / 2] = 0xf0;
 
 	for (i = len-1, v=value; i >= 0; i--, v/=10) {
 		tmp = (uint8_t) (v % 10);
-		str[i / 2] |= (!!(i % 2)) ? tmp << 4 : tmp;
+		buffer[i / 2] |= !!(i % 2) ? tmp << 4 : tmp;
 	}
 
 	return 0;
