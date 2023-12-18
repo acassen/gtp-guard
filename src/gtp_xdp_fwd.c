@@ -44,9 +44,6 @@ extern data_t *daemon_data;
 /* Local data */
 static xdp_exported_maps_t xdp_fwd_maps[XDPFWD_MAP_CNT];
 
-/* Local defines */
-#define STRERR_BUFSIZE	128
-
 
 /*
  *	XDP FWD BPF related
@@ -124,7 +121,7 @@ static int
 gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
 {
 	struct gtp_teid_rule *new = NULL;
-	char errmsg[STRERR_BUFSIZE];
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err = 0;
 	uint32_t key;
 	size_t sz;
@@ -157,7 +154,7 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int directio
 	else
 		return -1;
 	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "%s(): Cant %s rule for VTEID:0x%.8x (%s)"
 				    , __FUNCTION__
 				    , (action) ? "del" : "add"
@@ -184,7 +181,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	__be32 key, next_key;
 	struct gtp_teid_rule *r;
-	char errmsg[STRERR_BUFSIZE];
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char addr_ip[16];
         int err = 0, i;
 	uint64_t packets, bytes;
@@ -201,7 +198,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 	if (id) {
 		err = bpf_map__lookup_elem(map, &id, sizeof(uint32_t), r, sz, 0);
 		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 			vty_out(vty, "       %% No data-plane ?! (%s)%s", errmsg, VTY_NEWLINE);
 			goto end;
 		}
@@ -223,7 +220,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 		key = next_key;
 		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
 		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 			vty_out(vty, "%% error fetching value for key:0x%.8x (%s)%s"
 				   , key, errmsg, VTY_NEWLINE);
 			continue;
@@ -276,163 +273,17 @@ gtp_xdp_fwd_vty(vty_t *vty)
 	return 0;
 }
 
-
 /*
- *	Tunneling Handling
+ *	IP Tunneling related
  */
-static 
-struct gtp_iptnl_rule *
-gtp_xdp_iptnl_rule_alloc(size_t *sz)
+int
+gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 {
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	struct gtp_iptnl_rule *new;
-
-	new = calloc(nr_cpus, sizeof(*new));
-	if (!new)
-		return NULL;
-
-	*sz = nr_cpus * sizeof(struct gtp_iptnl_rule);
-	return new;
-}
-
-static void
-gtp_xdp_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	int i;
-
-	for (i = 0; i < nr_cpus; i++) {
-		r[i].selector_addr = t->selector_addr;
-		r[i].local_addr = t->local_addr;
-		r[i].remote_addr = t->remote_addr;
-		r[i].encap_vlan_id = t->encap_vlan_id;
-		r[i].decap_vlan_id = t->decap_vlan_id;
-		r[i].flags = t->flags;
-	}
+	return gtp_xdp_iptnl_action(action, t, xdp_fwd_maps[XDPFWD_MAP_IPTNL].map);
 }
 
 int
-gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
+gtp_xdp_fwd_iptnl_vty(vty_t *vty)
 {
-	struct bpf_map *map = xdp_fwd_maps[XDPFWD_MAP_IPTNL].map;
-	struct gtp_iptnl_rule *new = NULL;
-	int ret = 0, err = 0;
-	char errmsg[STRERR_BUFSIZE];
-	const char *action_str = "adding";
-	uint32_t key;
-	size_t sz;
-
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
-	if (!t)
-		return -1;
-
-	key = t->selector_addr;
-
-	/* Set rule */
-	if (action == RULE_ADD || action == RULE_UPDATE) {
-		/* fill per cpu rule */
-		new = gtp_xdp_iptnl_rule_alloc(&sz);
-		if (!new) {
-			log_message(LOG_INFO, "%s(): Cant allocate iptnl_rule !!!"
-					    , __FUNCTION__);
-			ret = -1;
-			goto end;
-		}
-		gtp_xdp_iptnl_rule_set(new, t);
-
-		if (action == RULE_ADD) {
-			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
-		} else if (action == RULE_UPDATE) {
-			err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), new, sz, 0);
-			if (err) {
-				libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-				log_message(LOG_INFO, "%s(): Unknown iptnl_rule for local_addr:%u.%u.%u.%u (%s)"
-						    , __FUNCTION__
-						    , NIPQUAD(key)
-						    , errmsg);
-				ret = -1;
-				goto end;
-			}
-			action_str = "updating";
-			gtp_xdp_iptnl_rule_set(new, t);
-			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_EXIST);
-		}
-	} else if (action == RULE_DEL) {
-		action_str = "deleting";
-		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
-	} else
-		return -1;
-	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant %s iptnl_rule for local_addr:%u.%u.%u.%u (%s)"
-				    , __FUNCTION__
-				    , (action) ? "del" : "add"
-				    , NIPQUAD(key)
-				    , errmsg);
-		ret = -1;
-		goto end;
-	}
-
-	log_message(LOG_INFO, "%s(): %s XDP iptunnel rule "
-			      "{selector_addr:%u.%u.%u.%u local_addr:%u.%u.%u.%u, remote_addr:%u.%u.%u.%u, flags:%d}"
-			    , __FUNCTION__
-			    , action_str
-			    , NIPQUAD(t->selector_addr), NIPQUAD(t->local_addr), NIPQUAD(t->remote_addr), t->flags);
-  end:
-	if (new)
-		free(new);
-	return ret;
-}
-
-int
-gtp_xdp_iptnl_vty(vty_t *vty)
-{
-	struct bpf_map *map = xdp_fwd_maps[XDPFWD_MAP_IPTNL].map;
-	__be32 key, next_key;
-	struct gtp_iptnl_rule *r;
-	char errmsg[STRERR_BUFSIZE];
-	char sip[16], lip[16], rip[16];
-	int err = 0;
-	size_t sz;
-
-	/* Allocate temp rule */
-	r = gtp_xdp_iptnl_rule_alloc(&sz);
-	if (!r) {
-		vty_out(vty, "%% Cant allocate temp iptnl_rule%s", VTY_NEWLINE);
-		return -1;
-	}
-
-	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
-		     "| Selector Address |  Local Address   |  Remote Address  | Flags |%s"
-		     "+------------------+------------------+------------------+-------+%s"
-		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-
-	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
-		key = next_key;
-		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
-		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-			vty_out(vty, "%% error fetching value for key:0x%.4x (%s)%s"
-				   , key, errmsg, VTY_NEWLINE);
-			continue;
-		}
-
-		vty_out(vty, "| %16s | %16s | %16s | %5d |%s"
-			   , inet_ntoa2(r[0].selector_addr, sip)
-			   , inet_ntoa2(r[0].local_addr, lip)
-			   , inet_ntoa2(r[0].remote_addr, rip)
-			   , r[0].flags
-			   , VTY_NEWLINE);
-	}
-
-	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
-		   , VTY_NEWLINE);
-	free(r);
-        return 0;
+	return gtp_xdp_iptnl_vty(vty, xdp_fwd_maps[XDPFWD_MAP_IPTNL].map);
 }

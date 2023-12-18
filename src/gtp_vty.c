@@ -452,11 +452,11 @@ DEFUN(request_channel,
 /*
  *	Show
  */
-DEFUN(show_gtp_uplane,
-      show_gtp_uplane_cmd,
-      "show gtp uplane",
+DEFUN(show_gtp_fwd,
+      show_gtp_fwd_cmd,
+      "show gtp fwd",
       SHOW_STR
-      "XDP GTP Dataplane ruleset\n")
+      "XDP GTP Fowarding Dataplane ruleset\n")
 {
         int ret;
 
@@ -476,11 +476,11 @@ DEFUN(show_gtp_uplane,
         return CMD_SUCCESS;
 }
 
-DEFUN(show_xdp_iptnl,
-      show_xdp_iptnl_cmd,
-      "show xdp-iptunnel",
+DEFUN(show_xdp_fwd_iptnl,
+      show_xdp_fwd_iptnl_cmd,
+      "show xdp fwd iptunnel",
       SHOW_STR
-      "GTP XDP IPIP Tunnel ruleset\n")
+      "GTP XDP Forwarding IPIP Tunnel ruleset\n")
 {
 	int ret;
 
@@ -490,7 +490,7 @@ DEFUN(show_xdp_iptnl,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_iptnl_vty(vty);
+	ret = gtp_xdp_fwd_iptnl_vty(vty);
 	if (ret < 0) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -502,7 +502,7 @@ DEFUN(show_xdp_iptnl,
 
 DEFUN(show_xdp_mirror,
       show_xdp_mirror_cmd,
-      "show xdp-mirror",
+      "show xdp mirror",
       SHOW_STR
       "GTP XDP Mirroring ruleset\n")
 {
@@ -727,13 +727,13 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &request_channel_cmd);
 
 	/* Install show commands */
-	install_element(VIEW_NODE, &show_gtp_uplane_cmd);
-	install_element(VIEW_NODE, &show_xdp_iptnl_cmd);
+	install_element(VIEW_NODE, &show_gtp_fwd_cmd);
+	install_element(VIEW_NODE, &show_xdp_fwd_iptnl_cmd);
 	install_element(VIEW_NODE, &show_xdp_mirror_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
-	install_element(ENABLE_NODE, &show_gtp_uplane_cmd);
-	install_element(ENABLE_NODE, &show_xdp_iptnl_cmd);
+	install_element(ENABLE_NODE, &show_gtp_fwd_cmd);
+	install_element(ENABLE_NODE, &show_xdp_fwd_iptnl_cmd);
 	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);

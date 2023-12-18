@@ -198,7 +198,7 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags &= ~IPTNL_FL_DEAD;
-		gtp_xdp_iptnl_action(RULE_UPDATE, t);
+		gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
 		gtp_mirror_action(RULE_ADD, t->ifindex);
 	} else if (!(t->flags & IPTNL_FL_DEAD) && (t->expire < timer_long(time_now))) {
 		log_message(LOG_INFO, "%s(): Dead Peer Detected (bypassing)"
@@ -208,7 +208,7 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags |= IPTNL_FL_DEAD;
-		gtp_xdp_iptnl_action(RULE_UPDATE, t);
+		gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
 		gtp_mirror_action(RULE_DEL, t->ifindex);
 	}
 

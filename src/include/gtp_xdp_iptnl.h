@@ -19,49 +19,20 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_FWD_H
-#define _GTP_XDP_FWD_H
+#ifndef _GTP_XDP_IPTNL_H
+#define _GTP_XDP_IPTNL_H
 
-enum {
-	RULE_ADD = 0,
-	RULE_UPDATE,
-	RULE_DEL,
-	RULE_LIST
-};
-
-enum {
-	XDPFWD_MAP_TEID = 0,
-	XDPFWD_MAP_IPFRAG,
-	XDPFWD_MAP_IPTNL,
-	XDPFWD_MAP_CNT
-};
-
-#define XDP_PATH_MAX 128
-
-typedef struct _xdp_exported_maps {
-	struct bpf_map	*map;
-} xdp_exported_maps_t;
-
-struct gtp_teid_rule {
-	__be32	vteid;
-	__be32	teid;
-	__be32	dst_addr;
-
-	/* Some stats */
-	__u64	packets;
-	__u64	bytes;
-	__u8	direction;
+struct gtp_iptnl_rule {
+	__be32	selector_addr;
+	__be32	local_addr;
+	__be32	remote_addr;
+	__be16	encap_vlan_id;
+	__be16	decap_vlan_id;
+	__u8	flags;
 } __attribute__ ((__aligned__(8)));
-#define GTP_INGRESS	0
-#define GTP_EGRESS	1
 
 /* Prototypes */
-extern int gtp_xdp_fwd_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_fwd_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_fwd_teid_action(int, gtp_teid_t *, int);
-extern int gtp_xdp_fwd_teid_vty(vty_t *, __be32);
-extern int gtp_xdp_fwd_vty(vty_t *);
-extern int gtp_xdp_fwd_iptnl_action(int, gtp_iptnl_t *);
-extern int gtp_xdp_fwd_iptnl_vty(vty_t *);
+extern int gtp_xdp_iptnl_action(int, gtp_iptnl_t *, struct bpf_map *);
+extern int gtp_xdp_iptnl_vty(vty_t *, struct bpf_map *);
 
 #endif

@@ -66,6 +66,7 @@
 #include "gtp_disk.h"
 #include "gtp_bpf_utils.h"
 #include "gtp_xdp.h"
+#include "gtp_xdp_iptnl.h"
 #include "gtp_xdp_fwd.h"
 #include "gtp_xdp_mirror.h"
 #include "gtp_xdp_rt.h"
