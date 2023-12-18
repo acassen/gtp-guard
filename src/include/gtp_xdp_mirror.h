@@ -19,18 +19,21 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_H
-#define _GTP_XDP_H
+#ifndef _GTP_XDP_MIRROR_H
+#define _GTP_XDP_MIRROR_H
 
-/* Defines */
-#define GTP_XDP_STRERR_BUFSIZE	128
+struct gtp_mirror_rule {
+	__be32	addr;
+	__be16	port;
+	__u8	protocol;
+	int	ifindex;
+} __attribute__ ((__aligned__(8)));
+
 
 /* Prototypes */
-extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
-extern struct bpf_program *gtp_xdp_load_prog(gtp_bpf_opts_t *);
-extern int gtp_xdp_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_init(void);
-extern int gtp_xdp_destroy(void);
+extern int gtp_xdp_mirror_action(int, gtp_mirror_rule_t *);
+extern int gtp_xdp_mirror_vty(vty_t *);
+extern int gtp_xdp_mirror_load(gtp_bpf_opts_t *);
+extern void gtp_xdp_mirror_unload(gtp_bpf_opts_t *);
 
 #endif

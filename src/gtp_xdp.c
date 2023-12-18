@@ -43,11 +43,6 @@ extern data_t *daemon_data;
 
 /* Local data */
 static const char *pin_basedir = "/sys/fs/bpf";
-static xdp_exported_maps_t xdp_fwd_maps[XDPFWD_MAP_CNT];
-static struct bpf_map *xdp_mirror_map;
-
-/* Local defines */
-#define STRERR_BUFSIZE	128
 
 
 /*
@@ -63,15 +58,15 @@ gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list a
 	return 0;
 }
 
-static struct bpf_map *
+struct bpf_map *
 gtp_bpf_load_map(struct bpf_object *obj, const char *map_name)
 {
 	struct bpf_map *map = NULL;
-	char errmsg[STRERR_BUFSIZE];
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 
 	map = bpf_object__find_map_by_name(obj, map_name);
 	if (!map) {
-		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
+		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "%s(): XDP: error mapping tab:%s err:%d (%s)"
 				    , __FUNCTION__
 				    , map_name
@@ -85,7 +80,7 @@ gtp_bpf_load_map(struct bpf_object *obj, const char *map_name)
 static void
 gtp_bpf_cleanup_maps(struct bpf_object *obj, gtp_bpf_opts_t *opts)
 {
-	char errmsg[STRERR_BUFSIZE];
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	struct bpf_map *map;
 	vty_t *vty = opts->vty;
 
@@ -114,7 +109,7 @@ gtp_bpf_cleanup_maps(struct bpf_object *obj, gtp_bpf_opts_t *opts)
 				   , buf, VTY_NEWLINE);
 			err = bpf_map__unpin(map, buf);
 			if (err) {
-				libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+				libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 				vty_out(vty, "%% eBPF error:%d (%s)%s"
 					   , err, errmsg, VTY_NEWLINE);
 				continue;
@@ -127,14 +122,14 @@ static struct bpf_object *
 gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 {
 	struct bpf_object *bpf_obj;
-	char errmsg[STRERR_BUFSIZE];
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	vty_t *vty = opts->vty;
 	int err;
 
 	/* open eBPF file */
 	bpf_obj = bpf_object__open(opts->filename);
 	if (!bpf_obj) {
-		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
+		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		vty_out(vty, "%% eBPF: error opening bpf file err:%d (%s)%s"
 			   , errno, errmsg, VTY_NEWLINE);
 		return NULL;
@@ -151,7 +146,7 @@ gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 	/* Finally load it */
 	err = bpf_object__load(bpf_obj);
 	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		vty_out(vty, "%% eBPF: error loading bpf_object err:%d (%s)%s"
 			   , err, errmsg, VTY_NEWLINE);
 		bpf_object__close(bpf_obj);
@@ -161,7 +156,7 @@ gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 	return bpf_obj;
 }
 
-static struct bpf_program *
+struct bpf_program *
 gtp_xdp_load_prog(gtp_bpf_opts_t *opts)
 {
 	struct bpf_program *bpf_prog = NULL;
@@ -221,12 +216,12 @@ gtp_xdp_load_prog(gtp_bpf_opts_t *opts)
 }
 
 
-static int
+int
 gtp_xdp_load(gtp_bpf_opts_t *opts)
 {
 	struct bpf_program *bpf_prog = NULL;
 	struct bpf_link *bpf_lnk;
-	char errmsg[STRERR_BUFSIZE];
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
 
 	/* Load eBPF prog */
@@ -237,7 +232,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	/* Detach previously stalled XDP programm */
 	err = bpf_xdp_detach(opts->ifindex, XDP_FLAGS_DRV_MODE, NULL);
 	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "%s(): Cant detach previous XDP programm (%s)"
 				    , __FUNCTION__
 				    , errmsg);
@@ -246,7 +241,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	/* Attach XDP */
 	bpf_lnk = bpf_program__attach_xdp(bpf_prog, opts->ifindex);
 	if (!bpf_lnk) {
-		libbpf_strerror(errno, errmsg, STRERR_BUFSIZE);
+		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "%s(): XDP: error attaching program:%s to ifindex:%d err:%d (%s)"
 				    , __FUNCTION__
 				    , bpf_program__name(bpf_prog)
@@ -262,606 +257,11 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	return -1;
 }
 
-static void
+void
 gtp_xdp_unload(gtp_bpf_opts_t *opts)
 {
 	bpf_link__destroy(opts->bpf_lnk);
 	bpf_object__close(opts->bpf_obj);
-}
-
-
-int
-gtp_xdp_fwd_load(gtp_bpf_opts_t *opts)
-{
-	struct bpf_map *map;
-	int err;
-
-	err = gtp_xdp_load(opts);
-	if (err < 0)
-		return -1;
-
-	/* MAP ref for faster access */
-	map = gtp_bpf_load_map(opts->bpf_obj, "teid_xlat");
-	if (!map) {
-		gtp_xdp_unload(opts);
-		return -1;
-	}
-	xdp_fwd_maps[XDPFWD_MAP_TEID].map = map;
-
-	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
-	if (!map) {
-		gtp_xdp_unload(opts);
-		return -1;
-	}
-	xdp_fwd_maps[XDPFWD_MAP_IPTNL].map = map;
-
-	return 0;
-}
-
-void
-gtp_xdp_fwd_unload(gtp_bpf_opts_t *opts)
-{
-	gtp_xdp_unload(opts);
-}
-
-
-/*
- *	TEID Switching handling
- */
-static 
-struct gtp_teid_rule *
-gtp_xdp_teid_rule_alloc(size_t *sz)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	struct gtp_teid_rule *new;
-
-	new = calloc(nr_cpus, sizeof(*new));
-	if (!new)
-		return NULL;
-
-	*sz = nr_cpus * sizeof(struct gtp_teid_rule);
-	return new;
-}
-
-static void
-gtp_xdp_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t, int direction)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	int i;
-
-	for (i = 0; i < nr_cpus; i++) {
-		r[i].vteid = t->vid;
-		r[i].teid = t->id;
-		r[i].dst_addr = t->ipv4;
-		r[i].direction = direction;
-		r[i].packets = 0;
-		r[i].bytes = 0;
-	}
-}
-
-static int
-gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
-{
-	struct gtp_teid_rule *new = NULL;
-	char errmsg[STRERR_BUFSIZE];
-	int err = 0;
-	uint32_t key;
-	size_t sz;
-
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
-	if (!t)
-		return -1;
-
-	key = htonl(t->vid);
-
-	/* Set rule */
-	if (action == RULE_ADD) {
-		/* fill per cpu rule */
-		new = gtp_xdp_teid_rule_alloc(&sz);
-		if (!new) {
-			log_message(LOG_INFO, "%s(): Cant allocate teid_rule !!!"
-					    , __FUNCTION__);
-			err = -1;
-			goto end;
-		}
-		gtp_xdp_teid_rule_set(new, t, direction);
-		err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
-	} else if (action == RULE_DEL)
-		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
-	else
-		return -1;
-	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant %s rule for VTEID:0x%.8x (%s)"
-				    , __FUNCTION__
-				    , (action) ? "del" : "add"
-				    , t->vid
-				    , errmsg);
-		err = -1;
-		goto end;
-	}
-
-	log_message(LOG_INFO, "%s(): %s XDP forwarding rule "
-			      "{vteid:0x%.8x, teid:0x%.8x, dst_addr:%u.%u.%u.%u}"
-			    , __FUNCTION__
-			    , (action) ? "deleting" : "adding"
-			    , t->vid, ntohl(t->id), NIPQUAD(t->ipv4));
-  end:
-	if (new)
-		free(new);
-	return err;
-}
-
-static int
-gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	__be32 key, next_key;
-	struct gtp_teid_rule *r;
-	char errmsg[STRERR_BUFSIZE];
-	char addr_ip[16];
-        int err = 0, i;
-	uint64_t packets, bytes;
-	size_t sz;
-
-	/* Allocate temp rule */
-	r = gtp_xdp_teid_rule_alloc(&sz);
-	if (!r) {
-		vty_out(vty, "%% Cant allocate temp teid_rule%s", VTY_NEWLINE);
-		return -1;
-	}
-
-	/* Specific VTEID lookup */
-	if (id) {
-		err = bpf_map__lookup_elem(map, &id, sizeof(uint32_t), r, sz, 0);
-		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-			vty_out(vty, "       %% No data-plane ?! (%s)%s", errmsg, VTY_NEWLINE);
-			goto end;
-		}
-
-		packets = bytes = 0;
-		for (i = 0; i < nr_cpus; i++) {
-			packets += r[i].packets;
-			bytes += r[i].bytes;
-		}
-
-		vty_out(vty, "       %.7s pkts:%ld bytes:%ld%s"
-			   , r[0].direction ? "egress" : "ingress"
-			   , packets, bytes, VTY_NEWLINE);
-		goto end;
-	}
-
-	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
-		key = next_key;
-		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
-		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-			vty_out(vty, "%% error fetching value for key:0x%.8x (%s)%s"
-				   , key, errmsg, VTY_NEWLINE);
-			continue;
-		}
-
-		packets = bytes = 0;
-		for (i = 0; i < nr_cpus; i++) {
-			packets += r[i].packets;
-			bytes += r[i].bytes;
-		}
-
-		vty_out(vty, "| 0x%.8x | 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
-			   , r[0].vteid, ntohl(r[0].teid)
-			   , inet_ntoa2(r[0].dst_addr, addr_ip)
-			   , r[0].direction ? "egress" : "ingress"
-			   , packets, bytes, VTY_NEWLINE);
-	}
-
-  end:
-	free(r);
-	return 0;
-}
-
-int
-gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t, int direction)
-{
-	if (!xdp_fwd_maps[XDPFWD_MAP_TEID].map)
-		return -1;
-	return gtp_xdp_teid_action(xdp_fwd_maps[XDPFWD_MAP_TEID].map, action, t, direction);
-}
-
-int
-gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
-{
-	if (!xdp_fwd_maps[XDPFWD_MAP_TEID].map)
-		return -1;
-	return gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, id);
-}
-
-int
-gtp_xdp_fwd_vty(vty_t *vty)
-{
-	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
-		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
-		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
-		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, 0);
-	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
-		   , VTY_NEWLINE);
-	return 0;
-}
-
-/*
- *	TEID Routing handling
- */
-int
-gtp_xdp_rt_teid_action(int action, gtp_teid_t *t, int direction)
-{
-	return 0;
-}
-
-int
-gtp_xdp_rt_teid_vty(vty_t *vty, __be32 id)
-{
-	return 0;
-}
-
-
-/*
- *	Tunneling Handling
- */
-static 
-struct gtp_iptnl_rule *
-gtp_xdp_iptnl_rule_alloc(size_t *sz)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	struct gtp_iptnl_rule *new;
-
-	new = calloc(nr_cpus, sizeof(*new));
-	if (!new)
-		return NULL;
-
-	*sz = nr_cpus * sizeof(struct gtp_iptnl_rule);
-	return new;
-}
-
-static void
-gtp_xdp_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	int i;
-
-	for (i = 0; i < nr_cpus; i++) {
-		r[i].selector_addr = t->selector_addr;
-		r[i].local_addr = t->local_addr;
-		r[i].remote_addr = t->remote_addr;
-		r[i].encap_vlan_id = t->encap_vlan_id;
-		r[i].decap_vlan_id = t->decap_vlan_id;
-		r[i].flags = t->flags;
-	}
-}
-
-int
-gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t)
-{
-	struct bpf_map *map = xdp_fwd_maps[XDPFWD_MAP_IPTNL].map;
-	struct gtp_iptnl_rule *new = NULL;
-	int ret = 0, err = 0;
-	char errmsg[STRERR_BUFSIZE];
-	const char *action_str = "adding";
-	uint32_t key;
-	size_t sz;
-
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
-	if (!t)
-		return -1;
-
-	key = t->selector_addr;
-
-	/* Set rule */
-	if (action == RULE_ADD || action == RULE_UPDATE) {
-		/* fill per cpu rule */
-		new = gtp_xdp_iptnl_rule_alloc(&sz);
-		if (!new) {
-			log_message(LOG_INFO, "%s(): Cant allocate iptnl_rule !!!"
-					    , __FUNCTION__);
-			ret = -1;
-			goto end;
-		}
-		gtp_xdp_iptnl_rule_set(new, t);
-
-		if (action == RULE_ADD) {
-			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
-		} else if (action == RULE_UPDATE) {
-			err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), new, sz, 0);
-			if (err) {
-				libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-				log_message(LOG_INFO, "%s(): Unknown iptnl_rule for local_addr:%u.%u.%u.%u (%s)"
-						    , __FUNCTION__
-						    , NIPQUAD(key)
-						    , errmsg);
-				ret = -1;
-				goto end;
-			}
-			action_str = "updating";
-			gtp_xdp_iptnl_rule_set(new, t);
-			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_EXIST);
-		}
-	} else if (action == RULE_DEL) {
-		action_str = "deleting";
-		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
-	} else
-		return -1;
-	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant %s iptnl_rule for local_addr:%u.%u.%u.%u (%s)"
-				    , __FUNCTION__
-				    , (action) ? "del" : "add"
-				    , NIPQUAD(key)
-				    , errmsg);
-		ret = -1;
-		goto end;
-	}
-
-	log_message(LOG_INFO, "%s(): %s XDP iptunnel rule "
-			      "{selector_addr:%u.%u.%u.%u local_addr:%u.%u.%u.%u, remote_addr:%u.%u.%u.%u, flags:%d}"
-			    , __FUNCTION__
-			    , action_str
-			    , NIPQUAD(t->selector_addr), NIPQUAD(t->local_addr), NIPQUAD(t->remote_addr), t->flags);
-  end:
-	if (new)
-		free(new);
-	return ret;
-}
-
-int
-gtp_xdp_iptnl_vty(vty_t *vty)
-{
-	struct bpf_map *map = xdp_fwd_maps[XDPFWD_MAP_IPTNL].map;
-	__be32 key, next_key;
-	struct gtp_iptnl_rule *r;
-	char errmsg[STRERR_BUFSIZE];
-	char sip[16], lip[16], rip[16];
-	int err = 0;
-	size_t sz;
-
-	/* Allocate temp rule */
-	r = gtp_xdp_iptnl_rule_alloc(&sz);
-	if (!r) {
-		vty_out(vty, "%% Cant allocate temp iptnl_rule%s", VTY_NEWLINE);
-		return -1;
-	}
-
-	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
-		     "| Selector Address |  Local Address   |  Remote Address  | Flags |%s"
-		     "+------------------+------------------+------------------+-------+%s"
-		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-
-	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
-		key = next_key;
-		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), r, sz, 0);
-		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-			vty_out(vty, "%% error fetching value for key:0x%.4x (%s)%s"
-				   , key, errmsg, VTY_NEWLINE);
-			continue;
-		}
-
-		vty_out(vty, "| %16s | %16s | %16s | %5d |%s"
-			   , inet_ntoa2(r[0].selector_addr, sip)
-			   , inet_ntoa2(r[0].local_addr, lip)
-			   , inet_ntoa2(r[0].remote_addr, rip)
-			   , r[0].flags
-			   , VTY_NEWLINE);
-	}
-
-	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
-		   , VTY_NEWLINE);
-	free(r);
-        return 0;
-}
-
-
-/*
- *	Mirroring handling
- */
-static int
-gtp_xdp_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
-{
-	r->addr = ((struct sockaddr_in *) &m->addr)->sin_addr.s_addr;
-	r->port = ((struct sockaddr_in *) &m->addr)->sin_port;
-	r->protocol = m->protocol;
-	r->ifindex = m->ifindex;
-	return 0;
-}
-
-int
-gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
-{
-	struct bpf_map *map = xdp_mirror_map;
-	struct gtp_mirror_rule r;
-	const char *action_str = "adding";
-	char errmsg[STRERR_BUFSIZE];
-	int err;
-
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
-	memset(&r, 0, sizeof(struct gtp_mirror_rule));
-	gtp_xdp_mirror_rule_set(&r, m);
-
-	if (action == RULE_ADD) {
-		err = bpf_map__update_elem(map, &r.addr, sizeof(uint32_t)
-					      , &r, sizeof(struct gtp_mirror_rule), BPF_NOEXIST);
-	} else if (action == RULE_DEL) {
-		action_str = "deleting";
-		err = bpf_map__delete_elem(map, &r.addr, sizeof(uint32_t), 0);
-	} else
-		return -1;
-
-	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant %s mirror_rule for [%s]:%d (%s)"
-				    , __FUNCTION__
-				    , (action) ? "del" : "add"
-				    , inet_sockaddrtos(&m->addr)
-				    , ntohs(inet_sockaddrport(&m->addr))
-				    , errmsg);
-		return -1;
-	}
-
-	log_message(LOG_INFO, "%s(): %s XDP Mirroring rule "
-			      "{addr:%s port:%u, protocol:%s, ifindex:%d}"
-			    , __FUNCTION__
-			    , action_str
-			    , inet_sockaddrtos(&m->addr)
-			    , ntohs(inet_sockaddrport(&m->addr))
-			    , (m->protocol == IPPROTO_UDP) ? "UDP" : "TCP"
-			    , m->ifindex);
-	return 0;
-}
-
-int
-gtp_xdp_mirror_vty(vty_t *vty)
-{
-	struct bpf_map *map = xdp_mirror_map;
-	__be32 key, next_key;
-	struct gtp_mirror_rule r;
-	size_t sz = sizeof(struct gtp_mirror_rule);
-	char errmsg[STRERR_BUFSIZE];
-	char ipaddr[16], ifname[IF_NAMESIZE];
-	int err = 0;
-
-	vty_out(vty, "+------------------+--------+----------+-------------+%s"
-		     "|      Address     |  Port  | Protocol |  Interface  |%s"
-		     "+------------------+--------+----------+-------------+%s"
-		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-
-	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
-		key = next_key;
-		memset(&r, 0, sizeof(struct gtp_mirror_rule));
-		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), &r, sz, 0);
-		if (err) {
-			libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-			vty_out(vty, "%% error fetching value for key:0x%.4x (%s)%s"
-				   , key, errmsg, VTY_NEWLINE);
-			continue;
-		}
-
-		vty_out(vty, "| %16s | %6d | %8s | %11s |%s"
-			   , inet_ntoa2(r.addr, ipaddr)
-			   , ntohs(r.port)
-			   , (r.protocol == IPPROTO_UDP) ? "UDP" : "TCP"
-			   , if_indextoname(r.ifindex, ifname)
-			   , VTY_NEWLINE);
-	}
-
-	vty_out(vty, "+------------------+--------+----------+-------------+%s"
-		   , VTY_NEWLINE);
-	return 0;
-}
-
-static int
-gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
-{
-	char errmsg[STRERR_BUFSIZE];
-	int err;
-
-	bpf_tc_hook_destroy(q_hook);	/* Release previously stalled entry */
-	err = bpf_tc_hook_create(q_hook);
-	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant create TC_HOOK to ifindex:%d (%s)"
-				    , __FUNCTION__
-				    , q_hook->ifindex
-				    , errmsg);
-		return 1;
-	}
-
-	return 0;
-}
-
-static int
-gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direction,
-		      const struct bpf_program *bpf_prog)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_opts, tc_opts, .handle = 1, .priority = 0,
-			    .flags = BPF_TC_F_REPLACE);
-	char errmsg[STRERR_BUFSIZE];
-	int err;
-
-	q_hook->attach_point = direction;
-	tc_opts.prog_fd = bpf_program__fd(bpf_prog);
-	err = bpf_tc_attach(q_hook, &tc_opts);
-	if (err) {
-		libbpf_strerror(err, errmsg, STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant attach eBPF prog_fd:%d to ifindex:%d %s (%s)"
-				    , __FUNCTION__
-				    , tc_opts.prog_fd
-				    , q_hook->ifindex
-				    , (direction == BPF_TC_INGRESS) ? "ingress" : "egress"
-				    , errmsg);
-		return 1;
-	}
-
-	return 0;
-}
-
-void
-gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
-			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
-	bpf_tc_hook_destroy(&q_hook);
-	bpf_object__close(opts->bpf_obj);
-	xdp_mirror_map = NULL;
-}
-
-int
-gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
-			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
-	struct bpf_program *bpf_prog = NULL;
-	struct bpf_map *map;
-	int err = 0;
-
-	/* Load eBPF prog */
-	bpf_prog = gtp_xdp_load_prog(opts);
-	if (!bpf_prog)
-		return -1;
-
-	/* Create Qdisc Clsact & attach {in,e}gress filters */
-	err = err ? : gtp_xdp_qdisc_clsact_add(&q_hook);
-	err = err ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
-	err = err ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
-	if (err) {
-		bpf_object__close(opts->bpf_obj);
-		return -1;
-	}
-
-	map = gtp_bpf_load_map(opts->bpf_obj, "mirror_rules");
-	if (!map) {
-		gtp_xdp_mirror_unload(opts);
-		return -1;
-	}
-	xdp_mirror_map = map;
-
-	return 0;
 }
 
 

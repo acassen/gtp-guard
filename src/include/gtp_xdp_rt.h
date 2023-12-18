@@ -19,18 +19,11 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_H
-#define _GTP_XDP_H
-
-/* Defines */
-#define GTP_XDP_STRERR_BUFSIZE	128
+#ifndef _GTP_XDP_RT_H
+#define _GTP_XDP_RT_H
 
 /* Prototypes */
-extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
-extern struct bpf_program *gtp_xdp_load_prog(gtp_bpf_opts_t *);
-extern int gtp_xdp_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_init(void);
-extern int gtp_xdp_destroy(void);
+extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *, int);
+extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
 
 #endif

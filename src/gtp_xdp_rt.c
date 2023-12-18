@@ -19,18 +19,42 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_H
-#define _GTP_XDP_H
+/* system includes */
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <net/if.h>
+#include <sys/stat.h>
+#include <sys/statfs.h>
+#include <libgen.h>
+#include <sys/resource.h>
+#include <arpa/inet.h>
+#include <linux/if_link.h>
+#include <linux/if_ether.h>
+#include <libbpf.h>
 
-/* Defines */
-#define GTP_XDP_STRERR_BUFSIZE	128
+/* local includes */
+#include "gtp_guard.h"
 
-/* Prototypes */
-extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
-extern struct bpf_program *gtp_xdp_load_prog(gtp_bpf_opts_t *);
-extern int gtp_xdp_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_init(void);
-extern int gtp_xdp_destroy(void);
 
-#endif
+/* Extern data */
+extern data_t *daemon_data;
+
+/* Local data */
+
+
+/*
+ *	TEID Routing handling
+ */
+int
+gtp_xdp_rt_teid_action(int action, gtp_teid_t *t, int direction)
+{
+	return 0;
+}
+
+int
+gtp_xdp_rt_teid_vty(vty_t *vty, __be32 id)
+{
+	return 0;
+}

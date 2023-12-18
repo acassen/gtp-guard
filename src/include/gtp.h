@@ -226,7 +226,7 @@ typedef struct _gtp_ie_mei {
 #define GTP_IE_MSISDN_TYPE				76
 typedef struct _gtp_ie_msisdn {
 	gtp_ie_t	h;
-	uint8_t		msisdn[8];
+	uint8_t		msisdn[6];
 } __attribute__((packed)) gtp_ie_msisdn_t;
 
 #define GTP_IE_INDICATION_TYPE				77
