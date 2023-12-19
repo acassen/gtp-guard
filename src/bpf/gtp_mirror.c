@@ -35,7 +35,7 @@
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
 #include "gtp_bpf_utils.h"
-#include "gtp_fwd.h"
+#include "gtp.h"
 
 
 /*

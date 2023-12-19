@@ -19,8 +19,8 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_FWD_H
-#define _GTP_FWD_H
+#ifndef _GTP_H
+#define _GTP_H
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -112,6 +112,23 @@ struct gtp_mirror_rule {
 	int	ifindex;
 } __attribute__ ((__aligned__(8)));
 #define MAX_MIRROR_ENTRIES 100U
+
+/* IP Routing related */
+struct ip_rt_key {
+	__u32		id;
+	__u32		addr;
+};
+
+struct gtp_rt_rule {
+	__be32  teid;
+	__be32  addr;
+
+	/* Some stats */
+	__u64   packets;
+	__u64   bytes;
+
+	__u8	direction;
+} __attribute__ ((__aligned__(8)));
 
 
 #endif

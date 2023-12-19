@@ -42,6 +42,52 @@
 extern data_t *daemon_data;
 
 /* Local data */
+static xdp_exported_maps_t xdp_rt_maps[XDP_RT_MAP_CNT];
+
+
+/*
+ *	XDP RT BPF related
+ */
+int
+gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
+{
+	struct bpf_map *map;
+	int err;
+
+	err = gtp_xdp_load(opts);
+	if (err < 0)
+		return -1;
+
+	/* MAP ref for faster access */
+	map = gtp_bpf_load_map(opts->bpf_obj, "teid_egress");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
+
+	map = gtp_bpf_load_map(opts->bpf_obj, "teid_ingress");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map = map;
+
+	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_rt_maps[XDP_RT_MAP_IPTNL].map = map;
+
+	return 0;
+}
+
+void
+gtp_xdp_rt_unload(gtp_bpf_opts_t *opts)
+{
+	gtp_xdp_unload(opts);
+}
 
 
 /*

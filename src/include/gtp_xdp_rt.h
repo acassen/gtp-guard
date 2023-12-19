@@ -22,7 +22,27 @@
 #ifndef _GTP_XDP_RT_H
 #define _GTP_XDP_RT_H
 
+enum {
+	XDP_RT_MAP_TEID_EGRESS = 0,
+	XDP_RT_MAP_TEID_INGRESS,
+	XDP_RT_MAP_IPTNL,
+	XDP_RT_MAP_CNT
+};
+
+struct gtp_rt_rule {
+	__be32	teid;
+	__be32	addr;
+
+	/* Some stats */
+	__u64	packets;
+	__u64	bytes;
+
+	__u8	direction;
+} __attribute__ ((__aligned__(8)));
+
 /* Prototypes */
+extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);
+extern void gtp_xdp_rt_unload(gtp_bpf_opts_t *);
 extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *, int);
 extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
 

@@ -95,6 +95,81 @@ DEFUN(pdn_nameserver,
         return CMD_SUCCESS;
 }
 
+DEFUN(pdn_xdp_gtp_route,
+      pdn_xdp_gtp_route_cmd,
+      "xdp-gtp-route STRING interface STRING [xdp-prog STRING]",
+      "GTP Routing channel XDP program\n"
+      "path to BPF file\n"
+      "Interface name\n"
+      "Name"
+      "XDP Program Name"
+      "Name")
+{
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+        int ret, ifindex;
+
+        if (argc < 2) {
+                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
+	strncpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
+	ifindex = if_nametoindex(argv[1]);
+	if (argc == 3)
+		strncpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
+	if (!ifindex) {
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
+			   , argv[1]
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+	opts->ifindex = ifindex;
+	opts->vty = vty;
+
+        ret = gtp_xdp_rt_load(opts);
+        if (ret < 0) {
+                vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
+                           , opts->filename
+                           , opts->ifindex
+                           , VTY_NEWLINE);
+                /* Reset data */
+		memset(opts, 0, sizeof(gtp_bpf_opts_t));
+                return CMD_WARNING;
+        }
+
+        vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
+                   , opts->filename
+		   , opts->ifindex
+                   , VTY_NEWLINE);
+	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
+        return CMD_SUCCESS;
+}
+
+DEFUN(no_pdn_xdp_gtp_route,
+      no_pdn_xdp_gtp_route_cmd,
+      "no xdp-gtp-route",
+      "GTP Routing channel XDP program\n")
+{
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+
+        if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+                vty_out(vty, "%% No GTP-ROUTE XDP program is currently configured. Ignoring%s"
+                           , VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
+        gtp_xdp_rt_unload(opts);
+
+        /* Reset data */
+	memset(opts, 0, sizeof(gtp_bpf_opts_t));
+
+        vty_out(vty, "Success unloading eBPF program:%s%s"
+                   , opts->filename
+                   , VTY_NEWLINE);
+	__clear_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(pdn_xdp_gtpu,
       pdn_xdp_gtpu_cmd,
       "xdp-gtpu STRING interface STRING [xdp-prog STRING]",
@@ -717,6 +792,8 @@ gtp_vty_init(void)
 	install_default(PDN_NODE);
 	install_element(PDN_NODE, &pdn_nameserver_cmd);
 	install_element(PDN_NODE, &pdn_realm_cmd);
+	install_element(PDN_NODE, &pdn_xdp_gtp_route_cmd);
+	install_element(PDN_NODE, &no_pdn_xdp_gtp_route_cmd);
 	install_element(PDN_NODE, &pdn_xdp_gtpu_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_gtpu_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);

@@ -23,24 +23,11 @@
 #define _GTP_XDP_FWD_H
 
 enum {
-	RULE_ADD = 0,
-	RULE_UPDATE,
-	RULE_DEL,
-	RULE_LIST
-};
-
-enum {
 	XDPFWD_MAP_TEID = 0,
 	XDPFWD_MAP_IPFRAG,
 	XDPFWD_MAP_IPTNL,
 	XDPFWD_MAP_CNT
 };
-
-#define XDP_PATH_MAX 128
-
-typedef struct _xdp_exported_maps {
-	struct bpf_map	*map;
-} xdp_exported_maps_t;
 
 struct gtp_teid_rule {
 	__be32	vteid;
@@ -52,8 +39,6 @@ struct gtp_teid_rule {
 	__u64	bytes;
 	__u8	direction;
 } __attribute__ ((__aligned__(8)));
-#define GTP_INGRESS	0
-#define GTP_EGRESS	1
 
 /* Prototypes */
 extern int gtp_xdp_fwd_load(gtp_bpf_opts_t *);

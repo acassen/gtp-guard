@@ -22,8 +22,22 @@
 #ifndef _GTP_XDP_H
 #define _GTP_XDP_H
 
-/* Defines */
+enum {
+	RULE_ADD = 0,
+	RULE_UPDATE,
+	RULE_DEL,
+	RULE_LIST
+};
+
 #define GTP_XDP_STRERR_BUFSIZE	128
+#define XDP_PATH_MAX 128
+#define GTP_INGRESS	0
+#define GTP_EGRESS	1
+
+typedef struct _xdp_exported_maps {
+	struct bpf_map	*map;
+} xdp_exported_maps_t;
+
 
 /* Prototypes */
 extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
