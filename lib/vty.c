@@ -613,6 +613,7 @@ vty_end_config(vty_t *vty)
 	case CONFIG_NODE:
 	case PDN_NODE:
 	case APN_NODE:
+	case IP_VRF_NODE:
 	case GTP_SWITCH_NODE:
 	case GTP_ROUTER_NODE:
 	case VTY_NODE:

@@ -222,9 +222,14 @@ DEFUN(gtpu_ipip,
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
 
-        if (argc < 3) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc < 3) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
         }
 
 	ret = inet_ston(argv[0], &saddr);
@@ -280,6 +285,11 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int credit, ifindex, plen, ret;
+
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	if (t->flags & IPTNL_FL_DPD)
 		return CMD_SUCCESS;
@@ -337,6 +347,11 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	if (!t->selector_addr && !t->local_addr && !t->remote_addr) {
 		vty_out(vty, "%% You MUST configure IPIP-Tunnel before%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -361,6 +376,11 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
         gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
+
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	if (!t->selector_addr && !t->local_addr && !t->remote_addr) {
 		vty_out(vty, "%% You MUST configure IPIP-Tunnel before%s", VTY_NEWLINE);
@@ -387,6 +407,11 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	if (!t->selector_addr && !t->local_addr && !t->remote_addr) {
 		vty_out(vty, "%% You MUST configure IPIP-Tunnel before%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -412,7 +437,12 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret, vlan;
 
-        if (argc < 1) {
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc < 1) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }

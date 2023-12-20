@@ -86,8 +86,7 @@ gtp_xdp_fwd_unload(gtp_bpf_opts_t *opts)
 /*
  *	TEID Switching handling
  */
-static 
-struct gtp_teid_rule *
+static struct gtp_teid_rule *
 gtp_xdp_teid_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
@@ -247,16 +246,18 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 int
 gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t, int direction)
 {
-	if (!xdp_fwd_maps[XDPFWD_MAP_TEID].map)
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
+
 	return gtp_xdp_teid_action(xdp_fwd_maps[XDPFWD_MAP_TEID].map, action, t, direction);
 }
 
 int
 gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
 {
-	if (!xdp_fwd_maps[XDPFWD_MAP_TEID].map)
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
+
 	return gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, id);
 }
 
@@ -279,11 +280,17 @@ gtp_xdp_fwd_vty(vty_t *vty)
 int
 gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 {
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
+		return -1;
+
 	return gtp_xdp_iptnl_action(action, t, xdp_fwd_maps[XDPFWD_MAP_IPTNL].map);
 }
 
 int
 gtp_xdp_fwd_iptnl_vty(vty_t *vty)
 {
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
+		return -1;
+
 	return gtp_xdp_iptnl_vty(vty, xdp_fwd_maps[XDPFWD_MAP_IPTNL].map);
 }

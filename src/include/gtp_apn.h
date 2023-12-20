@@ -92,6 +92,7 @@ typedef struct _gtp_apn {
 	unsigned long		indication_flags;
 	gtp_pco_t		*pco;
 	gtp_ip_pool_t		*ip_pool;
+	ip_vrf_t		*vrf;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;

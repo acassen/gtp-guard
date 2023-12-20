@@ -138,10 +138,11 @@ alloc_daemon_data(void)
 	data_t *new;
 
 	PMALLOC(new);
+	INIT_LIST_HEAD(&new->mirror_rules);
 	INIT_LIST_HEAD(&new->gtp_apn);
+	INIT_LIST_HEAD(&new->ip_vrf);
 	INIT_LIST_HEAD(&new->gtp_switch_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
-	INIT_LIST_HEAD(&new->mirror_rules);
 
 	return new;
 }
@@ -154,6 +155,7 @@ free_daemon_data(void)
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_mirror_unload(&daemon_data->xdp_mirror);
 	gtp_mirror_destroy();
+	gtp_vrf_destroy();
 	gtp_apn_destroy();
 	gtp_switch_destroy();
 	gtp_router_destroy();

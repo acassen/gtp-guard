@@ -1097,6 +1097,28 @@ DEFUN(apn_pdn_address_allocation_pool,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_ip_vrf_forwarding,
+      apn_ip_vrf_forwarding_cmd,
+      "ip vrf forwarding STRING",
+      "Define IP VRF forwarding\n")
+{
+	gtp_apn_t *apn = vty->index;
+	ip_vrf_t *vrf;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vrf = gtp_ip_vrf_get(argv[0]);
+	if (!vrf) {
+		vty_out(vty, "%% Unknwon VRF:%s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+	apn->vrf = vrf;
+	return CMD_SUCCESS;
+}
+
 
 /* Show */
 DEFUN(show_apn,
@@ -1172,9 +1194,10 @@ apn_config_write(vty_t *vty)
 
         list_for_each_entry(apn, l, next) {
         	vty_out(vty, "access-point-name %s%s", apn->name, VTY_NEWLINE);
-		vty_out(vty, " nameserver %s%s"
-			   , inet_sockaddrtos(&apn->nameserver)
-			   , VTY_NEWLINE);
+		if (apn->nameserver.ss_family)
+			vty_out(vty, " nameserver %s%s"
+				   , inet_sockaddrtos(&apn->nameserver)
+				   , VTY_NEWLINE);
 		if (apn->resolv_max_retry)
 			vty_out(vty, " resolv-max-retry %d%s"
 				   , apn->resolv_max_retry
@@ -1203,6 +1226,10 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " pdn-address-allocation-pool local network %u.%u.%u.%u netmask %u.%u.%u.%u%s"
 				   , NIPQUAD(apn->ip_pool->network)
 				   , NIPQUAD(apn->ip_pool->netmask)
+				   , VTY_NEWLINE);
+		if (apn->vrf)
+			vty_out(vty, " ip vrf forwarding %s%s"
+				   , apn->vrf->name
 				   , VTY_NEWLINE);
 
         	vty_out(vty, "!%s", VTY_NEWLINE);
@@ -1240,6 +1267,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_pco_ip_link_mtu_cmd);
 	install_element(APN_NODE, &apn_pco_selected_bearer_control_mode_cmd);
 	install_element(APN_NODE, &apn_pdn_address_allocation_pool_cmd);
+	install_element(APN_NODE, &apn_ip_vrf_forwarding_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);

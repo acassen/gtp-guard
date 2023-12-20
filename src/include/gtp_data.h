@@ -63,21 +63,17 @@ typedef struct _data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
 	gtp_req_channel_t	request_channel;
+	gtp_bpf_opts_t		xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtpu;
 	gtp_bpf_opts_t		xdp_mirror;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 
-	/* Mirroring ruleset */
 	list_head_t		mirror_rules;
-
-	/* APN resolver */
+	list_head_t		ip_vrf;
 	list_head_t		gtp_apn;
-
-	/* GTP context */
 	list_head_t		gtp_switch_ctx;
 	list_head_t		gtp_router_ctx;
-        pthread_mutex_t		gtp_ctx_mutex;
 
 	unsigned long		flags;
 } data_t;

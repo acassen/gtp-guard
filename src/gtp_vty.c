@@ -105,7 +105,7 @@ DEFUN(pdn_xdp_gtp_route,
       "XDP Program Name"
       "Name")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_route;
         int ret, ifindex;
 
         if (argc < 2) {
@@ -150,7 +150,7 @@ DEFUN(no_pdn_xdp_gtp_route,
       "no xdp-gtp-route",
       "GTP Routing channel XDP program\n")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_route;
 
         if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
                 vty_out(vty, "%% No GTP-ROUTE XDP program is currently configured. Ignoring%s"
@@ -742,11 +742,27 @@ pdn_config_write(vty_t *vty)
 	char ifname[IF_NAMESIZE];
 
 	vty_out(vty, "pdn%s", VTY_NEWLINE);
-	vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
-	vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
+	if (daemon_data->nameserver.ss_family)
+		vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
+	if (daemon_data->realm[0])
+		vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
 	
+	opts = &daemon_data->xdp_gtp_route;
+	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+		if (opts->progname[0])
+			vty_out(vty, " xdp-gtp-route %s interface %s progname %s%s"
+				   , opts->filename
+				   , if_indextoname(opts->ifindex, ifname)
+				   , opts->progname
+				   , VTY_NEWLINE);
+		else
+			vty_out(vty, " xdp-gtp-route %s interface %s%s"
+				   , opts->filename
+				   , if_indextoname(opts->ifindex, ifname)
+				   , VTY_NEWLINE);
+        }
 	opts = &daemon_data->xdp_gtpu;
-        if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+	if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
 		if (opts->progname[0])
 			vty_out(vty, " xdp-gtpu %s interface %s progname %s%s"
 				   , opts->filename
@@ -816,6 +832,7 @@ gtp_vty_init(void)
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
 
 	/* Install other VTY */
+        gtp_vrf_vty_init();
         gtp_apn_vty_init();
         gtp_switch_vty_init();
         gtp_router_vty_init();

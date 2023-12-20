@@ -1925,6 +1925,7 @@ DEFUN(config_exit,
 		break;
 	case APN_NODE:
 	case PDN_NODE:
+	case IP_VRF_NODE:
 	case GTP_SWITCH_NODE:
 	case GTP_ROUTER_NODE:
 	case VTY_NODE:
@@ -1957,6 +1958,7 @@ DEFUN(config_end,
 		break;
 	case CFG_LOG_NODE:
 	case CONFIG_NODE:
+	case IP_VRF_NODE:
 	case GTP_SWITCH_NODE:
 	case GTP_ROUTER_NODE:
 	case PDN_NODE:

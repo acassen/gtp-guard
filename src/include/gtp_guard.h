@@ -46,6 +46,7 @@
 #include "gtp_request.h"
 #include "gtp_data.h"
 #include "gtp_iptnl.h"
+#include "gtp_vrf.h"
 #include "gtp_dpd.h"
 #include "gtp_htab.h"
 #include "gtp_apn.h"

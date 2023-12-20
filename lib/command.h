@@ -62,6 +62,7 @@ typedef enum _node_type {
 	CFG_LOG_NODE,					/* Configure the logging */
 
 	PDN_NODE,					/* PDN daemon commands. */
+	IP_VRF_NODE,					/* IP VRF commands. */
 	APN_NODE,					/* APN commands. */
 	GTP_SWITCH_NODE,				/* GTP Switch commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */

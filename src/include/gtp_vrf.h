@@ -19,38 +19,34 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_RT_H
-#define _GTP_XDP_RT_H
+#ifndef _GTP_VRF_H
+#define _GTP_VRF_H
 
-enum {
-	XDP_RT_MAP_TEID_INGRESS = 0,
-	XDP_RT_MAP_TEID_EGRESS,
-	XDP_RT_MAP_IPTNL,
-	XDP_RT_MAP_CNT
+enum ip_vrf_flags {
+	IP_VRF_FL_ENCAP_DOT1Q_BIT,
+	IP_VRF_FL_DECAP_DOT1Q_BIT,
+	IP_VRF_FL_IPIP_BIT,
 };
 
-struct ip_rt_key {
-	__u32		id;
-	__u32		addr;
-};
+typedef struct _ip_vrf {
+	char			name[GTP_NAME_MAX_LEN];
+	char			description[GTP_STR_MAX_LEN];
+	uint16_t		encap_vlan_id;
+	uint16_t		decap_vlan_id;
+	gtp_iptnl_t		iptnl;
 
-struct gtp_rt_rule {
-	__be32	teid;
-	__be32	addr;
+	list_head_t		next;
 
-	/* Some stats */
-	__u64	packets;
-	__u64	bytes;
+	unsigned long		flags;
+} ip_vrf_t;
 
-	__u8	direction;
-} __attribute__ ((__aligned__(8)));
 
 /* Prototypes */
-extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_rt_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *, int);
-extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
-extern int gtp_xdp_rt_iptnl_action(int, gtp_iptnl_t *);
-extern int gtp_xdp_rt_iptnl_vty(vty_t *);
+extern ip_vrf_t *gtp_ip_vrf_get(const char *);
+extern ip_vrf_t *gtp_ip_vrf_alloc(const char *);
+extern int gtp_ip_vrf_destroy(ip_vrf_t *);
+extern int gtp_vrf_init(void);
+extern int gtp_vrf_destroy(void);
+extern int gtp_vrf_vty_init(void);
 
 #endif
