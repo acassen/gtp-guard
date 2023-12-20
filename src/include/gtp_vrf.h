@@ -26,9 +26,11 @@ enum ip_vrf_flags {
 	IP_VRF_FL_ENCAP_DOT1Q_BIT,
 	IP_VRF_FL_DECAP_DOT1Q_BIT,
 	IP_VRF_FL_IPIP_BIT,
+	IP_VRF_FL_PPP_BIT,
 };
 
 typedef struct _ip_vrf {
+	uint32_t		id;
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	uint16_t		encap_vlan_id;

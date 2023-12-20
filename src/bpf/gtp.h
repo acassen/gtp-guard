@@ -122,13 +122,15 @@ struct ip_rt_key {
 struct gtp_rt_rule {
 	__be32  teid;
 	__be32  addr;
+	__be32  dst_key;
 
 	/* Some stats */
 	__u64   packets;
 	__u64   bytes;
 
-	__u8	direction;
+	__u8	flags;
 } __attribute__ ((__aligned__(8)));
-
+#define GTP_RT_FL_IPIP		(1 << 0)
+#define GTP_RT_FL_PPP		(1 << 1)
 
 #endif

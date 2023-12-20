@@ -32,6 +32,9 @@
 /* Extern data */
 extern data_t *daemon_data;
 
+/* Local data */
+static uint32_t gtp_vrf_id;
+
 cmd_node_t ip_vrf_node = {
         IP_VRF_NODE,
         "%s(ip-vrf)# ",
@@ -59,6 +62,9 @@ DEFUN(ip_vrf,
 	new = gtp_ip_vrf_get(argv[0]);
 	if (!new)
 		new = gtp_ip_vrf_alloc(argv[0]);
+
+	__sync_add_and_fetch(&gtp_vrf_id, 1);
+	new->id = gtp_vrf_id;
 
 	vty->node = IP_VRF_NODE;
 	vty->index = new;
@@ -206,6 +212,7 @@ DEFUN(ip_vrf_encapsulation_ipip,
 		return CMD_WARNING;
 	}
 
+	t->selector_addr = vrf->id;
 	t->local_addr = laddr;
 	t->remote_addr = raddr;
 	ret = gtp_xdp_rt_iptnl_action(RULE_ADD, t);

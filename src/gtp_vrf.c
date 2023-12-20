@@ -37,7 +37,6 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 
-
 /*
  *	IP VRF init
  */

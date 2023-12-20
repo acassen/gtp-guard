@@ -45,7 +45,7 @@ struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
 	__uint(max_entries, 1000000);
-	__type(key, __be32);				/* TEID */
+	__type(key, struct ip_rt_key);			/* TEID */
 	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
 } teid_egress SEC(".maps");
 

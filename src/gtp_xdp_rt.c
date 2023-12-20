@@ -108,27 +108,107 @@ gtp_xdp_rt_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, int direction)
+gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
+	gtp_session_t *s = t->session;
+	ip_vrf_t *vrf = s->apn->vrf;
+	__be32 dst_key = (vrf) ? vrf->id : 0;
+	__u8 flags = __test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags) ? GTP_RT_FL_IPIP : 0;
 	int i;
 
 	for (i = 0; i < nr_cpus; i++) {
 		r[i].teid = t->id;
 		r[i].addr = t->ipv4;
-		r[i].direction = direction;
+		r[i].dst_key = dst_key;
 		r[i].packets = 0;
 		r[i].bytes = 0;
+		r[i].flags = flags;
 	}
+}
+
+static int
+gtp_xdp_rt_key_set(int direction, gtp_teid_t *t, struct ip_rt_key *rt_key)
+{
+	gtp_session_t *s = t->session;
+	gtp_conn_t *c = s->conn;
+	gtp_router_t *r = c->ctx;
+	gtp_server_t *srv = &r->gtpu;
+
+	/* egress (upstream) : GTP TEID + pGW GTP Tunnel endpoint */
+	if (direction == GTP_EGRESS) {
+		rt_key->id = t->id;
+		rt_key->addr = inet_sockaddrip4(&srv->addr);
+		return 0;
+	}
+
+	/* ingress (downstream) : session ipv4 address + IPIP or PPP tunnel endpoint */
+	rt_key->id = 0;
+	if (s->apn->vrf) {
+		if (__test_bit(IP_VRF_FL_IPIP_BIT, &s->apn->vrf->flags))
+			rt_key->id = s->apn->vrf->iptnl.local_addr;
+	}
+	rt_key->addr = s->ipv4;
+	return 0;
 }
 
 static int
 gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
 {
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	struct gtp_rt_rule *new = NULL;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err = 0;
+	struct ip_rt_key rt_key;
+	size_t sz;
+
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
+	if (!t)
 		return -1;
 
-	return 0;
+	gtp_xdp_rt_key_set(direction, t, &rt_key);
+
+	/* Set rule */
+	if (action == RULE_ADD) {
+		/* fill per cpu rule */
+		new = gtp_xdp_rt_rule_alloc(&sz);
+		if (!new) {
+			log_message(LOG_INFO, "%s(): Cant allocate teid_rule !!!"
+					    , __FUNCTION__);
+			err = -1;
+			goto end;
+		}
+		gtp_xdp_rt_rule_set(new, t);
+		err = bpf_map__update_elem(map, &rt_key, sizeof(struct ip_rt_key), new, sz, BPF_NOEXIST);
+	} else if (action == RULE_DEL)
+		err = bpf_map__delete_elem(map, &rt_key, sizeof(struct ip_rt_key), 0);
+	else
+		return -1;
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant %s rule for TEID:0x%.8x (%s)"
+				    , __FUNCTION__
+				    , (action) ? "del" : "add"
+				    , t->id
+				    , errmsg);
+		err = -1;
+		goto end;
+	}
+
+	log_message(LOG_INFO, "%s(): %s %s XDP routing rule "
+			      "{teid:0x%.8x, dst_addr:%u.%u.%u.%u}"
+			    , __FUNCTION__
+			    , (action) ? "deleting" : "adding"
+			    , (direction) ? "egress" : "ingress"
+			    , t->id, NIPQUAD(t->ipv4));
+  end:
+	if (new)
+		free(new);
+	return err;
 }
 
 int
