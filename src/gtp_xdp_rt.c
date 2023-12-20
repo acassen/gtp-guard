@@ -211,6 +211,53 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
 	return err;
 }
 
+static int
+gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct ip_rt_key key = { 0 }, next_key = { 0 };
+	struct gtp_rt_rule *r;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	char addr_ip[16];
+        int err = 0, i;
+	uint64_t packets, bytes;
+	size_t sz;
+
+	/* Allocate temp rule */
+	r = gtp_xdp_rt_rule_alloc(&sz);
+	if (!r) {
+		vty_out(vty, "%% Cant allocate temp rt_rule%s", VTY_NEWLINE);
+		return -1;
+	}
+
+	/* Walk hashtab */
+	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(struct ip_rt_key)) == 0) {
+		key = next_key;
+		err = bpf_map__lookup_elem(map, &key, sizeof(struct ip_rt_key), r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+			vty_out(vty, "%% error fetching value for key:0x%.8x (%s)%s"
+				   , key.id, errmsg, VTY_NEWLINE);
+			continue;
+		}
+
+		packets = bytes = 0;
+		for (i = 0; i < nr_cpus; i++) {
+			packets += r[i].packets;
+			bytes += r[i].bytes;
+		}
+
+		vty_out(vty, "| 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
+			   , ntohl(r[0].teid)
+			   , inet_ntoa2(r[0].addr, addr_ip)
+			   , (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map) ? "egress" : "ingress"
+			   , packets, bytes, VTY_NEWLINE);
+	}
+
+	free(r);
+	return 0;
+}
+
 int
 gtp_xdp_rt_teid_action(int action, gtp_teid_t *t, int direction)
 {
@@ -226,6 +273,23 @@ gtp_xdp_rt_teid_vty(vty_t *vty, __be32 id)
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
+	return 0;
+}
+
+int
+gtp_xdp_rt_vty(vty_t *vty)
+{
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+		return -1;
+
+	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
+		     "|    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
+		     "+------------+------------------+-----------+--------------+---------------------+%s"
+		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
+	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, 0);
+	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, 0);
+	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
+		   , VTY_NEWLINE);
 	return 0;
 }
 

@@ -54,6 +54,7 @@ extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);
 extern void gtp_xdp_rt_unload(gtp_bpf_opts_t *);
 extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *, int);
 extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
+extern int gtp_xdp_rt_vty(vty_t *);
 extern int gtp_xdp_rt_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_rt_iptnl_vty(vty_t *);
 

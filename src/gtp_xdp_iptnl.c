@@ -156,7 +156,7 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
 int
 gtp_xdp_iptnl_vty(vty_t *vty, struct bpf_map *map)
 {
-	__be32 key, next_key;
+	__be32 key = 0, next_key = 0;
 	struct gtp_iptnl_rule *r;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char sip[16], lip[16], rip[16];

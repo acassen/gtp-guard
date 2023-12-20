@@ -533,7 +533,7 @@ DEFUN(show_gtp_fwd,
       SHOW_STR
       "XDP GTP Fowarding Dataplane ruleset\n")
 {
-        int ret;
+	int ret;
 
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
@@ -541,14 +541,14 @@ DEFUN(show_gtp_fwd,
 		return CMD_WARNING;
 	}
 
-        ret = gtp_xdp_fwd_vty(vty);
-        if (ret < 0) {
-                vty_out(vty, "%% Error displaying XDP ruleset%s"
-                           , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	ret = gtp_xdp_fwd_vty(vty);
+	if (ret < 0) {
+		vty_out(vty, "%% Error displaying XDP ruleset%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(show_xdp_fwd_iptnl,
@@ -566,6 +566,54 @@ DEFUN(show_xdp_fwd_iptnl,
 	}
 
 	ret = gtp_xdp_fwd_iptnl_vty(vty);
+	if (ret < 0) {
+		vty_out(vty, "%% Error displaying XDP ruleset%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_gtp_rt,
+      show_gtp_rt_cmd,
+      "show gtp rt",
+      SHOW_STR
+      "GTP XDP Routing Dataplane ruleset\n")
+{
+	int ret;
+
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = gtp_xdp_rt_vty(vty);
+	if (ret < 0) {
+		vty_out(vty, "%% Error displaying XDP ruleset%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_xdp_rt_iptnl,
+      show_xdp_rt_iptnl_cmd,
+      "show xdp rt iptunnel",
+      SHOW_STR
+      "GTP XDP Routing IPIP Tunnel ruleset\n")
+{
+	int ret;
+
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = gtp_xdp_rt_iptnl_vty(vty);
 	if (ret < 0) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -822,6 +870,8 @@ gtp_vty_init(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_fwd_cmd);
 	install_element(VIEW_NODE, &show_xdp_fwd_iptnl_cmd);
+	install_element(VIEW_NODE, &show_gtp_rt_cmd);
+	install_element(VIEW_NODE, &show_xdp_rt_iptnl_cmd);
 	install_element(VIEW_NODE, &show_xdp_mirror_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);

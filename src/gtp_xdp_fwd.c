@@ -178,11 +178,11 @@ static int
 gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
-	__be32 key, next_key;
+	__be32 key = 0, next_key = 0;
 	struct gtp_teid_rule *r;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char addr_ip[16];
-        int err = 0, i;
+	int err = 0, i;
 	uint64_t packets, bytes;
 	size_t sz;
 
