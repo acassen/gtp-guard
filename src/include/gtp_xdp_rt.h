@@ -39,7 +39,8 @@ struct ip_rt_key {
 
 struct gtp_rt_rule {
 	__be32	teid;
-	__be32	addr;
+	__be32	saddr;
+	__be32	daddr;
 	__be32	dst_key;
 
 	/* Some stats */
@@ -52,7 +53,7 @@ struct gtp_rt_rule {
 /* Prototypes */
 extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);
 extern void gtp_xdp_rt_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *, int);
+extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *);
 extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
 extern int gtp_xdp_rt_vty(vty_t *);
 extern int gtp_xdp_rt_iptnl_action(int, gtp_iptnl_t *);

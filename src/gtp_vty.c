@@ -877,6 +877,8 @@ gtp_vty_init(void)
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
 	install_element(ENABLE_NODE, &show_gtp_fwd_cmd);
 	install_element(ENABLE_NODE, &show_xdp_fwd_iptnl_cmd);
+	install_element(ENABLE_NODE, &show_gtp_rt_cmd);
+	install_element(ENABLE_NODE, &show_xdp_rt_iptnl_cmd);
 	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);

@@ -112,6 +112,9 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	gtp_session_t *s = t->session;
+	gtp_conn_t *c = s->conn;
+	gtp_router_t *rtr = c->ctx;
+	gtp_server_t *srv = &rtr->gtpu;
 	ip_vrf_t *vrf = s->apn->vrf;
 	__be32 dst_key = (vrf) ? vrf->id : 0;
 	__u8 flags = __test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags) ? GTP_RT_FL_IPIP : 0;
@@ -119,7 +122,8 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 
 	for (i = 0; i < nr_cpus; i++) {
 		r[i].teid = t->id;
-		r[i].addr = t->ipv4;
+		r[i].saddr = inet_sockaddrip4(&srv->addr);
+		r[i].daddr = t->ipv4;
 		r[i].dst_key = dst_key;
 		r[i].packets = 0;
 		r[i].bytes = 0;
@@ -153,9 +157,11 @@ gtp_xdp_rt_key_set(int direction, gtp_teid_t *t, struct ip_rt_key *rt_key)
 }
 
 static int
-gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
+gtp_xdp_rt_action(int action, gtp_teid_t *t)
 {
 	struct gtp_rt_rule *new = NULL;
+	int direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
+	struct bpf_map *map = xdp_rt_maps[direction].map;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err = 0;
 	struct ip_rt_key rt_key;
@@ -193,7 +199,7 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
 		log_message(LOG_INFO, "%s(): Cant %s rule for TEID:0x%.8x (%s)"
 				    , __FUNCTION__
 				    , (action) ? "del" : "add"
-				    , t->id
+				    , ntohl(t->id)
 				    , errmsg);
 		err = -1;
 		goto end;
@@ -204,7 +210,7 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
 			    , __FUNCTION__
 			    , (action) ? "deleting" : "adding"
 			    , (direction) ? "egress" : "ingress"
-			    , t->id, NIPQUAD(t->ipv4));
+			    , ntohl(t->id), NIPQUAD(t->ipv4));
   end:
 	if (new)
 		free(new);
@@ -249,9 +255,10 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 
 		vty_out(vty, "| 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
 			   , ntohl(r[0].teid)
-			   , inet_ntoa2(r[0].addr, addr_ip)
+			   , inet_ntoa2(r[0].daddr, addr_ip)
 			   , (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map) ? "egress" : "ingress"
-			   , packets, bytes, VTY_NEWLINE);
+			   , packets, bytes
+			   , VTY_NEWLINE);
 	}
 
 	free(r);
@@ -259,12 +266,12 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 }
 
 int
-gtp_xdp_rt_teid_action(int action, gtp_teid_t *t, int direction)
+gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 {
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_rt_action(xdp_rt_maps[direction].map, action, t, direction);;
+	return gtp_xdp_rt_action(action, t);
 }
 
 int

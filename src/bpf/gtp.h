@@ -44,6 +44,7 @@ struct gtphdr {
 } __attribute__ ((__packed__));
 
 #define GTPU_TPDU		0xff
+#define GTPU_FLAGS		0x30
 #define GTPU_PORT		2152
 #define GTPC_PORT		2123
 #define GTPU_ECHO_REQ_TYPE	1
@@ -121,7 +122,8 @@ struct ip_rt_key {
 
 struct gtp_rt_rule {
 	__be32  teid;
-	__be32  addr;
+	__be32  saddr;
+	__be32  daddr;
 	__be32  dst_key;
 
 	/* Some stats */

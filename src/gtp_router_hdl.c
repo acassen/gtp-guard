@@ -69,6 +69,7 @@ gtp_teid_set(gtp_server_worker_t *w, gtp_session_t *s, gtp_teid_t *teid, uint8_t
 		return NULL;
 
 	teid->type = type;
+	__set_bit(direction ? GTP_TEID_FL_EGRESS : GTP_TEID_FL_INGRESS, &teid->flags);
 	teid->session = s;
 	gtp_sqn_update(w, teid);
 	__set_bit(GTP_TEID_FL_RT, &teid->flags);
@@ -755,12 +756,24 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
 				    , gtp_router_gtpu_teid_destroy);
 
+	/* Allocate IP Address from APN pool if configured */
+	s->ipv4 = gtp_ip_pool_get(apn);
+	if (!s->ipv4) {
+		log_message(LOG_INFO, "%s(): APN:%s All IP Address occupied"
+				    , __FUNCTION__
+				    , apn_str);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_ALL_DYNAMIC_ADDRESS_OCCUPIED);
+		goto end;
+	}
+
 	teid = gtpc_teid_create(w, s, msg, true);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): No GTP-C F-TEID, cant create session. ignoring..."
 				    , __FUNCTION__);
 		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
 						     , GTP_CAUSE_REQUEST_REJECTED);
+		gtp_ip_pool_put(apn, s->ipv4);
 		goto end;
 	}
 
@@ -782,9 +795,6 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* Update last sGW visited */
 	c->sgw_addr = *((struct sockaddr_in *) addr);
-
-	/* Allocate IP Address from APN pool if configured */
-	s->ipv4 = gtp_ip_pool_get(apn);
 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;

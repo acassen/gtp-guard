@@ -139,6 +139,7 @@ DEFUN(ip_vrf_encapsulation_dot1q,
 	VTY_GET_INTEGER_RANGE("Vlan ID", vlan_id, argv[0], 1, 65535);
 	vrf->encap_vlan_id = vlan_id;
 	t->encap_vlan_id = vlan_id;
+	t->flags |= IPTNL_FL_TAG_VLAN;
 
 	__set_bit(IP_VRF_FL_ENCAP_DOT1Q_BIT, &vrf->flags);
 	return CMD_SUCCESS;
@@ -168,7 +169,7 @@ DEFUN(ip_vrf_decapsulation_dot1q,
 	VTY_GET_INTEGER_RANGE("Vlan ID", vlan_id, argv[0], 1, 65535);
 	vrf->decap_vlan_id = vlan_id;
 	t->decap_vlan_id = vlan_id;
-	t->flags |= IPTNL_FL_TAG_VLAN;
+	t->flags |= IPTNL_FL_UNTAG_VLAN;
 
 	__set_bit(IP_VRF_FL_DECAP_DOT1Q_BIT, &vrf->flags);
 	return CMD_SUCCESS;

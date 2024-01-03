@@ -116,7 +116,7 @@ gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid, int direction)
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
 		gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
-		gtp_xdp_rt_teid_action(RULE_ADD, teid, direction);
+		gtp_xdp_rt_teid_action(RULE_ADD, teid);
 
 	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
 }
@@ -206,7 +206,7 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
 		gtp_xdp_fwd_teid_action(RULE_DEL, teid, 0);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
-		gtp_xdp_rt_teid_action(RULE_DEL, teid, 0);
+		gtp_xdp_rt_teid_action(RULE_DEL, teid);
 
 	gtp_teid_free(teid);
 	return 0;
