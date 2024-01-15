@@ -7,3 +7,12 @@ GTP-Guard is free software; you can redistribute it and/or modify it under the t
 
 
 [![GTP-Guard](https://www.gtp-guard.org/_images/network.png)](https://www.gtp-guard.org)
+
+Build
+=====
+
+```
+git clone --recursive git@github.com:acassen/gtp-guard.git
+cd gtp-guard
+make -j $(nproc)
+```
