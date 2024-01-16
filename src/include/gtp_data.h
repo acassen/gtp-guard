@@ -28,6 +28,7 @@
 #define GTP_NAMESERVER_PORT	53
 #define GTP_DEFAULT_THREAD_CNT	10
 #define GTP_BUFFER_SIZE		4096
+#define GTP_PNAME		128
 
 
 /* Flags */
@@ -71,6 +72,7 @@ typedef struct _data {
 
 	list_head_t		mirror_rules;
 	list_head_t		ip_vrf;
+	list_head_t		pppoe;
 	list_head_t		gtp_apn;
 	list_head_t		gtp_switch_ctx;
 	list_head_t		gtp_router_ctx;

@@ -347,8 +347,8 @@ gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 	pid->length = htons(sizeof(gtp_pco_pid_ipcp_t)-sizeof(gtp_pco_pid_t));
 	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_ipcp_t));
 
-	err = (err) ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_primary_ns, PPP_IPCP_PRIMARY_NS);
-	err = (err) ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_secondary_ns, PPP_IPCP_SECONDARY_NS);
+	err = err ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_primary_ns, PPP_IPCP_PRIMARY_NS);
+	err = err ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_secondary_ns, PPP_IPCP_SECONDARY_NS);
 	if (err)
 		return 1;
 
@@ -431,10 +431,10 @@ gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
 	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_pco_t));
 
 	/* Put Protocol or Container ID */
-	err = (err) ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ie_pco);
-	err = (err) ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ie_pco);
-	err = (err) ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ie_pco);
-	err = (err) ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
 	if (err)
 		return 1;
 
@@ -540,10 +540,10 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 	bearer_ctx = (gtp_ie_bearer_context_t *) pbuff->data;
 	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_bearer_context_t));
 
-	err = (err) ? : gtpc_pkt_put_eps_bearer_id(pbuff, apn->eps_bearer_id);
-	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
-	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid, 2);
-	err = (err) ? : gtpc_pkt_put_charging_id(pbuff, s->charging_id);
+	err = err ? : gtpc_pkt_put_eps_bearer_id(pbuff, apn->eps_bearer_id);
+	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid, 2);
+	err = err ? : gtpc_pkt_put_charging_id(pbuff, s->charging_id);
 	if (err)
 		return 1;
 
@@ -583,14 +583,14 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	gtpc_build_header(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE);
 
 	/* Put IE */
-	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
-	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
-	err = (err) ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
-	err = (err) ? : gtpc_pkt_put_pco(pbuff, apn->pco);
-	err = (err) ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1);
-	err = (err) ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
-	err = (err) ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
-	err = (err) ? : gtpc_pkt_put_bearer_context(pbuff, s, teid->peer_teid);
+	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	err = err ? : gtpc_pkt_put_recovery(pbuff);
+	err = err ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
+	err = err ? : gtpc_pkt_put_pco(pbuff, apn->pco);
+	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1);
+	err = err ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
+	err = err ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
+	err = err ? : gtpc_pkt_put_bearer_context(pbuff, s, teid->peer_teid);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?"
 				    , __FUNCTION__);
@@ -612,9 +612,9 @@ gtpc_build_change_notification_response(pkt_buffer_t *pbuff, gtp_session_t *s, g
 	gtpc_build_header(pbuff, teid, GTP_CHANGE_NOTIFICATION_RESPONSE);
 
 	/* Put IE */
-	err = (err) ? : gtpc_pkt_put_imsi(pbuff, s->conn->imsi);
-	err = (err) ? : gtpc_pkt_put_mei(pbuff, s->mei);
-	err = (err) ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
+	err = err ? : gtpc_pkt_put_imsi(pbuff, s->conn->imsi);
+	err = err ? : gtpc_pkt_put_mei(pbuff, s->mei);
+	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error building PKT !?"
 				    , __FUNCTION__);
@@ -636,8 +636,8 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
 	gtpc_build_header(pbuff, teid, type);
 
 	/* Put IE */
-	err = (err) ? : gtpc_pkt_put_cause(pbuff, cause);
-	err = (err) ? : gtpc_pkt_put_recovery(pbuff);
+	err = err ? : gtpc_pkt_put_cause(pbuff, cause);
+	err = err ? : gtpc_pkt_put_recovery(pbuff);
 	if (err)
 		return -1;
 
@@ -758,7 +758,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* Allocate IP Address from APN pool if configured */
 	s->ipv4 = gtp_ip_pool_get(apn);
-	if (!s->ipv4) {
+	if (apn->ip_pool && !s->ipv4) {
 		log_message(LOG_INFO, "%s(): APN:%s All IP Address occupied"
 				    , __FUNCTION__
 				    , apn_str);
@@ -798,6 +798,13 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
+
+	/* IP VRF is in use and PPPOE session forwarding is configured */
+	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
+		gtp_pppoe_create_session(w, apn->vrf, s);
+		rc = GTP_ROUTER_DELAYED;
+		goto end;
+	}
 
 	rc = gtpc_build_create_session_response(w->pbuff, s, teid);
   end:

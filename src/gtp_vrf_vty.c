@@ -228,11 +228,98 @@ DEFUN(ip_vrf_encapsulation_ipip,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe,
+      ip_vrf_pppoe_cmd,
+      "pppoe interface STRING [listener-count [INTEGER]]",
+      "PPP Over Ethernet support\n"
+      "Interface\n"
+      "String\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe;
+	int ret;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags)) {
+		vty_out(vty, "%% PPPoE already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pppoe = gtp_pppoe_init(argv[0]);
+	if (!pppoe) {
+		vty_out(vty, "%% unknown interface %s!%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pppoe->thread_cnt = (argc == 2) ? strtoul(argv[1], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
+	vrf->pppoe = pppoe;
+	ret = gtp_pppoe_start(pppoe);
+	if (ret < 0) {
+		vty_out(vty, "%% Error starting PPPoE on interface %s!%s", argv[0], VTY_NEWLINE);
+		gtp_pppoe_release(pppoe);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_ac_name,
+      ip_vrf_pppoe_ac_name_cmd,
+      "pppoe access-concentrator-name STRING",
+      "PPP Over Ethernet\n"
+      "Access Concentrator Name\n"
+      "String\n")
+{
+	ip_vrf_t *vrf = vty->index;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!vrf->pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	strlcpy(vrf->pppoe->ac_name, argv[0], PPPOE_NAMELEN);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_service_name,
+      ip_vrf_pppoe_service_name_cmd,
+      "pppoe service-name STRING",
+      "PPP Over Ethernet\n"
+      "Service Name\n"
+      "String\n")
+{
+	ip_vrf_t *vrf = vty->index;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!vrf->pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	strlcpy(vrf->pppoe->service_name, argv[0], PPPOE_NAMELEN);
+	return CMD_SUCCESS;
+}
+
 /* Configuration writer */
 static int
 gtp_config_write(vty_t *vty)
 {
         list_head_t *l = &daemon_data->ip_vrf;
+	gtp_pppoe_t *pppoe;
         ip_vrf_t *vrf;
 
         list_for_each_entry(vrf, l, next) {
@@ -248,6 +335,18 @@ gtp_config_write(vty_t *vty)
 				   , NIPQUAD(vrf->iptnl.local_addr)
 				   , NIPQUAD(vrf->iptnl.remote_addr)
 				   , VTY_NEWLINE);
+		if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags)) {
+			pppoe = vrf->pppoe;
+			vty_out(vty, " pppoe interface %s%s", pppoe->ifname, VTY_NEWLINE);
+			if (pppoe->ac_name[0])
+				vty_out(vty, " pppoe access-concentrator-name %s%s"
+					   , pppoe->ac_name
+					   , VTY_NEWLINE);
+			if (pppoe->service_name[0])
+				vty_out(vty, " pppoe service-name %s%s"
+					   , pppoe->service_name
+					   , VTY_NEWLINE);
+		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -271,6 +370,9 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_encapsulation_dot1q_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_decapsulation_dot1q_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_encapsulation_ipip_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
 
 	return 0;
 }

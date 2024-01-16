@@ -146,5 +146,6 @@ extern uint32_t adler_crc32(uint8_t *, size_t);
 extern uint32_t fletcher_crc32(uint8_t *, size_t);
 extern int integer_to_string(const int, char *, size_t);
 extern uint32_t poor_prng(unsigned int *);
+extern size_t strlcpy(char *, const char *, size_t);
 
 #endif

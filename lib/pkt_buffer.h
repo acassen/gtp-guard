@@ -56,6 +56,11 @@ static inline unsigned char *pkt_buffer_end(pkt_buffer_t *b)
 	return b->end;
 }
 
+static inline void pkt_buffer_reset(pkt_buffer_t *b)
+{
+	b->data = b->end = b->head;
+}
+
 static inline void pkt_buffer_set_end_pointer(pkt_buffer_t *b, unsigned int offset)
 {
 	b->end = b->head + offset;

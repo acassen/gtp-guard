@@ -26,7 +26,7 @@ enum ip_vrf_flags {
 	IP_VRF_FL_ENCAP_DOT1Q_BIT,
 	IP_VRF_FL_DECAP_DOT1Q_BIT,
 	IP_VRF_FL_IPIP_BIT,
-	IP_VRF_FL_PPP_BIT,
+	IP_VRF_FL_PPPOE_BIT,
 };
 
 typedef struct _ip_vrf {
@@ -36,6 +36,7 @@ typedef struct _ip_vrf {
 	uint16_t		encap_vlan_id;
 	uint16_t		decap_vlan_id;
 	gtp_iptnl_t		iptnl;
+	gtp_pppoe_t		*pppoe;
 
 	list_head_t		next;
 

@@ -92,7 +92,8 @@ gtp_router_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr
 	if (ret < 0)
 		return -1;
 
-	gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
+	if (ret != GTP_ROUTER_DELAYED)
+		gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
 	return 0;
 }
 

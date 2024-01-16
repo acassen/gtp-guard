@@ -216,6 +216,40 @@ int64_to_bcd_swap(const uint64_t value, uint8_t *buffer, size_t size)
 }
 
 int
+int64_to_bcd(const uint64_t value, uint8_t *buffer, size_t size)
+{
+	int len = 0, i;
+	uint64_t v;
+	uint8_t tmp;
+
+	/* math would provide it simply with Log:
+	 * [floor(log10(value)) + 1] but iterative approach on integer
+	 * is best... At least with Intel FPU (sound weird...) */
+	for (v = value; v; v/=10) {
+		if (++len > size*2) {
+			len -= 2;
+			break;
+		}
+	}
+
+	for (i = len, v=value; i >= 0; i--, v/=10) {
+		tmp = (uint8_t) (v % 10);
+		buffer[i / 2] |= !!(i % 2) ? tmp : tmp << 4;
+	}
+
+	return 0;
+}
+
+int
+gtp_imsi_ether_addr_build(const uint64_t imsi, struct ether_addr *eth)
+{
+	int64_to_bcd(imsi, eth->ether_addr_octet, ETH_ALEN);
+	/* Tweak it to avoid any special ethernet address */
+	eth->ether_addr_octet[0] = 0;
+	return 0;
+}
+
+int
 gtp_imsi_rewrite(gtp_apn_t *apn, uint8_t *imsi)
 {
 	list_head_t *l = &apn->imsi_match;

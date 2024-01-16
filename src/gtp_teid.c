@@ -67,18 +67,18 @@ gtp_teid_unuse_trim_head(void)
 	gtp_teid_t *t;
 
 	pthread_mutex_lock(&gtp_teid_unuse_mutex);
-	if (!list_empty(&gtp_teid_unuse)) {
-		t = list_first_entry(&gtp_teid_unuse, gtp_teid_t, next);
-		list_head_del(&t->next);
-		memset(t, 0, sizeof(gtp_teid_t));
+	if (list_empty(&gtp_teid_unuse)) {
 		pthread_mutex_unlock(&gtp_teid_unuse_mutex);
-
-		__sync_sub_and_fetch(&gtp_teid_unuse_count, 1);
-		return t;
+		return NULL;
 	}
+
+	t = list_first_entry(&gtp_teid_unuse, gtp_teid_t, next);
+	list_head_del(&t->next);
+	memset(t, 0, sizeof(gtp_teid_t));
 	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
 
-	return NULL;
+	__sync_sub_and_fetch(&gtp_teid_unuse_count, 1);
+	return t;
 }
 
 

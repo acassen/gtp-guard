@@ -32,7 +32,8 @@ OBJS = 	main.o gtp_data.o gtp_vty.o gtp_if.o gtp_server.o			\
 	gtp_dpd.o gtp_xdp.o gtp_xdp_fwd.o gtp_xdp_mirror.o gtp_xdp_rt.o		\
 	gtp_xdp_iptnl.o gtp_msg.o gtp_vrf.o gtp_vrf_vty.o			\
 	gtp_switch.o gtp_switch_vty.o gtp_switch_hdl.o gtp_switch_hdl_v1.o	\
-	gtp_switch_hdl_v2.o gtp_router.o gtp_router_vty.o gtp_router_hdl.o
+	gtp_switch_hdl_v2.o gtp_router.o gtp_router_vty.o gtp_router_hdl.o	\
+	gtp_pppoe.o gtp_pppoe_session.o
 
 HEADERS = $(OBJS:.o=.h)
 

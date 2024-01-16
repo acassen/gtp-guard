@@ -22,12 +22,6 @@
 #ifndef _GTP_SERVER_H
 #define _GTP_SERVER_H
 
-/* Default values */
-#define GTP_DEFAULT_THREAD_CNT	10
-#define GTP_BUFFER_SIZE		4096
-#define GTP_PNAME		128
-
-
 /* GTP Switching context */
 typedef struct _gtp_server_worker {
 	char			pname[GTP_PNAME];

@@ -34,6 +34,7 @@ enum conn_flags {
 
 typedef struct _gtp_conn {
         uint64_t                imsi;
+	struct ether_addr	veth_addr;
 	struct sockaddr_in	sgw_addr;
 	void			*ctx;
 

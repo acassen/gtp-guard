@@ -200,6 +200,7 @@ gtp_conn_alloc(uint64_t imsi, void *ctx)
 
 	PMALLOC(new);
 	new->imsi = imsi;
+	gtp_imsi_ether_addr_build(imsi, &new->veth_addr);
 	new->ctx = ctx;
 	new->ts = time(NULL);
 	INIT_LIST_HEAD(&new->gtp_sessions);

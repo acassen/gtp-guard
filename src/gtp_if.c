@@ -29,6 +29,7 @@
 #include <netinet/tcp.h>
 #include <linux/filter.h>
 #include <linux/ip.h>
+#include <linux/if_packet.h>
 
 /* local includes */
 #include "gtp_guard.h"
@@ -276,7 +277,7 @@ if_setsockopt_reuseport(int sd, int onoff)
 int
 if_setsockopt_hdrincl(int sd)
 {
-        int ret, on = 1;
+	int ret, on = 1;
 
 	if (sd < 0)
 		return sd;
@@ -291,7 +292,56 @@ if_setsockopt_hdrincl(int sd)
 	}
 
 
-        return sd;
+	return sd;
+}
+
+/* Enable Broadcast */
+int
+if_setsockopt_broadcast(int sd)
+{
+	int ret, on = 1;
+
+	if (sd < 0)
+		return sd;
+
+	/* Enable broadcast sending */
+	ret = setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
+	if (ret < 0) {
+		log_message(LOG_INFO, "%s(): cant set SO_BROADCAST (%m)"
+				    , __FUNCTION__);
+		close(sd);
+		return -1;
+	}
+
+	return sd;
+}
+
+/* Set Promiscuous mode */
+int
+if_setsockopt_promisc(int sd, int ifindex, bool enable)
+{
+	struct packet_mreq mreq = {0};
+	int ret;
+
+	if (sd < 0)
+		return sd;
+
+	mreq.mr_ifindex = ifindex;
+	mreq.mr_type = PACKET_MR_PROMISC;
+
+	/* Enable promiscuous mode */
+	ret = setsockopt(sd, SOL_PACKET
+			   , enable ? PACKET_ADD_MEMBERSHIP : PACKET_DROP_MEMBERSHIP
+			   , &mreq, sizeof(mreq));
+	if (ret < 0) {
+		log_message(LOG_INFO, "%s(): cant %s PROMISC mode (%m)"
+				    , __FUNCTION__
+				    , enable ? "set" : "unset");
+		close(sd);
+		return -1;
+	}
+
+	return sd;
 }
 
 

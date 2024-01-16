@@ -40,6 +40,8 @@ extern int if_setsockopt_rcvtimeo(int, int);
 extern int if_setsockopt_sndtimeo(int, int);
 extern int if_setsockopt_reuseport(int, int);
 extern int if_setsockopt_hdrincl(int);
+extern int if_setsockopt_broadcast(int);
+extern int if_setsockopt_promisc(int, int, bool);
 extern int if_setsockopt_no_receive(int *);
 extern int if_setsockopt_rcvbuf(int *, int);
 extern int if_setsockopt_bindtodevice(int *, const char *);
