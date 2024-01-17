@@ -30,7 +30,6 @@ typedef struct _pkt_buffer {
 	unsigned char		*tail;
 } pkt_buffer_t;
 
-
 static inline unsigned int pkt_buffer_len(pkt_buffer_t *b)
 {
 	return b->end - b->head;

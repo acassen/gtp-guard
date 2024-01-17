@@ -452,26 +452,28 @@ if_setsockopt_bindtodevice(int *sd, const char *ifname)
 int
 if_setsockopt_priority(int *sd, int family)
 {
-        int ret, val;
+	int ret, val;
 
-        if (*sd < 0)
-                return -1;
+	if (*sd < 0)
+		return -1;
 
-        /* Set PRIORITY traffic */
-        if (family == AF_INET) {
-                val = IPTOS_PREC_INTERNETCONTROL;
-                ret = setsockopt(*sd, IPPROTO_IP, IP_TOS, &val, sizeof(val));
-        } else {
-                /* set tos to internet network control */
-                val = 0xc0;     /* 192, which translates to DCSP value 48, or cs6 */
-                ret = setsockopt(*sd, IPPROTO_IPV6, IPV6_TCLASS, &val, sizeof(val));
-        }
+	/* Set PRIORITY traffic */
+	if (family == AF_INET) {
+		val = IPTOS_PREC_INTERNETCONTROL;
+		ret = setsockopt(*sd, IPPROTO_IP, IP_TOS, &val, sizeof(val));
+	} else {
+		/* set tos to internet network control */
+		val = 0xc0;     /* 192, which translates to DCSP value 48, or cs6 */
+		ret = setsockopt(*sd, IPPROTO_IPV6, IPV6_TCLASS, &val, sizeof(val));
+	}
 
-        if (ret < 0) {
-                log_message(LOG_INFO, "can't set %s option. errno=%d (%m)", (family == AF_INET) ? "IP_TOS" : "IPV6_TCLASS",  errno);
-                close(*sd);
-                *sd = -1;
-        }
+	if (ret < 0) {
+		log_message(LOG_INFO, "can't set %s option. errno=%d (%m)"
+				    , (family == AF_INET) ? "IP_TOS" : "IPV6_TCLASS"
+				    ,  errno);
+		close(*sd);
+		*sd = -1;
+	}
 
-        return *sd;
+	return *sd;
 }

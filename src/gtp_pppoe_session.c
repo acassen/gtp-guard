@@ -48,8 +48,8 @@ pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	struct ether_header *eth;
-	gtp_pppoe_pkt_t *pkt;
-	int len, l1 = 0, l2 = 0, ret;
+	gtp_pkt_t *pkt;
+	int len, l1 = 0, l2 = 0;
 	uint8_t *p;
 
 	/* service name tag is required, host unique is sent too */
@@ -65,9 +65,7 @@ pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
 	}
 
 	/* allocate a buffer */
-	pthread_mutex_lock(&pppoe->unuse_q_mutex);
-	pkt = gtp_pppoe_pkt_get(&pppoe->unuse_q);
-	pthread_mutex_unlock(&pppoe->unuse_q_mutex);
+	pkt = gtp_pkt_get(&pppoe->pkt_q);
 
 	/* fill in pkt */
 	eth = (struct ether_header *) pkt->pbuff->head;
@@ -100,16 +98,7 @@ pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
 	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
 
 	/* send pkt */
-	ret = send(pppoe->fd_disc, pkt->pbuff->head, pkt_buffer_len(pkt->pbuff), 0);
-	if (ret < 0)
-		log_message(LOG_INFO, "%s(): Error sending PPPoE PADI (%m)"
-				    , __FUNCTION__);
-
-	pthread_mutex_lock(&pppoe->unuse_q_mutex);
-	pkt = gtp_pppoe_pkt_put(&pppoe->unuse_q, pkt);
-	pthread_mutex_unlock(&pppoe->unuse_q_mutex);
-
-	return ret;
+	return gtp_pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
 }
 
 
