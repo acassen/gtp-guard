@@ -98,6 +98,11 @@ typedef struct _pppoe_tag {
 #define GTP_PPPOE_RPS_SIZE	(1 << GTP_PPPOE_RPS_BITS)
 #define GTP_PPPOE_RPS_MASK	(GTP_PPPOE_RPS_SIZE - 1)
 
+enum gtp_pppoe_session_flags {
+	GTP_PPPOE_SESSION_FL_HASHED,
+};
+
+
 typedef struct _gtp_pppoe_session {
 	int			state;
 	struct ether_addr	dst;
@@ -113,7 +118,14 @@ typedef struct _gtp_pppoe_session {
 	int			padi_retried;		/* [K] number of PADI retries already done */
 	int			padr_retried;		/* [K] number of PADR retries already done */
 
-	time_t	 		session_time;		/* time the session was established */	
+	time_t	 		session_time;		/* time the session was established */
+
+	struct _gtp_session	*s_gtp;			/* our GTP Session peer */
+
+	struct hlist_node	hlist;
+
+	unsigned long		flags;
+	int			refcnt;
 } gtp_pppoe_session_t;
 
 typedef struct _gtp_pkt {
@@ -148,7 +160,10 @@ typedef struct _gtp_pppoe {
 	int			refcnt;
 	int			fd_disc;
 	int			fd_session;
+	unsigned int		seed;
 	pthread_t		task;
+
+	gtp_htab_t		session_tab;	/* Session Tracking */
 
 	/* I/O MUX related */
 	thread_master_t		*master;

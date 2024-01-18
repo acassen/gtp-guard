@@ -41,6 +41,107 @@ extern thread_master_t *master;
 
 
 /*
+ *	PPPoE Session tracking
+ */
+static struct hlist_head *
+gtp_pppoe_session_hashkey(gtp_htab_t *h, uint32_t id)
+{
+	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
+}
+
+static gtp_pppoe_session_t *
+__gtp_pppoe_session_get(gtp_htab_t *h, uint32_t id)
+{
+	struct hlist_head *head = gtp_pppoe_session_hashkey(h, id);
+	struct hlist_node *n;
+	gtp_pppoe_session_t *s;
+
+	hlist_for_each_entry(s, n, head, hlist) {
+		if (s->unique == id) {
+			__sync_add_and_fetch(&s->refcnt, 1);
+			return s;
+		}
+	}
+
+	return NULL;
+}
+
+gtp_pppoe_session_t *
+gtp_pppoe_session_get(gtp_htab_t *h, uint32_t id)
+{
+	gtp_pppoe_session_t *s;
+
+	dlock_lock_id(h->dlock, id, 0);
+	s = __gtp_pppoe_session_get(h, id);
+	dlock_unlock_id(h->dlock, id, 0);
+
+	return s;
+}
+
+int
+__gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint32_t id)
+{
+	struct hlist_head *head;
+
+	if (__test_and_set_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already hashed !!!"
+				    , __FUNCTION__, s->unique, ntohl(s->session_id));
+		return -1;
+	}
+
+	head = gtp_pppoe_session_hashkey(h, id);
+	s->unique = id;
+	hlist_add_head(&s->hlist, head);
+
+	__sync_add_and_fetch(&s->refcnt, 1);
+	return 0;
+}
+
+int
+gtp_pppoe_session_unhash(gtp_htab_t *h, gtp_pppoe_session_t *s)
+{
+	dlock_lock_id(h->dlock, s->unique, 0);
+	if (!__test_and_clear_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already unhashed !!!"
+				    , __FUNCTION__, s->unique, ntohl(s->session_id));
+		dlock_unlock_id(h->dlock, s->unique, 0);
+		return -1;
+	}
+
+	hlist_del_init(&s->hlist);
+	__sync_sub_and_fetch(&s->refcnt, 1);
+	dlock_unlock_id(h->dlock, s->unique, 0);
+
+	return 0;
+}
+
+int
+gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, unsigned int *seed)
+{
+	gtp_pppoe_session_t *_s;
+	uint32_t id;
+
+  shoot_again:
+	id = poor_prng(seed) ^ (uint32_t) imsi;
+
+	dlock_lock_id(h->dlock, id, 0);
+	_s = __gtp_pppoe_session_get(h, id);
+	if (_s) {
+		dlock_unlock_id(h->dlock, id, 0);
+		/* same player */
+		__sync_sub_and_fetch(&_s->refcnt, 1);
+		goto shoot_again;
+	}
+
+	__gtp_pppoe_session_hash(h, s, id);
+	dlock_unlock_id(h->dlock, id, 0);
+	return 0;
+}
+
+
+
+
+/*
  *	PPPoE Protocol datagram
  */
 static int
@@ -106,20 +207,28 @@ pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
  *	PPPoE Sessions related
  */
 int
-gtp_pppoe_create_session(gtp_server_worker_t *w, ip_vrf_t *vrf, gtp_session_t *s)
+gtp_pppoe_create_session(gtp_session_t *s, gtp_pppoe_t *pppoe)
 {
 	gtp_conn_t *conn = s->conn;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
 	gtp_pppoe_session_t *s_pppoe;
 
 	if (!pppoe)
 		return -1;
 
+	/* Should never happen */
+	if (s->s_pppoe) {
+		log_message(LOG_INFO, "%s(): gtp_session:0x%.8x already bound to pppoe_session:0x%.8x"
+				    , __FUNCTION__
+				    , s->id, s->s_pppoe->unique);
+		return -1;
+	}
+
 	PMALLOC(s_pppoe);
-	/* FIXME: make it really unique over global session tracking */
-	s_pppoe->unique = poor_prng(&w->seed) ^ (uint32_t) conn->imsi;
 	s_pppoe->session_time = time(NULL);
-	s_pppoe->pppoe = vrf->pppoe;
+	s_pppoe->pppoe = pppoe;
+	s->s_pppoe = s_pppoe;
+	s_pppoe->s_gtp = s;
+	gtp_pppoe_session_hash(&pppoe->session_tab, s_pppoe, conn->imsi, &pppoe->seed);
 
 	return pppoe_send_padi(s_pppoe, &conn->veth_addr);
 }

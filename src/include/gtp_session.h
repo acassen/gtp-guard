@@ -46,6 +46,7 @@ typedef struct _gtp_session {
 	int (*gtpu_teid_destroy) (gtp_teid_t *);
 
 	gtp_conn_t		*conn;		/* backpointer */
+	gtp_pppoe_session_t	*s_pppoe;	/* PPPoE session peer */
 
 	uint8_t			action;
 

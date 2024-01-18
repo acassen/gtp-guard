@@ -23,6 +23,6 @@
 #define _GTP_PPPOE_SESSION_H
 
 /* Prototypes */
-extern int gtp_pppoe_create_session(gtp_server_worker_t *, ip_vrf_t *, gtp_session_t *);
+extern int gtp_pppoe_create_session(gtp_session_t *, gtp_pppoe_t *);
 
 #endif

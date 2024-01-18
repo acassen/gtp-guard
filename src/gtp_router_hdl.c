@@ -801,7 +801,13 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* IP VRF is in use and PPPOE session forwarding is configured */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
-		gtp_pppoe_create_session(w, apn->vrf, s);
+		ret = gtp_pppoe_create_session(s, apn->vrf->pppoe);
+		if (ret < 0) {
+			rc = gtpc_build_errmsg(w->pbuff, teid
+						       , GTP_CREATE_SESSION_RESPONSE_TYPE
+						       , GTP_CAUSE_REQUEST_REJECTED);
+			goto end;
+		}
 		rc = GTP_ROUTER_DELAYED;
 		goto end;
 	}

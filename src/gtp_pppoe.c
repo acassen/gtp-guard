@@ -195,7 +195,7 @@ gtp_pppoe_worker_task(void *arg)
 	/* Queue processing */
         pthread_mutex_lock(&w->mutex);
 	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
-		list_head_del(&pkt->next);
+		list_del_init(&pkt->next);
 
 		pthread_mutex_unlock(&w->mutex);
 		gtp_pppoe_ingress(pppoe, pkt);
@@ -425,8 +425,10 @@ gtp_pppoe_init(const char *ifname)
 		return pppoe;
 
 	PMALLOC(pppoe);
-	gtp_pkt_queue_init(&pppoe->pkt_q);
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
+	gtp_pkt_queue_init(&pppoe->pkt_q);
+	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
+	srand(pppoe->seed);
 	gtp_pppoe_add(pppoe);
 
 	return pppoe;
@@ -441,6 +443,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	pthread_join(pppoe->task, NULL);
 	close(pppoe->fd_disc);
 	list_head_del(&pppoe->next);
+	gtp_htab_destroy(&pppoe->session_tab);
 	gtp_pkt_queue_destroy(&pppoe->pkt_q);
 	FREE(pppoe);
 	return 0;
