@@ -92,8 +92,11 @@ typedef struct _pppoe_tag {
 } __attribute__((packed)) pppoe_tag_t;
 
 
-/* Timers */
+/* Receive channel */
 #define GTP_PPPOE_RECV_TIMER	(3 * TIMER_HZ)
+#define GTP_PPPOE_RPS_BITS	3
+#define GTP_PPPOE_RPS_SIZE	(1 << GTP_PPPOE_RPS_BITS)
+#define GTP_PPPOE_RPS_MASK	(GTP_PPPOE_RPS_SIZE - 1)
 
 typedef struct _gtp_pppoe_session {
 	int			state;

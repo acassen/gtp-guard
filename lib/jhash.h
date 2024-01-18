@@ -159,12 +159,13 @@ jhash_1word(register ub4 a, register ub4 initval)
 
 /* One-At-A-Time string hashing */
 static inline ub4
-jhash_oaat(register ub1 *k)
+jhash_oaat(register ub1 *k, size_t s)
 {
-	register ub4 hash;
+	register ub4 hash = JHASH_GOLDEN_RATIO;
 	const ub1 *cp;
+	int i = 0;
 
-	for (cp = k; *cp; cp++) {
+	for (cp = k; *cp && i < s; cp++, i++) {
 		hash += *cp;
 		hash += (hash << 10);
 		hash ^= (hash >> 6);

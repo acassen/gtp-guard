@@ -68,8 +68,8 @@ pkt_buffer_alloc(unsigned int size)
 void
 pkt_buffer_free(pkt_buffer_t *b)
 {
-	if (b) {
-		FREE(b->head);
-		FREE(b);
-	}
+	if (!b)
+		return;
+	FREE(b->head);
+	FREE(b);
 }

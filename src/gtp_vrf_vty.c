@@ -230,7 +230,7 @@ DEFUN(ip_vrf_encapsulation_ipip,
 
 DEFUN(ip_vrf_pppoe,
       ip_vrf_pppoe_cmd,
-      "pppoe interface STRING [listener-count [INTEGER]]",
+      "pppoe interface STRING [rps-bits [INTEGER]]",
       "PPP Over Ethernet support\n"
       "Interface\n"
       "String\n")
@@ -255,7 +255,7 @@ DEFUN(ip_vrf_pppoe,
 		return CMD_WARNING;
 	}
 
-	pppoe->thread_cnt = (argc == 2) ? strtoul(argv[1], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	pppoe->thread_cnt = (argc == 2) ? (1 << strtoul(argv[1], NULL, 10)) : GTP_PPPOE_RPS_SIZE;
 	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
 	vrf->pppoe = pppoe;
 	ret = gtp_pppoe_start(pppoe);
