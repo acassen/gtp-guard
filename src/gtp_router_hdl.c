@@ -677,6 +677,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_router_t *ctx = srv->ctx;
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
+	gtp_pppoe_session_t *s_pppoe;
 	gtp_teid_t *teid;
 	gtp_apn_t *apn;
 	char apn_str[64];
@@ -801,13 +802,15 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* IP VRF is in use and PPPOE session forwarding is configured */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
-		ret = gtp_pppoe_create_session(s, apn->vrf->pppoe);
-		if (ret < 0) {
+		s_pppoe = gtp_pppoe_session_init(apn->vrf->pppoe, &c->veth_addr, imsi);
+		if (!s_pppoe) {
 			rc = gtpc_build_errmsg(w->pbuff, teid
 						       , GTP_CREATE_SESSION_RESPONSE_TYPE
 						       , GTP_CAUSE_REQUEST_REJECTED);
 			goto end;
 		}
+		s_pppoe->s_gtp = s;
+		s->s_pppoe = s_pppoe;
 		rc = GTP_ROUTER_DELAYED;
 		goto end;
 	}

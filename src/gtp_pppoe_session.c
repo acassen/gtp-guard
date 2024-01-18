@@ -139,12 +139,118 @@ gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, uns
 }
 
 
+/*
+ *	PPPoE Session timer
+ */
+RB_TIMER_LESS(gtp_pppoe_session, n);
+
+static void
+gtp_pppoe_timer_add(gtp_pppoe_timer_t *t, gtp_pppoe_session_t *s, int sec)
+{
+	pthread_mutex_lock(&t->timer_mutex);
+	s->sands = timer_add_now_sec(s->sands, sec);
+	rb_add_cached(&s->n, &t->timer, gtp_pppoe_session_timer_less);
+	pthread_mutex_unlock(&t->timer_mutex);
+}
+
+static int
+__gtp_pppoe_timer_fired(gtp_pppoe_session_t *s)
+{
+
+
+	return 0;
+}
+
+static void
+gtp_pppoe_timer_fired(gtp_pppoe_timer_t *t, timeval_t *now)
+{
+	gtp_pppoe_session_t *s;
+	rb_node_t *s_node;
+
+	pthread_mutex_lock(&t->timer_mutex);
+	while ((s_node = rb_first_cached(&t->timer))) {
+		s = rb_entry(s_node, gtp_pppoe_session_t, n);
+
+		if (timercmp(now, &s->sands, <))
+			break;
+
+		rb_erase_cached(&s->n, &t->timer);
+
+		pthread_mutex_unlock(&t->timer_mutex);
+		__gtp_pppoe_timer_fired(s);
+		pthread_mutex_lock(&t->timer_mutex);
+	}
+	pthread_mutex_unlock(&t->timer_mutex);
+}
+
+static void *
+gtp_pppoe_timer_task(void *arg)
+{
+	gtp_pppoe_timer_t *t = arg;
+	struct timespec timeout;
+	timeval_t now;
+	char pname[128];
+
+	/* Our identity */
+	snprintf(pname, 127, "pppoe-timer-%s", t->pppoe->ifname);
+	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
+
+  timer_process:
+	/* Schedule interruptible timeout */
+	pthread_mutex_lock(&t->cond_mutex);
+	gettimeofday(&now, NULL);
+	timeout.tv_sec = now.tv_sec + 1;
+	timeout.tv_nsec = now.tv_usec * 1000;
+	pthread_cond_timedwait(&t->cond, &t->cond_mutex, &timeout);
+	pthread_mutex_unlock(&t->cond_mutex);
+
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		goto timer_finish;
+
+	/* Expiration handling */
+	gtp_pppoe_timer_fired(t, &now);
+
+	goto timer_process;
+
+  timer_finish:
+	return NULL;
+}
+
+int
+gtp_pppoe_timer_init(gtp_pppoe_t *pppoe, gtp_pppoe_timer_t *t)
+{
+	t->timer = RB_ROOT_CACHED;
+	t->pppoe = pppoe;
+	pthread_mutex_init(&t->timer_mutex, NULL);
+	pthread_mutex_init(&t->cond_mutex, NULL);
+	pthread_cond_init(&t->cond, NULL);
+
+	pthread_create(&t->task, NULL, gtp_pppoe_timer_task, t);
+	return 0;
+}
+
+static int
+gtp_pppoe_timer_signal(gtp_pppoe_timer_t *t)
+{
+	pthread_mutex_lock(&t->cond_mutex);
+	pthread_cond_signal(&t->cond);
+	pthread_mutex_unlock(&t->cond_mutex);
+	return 0;
+}
+
+int
+gtp_pppoe_timer_destroy(gtp_pppoe_timer_t *t)
+{
+	gtp_pppoe_timer_signal(t);
+	pthread_join(t->task, NULL);
+	return 0;
+}
 
 
 /*
  *	PPPoE Protocol datagram
  */
-static int
+int
 pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
@@ -207,28 +313,40 @@ pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
  *	PPPoE Sessions related
  */
 int
-gtp_pppoe_create_session(gtp_session_t *s, gtp_pppoe_t *pppoe)
+gtp_pppoe_session_destroy(gtp_pppoe_session_t *s)
 {
-	gtp_conn_t *conn = s->conn;
-	gtp_pppoe_session_t *s_pppoe;
+	if (!s)
+		return -1;
+
+	gtp_pppoe_session_unhash(&s->pppoe->session_tab, s);
+	FREE(s);
+	return 0;
+}
+
+gtp_pppoe_session_t *
+gtp_pppoe_session_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
+{
+	gtp_pppoe_session_t *s;
+	int err;
 
 	if (!pppoe)
-		return -1;
+		return NULL;
 
-	/* Should never happen */
-	if (s->s_pppoe) {
-		log_message(LOG_INFO, "%s(): gtp_session:0x%.8x already bound to pppoe_session:0x%.8x"
-				    , __FUNCTION__
-				    , s->id, s->s_pppoe->unique);
-		return -1;
+	PMALLOC(s);
+	s->session_time = time(NULL);
+	s->pppoe = pppoe;
+	s->state = PPPOE_STATE_PADI_SENT;
+	s->padr_retried = 0;
+	gtp_pppoe_session_hash(&pppoe->session_tab, s, imsi, &pppoe->seed);
+
+	err = pppoe_send_padi(s, s_eth);
+	if (err < 0) {
+		gtp_pppoe_session_destroy(s);
+		return NULL;
 	}
 
-	PMALLOC(s_pppoe);
-	s_pppoe->session_time = time(NULL);
-	s_pppoe->pppoe = pppoe;
-	s->s_pppoe = s_pppoe;
-	s_pppoe->s_gtp = s;
-	gtp_pppoe_session_hash(&pppoe->session_tab, s_pppoe, conn->imsi, &pppoe->seed);
+	/* register timer */
+	gtp_pppoe_timer_add(&pppoe->session_timer, s, PPPOE_DISC_TIMEOUT);
 
-	return pppoe_send_padi(s_pppoe, &conn->veth_addr);
+	return s;
 }

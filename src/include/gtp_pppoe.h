@@ -98,36 +98,6 @@ typedef struct _pppoe_tag {
 #define GTP_PPPOE_RPS_SIZE	(1 << GTP_PPPOE_RPS_BITS)
 #define GTP_PPPOE_RPS_MASK	(GTP_PPPOE_RPS_SIZE - 1)
 
-enum gtp_pppoe_session_flags {
-	GTP_PPPOE_SESSION_FL_HASHED,
-};
-
-
-typedef struct _gtp_pppoe_session {
-	int			state;
-	struct ether_addr	dst;
-	uint16_t		session_id;
-
-	struct _gtp_pppoe	*pppoe;			/* back-pointer */
-
-	uint8_t			*ac_cookie;		/* [K] content of AC cookie we must echo back */
-	size_t			ac_cookie_len;		/* [K] length of cookie data */
-	uint8_t			*relay_sid;		/* [K] content of relay SID we must echo back */
-	size_t			relay_sid_len;		/* [K] length of relay SID data */
-	uint32_t		unique;			/* [I] our unique id */
-	int			padi_retried;		/* [K] number of PADI retries already done */
-	int			padr_retried;		/* [K] number of PADR retries already done */
-
-	time_t	 		session_time;		/* time the session was established */
-
-	struct _gtp_session	*s_gtp;			/* our GTP Session peer */
-
-	struct hlist_node	hlist;
-
-	unsigned long		flags;
-	int			refcnt;
-} gtp_pppoe_session_t;
-
 typedef struct _gtp_pkt {
 	pkt_buffer_t		*pbuff;
 
@@ -151,6 +121,14 @@ typedef struct _gtp_pppoe_worker {
 	gtp_pkt_queue_t		pkt_q;
 } gtp_pppoe_worker_t;
 
+typedef struct _gtp_pppoe_timer {
+	rb_root_cached_t	timer;
+	pthread_mutex_t		timer_mutex;
+	pthread_t		task;
+	pthread_cond_t		cond;
+	pthread_mutex_t		cond_mutex;
+	struct _gtp_pppoe	*pppoe;		/* backpointer */
+} gtp_pppoe_timer_t;
 
 typedef struct _gtp_pppoe {
 	char			ifname[GTP_NAME_MAX_LEN];
@@ -164,6 +142,7 @@ typedef struct _gtp_pppoe {
 	pthread_t		task;
 
 	gtp_htab_t		session_tab;	/* Session Tracking */
+	gtp_pppoe_timer_t	session_timer;	/* Sesion timer */
 
 	/* I/O MUX related */
 	thread_master_t		*master;

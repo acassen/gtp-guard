@@ -179,6 +179,11 @@ gtp_pppoe_worker_task(void *arg)
 	gtp_pkt_t *pkt, *_pkt;
 	struct timeval tval;
 	struct timespec timeout;
+	char pname[128];
+
+	/* Our identity */
+	snprintf(pname, 127, "pppoe-%s-w-%d", pppoe->ifname, w->id);
+	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
 
   shoot_again:
 	/* Schedule interruptible timeout */
@@ -225,10 +230,10 @@ gtp_pppoe_worker_init(gtp_pppoe_t *pppoe, int id)
 static int
 gtp_pppoe_worker_signal(gtp_pppoe_worker_t *w)
 {
-        pthread_mutex_lock(&w->mutex);
-        pthread_cond_signal(&w->cond);
-        pthread_mutex_unlock(&w->mutex);
-        return 0;
+	pthread_mutex_lock(&w->mutex);
+	pthread_cond_signal(&w->cond);
+	pthread_mutex_unlock(&w->mutex);
+	return 0;
 }
 
 static int
@@ -245,7 +250,6 @@ gtp_pppoe_worker_destroy(gtp_pppoe_t *pppoe)
 	FREE(pppoe->worker);
 	return 0;
 }
-
 
 
 /*
@@ -425,10 +429,11 @@ gtp_pppoe_init(const char *ifname)
 		return pppoe;
 
 	PMALLOC(pppoe);
+	srand(pppoe->seed);
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
 	gtp_pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
-	srand(pppoe->seed);
+	gtp_pppoe_timer_init(pppoe, &pppoe->session_timer);
 	gtp_pppoe_add(pppoe);
 
 	return pppoe;
@@ -439,6 +444,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 {
 	__set_bit(GTP_FL_STOPPING_BIT, &pppoe->flags);
 	gtp_pppoe_worker_destroy(pppoe);
+	gtp_pppoe_timer_destroy(&pppoe->session_timer);
 	pthread_cancel(pppoe->task);
 	pthread_join(pppoe->task, NULL);
 	close(pppoe->fd_disc);
