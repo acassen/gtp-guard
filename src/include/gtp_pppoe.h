@@ -79,6 +79,8 @@
 #define	PPPOE_DISC_MAXPADI	4	/* retry PADI four times (quickly) */
 #define	PPPOE_DISC_MAXPADR	2	/* retry PADR twice */
 
+#define PPPOE_BUFSIZE		64
+
 typedef struct _pppoe_hdr {
 	uint8_t		vertype;
 	uint8_t		code;
@@ -156,7 +158,6 @@ typedef struct _gtp_pppoe {
 
 	unsigned long		flags;
 } gtp_pppoe_t;
-
 
 /* Prototypes */
 extern gtp_pkt_t *gtp_pkt_get(gtp_pkt_queue_t *);

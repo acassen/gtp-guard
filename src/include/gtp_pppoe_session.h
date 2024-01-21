@@ -27,23 +27,22 @@ enum gtp_pppoe_session_flags {
 };
 
 typedef struct _gtp_pppoe_session {
-	int			state;
-	struct ether_addr	dst;
-	uint16_t		session_id;
+	int			state;		/* [K] discovery phase or session connected */
+	struct ether_addr	hw_src;		/* [K] our hardware address */
+	struct ether_addr	hw_dst;		/* [K] hardware address of concentrator */
+	uint16_t		session_id;	/* [K] PPPoE session id */
+	uint8_t			*ac_cookie;	/* [K] content of AC cookie we must echo back */
+	size_t			ac_cookie_len;	/* [K] length of cookie data */
+	uint8_t			*relay_sid;	/* [K] content of relay SID we must echo back */
+	size_t			relay_sid_len;	/* [K] length of relay SID data */
+	uint32_t		unique;		/* [I] our unique id */
+	int			padi_retried;	/* [K] number of PADI retries already done */
+	int			padr_retried;	/* [K] number of PADR retries already done */
 
-	gtp_pppoe_t		*pppoe;			/* back-pointer */
+	time_t	 		session_time;	/* time the session was established */
 
-	uint8_t			*ac_cookie;		/* [K] content of AC cookie we must echo back */
-	size_t			ac_cookie_len;		/* [K] length of cookie data */
-	uint8_t			*relay_sid;		/* [K] content of relay SID we must echo back */
-	size_t			relay_sid_len;		/* [K] length of relay SID data */
-	uint32_t		unique;			/* [I] our unique id */
-	int			padi_retried;		/* [K] number of PADI retries already done */
-	int			padr_retried;		/* [K] number of PADR retries already done */
-
-	time_t	 		session_time;		/* time the session was established */
-
-	struct _gtp_session	*s_gtp;			/* our GTP Session peer */
+	struct _gtp_session	*s_gtp;		/* our GTP Session peer */
+	gtp_pppoe_t		*pppoe;		/* back-pointer */
 
 	/* Expiration handling */
 	char			tmp_str[64];
@@ -59,7 +58,9 @@ typedef struct _gtp_pppoe_session {
 
 
 /* Prototypes */
-extern int pppoe_send_padi(gtp_pppoe_session_t *, struct ether_addr *);
+extern gtp_pppoe_session_t *gtp_pppoe_session_get(gtp_htab_t *, uint32_t);
+extern void gtp_pppoe_timer_add(gtp_pppoe_timer_t *, gtp_pppoe_session_t *, int);
+extern void gtp_pppoe_timer_del(gtp_pppoe_timer_t *, gtp_pppoe_session_t *);
 extern int gtp_pppoe_timer_init(gtp_pppoe_t *, gtp_pppoe_timer_t *);
 extern int gtp_pppoe_timer_destroy(gtp_pppoe_timer_t *);
 extern gtp_pppoe_session_t *gtp_pppoe_session_init(gtp_pppoe_t *, struct ether_addr *, uint64_t);

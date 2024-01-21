@@ -37,8 +37,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-/* Local data */
-
 
 /*
  *	PPPoE Session tracking
@@ -120,6 +118,7 @@ gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, uns
 {
 	gtp_pppoe_session_t *_s;
 	uint32_t id;
+	int i;
 
   shoot_again:
 	id = poor_prng(seed) ^ (uint32_t) imsi;
@@ -140,11 +139,11 @@ gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, uns
 
 
 /*
- *	PPPoE Session timer
+ *	PPPoE timer
  */
 RB_TIMER_LESS(gtp_pppoe_session, n);
 
-static void
+void
 gtp_pppoe_timer_add(gtp_pppoe_timer_t *t, gtp_pppoe_session_t *s, int sec)
 {
 	pthread_mutex_lock(&t->timer_mutex);
@@ -153,12 +152,12 @@ gtp_pppoe_timer_add(gtp_pppoe_timer_t *t, gtp_pppoe_session_t *s, int sec)
 	pthread_mutex_unlock(&t->timer_mutex);
 }
 
-static int
-__gtp_pppoe_timer_fired(gtp_pppoe_session_t *s)
+void
+gtp_pppoe_timer_del(gtp_pppoe_timer_t *t, gtp_pppoe_session_t *s)
 {
-
-
-	return 0;
+	pthread_mutex_lock(&t->timer_mutex);
+	rb_erase_cached(&s->n, &t->timer);
+	pthread_mutex_unlock(&t->timer_mutex);
 }
 
 static void
@@ -177,7 +176,7 @@ gtp_pppoe_timer_fired(gtp_pppoe_timer_t *t, timeval_t *now)
 		rb_erase_cached(&s->n, &t->timer);
 
 		pthread_mutex_unlock(&t->timer_mutex);
-		__gtp_pppoe_timer_fired(s);
+		pppoe_timeout(s);
 		pthread_mutex_lock(&t->timer_mutex);
 	}
 	pthread_mutex_unlock(&t->timer_mutex);
@@ -199,7 +198,7 @@ gtp_pppoe_timer_task(void *arg)
 	/* Schedule interruptible timeout */
 	pthread_mutex_lock(&t->cond_mutex);
 	gettimeofday(&now, NULL);
-	timeout.tv_sec = now.tv_sec + 1;
+	timeout.tv_sec = now.tv_sec + 1;	/* 1sec granularity */
 	timeout.tv_nsec = now.tv_usec * 1000;
 	pthread_cond_timedwait(&t->cond, &t->cond_mutex, &timeout);
 	pthread_mutex_unlock(&t->cond_mutex);
@@ -248,68 +247,6 @@ gtp_pppoe_timer_destroy(gtp_pppoe_timer_t *t)
 
 
 /*
- *	PPPoE Protocol datagram
- */
-int
-pppoe_send_padi(gtp_pppoe_session_t *s, struct ether_addr *s_eth)
-{
-	gtp_pppoe_t *pppoe = s->pppoe;
-	struct ether_header *eth;
-	gtp_pkt_t *pkt;
-	int len, l1 = 0, l2 = 0;
-	uint8_t *p;
-
-	/* service name tag is required, host unique is sent too */
-	len = sizeof(pppoe_tag_t) + sizeof(pppoe_tag_t) + sizeof(s->unique);
-	if (pppoe->service_name[0]) {
-		l1 = strlen(pppoe->service_name);
-		len += l1;
-	}
-
-	if (pppoe->ac_name[0]) {
-		l2 = strlen(pppoe->ac_name);
-		len += sizeof(pppoe_tag_t) + l2;
-	}
-
-	/* allocate a buffer */
-	pkt = gtp_pkt_get(&pppoe->pkt_q);
-
-	/* fill in pkt */
-	eth = (struct ether_header *) pkt->pbuff->head;
-	memset(eth->ether_dhost, 0xff, ETH_ALEN);
-	memcpy(eth->ether_shost, s_eth->ether_addr_octet, ETH_ALEN);
-	eth->ether_type = htons(ETH_PPPOE_DISCOVERY);
-	pkt_buffer_put_data(pkt->pbuff, sizeof(struct ether_header));
-
-	p = pkt->pbuff->data;
-	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADI, 0, len);
-	PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
-	if (pppoe->service_name[0]) {
-		PPPOE_ADD_16(p, l1);
-		memcpy(p, pppoe->service_name, l1);
-		p += l1;
-	} else {
-		PPPOE_ADD_16(p, 0);
-	}
-	if (pppoe->ac_name[0]) {
-		PPPOE_ADD_16(p, PPPOE_TAG_ACNAME);
-		PPPOE_ADD_16(p, l2);
-		memcpy(p, pppoe->ac_name, l2);
-		p += l2;
-	}
-	PPPOE_ADD_16(p, PPPOE_TAG_HUNIQUE);
-	PPPOE_ADD_16(p, sizeof(s->unique));
-	memcpy(p, &s->unique, sizeof(s->unique));
-	p += sizeof(s->unique);
-	pkt_buffer_put_data(pkt->pbuff, p - pkt->pbuff->data);
-	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
-
-	/* send pkt */
-	return gtp_pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
-}
-
-
-/*
  *	PPPoE Sessions related
  */
 int
@@ -334,19 +271,15 @@ gtp_pppoe_session_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t im
 
 	PMALLOC(s);
 	s->session_time = time(NULL);
+	s->hw_src = *s_eth;
 	s->pppoe = pppoe;
-	s->state = PPPOE_STATE_PADI_SENT;
-	s->padr_retried = 0;
 	gtp_pppoe_session_hash(&pppoe->session_tab, s, imsi, &pppoe->seed);
 
-	err = pppoe_send_padi(s, s_eth);
+	err = pppoe_connect(s);
 	if (err < 0) {
 		gtp_pppoe_session_destroy(s);
 		return NULL;
 	}
-
-	/* register timer */
-	gtp_pppoe_timer_add(&pppoe->session_timer, s, PPPOE_DISC_TIMEOUT);
 
 	return s;
 }

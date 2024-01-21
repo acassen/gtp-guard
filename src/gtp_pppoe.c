@@ -159,16 +159,10 @@ gtp_pkt_queue_destroy(gtp_pkt_queue_t *q)
 static int
 gtp_pppoe_ingress(gtp_pppoe_t *pppoe, gtp_pkt_t *pkt)
 {
-	printf("-----[ ingress PPPoE packet ]-----\n");
-	dump_buffer("", (char *) pkt->pbuff->head, pkt_buffer_len(pkt->pbuff));
-
-
-
-
+	pppoe_dispatch_disc_pkt(pppoe, pkt);
 	gtp_pkt_put(&pppoe->pkt_q, pkt);
 	return 0;
 }
-
 
 static void *
 gtp_pppoe_worker_task(void *arg)
@@ -303,6 +297,10 @@ gtp_pppoe_discovery_read(thread_ref_t thread)
 	pppoe = THREAD_ARG(thread);
 	fd = THREAD_FD(thread);
 
+	/* Terminate event */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		thread_add_terminate_event(thread->master);
+
 	/* wait until next packet */
 	if (thread->type == THREAD_READ_TIMEOUT)
 		goto next_read;
@@ -312,20 +310,21 @@ gtp_pppoe_discovery_read(thread_ref_t thread)
 	nbytes = gtp_pppoe_pkt_recv(fd, pkt->pbuff);
 	if (nbytes < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			goto next_read;
+			goto next_pkt;
 
 		log_message(LOG_INFO, "%s(): Error recv on pppoe socket for interface %s (%m)"
 				    , __FUNCTION__
 				    , pppoe->ifname);
-		goto next_read;
+		goto next_pkt;
 	}
 
 	/* Receivce Packet Steering based upon ethernet header */
 	gtp_pppoe_rps(pppoe, pkt);
-	return;
+	goto next_read;
 
-  next_read:
+  next_pkt:
 	gtp_pkt_put(&pppoe->pkt_q, pkt);
+  next_read:
 	pppoe->r_thread = thread_add_read(thread->master, gtp_pppoe_discovery_read, pppoe,
 					  fd, GTP_PPPOE_RECV_TIMER, 0);
 }

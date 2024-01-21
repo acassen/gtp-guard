@@ -30,6 +30,7 @@
 /* Connection flags */
 enum conn_flags {
 	GTP_CONN_F_HASHED,
+	GTP_CONN_F_DEBUG,
 };
 
 typedef struct _gtp_conn {

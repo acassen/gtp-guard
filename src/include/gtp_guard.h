@@ -53,6 +53,7 @@
 #include "gtp_conn.h"
 #include "gtp_pppoe.h"
 #include "gtp_pppoe_session.h"
+#include "gtp_pppoe_proto.h"
 #include "gtp_vrf.h"
 #include "gtp_apn.h"
 #include "gtp_session.h"
