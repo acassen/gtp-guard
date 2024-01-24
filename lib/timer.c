@@ -24,10 +24,17 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <sys/prctl.h>
 #include <time.h>
+#include <pthread.h>
 #include <stdbool.h>
 
+#include "utils.h"
+#include "bitops.h"
+#include "container.h"
+#include "rbtree_api.h"
 #include "timer.h"
+#include "timer_thread.h"
 #ifdef _TIMER_CHECK_
 #include "logger.h"
 #endif
@@ -39,6 +46,10 @@ static timeval_t last_time;
 bool do_timer_check;
 #endif
 
+
+/*
+ *	Timer related
+ */
 timeval_t
 timer_add_long(timeval_t a, unsigned long b)
 {
@@ -207,4 +218,140 @@ struct tm *
 time_now_to_calendar(struct tm *t)
 {
 	return localtime_r(&time_now.tv_sec, t);
+}
+
+
+/*
+ *	Timer thread related
+ */
+RB_TIMER_LESS(timer_node, n);
+
+void
+timer_thread_expire_now(timer_thread_t *t, timer_node_t *t_node)
+{
+	pthread_mutex_lock(&t->timer_mutex);
+	rb_erase_cached(&t_node->n, &t->timer);
+	gettimeofday(&t_node->sands, NULL);
+	rb_add_cached(&t_node->n, &t->timer, timer_node_timer_less);
+	pthread_mutex_unlock(&t->timer_mutex);
+
+	timer_thread_signal(t);
+}
+
+void
+timer_thread_add(timer_thread_t *t, timer_node_t *t_node, int sec)
+{
+	pthread_mutex_lock(&t->timer_mutex);
+	t_node->sands = timer_add_now_sec(t_node->sands, sec);
+	rb_add_cached(&t_node->n, &t->timer, timer_node_timer_less);
+	pthread_mutex_unlock(&t->timer_mutex);
+}
+
+void
+timer_thread_del(timer_thread_t *t, timer_node_t *t_node)
+{
+	pthread_mutex_lock(&t->timer_mutex);
+	rb_erase_cached(&t_node->n, &t->timer);
+	pthread_mutex_unlock(&t->timer_mutex);
+}
+
+static void
+timer_thread_fired(timer_thread_t *t, timeval_t *now)
+{
+	timer_node_t *node, *_node;
+
+	pthread_mutex_lock(&t->timer_mutex);
+	rb_for_each_entry_safe_cached(node, _node, &t->timer, n) {
+		if (timercmp(now, &node->sands, <))
+			break;
+
+		rb_erase_cached(&node->n, &t->timer);
+
+		pthread_mutex_unlock(&t->timer_mutex);
+		(*t->fired) (node->arg);
+		pthread_mutex_lock(&t->timer_mutex);
+	}
+	pthread_mutex_unlock(&t->timer_mutex);
+}
+
+static void
+timespec_add_now_ms(struct timespec *t, timeval_t *now, unsigned long ms)
+{
+	t->tv_sec = now->tv_sec;
+	t->tv_nsec = now->tv_usec * 1000 + ms;
+	if (t->tv_nsec >= NSEC_PER_SEC) {
+		t->tv_sec++;
+		t->tv_nsec -= NSEC_PER_SEC;
+	}
+}
+
+static void *
+timer_thread_task(void *arg)
+{
+	timer_thread_t *t = arg;
+	struct timespec timeout;
+	timeval_t now;
+
+	/* Our identity */
+	prctl(PR_SET_NAME, t->name, 0, 0, 0, 0);
+
+  timer_process:
+	/* Schedule interruptible timeout */
+	pthread_mutex_lock(&t->cond_mutex);
+	gettimeofday(&now, NULL);
+	timespec_add_now_ms(&timeout, &now, 500 * TIMER_HZ); /* 500ms granularity */
+	pthread_cond_timedwait(&t->cond, &t->cond_mutex, &timeout);
+	pthread_mutex_unlock(&t->cond_mutex);
+
+	if (__test_bit(TIMER_THREAD_FL_STOP_BIT, &t->flags))
+		goto timer_finish;
+
+	/* Expiration handling */
+	timer_thread_fired(t, &now);
+
+	goto timer_process;
+
+  timer_finish:
+	return NULL;
+}
+
+void
+timer_node_init(timer_node_t *n, void *arg)
+{
+	n->arg = arg;
+}
+
+int
+timer_thread_init(timer_thread_t *t, const char *name, int (*fired) (void *))
+{
+	t->timer = RB_ROOT_CACHED;
+	t->fired = fired;
+	strlcpy(t->name, name, TIMER_THREAD_NAMESIZ);
+	pthread_mutex_init(&t->timer_mutex, NULL);
+	pthread_mutex_init(&t->cond_mutex, NULL);
+	pthread_cond_init(&t->cond, NULL);
+
+	pthread_create(&t->task, NULL, timer_thread_task, t);
+	return 0;
+}
+
+int
+timer_thread_signal(timer_thread_t *t)
+{
+	pthread_mutex_lock(&t->cond_mutex);
+	pthread_cond_signal(&t->cond);
+	pthread_mutex_unlock(&t->cond_mutex);
+	return 0;
+}
+
+int
+timer_thread_destroy(timer_thread_t *t)
+{
+	__set_bit(TIMER_THREAD_FL_STOP_BIT, &t->flags);
+	timer_thread_signal(t);
+	pthread_join(t->task, NULL);
+	pthread_mutex_destroy(&t->timer_mutex);
+	pthread_mutex_destroy(&t->cond_mutex);
+	pthread_cond_destroy(&t->cond);
+	return 0;
 }

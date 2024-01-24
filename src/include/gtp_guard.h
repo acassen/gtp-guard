@@ -31,6 +31,7 @@
 #include "pidfile.h"
 #include "signals.h"
 #include "timer.h"
+#include "timer_thread.h"
 #include "scheduler.h"
 #include "mpool.h"
 #include "vector.h"

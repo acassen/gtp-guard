@@ -48,8 +48,7 @@ typedef struct _gtp_pppoe_session {
 	/* Expiration handling */
 	char			tmp_str[64];
 	struct tm		creation_time;
-	timeval_t		sands;
-	rb_node_t		n;
+	timer_node_t		t_node;
 
 	struct hlist_node	hlist;
 
@@ -60,10 +59,6 @@ typedef struct _gtp_pppoe_session {
 
 /* Prototypes */
 extern gtp_pppoe_session_t *gtp_pppoe_session_get(gtp_htab_t *, uint32_t);
-extern void gtp_pppoe_timer_add(gtp_pppoe_timer_t *, gtp_pppoe_session_t *, int);
-extern void gtp_pppoe_timer_del(gtp_pppoe_timer_t *, gtp_pppoe_session_t *);
-extern int gtp_pppoe_timer_init(gtp_pppoe_t *, gtp_pppoe_timer_t *);
-extern int gtp_pppoe_timer_destroy(gtp_pppoe_timer_t *);
 extern gtp_pppoe_session_t *gtp_pppoe_session_init(gtp_pppoe_t *, struct ether_addr *, uint64_t);
 extern int gtp_pppoe_session_destroy(gtp_pppoe_session_t *);
 

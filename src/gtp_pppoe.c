@@ -305,6 +305,25 @@ gtp_pppoe_pkt_init(gtp_pppoe_t *pppoe)
 	return 0;
 }
 
+/*
+ *	PPPoE Timer related
+ */
+static int
+gtp_pppoe_timer_init(gtp_pppoe_t *pppoe)
+{
+	char pname[128];
+
+	snprintf(pname, 127, "pppoe-timer-%s", pppoe->ifname);
+	timer_thread_init(&pppoe->session_timer, pname, pppoe_timeout);
+	return 0;
+}
+
+static int
+gtp_pppoe_timer_destroy(gtp_pppoe_t *pppoe)
+{
+	timer_thread_destroy(&pppoe->session_timer);
+	return 0;
+}
 
 /*
  *	PPPoE service init
@@ -345,7 +364,7 @@ gtp_pppoe_init(const char *ifname)
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
 	pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
-	gtp_pppoe_timer_init(pppoe, &pppoe->session_timer);
+	gtp_pppoe_timer_init(pppoe);
 	gtp_pppoe_add(pppoe);
 
 	return pppoe;
@@ -356,7 +375,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 {
 	__set_bit(GTP_FL_STOPPING_BIT, &pppoe->flags);
 	gtp_pppoe_worker_destroy(pppoe);
-	gtp_pppoe_timer_destroy(&pppoe->session_timer);
+	gtp_pppoe_timer_destroy(pppoe);
 	pthread_cancel(pppoe->task);
 	pthread_join(pppoe->task, NULL);
 	close(pppoe->fd_disc);

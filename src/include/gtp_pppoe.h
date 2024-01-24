@@ -112,15 +112,6 @@ typedef struct _gtp_pppoe_worker {
 	pkt_queue_t		pkt_q;
 } gtp_pppoe_worker_t;
 
-typedef struct _gtp_pppoe_timer {
-	rb_root_cached_t	timer;
-	pthread_mutex_t		timer_mutex;
-	pthread_t		task;
-	pthread_cond_t		cond;
-	pthread_mutex_t		cond_mutex;
-	struct _gtp_pppoe	*pppoe;		/* backpointer */
-} gtp_pppoe_timer_t;
-
 typedef struct _gtp_pppoe {
 	char			ifname[GTP_NAME_MAX_LEN];
 	char			ac_name[PPPOE_NAMELEN];
@@ -133,7 +124,7 @@ typedef struct _gtp_pppoe {
 	pthread_t		task;
 
 	gtp_htab_t		session_tab;	/* Session Tracking */
-	gtp_pppoe_timer_t	session_timer;	/* Sesion timer */
+	timer_thread_t		session_timer;	/* Sesion timer */
 
 	/* I/O MUX related */
 	thread_master_t		*master;

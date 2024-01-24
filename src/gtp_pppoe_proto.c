@@ -214,13 +214,15 @@ pppoe_connect(gtp_pppoe_session_t *s)
 	}
 
 	/* register timer */
-	gtp_pppoe_timer_add(&pppoe->session_timer, s, PPPOE_DISC_TIMEOUT);
+	timer_thread_add(&pppoe->session_timer, &s->t_node, PPPOE_DISC_TIMEOUT);
 	return 0;
 }
 
 int
 pppoe_abort_connect(gtp_pppoe_session_t *s)
 {
+	/* TODO: timer_thread_expire_now() on pppoe session */
+
 	/* TODO: Add support to session release and generate GTP-C delete-beare reflection ! */
 
 	/* TODO: Notify ppp upper layer */
@@ -239,17 +241,18 @@ pppoe_disconnect(gtp_pppoe_session_t *s)
 		return -1;
 	}
 
+	/* TODO: timer_thread_expire_now() on pppoe session */
+
 	/* TODO: Add support to session release and generate GTP-C delete-beare reflection ! */
-
-
 
 	/* TODO: Notify ppp upper layer */
 	return 0;
 }
 
 int
-pppoe_timeout(gtp_pppoe_session_t *s)
+pppoe_timeout(void *arg)
 {
+	gtp_pppoe_session_t *s = (gtp_pppoe_session_t *) arg;
 	gtp_session_t *s_gtp = s->s_gtp;
 	gtp_conn_t *c = s_gtp->conn;
 	gtp_pppoe_t *pppoe = s->pppoe;
@@ -270,7 +273,7 @@ pppoe_timeout(gtp_pppoe_session_t *s)
 					    , __FUNCTION__, s->unique));
 		}
 		retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-		gtp_pppoe_timer_add(&pppoe->session_timer , s, retry_wait);
+		timer_thread_add(&pppoe->session_timer , &s->t_node, retry_wait);
 		break;
 
 	case PPPOE_STATE_PADR_SENT:
@@ -282,7 +285,7 @@ pppoe_timeout(gtp_pppoe_session_t *s)
 						    , __FUNCTION__, s->unique));
 			}
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-			gtp_pppoe_timer_add(&pppoe->session_timer , s, retry_wait);
+			timer_thread_add(&pppoe->session_timer , &s->t_node, retry_wait);
 			break;
 		}
 
@@ -292,7 +295,7 @@ pppoe_timeout(gtp_pppoe_session_t *s)
 					    , __FUNCTION__, s->unique));
 		}
 		retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padr_retried);
-		gtp_pppoe_timer_add(&pppoe->session_timer , s, retry_wait);
+		timer_thread_add(&pppoe->session_timer , &s->t_node, retry_wait);
 		break;
 
 	case PPPOE_STATE_CLOSING:
@@ -493,15 +496,15 @@ breakbreak:
 			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADR (%m)"
 					    , __FUNCTION__, s->unique));
 		}
-		gtp_pppoe_timer_add(&pppoe->session_timer, s
-							 , PPPOE_DISC_TIMEOUT * (1 + s->padr_retried));
+		timer_thread_add(&pppoe->session_timer, &s->t_node
+						      , PPPOE_DISC_TIMEOUT * (1 + s->padr_retried));
 		break;
 	case PPPOE_CODE_PADS:
 		if (s == NULL)
 			return;
 
 		s->session_id = session;
-		gtp_pppoe_timer_del(&pppoe->session_timer, s);
+		timer_thread_del(&pppoe->session_timer, &s->t_node);
 		c = s->s_gtp->conn;
 		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.48x connected"
 				    , __FUNCTION__, s->unique, session));
@@ -515,7 +518,7 @@ breakbreak:
 			return;
 
 		/* stop timer (we might be about to transmit a PADT ourself) */
-		gtp_pppoe_timer_del(&pppoe->session_timer, s);
+		timer_thread_del(&pppoe->session_timer, &s->t_node);
 		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.4x terminated, received PADT"
 				    , __FUNCTION__, s->unique, session));
 

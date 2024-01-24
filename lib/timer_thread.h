@@ -19,20 +19,40 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_PPPOE_PROTO_H
-#define _GTP_PPPOE_PROTO_H
+#ifndef _TIMER_THREAD_H
+#define _TIMER_THREAD_H
 
-#define PPPOEDEBUG(a)	do {				\
-	if (__test_bit(GTP_CONN_F_DEBUG, &c->flags))	\
-		log_message a;				\
-} while(0)
+enum {
+	TIMER_THREAD_FL_STOP_BIT,
+};
 
-/* Prototypes */
-extern void pppoe_dispatch_disc_pkt(gtp_pppoe_t *, pkt_t *);
-extern int pppoe_timeout(void *);
-extern int pppoe_connect(gtp_pppoe_session_t *);
-extern int pppoe_abort_connect(gtp_pppoe_session_t *);
-extern int pppoe_disconnect(gtp_pppoe_session_t *);
-extern int pppoe_send_padi(gtp_pppoe_session_t *);
+#define TIMER_THREAD_NAMESIZ	128
+typedef struct _timer_thread {
+	char			name[TIMER_THREAD_NAMESIZ];
+	rb_root_cached_t	timer;
+	pthread_mutex_t		timer_mutex;
+	pthread_t		task;
+	pthread_cond_t		cond;
+	pthread_mutex_t		cond_mutex;
+	int			(*fired) (void *);
+
+	unsigned long		flags;
+} timer_thread_t;
+
+typedef struct _timer_node {
+	void		*arg;
+	timeval_t	sands;
+	rb_node_t	n;
+} timer_node_t;
+
+
+/* prototypes */
+extern void timer_thread_expire_now(timer_thread_t *, timer_node_t *);
+extern void timer_thread_add(timer_thread_t *, timer_node_t *, int);
+extern void timer_thread_del(timer_thread_t *, timer_node_t *);
+extern void timer_node_init(timer_node_t *, void *);
+extern int timer_thread_init(timer_thread_t *, const char *, int (*fired) (void *));
+extern int timer_thread_signal(timer_thread_t *);
+extern int timer_thread_destroy(timer_thread_t *);
 
 #endif
