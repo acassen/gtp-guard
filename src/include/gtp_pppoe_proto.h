@@ -28,7 +28,7 @@
 } while(0)
 
 /* Prototypes */
-extern void pppoe_dispatch_disc_pkt(gtp_pppoe_t *, gtp_pkt_t *);
+extern void pppoe_dispatch_disc_pkt(gtp_pppoe_t *, pkt_t *);
 extern int pppoe_timeout(gtp_pppoe_session_t *);
 extern int pppoe_connect(gtp_pppoe_session_t *);
 extern int pppoe_abort_connect(gtp_pppoe_session_t *);

@@ -34,6 +34,7 @@
 
 static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
 
+
 /*
  *	PPPoE Protocol.
  *
@@ -41,20 +42,21 @@ static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
  *	contributed to The NetBSD Foundation by Martin Husemann <martin@NetBSD.org>.
  */
 
-static gtp_pkt_t *
+
+static pkt_t *
 pppoe_eth_pkt_get(gtp_pppoe_session_t *s, const struct ether_addr *hw_src, const struct ether_addr *hw_dst)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	struct ether_header *eh;
-	gtp_pkt_t *pkt;
+	pkt_t *pkt;
 
 	/* allocate a buffer */
-	pkt = gtp_pkt_get(&pppoe->pkt_q);
+	pkt = pkt_get(&pppoe->pkt_q);
 
 	/* fill in ethernet header */
 	eh = (struct ether_header *) pkt->pbuff->head;
-	memcpy(eh->ether_dhost, hw_dst->ether_addr_octet, ETH_ALEN);
-	memcpy(eh->ether_shost, hw_src->ether_addr_octet, ETH_ALEN);
+	memcpy(eh->ether_dhost, hw_dst, ETH_ALEN);
+	memcpy(eh->ether_shost, hw_src, ETH_ALEN);
 	eh->ether_type = htons(ETH_PPPOE_DISCOVERY);
 	pkt_buffer_put_data(pkt->pbuff, sizeof(struct ether_header));
 
@@ -65,7 +67,7 @@ int
 pppoe_send_padi(gtp_pppoe_session_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
-	gtp_pkt_t *pkt;
+	pkt_t *pkt;
 	uint32_t *hunique;
 	int len, l1 = 0, l2 = 0;
 	uint8_t *p;
@@ -111,14 +113,14 @@ pppoe_send_padi(gtp_pppoe_session_t *s)
 	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
 
 	/* send pkt */
-	return gtp_pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
+	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
 }
 
 static int
 pppoe_send_padr(gtp_pppoe_session_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
-	gtp_pkt_t *pkt;
+	pkt_t *pkt;
 	uint8_t *p;
 	uint32_t *hunique;
 	size_t len, l1 = 0;
@@ -172,14 +174,14 @@ pppoe_send_padr(gtp_pppoe_session_t *s)
 	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
 
 	/* send pkt */
-	return gtp_pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
+	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
 }
 
 static int
 pppoe_send_padt(gtp_pppoe_session_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
-	gtp_pkt_t *pkt;
+	pkt_t *pkt;
 	uint8_t *p;
 
 	/* get ethernet pkt buffer */
@@ -190,7 +192,7 @@ pppoe_send_padt(gtp_pppoe_session_t *s)
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADT, s->session_id, 0);
 
 	/* send pkt */
-	return gtp_pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
+	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
 }
 
 int
@@ -205,8 +207,11 @@ pppoe_connect(gtp_pppoe_session_t *s)
 	s->state = PPPOE_STATE_PADI_SENT;
 	s->padr_retried = 0;
 	err = pppoe_send_padi(s);
-	if (err < 0)
+	if (err < 0) {
+		log_message(LOG_INFO, "%s(): Error sending padi (%m)"
+				    , __FUNCTION__);
 		return -1;
+	}
 
 	/* register timer */
 	gtp_pppoe_timer_add(&pppoe->session_timer, s, PPPOE_DISC_TIMEOUT);
@@ -225,7 +230,14 @@ pppoe_abort_connect(gtp_pppoe_session_t *s)
 int
 pppoe_disconnect(gtp_pppoe_session_t *s)
 {
-	pppoe_send_padt(s);
+	int ret;
+
+	ret = pppoe_send_padt(s);
+	if (ret < 0) {
+		log_message(LOG_INFO, "%s(): Error sending padt (%m)"
+				    , __FUNCTION__);
+		return -1;
+	}
 
 	/* TODO: Add support to session release and generate GTP-C delete-beare reflection ! */
 
@@ -295,7 +307,7 @@ pppoe_timeout(gtp_pppoe_session_t *s)
 }
 
 void
-pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, gtp_pkt_t *pkt)
+pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
 	gtp_pppoe_session_t *s = NULL;
 	gtp_conn_t *c = NULL;
@@ -314,9 +326,6 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, gtp_pkt_t *pkt)
 	uint32_t *hunique;
 	uint8_t code = 0;
 	uint8_t tmp[PPPOE_BUFSIZE];
-
-	printf("-----[ ingress PPPoE packet ]-----\n");
-	dump_buffer("", (char *) pkt->pbuff->head, pkt_buffer_len(pkt->pbuff));
 
 	eh = (struct ether_header *) pkt->pbuff->head;
 	off += sizeof(*eh);
@@ -481,7 +490,7 @@ breakbreak:
 		s->state = PPPOE_STATE_PADR_SENT;
 		c = s->s_gtp->conn;
 		if (pppoe_send_padr(s) < 0) {
-			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADR"
+			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADR (%m)"
 					    , __FUNCTION__, s->unique));
 		}
 		gtp_pppoe_timer_add(&pppoe->session_timer, s
@@ -519,4 +528,3 @@ breakbreak:
 		break;
 	}
 }
-

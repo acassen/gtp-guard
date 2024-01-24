@@ -80,87 +80,13 @@ gtp_pppoe_add(gtp_pppoe_t *pppoe)
 
 
 /*
- *	Pkt queue related
- */
-gtp_pkt_t *
-gtp_pkt_get(gtp_pkt_queue_t *q)
-{
-	gtp_pkt_t *pkt;
-
-	pthread_mutex_lock(&q->mutex);
-	if (list_empty(&q->queue)) {
-		pthread_mutex_unlock(&q->mutex);
-		PMALLOC(pkt);
-		INIT_LIST_HEAD(&pkt->next);
-		pkt->pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
-		return pkt;
-	}
-
-	pkt = list_first_entry(&q->queue, gtp_pkt_t, next);
-	list_del_init(&pkt->next);
-	pthread_mutex_unlock(&q->mutex);
-	pkt_buffer_reset(pkt->pbuff);
-	return pkt;
-}
-
-int
-gtp_pkt_put(gtp_pkt_queue_t *q, gtp_pkt_t *pkt)
-{
-	if (!pkt)
-		return -1;
-
-	pthread_mutex_lock(&q->mutex);
-	list_add_tail(&pkt->next, &q->queue);
-	pthread_mutex_unlock(&q->mutex);
-	return 0;
-}
-
-ssize_t
-gtp_pkt_send(int fd, gtp_pkt_queue_t *q, gtp_pkt_t *pkt)
-{
-	ssize_t ret;
-
-	ret = send(fd, pkt->pbuff->head, pkt_buffer_len(pkt->pbuff), 0);
-	if (ret < 0)
-		log_message(LOG_INFO, "%s(): Error sending PPPoE frame (%m)"
-				    , __FUNCTION__);
-
-	gtp_pkt_put(q, pkt);
-	return ret;
-}
-
-static int
-gtp_pkt_queue_init(gtp_pkt_queue_t *q)
-{
-	INIT_LIST_HEAD(&q->queue);
-	pthread_mutex_init(&q->mutex, NULL);
-	return 0;
-}
-
-static int
-gtp_pkt_queue_destroy(gtp_pkt_queue_t *q)
-{
-	gtp_pkt_t *pkt, *_pkt;
-
-	pthread_mutex_lock(&q->mutex);
-	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
-		list_head_del(&pkt->next);
-		pkt_buffer_free(pkt->pbuff);
-		FREE(pkt);
-	}
-	pthread_mutex_unlock(&q->mutex);
-	return 0;
-}
-
-
-/*
  *	PPPoE Workers
  */
 static int
-gtp_pppoe_ingress(gtp_pppoe_t *pppoe, gtp_pkt_t *pkt)
+gtp_pppoe_ingress(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
 	pppoe_dispatch_disc_pkt(pppoe, pkt);
-	gtp_pkt_put(&pppoe->pkt_q, pkt);
+	pkt_put(&pppoe->pkt_q, pkt);
 	return 0;
 }
 
@@ -169,8 +95,8 @@ gtp_pppoe_worker_task(void *arg)
 {
 	gtp_pppoe_worker_t *w = arg;
 	gtp_pppoe_t *pppoe = w->pppoe;
-	gtp_pkt_queue_t *q = &w->pkt_q;
-	gtp_pkt_t *pkt, *_pkt;
+	pkt_queue_t *q = &w->pkt_q;
+	pkt_t *pkt, *_pkt;
 	struct timeval tval;
 	struct timespec timeout;
 	char pname[128];
@@ -213,7 +139,7 @@ gtp_pppoe_worker_init(gtp_pppoe_t *pppoe, int id)
 {
 	pppoe->worker[id].pppoe = pppoe;
 	pppoe->worker[id].id = id;
-	gtp_pkt_queue_init(&pppoe->worker[id].pkt_q);
+	pkt_queue_init(&pppoe->worker[id].pkt_q);
 	pthread_mutex_init(&pppoe->worker[id].mutex, NULL);
 	pthread_cond_init(&pppoe->worker[id].cond, NULL);
 
@@ -238,7 +164,7 @@ gtp_pppoe_worker_destroy(gtp_pppoe_t *pppoe)
 	for (i = 0; i < pppoe->thread_cnt; i++) {
 		gtp_pppoe_worker_signal(&pppoe->worker[i]);
 		pthread_join(pppoe->worker[i].task, NULL);
-		gtp_pkt_queue_destroy(&pppoe->worker[i].pkt_q);
+		pkt_queue_destroy(&pppoe->worker[i].pkt_q);
 	}
 
 	FREE(pppoe->worker);
@@ -249,19 +175,6 @@ gtp_pppoe_worker_destroy(gtp_pppoe_t *pppoe)
 /*
  *	PPPoE socket related
  */
-static ssize_t
-gtp_pppoe_pkt_recv(int fd, pkt_buffer_t *pbuff)
-{
-	ssize_t nbytes;
-
-	nbytes = recv(fd, pbuff->head, pkt_buffer_size(pbuff), 0);
-	if (nbytes < 0)
-		return -1;
-
-	pkt_buffer_set_end_pointer(pbuff, nbytes);
-	return nbytes;
-}
-
 static uint32_t
 gtp_pppoe_rps_hash(struct ether_header *eth, uint32_t mask)
 {
@@ -276,12 +189,12 @@ gtp_pppoe_rps_hash(struct ether_header *eth, uint32_t mask)
 }
 
 static void
-gtp_pppoe_rps(gtp_pppoe_t *pppoe, gtp_pkt_t *pkt)
+gtp_pppoe_rps(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
 	struct ether_header *eth = (struct ether_header *) pkt->pbuff->head;
 	uint32_t hkey = gtp_pppoe_rps_hash(eth, pppoe->thread_cnt - 1);
 
-	gtp_pkt_put(&pppoe->worker[hkey].pkt_q, pkt);
+	pkt_put(&pppoe->worker[hkey].pkt_q, pkt);
 	gtp_pppoe_worker_signal(&pppoe->worker[hkey]);
 }
 
@@ -289,7 +202,7 @@ static void
 gtp_pppoe_discovery_read(thread_ref_t thread)
 {
 	gtp_pppoe_t *pppoe;
-	gtp_pkt_t *pkt = NULL;
+	pkt_t *pkt = NULL;
 	ssize_t nbytes;
 	int fd;
 
@@ -305,9 +218,9 @@ gtp_pppoe_discovery_read(thread_ref_t thread)
 	if (thread->type == THREAD_READ_TIMEOUT)
 		goto next_read;
 
-	pkt = gtp_pkt_get(&pppoe->pkt_q);
+	pkt = pkt_get(&pppoe->pkt_q);
 
-	nbytes = gtp_pppoe_pkt_recv(fd, pkt->pbuff);
+	nbytes = pkt_recv(fd, pkt);
 	if (nbytes < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto next_pkt;
@@ -323,7 +236,7 @@ gtp_pppoe_discovery_read(thread_ref_t thread)
 	goto next_read;
 
   next_pkt:
-	gtp_pkt_put(&pppoe->pkt_q, pkt);
+	pkt_put(&pppoe->pkt_q, pkt);
   next_read:
 	pppoe->r_thread = thread_add_read(thread->master, gtp_pppoe_discovery_read, pppoe,
 					  fd, GTP_PPPOE_RECV_TIMER, 0);
@@ -430,7 +343,7 @@ gtp_pppoe_init(const char *ifname)
 	PMALLOC(pppoe);
 	srand(pppoe->seed);
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
-	gtp_pkt_queue_init(&pppoe->pkt_q);
+	pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
 	gtp_pppoe_timer_init(pppoe, &pppoe->session_timer);
 	gtp_pppoe_add(pppoe);
@@ -449,7 +362,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	close(pppoe->fd_disc);
 	list_head_del(&pppoe->next);
 	gtp_htab_destroy(&pppoe->session_tab);
-	gtp_pkt_queue_destroy(&pppoe->pkt_q);
+	pkt_queue_destroy(&pppoe->pkt_q);
 	FREE(pppoe);
 	return 0;
 }

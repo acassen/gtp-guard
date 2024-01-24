@@ -100,17 +100,6 @@ typedef struct _pppoe_tag {
 #define GTP_PPPOE_RPS_SIZE	(1 << GTP_PPPOE_RPS_BITS)
 #define GTP_PPPOE_RPS_MASK	(GTP_PPPOE_RPS_SIZE - 1)
 
-typedef struct _gtp_pkt {
-	pkt_buffer_t		*pbuff;
-
-	list_head_t		next;
-} gtp_pkt_t;
-
-typedef struct _gtp_pkt_queue {
-	pthread_mutex_t		mutex;
-	list_head_t		queue;
-} gtp_pkt_queue_t;
-
 typedef struct _gtp_pppoe_worker {
 	char			pname[GTP_PNAME];
 	int			id;
@@ -120,7 +109,7 @@ typedef struct _gtp_pppoe_worker {
 	pthread_cond_t		cond;
 	pthread_mutex_t		mutex;
 
-	gtp_pkt_queue_t		pkt_q;
+	pkt_queue_t		pkt_q;
 } gtp_pppoe_worker_t;
 
 typedef struct _gtp_pppoe_timer {
@@ -150,7 +139,7 @@ typedef struct _gtp_pppoe {
 	thread_master_t		*master;
 	thread_ref_t		r_thread;
 
-	gtp_pkt_queue_t		pkt_q;
+	pkt_queue_t		pkt_q;
 
 	gtp_pppoe_worker_t	*worker;
 
@@ -160,9 +149,6 @@ typedef struct _gtp_pppoe {
 } gtp_pppoe_t;
 
 /* Prototypes */
-extern gtp_pkt_t *gtp_pkt_get(gtp_pkt_queue_t *);
-extern int gtp_pkt_put(gtp_pkt_queue_t *, gtp_pkt_t *);
-extern ssize_t gtp_pkt_send(int, gtp_pkt_queue_t *, gtp_pkt_t *);
 extern int gtp_pppoe_put(gtp_pppoe_t *);
 extern int gtp_pppoe_start(gtp_pppoe_t *);
 extern int gtp_pppoe_release(gtp_pppoe_t *);

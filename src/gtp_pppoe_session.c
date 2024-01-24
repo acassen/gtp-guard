@@ -118,7 +118,6 @@ gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, uns
 {
 	gtp_pppoe_session_t *_s;
 	uint32_t id;
-	int i;
 
   shoot_again:
 	id = poor_prng(seed) ^ (uint32_t) imsi;

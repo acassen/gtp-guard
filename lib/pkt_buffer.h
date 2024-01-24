@@ -23,12 +23,26 @@
 #define _PKT_BUFFER_H
 
 /* defines */
+#define DEFAULT_PKT_BUFFER_SIZE	4096
+
+/* pkt related */
 typedef struct _pkt_buffer {
 	unsigned char		*head,
 				*data;
 	unsigned char		*end;
 	unsigned char		*tail;
 } pkt_buffer_t;
+
+typedef struct _pkt {
+	pkt_buffer_t		*pbuff;
+
+	list_head_t		next;
+} pkt_t;
+
+typedef struct _pkt_queue {
+	pthread_mutex_t		mutex;
+	list_head_t		queue;
+} pkt_queue_t;
 
 static inline unsigned int pkt_buffer_len(pkt_buffer_t *b)
 {
@@ -79,5 +93,11 @@ static inline void pkt_buffer_put_data(pkt_buffer_t *b, unsigned int offset)
 extern int pkt_buffer_put_zero(pkt_buffer_t *, unsigned int);
 extern pkt_buffer_t *pkt_buffer_alloc(unsigned int);
 extern void pkt_buffer_free(pkt_buffer_t *);
+extern pkt_t *pkt_get(pkt_queue_t *);
+extern int pkt_put(pkt_queue_t *, pkt_t *);
+extern ssize_t pkt_send(int fd, pkt_queue_t *, pkt_t *);
+extern ssize_t pkt_recv(int fd, pkt_t *);
+extern int pkt_queue_init(pkt_queue_t *);
+extern int pkt_queue_destroy(pkt_queue_t *);
 
 #endif

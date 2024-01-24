@@ -30,8 +30,96 @@
 
 /* local includes */
 #include "memory.h"
+#include "list_head.h"
 #include "pkt_buffer.h"
 
+
+/*
+ *	Pkt queue helpers
+ */
+pkt_t *
+pkt_get(pkt_queue_t *q)
+{
+	pkt_t *pkt;
+
+	pthread_mutex_lock(&q->mutex);
+	if (list_empty(&q->queue)) {
+		pthread_mutex_unlock(&q->mutex);
+		PMALLOC(pkt);
+		INIT_LIST_HEAD(&pkt->next);
+		pkt->pbuff = pkt_buffer_alloc(DEFAULT_PKT_BUFFER_SIZE);
+		return pkt;
+	}
+
+	pkt = list_first_entry(&q->queue, pkt_t, next);
+	list_del_init(&pkt->next);
+	pthread_mutex_unlock(&q->mutex);
+	pkt_buffer_reset(pkt->pbuff);
+	return pkt;
+}
+
+int
+pkt_put(pkt_queue_t *q, pkt_t *pkt)
+{
+	if (!pkt)
+		return -1;
+
+	pthread_mutex_lock(&q->mutex);
+	list_add_tail(&pkt->next, &q->queue);
+	pthread_mutex_unlock(&q->mutex);
+	return 0;
+}
+
+ssize_t
+pkt_send(int fd, pkt_queue_t *q, pkt_t *pkt)
+{
+	ssize_t ret;
+
+	ret = send(fd, pkt->pbuff->head, pkt_buffer_len(pkt->pbuff), 0);
+	pkt_put(q, pkt);
+	return ret;
+}
+
+ssize_t
+pkt_recv(int fd, pkt_t *pkt)
+{
+	ssize_t nbytes;
+
+	nbytes = recv(fd, pkt->pbuff->head, pkt_buffer_size(pkt->pbuff), 0);
+	if (nbytes < 0)
+		return -1;
+
+	pkt_buffer_set_end_pointer(pkt->pbuff, nbytes);
+	return nbytes;
+}
+
+int
+pkt_queue_init(pkt_queue_t *q)
+{
+	INIT_LIST_HEAD(&q->queue);
+	pthread_mutex_init(&q->mutex, NULL);
+	return 0;
+}
+
+int
+pkt_queue_destroy(pkt_queue_t *q)
+{
+	pkt_t *pkt, *_pkt;
+
+	pthread_mutex_lock(&q->mutex);
+	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
+		list_head_del(&pkt->next);
+		pkt_buffer_free(pkt->pbuff);
+		FREE(pkt);
+	}
+	pthread_mutex_unlock(&q->mutex);
+	return 0;
+}
+
+
+/*
+ *	Pkt helpers
+ */
 int
 pkt_buffer_put_zero(pkt_buffer_t *b, unsigned int size)
 {

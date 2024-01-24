@@ -42,6 +42,7 @@ typedef struct _gtp_pppoe_session {
 	time_t	 		session_time;	/* time the session was established */
 
 	struct _gtp_session	*s_gtp;		/* our GTP Session peer */
+	struct sppp		s_ppp;		/* PPP session */
 	gtp_pppoe_t		*pppoe;		/* back-pointer */
 
 	/* Expiration handling */
