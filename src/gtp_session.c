@@ -125,7 +125,7 @@ gtp_session_add_timer(gtp_session_t *s)
 		return;
 
 	/* Sort it by timeval */
-	timer_thread_add(&gtp_session_timer, &s->t_node, apn->session_lifetime);
+	timer_node_add(&gtp_session_timer, &s->t_node, apn->session_lifetime);
 }
 
 gtp_session_t *
@@ -138,7 +138,7 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 	INIT_LIST_HEAD(&new->gtpc_teid);
 	INIT_LIST_HEAD(&new->gtpu_teid);
 	INIT_LIST_HEAD(&new->next);
-	timer_node_init(&new->t_node, new);
+	timer_node_init(&new->t_node, NULL, new);
 	new->apn = apn;
 	new->conn = c;
 	new->gtpc_teid_destroy = gtpc_destroy;
@@ -320,7 +320,7 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 int
 gtp_session_expire_now(gtp_session_t *s)
 {
-	timer_thread_expire_now(&gtp_session_timer, &s->t_node);
+	timer_node_expire_now(&gtp_session_timer, &s->t_node);
 	return 0;
 }
 

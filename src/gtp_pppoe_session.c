@@ -164,7 +164,7 @@ gtp_pppoe_session_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t im
 	s->session_time = time(NULL);
 	s->hw_src = *s_eth;
 	s->pppoe = pppoe;
-	timer_node_init(&s->t_node, s);
+	timer_node_init(&s->t_node, NULL, s);
 	gtp_pppoe_session_hash(&pppoe->session_tab, s, imsi, &pppoe->seed);
 
 	err = pppoe_connect(s);

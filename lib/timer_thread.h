@@ -40,17 +40,18 @@ typedef struct _timer_thread {
 } timer_thread_t;
 
 typedef struct _timer_node {
-	void		*arg;
+	int		(*to_func) (void *);
+	void		*to_arg;
 	timeval_t	sands;
 	rb_node_t	n;
 } timer_node_t;
 
 
 /* prototypes */
-extern void timer_thread_expire_now(timer_thread_t *, timer_node_t *);
-extern void timer_thread_add(timer_thread_t *, timer_node_t *, int);
-extern void timer_thread_del(timer_thread_t *, timer_node_t *);
-extern void timer_node_init(timer_node_t *, void *);
+extern void timer_node_expire_now(timer_thread_t *, timer_node_t *);
+extern void timer_node_init(timer_node_t *, int (*fn) (void *), void *);
+extern void timer_node_add(timer_thread_t *, timer_node_t *, int);
+extern void timer_node_del(timer_thread_t *, timer_node_t *);
 extern int timer_thread_init(timer_thread_t *, const char *, int (*fired) (void *));
 extern int timer_thread_signal(timer_thread_t *);
 extern int timer_thread_destroy(timer_thread_t *);
