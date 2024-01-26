@@ -243,6 +243,8 @@ timer_node_init(timer_node_t *t_node, int (*fn) (void *), void *arg)
 {
 	t_node->to_func = fn;
 	t_node->to_arg = arg;
+	t_node->sands.tv_sec = 0;
+	t_node->sands.tv_usec = 0;
 }
 
 void
@@ -254,12 +256,24 @@ timer_node_add(timer_thread_t *t, timer_node_t *t_node, int sec)
 	pthread_mutex_unlock(&t->timer_mutex);
 }
 
-void
+int
+timer_node_pending(timer_node_t *t_node)
+{
+	return timerisset(&t_node->sands);
+}
+
+int
 timer_node_del(timer_thread_t *t, timer_node_t *t_node)
 {
+	if (!timerisset(&t_node->sands))
+		return -1;
+
 	pthread_mutex_lock(&t->timer_mutex);
 	rb_erase_cached(&t_node->n, &t->timer);
 	pthread_mutex_unlock(&t->timer_mutex);
+	t_node->sands.tv_sec = 0;
+	t_node->sands.tv_usec = 0;
+	return 0;
 }
 
 static void

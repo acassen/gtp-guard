@@ -116,6 +116,7 @@ typedef struct _gtp_pppoe {
 	char			ifname[GTP_NAME_MAX_LEN];
 	char			ac_name[PPPOE_NAMELEN];
 	char			service_name[PPPOE_NAMELEN];
+	int			mru;
 	int			thread_cnt;
 	int			refcnt;
 	int			fd_disc;
@@ -125,6 +126,7 @@ typedef struct _gtp_pppoe {
 
 	gtp_htab_t		session_tab;	/* Session Tracking */
 	timer_thread_t		session_timer;	/* Sesion timer */
+	timer_thread_t		ppp_timer;	/* PPP sesion timer */
 
 	/* I/O MUX related */
 	thread_master_t		*master;

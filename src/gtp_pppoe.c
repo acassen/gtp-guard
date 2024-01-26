@@ -365,6 +365,7 @@ gtp_pppoe_init(const char *ifname)
 	pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
 	gtp_pppoe_timer_init(pppoe);
+	gtp_ppp_init(pppoe);
 	gtp_pppoe_add(pppoe);
 
 	return pppoe;
@@ -375,6 +376,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 {
 	__set_bit(GTP_FL_STOPPING_BIT, &pppoe->flags);
 	gtp_pppoe_worker_destroy(pppoe);
+	gtp_ppp_destroy(pppoe);
 	gtp_pppoe_timer_destroy(pppoe);
 	pthread_cancel(pppoe->task);
 	pthread_join(pppoe->task, NULL);

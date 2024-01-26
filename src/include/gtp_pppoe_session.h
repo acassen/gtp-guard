@@ -26,7 +26,7 @@ enum gtp_pppoe_session_flags {
 	GTP_PPPOE_SESSION_FL_HASHED,
 };
 
-typedef struct _gtp_pppoe_session {
+typedef struct _spppoe {
 	int			state;		/* [K] discovery phase or session connected */
 	struct ether_addr	hw_src;		/* [K] our hardware address */
 	struct ether_addr	hw_dst;		/* [K] hardware address of concentrator */
@@ -42,7 +42,7 @@ typedef struct _gtp_pppoe_session {
 	time_t	 		session_time;	/* time the session was established */
 
 	struct _gtp_session	*s_gtp;		/* our GTP Session peer */
-	struct sppp		s_ppp;		/* PPP session */
+	struct _sppp		*s_ppp;		/* PPP session */
 	gtp_pppoe_t		*pppoe;		/* back-pointer */
 
 	/* Expiration handling */
@@ -54,12 +54,12 @@ typedef struct _gtp_pppoe_session {
 
 	unsigned long		flags;
 	int			refcnt;
-} gtp_pppoe_session_t;
+} spppoe_t;
 
 
 /* Prototypes */
-extern gtp_pppoe_session_t *gtp_pppoe_session_get(gtp_htab_t *, uint32_t);
-extern gtp_pppoe_session_t *gtp_pppoe_session_init(gtp_pppoe_t *, struct ether_addr *, uint64_t);
-extern int gtp_pppoe_session_destroy(gtp_pppoe_session_t *);
+extern spppoe_t *spppoe_get(gtp_htab_t *, uint32_t);
+extern spppoe_t *spppoe_init(gtp_pppoe_t *, struct ether_addr *, uint64_t);
+extern int spppoe_destroy(spppoe_t *);
 
 #endif

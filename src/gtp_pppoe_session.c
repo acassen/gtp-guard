@@ -42,17 +42,17 @@ extern thread_master_t *master;
  *	PPPoE Session tracking
  */
 static struct hlist_head *
-gtp_pppoe_session_hashkey(gtp_htab_t *h, uint32_t id)
+spppoe_hashkey(gtp_htab_t *h, uint32_t id)
 {
 	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
 }
 
-static gtp_pppoe_session_t *
-__gtp_pppoe_session_get(gtp_htab_t *h, uint32_t id)
+static spppoe_t *
+__spppoe_get(gtp_htab_t *h, uint32_t id)
 {
-	struct hlist_head *head = gtp_pppoe_session_hashkey(h, id);
+	struct hlist_head *head = spppoe_hashkey(h, id);
 	struct hlist_node *n;
-	gtp_pppoe_session_t *s;
+	spppoe_t *s;
 
 	hlist_for_each_entry(s, n, head, hlist) {
 		if (s->unique == id) {
@@ -64,20 +64,20 @@ __gtp_pppoe_session_get(gtp_htab_t *h, uint32_t id)
 	return NULL;
 }
 
-gtp_pppoe_session_t *
-gtp_pppoe_session_get(gtp_htab_t *h, uint32_t id)
+spppoe_t *
+spppoe_get(gtp_htab_t *h, uint32_t id)
 {
-	gtp_pppoe_session_t *s;
+	spppoe_t *s;
 
 	dlock_lock_id(h->dlock, id, 0);
-	s = __gtp_pppoe_session_get(h, id);
+	s = __spppoe_get(h, id);
 	dlock_unlock_id(h->dlock, id, 0);
 
 	return s;
 }
 
 int
-__gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint32_t id)
+__spppoe_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
 {
 	struct hlist_head *head;
 
@@ -87,7 +87,7 @@ __gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint32_t id)
 		return -1;
 	}
 
-	head = gtp_pppoe_session_hashkey(h, id);
+	head = spppoe_hashkey(h, id);
 	s->unique = id;
 	hlist_add_head(&s->hlist, head);
 
@@ -96,7 +96,7 @@ __gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint32_t id)
 }
 
 int
-gtp_pppoe_session_unhash(gtp_htab_t *h, gtp_pppoe_session_t *s)
+spppoe_unhash(gtp_htab_t *h, spppoe_t *s)
 {
 	dlock_lock_id(h->dlock, s->unique, 0);
 	if (!__test_and_clear_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
@@ -114,16 +114,16 @@ gtp_pppoe_session_unhash(gtp_htab_t *h, gtp_pppoe_session_t *s)
 }
 
 int
-gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, unsigned int *seed)
+spppoe_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
 {
-	gtp_pppoe_session_t *_s;
+	spppoe_t *_s;
 	uint32_t id;
 
   shoot_again:
 	id = poor_prng(seed) ^ (uint32_t) imsi;
 
 	dlock_lock_id(h->dlock, id, 0);
-	_s = __gtp_pppoe_session_get(h, id);
+	_s = __spppoe_get(h, id);
 	if (_s) {
 		dlock_unlock_id(h->dlock, id, 0);
 		/* same player */
@@ -131,7 +131,7 @@ gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, uns
 		goto shoot_again;
 	}
 
-	__gtp_pppoe_session_hash(h, s, id);
+	__spppoe_hash(h, s, id);
 	dlock_unlock_id(h->dlock, id, 0);
 	return 0;
 }
@@ -141,20 +141,20 @@ gtp_pppoe_session_hash(gtp_htab_t *h, gtp_pppoe_session_t *s, uint64_t imsi, uns
  *	PPPoE Sessions related
  */
 int
-gtp_pppoe_session_destroy(gtp_pppoe_session_t *s)
+spppoe_destroy(spppoe_t *s)
 {
 	if (!s)
 		return -1;
 
-	gtp_pppoe_session_unhash(&s->pppoe->session_tab, s);
+	spppoe_unhash(&s->pppoe->session_tab, s);
 	FREE(s);
 	return 0;
 }
 
-gtp_pppoe_session_t *
-gtp_pppoe_session_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
+spppoe_t *
+spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
 {
-	gtp_pppoe_session_t *s;
+	spppoe_t *s;
 	int err;
 
 	if (!pppoe)
@@ -164,12 +164,13 @@ gtp_pppoe_session_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t im
 	s->session_time = time(NULL);
 	s->hw_src = *s_eth;
 	s->pppoe = pppoe;
+	sppp_init(s);
 	timer_node_init(&s->t_node, NULL, s);
-	gtp_pppoe_session_hash(&pppoe->session_tab, s, imsi, &pppoe->seed);
+	spppoe_hash(&pppoe->session_tab, s, imsi, &pppoe->seed);
 
 	err = pppoe_connect(s);
 	if (err < 0) {
-		gtp_pppoe_session_destroy(s);
+		spppoe_destroy(s);
 		return NULL;
 	}
 

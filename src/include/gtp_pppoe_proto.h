@@ -30,9 +30,9 @@
 /* Prototypes */
 extern void pppoe_dispatch_disc_pkt(gtp_pppoe_t *, pkt_t *);
 extern int pppoe_timeout(void *);
-extern int pppoe_connect(gtp_pppoe_session_t *);
-extern int pppoe_abort_connect(gtp_pppoe_session_t *);
-extern int pppoe_disconnect(gtp_pppoe_session_t *);
-extern int pppoe_send_padi(gtp_pppoe_session_t *);
+extern int pppoe_connect(spppoe_t *);
+extern int pppoe_abort_connect(spppoe_t *);
+extern int pppoe_disconnect(spppoe_t *);
+extern int pppoe_send_padi(spppoe_t *);
 
 #endif
