@@ -79,9 +79,7 @@ struct sipcp {
 	uint32_t	req_hisaddr;	/* remote address requested (IPv4) */
 	uint32_t	req_myaddr;	/* local address requested (IPv4) */
 	struct in_addr	dns[IPCP_MAX_DNSSRV]; /* IPv4 DNS servers (RFC 1877) */
-#ifdef INET6
-	struct in6_aliasreq	req_ifid;	/* local ifid requested (IPv6) */
-#endif
+	struct in6_addr	req_ifid;	/* local ifid requested (IPv6) */
 };
 
 struct sauth {
@@ -92,9 +90,8 @@ struct sauth {
 };
 
 #define IDX_PAP		3
-#define IDX_CHAP	4
 
-#define IDX_COUNT (IDX_CHAP + 1) /* bump this when adding cp's! */
+#define IDX_COUNT (IDX_PAP + 1) /* bump this when adding cp's! */
 
 typedef struct _sppp {
 	spppoe_t	*s_pppoe;		/* PPPoE back-pointer */
@@ -196,14 +193,13 @@ extern void sppp_ipcp_tls(sppp_t *);
 extern void sppp_ipcp_tlf(sppp_t *);
 extern void sppp_ipcp_scr(sppp_t *);
 
-#if 0
 extern void sppp_ipv6cp_init(sppp_t *);
 extern void sppp_ipv6cp_destroy(sppp_t *);
 extern void sppp_ipv6cp_up(sppp_t *);
 extern void sppp_ipv6cp_down(sppp_t *);
 extern void sppp_ipv6cp_open(sppp_t *);
 extern void sppp_ipv6cp_close(sppp_t *);
-extern void sppp_ipv6cp_TO(void *);
+extern int sppp_ipv6cp_TO(void *);
 extern int sppp_ipv6cp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipv6cp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipv6cp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
@@ -213,6 +209,7 @@ extern void sppp_ipv6cp_tls(sppp_t *);
 extern void sppp_ipv6cp_tlf(sppp_t *);
 extern void sppp_ipv6cp_scr(sppp_t *);
 
+#if 0
 //extern void sppp_pap_input(sppp_t *, struct mbuf *m);
 extern void sppp_pap_init(sppp_t *);
 extern void sppp_pap_open(sppp_t *);
@@ -222,15 +219,6 @@ extern void sppp_pap_my_TO(void *);
 extern void sppp_pap_tlu(sppp_t *);
 extern void sppp_pap_tld(sppp_t *);
 extern void sppp_pap_scr(sppp_t *);
-
-//extern void sppp_chap_input(sppp_t *, struct mbuf *m);
-extern void sppp_chap_init(sppp_t *);
-extern void sppp_chap_open(sppp_t *);
-extern void sppp_chap_close(sppp_t *);
-extern void sppp_chap_TO(void *sp);
-extern void sppp_chap_tlu(sppp_t *);
-extern void sppp_chap_tld(sppp_t *);
-extern void sppp_chap_scr(sppp_t *);
 #endif
 
 
