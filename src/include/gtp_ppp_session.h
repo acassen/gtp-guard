@@ -165,13 +165,12 @@ typedef struct _sppp {
 
 
 /* Prototypes */
-#if 0
 extern void sppp_lcp_init(sppp_t *);
 extern void sppp_lcp_up(sppp_t *);
 extern void sppp_lcp_down(sppp_t *);
 extern void sppp_lcp_open(sppp_t *);
 extern void sppp_lcp_close(sppp_t *);
-extern void sppp_lcp_TO(void *);
+extern int sppp_lcp_TO(void *);
 extern int sppp_lcp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_lcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_lcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
@@ -183,6 +182,7 @@ extern void sppp_lcp_scr(sppp_t *);
 extern void sppp_lcp_check_and_close(sppp_t *);
 extern int sppp_ncp_check(sppp_t *);
 
+#if 0
 extern void sppp_ipcp_init(sppp_t *);
 extern void sppp_ipcp_destroy(sppp_t *);
 extern void sppp_ipcp_up(sppp_t *);

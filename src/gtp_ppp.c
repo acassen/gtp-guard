@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <net/ethernet.h>
+#include <netinet/ip.h>
 #include <errno.h>
 
 /* local includes */
@@ -85,8 +86,10 @@ struct cp {
 /* our control protocol descriptors */
 static const struct cp lcp = {
 	PPP_LCP, IDX_LCP, CP_LCP, "lcp",
-	NULL, NULL, NULL, NULL,	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL, NULL
+	sppp_lcp_up, sppp_lcp_down, sppp_lcp_open, sppp_lcp_close,
+	sppp_lcp_TO, sppp_lcp_RCR, sppp_lcp_RCN_rej, sppp_lcp_RCN_nak,
+	sppp_lcp_tlu, sppp_lcp_tld, sppp_lcp_tls, sppp_lcp_tlf,
+	sppp_lcp_scr
 };
 
 static const struct cp ipcp = {
@@ -125,6 +128,21 @@ static const struct cp *cps[IDX_COUNT] = {
 /*
  *	Utilities
  */
+const char *
+sppp_lcp_opt_name(uint8_t opt)
+{
+	switch (opt) {
+	case LCP_OPT_MRU:		return "mru";
+	case LCP_OPT_ASYNC_MAP:		return "async-map";
+	case LCP_OPT_AUTH_PROTO:	return "auth-proto";
+	case LCP_OPT_QUAL_PROTO:	return "qual-proto";
+	case LCP_OPT_MAGIC:		return "magic";
+	case LCP_OPT_PROTO_COMP:	return "proto-comp";
+	case LCP_OPT_ADDR_COMP:		return "addr-comp";
+	}
+	return "unknown";
+}
+
 const char *
 sppp_state_name(int state)
 {
@@ -441,6 +459,614 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 }
 
 
+/*
+ *--------------------------------------------------------------------------*
+ *                                                                          *
+ *                         The LCP implementation.                          *
+ *                                                                          *
+ *--------------------------------------------------------------------------*
+ */
+void
+sppp_lcp_init(sppp_t *sp)
+{
+	sp->lcp.opts = (1 << LCP_OPT_MAGIC);
+	sp->lcp.magic = 0;
+	sp->state[IDX_LCP] = STATE_INITIAL;
+	sp->fail_counter[IDX_LCP] = 0;
+	sp->lcp.protos = 0;
+	sp->lcp.mru = sp->s_pppoe->pppoe->mru;
+	sp->lcp.their_mru = 0;
+
+	/*
+	 * Initialize counters and timeout values.  Note that we don't
+	 * use the 3 seconds suggested in RFC 1661 since we are likely
+	 * running on a fast link.  XXX We should probably implement
+	 * the exponential backoff option.  Note that these values are
+	 * relevant for all control protocols, not just LCP only.
+	 */
+	sp->lcp.timeout = 1;	/* seconds */
+	sp->lcp.max_terminate = 2;
+	sp->lcp.max_configure = 10;
+	sp->lcp.max_failure = 10;
+}
+
+void
+sppp_lcp_up(sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timeval_t tv;
+
+	sp->pp_alivecnt = 0;
+	sp->lcp.opts = (1 << LCP_OPT_MAGIC);
+	sp->lcp.magic = 0;
+	sp->lcp.protos = 0;
+	sp->lcp.mru = (pppoe->mru && pppoe->mru != PP_MTU) ? pppoe->mru : PP_MTU;
+	sp->lcp.their_mru = PP_MTU;
+
+	gettimeofday(&tv, NULL);
+	sp->pp_last_receive = sp->pp_last_activity = tv.tv_sec;
+
+	if (sp->state[IDX_LCP] == STATE_INITIAL) {
+		if (debug & 8)
+			printf("%s: UP event: incoming call\n", pppoe->ifname);
+		lcp.Open(sp);
+	}
+
+	sppp_up_event(&lcp, sp);
+}
+
+void
+sppp_lcp_down(sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	sppp_down_event(&lcp, sp);
+
+	if (debug & 8)
+		printf("%s: Down event (carrier loss)\n", pppoe->ifname);
+
+	if (sp->state[IDX_LCP] != STATE_INITIAL)
+		lcp.Close(sp);
+	sp->lcp.their_mru = 0;
+	sp->pp_flags &= ~PP_CALLIN;
+}
+
+void
+sppp_lcp_open(sppp_t *sp)
+{
+	/*
+	 * If we are authenticator, negotiate LCP_AUTH
+	 */
+	if (sp->hisauth.proto != 0)
+		sp->lcp.opts |= (1 << LCP_OPT_AUTH_PROTO);
+	else
+		sp->lcp.opts &= ~(1 << LCP_OPT_AUTH_PROTO);
+	sp->pp_flags &= ~PP_NEEDAUTH;
+	sppp_open_event(&lcp, sp);
+}
+
+void
+sppp_lcp_close(sppp_t *sp)
+{
+	sppp_close_event(&lcp, sp);
+}
+
+int
+sppp_lcp_TO(void *cookie)
+{
+	sppp_to_event(&lcp, (sppp_t *)cookie);
+	return 0;
+}
+
+/*
+ * Analyze a configure request.  Return true if it was agreeable, and
+ * caused action sca, false if it has been rejected or nak'ed, and
+ * caused action scn.  (The return value is used to make the state
+ * transition decision in the state automaton.)
+ */
+int
+sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	uint8_t *buf, *r, *p;
+	int origlen, rlen;
+	uint32_t nmagic;
+	uint16_t authproto;
+
+	len -= 4;
+	origlen = len;
+	buf = r = MALLOC(origlen);
+	if (!buf)
+		return 0;
+
+	if (debug & 8)
+		printf("%s: lcp parse opts: ", pppoe->ifname);
+
+	/* pass 1: check for things that need to be rejected */
+	p = (void *) (h + 1);
+	for (rlen = 0; len > 1; len -= p[1], p += p[1]) {
+		if (p[1] < 2 || p[1] > len) {
+			FREE(buf);
+			return -1;
+		}
+		if (debug & 8)
+			printf("%s ", sppp_lcp_opt_name(*p));
+		switch (*p) {
+		case LCP_OPT_MAGIC:
+			/* Magic number. */
+			/* FALLTHROUGH, both are same length */
+		case LCP_OPT_ASYNC_MAP:
+			/* Async control character map. */
+			if (len >= 6 && p[1] == 6)
+				continue;
+			if (debug & 8)
+				printf("[invalid] ");
+			break;
+		case LCP_OPT_MRU:
+			/* Maximum receive unit. */
+			if (len >= 4 && p[1] == 4)
+				continue;
+			if (debug & 8)
+				printf("[invalid] ");
+			break;
+		case LCP_OPT_AUTH_PROTO:
+			if (len < 4) {
+				if (debug & 8)
+					printf("[invalid] ");
+				break;
+			}
+			authproto = (p[2] << 8) + p[3];
+			if (authproto == PPP_CHAP && p[1] != 5) {
+				if (debug & 8)
+					printf("[invalid chap len] ");
+				break;
+			}
+			if (sp->myauth.proto == 0) {
+				/* we are not configured to do auth */
+				if (debug & 8)
+					printf("[not configured] ");
+				break;
+			}
+			/*
+			 * Remote want us to authenticate, remember this,
+			 * so we stay in PHASE_AUTHENTICATE after LCP got
+			 * up.
+			 */
+			sp->pp_flags |= PP_NEEDAUTH;
+			continue;
+		default:
+			/* Others not supported. */
+			if (debug & 8)
+				printf("[rej] ");
+			break;
+		}
+		/* Add the option to rejected list. */
+		bcopy (p, r, p[1]);
+		r += p[1];
+		rlen += p[1];
+	}
+	if (rlen) {
+		if (debug & 8)
+			printf(" send conf-rej\n");
+		sppp_cp_send(sp, PPP_LCP, CONF_REJ, h->ident, rlen, buf);
+		goto end;
+	} else if (debug)
+		printf("\n");
+
+	/*
+	 * pass 2: check for option values that are unacceptable and
+	 * thus require to be nak'ed.
+	 */
+	if (debug & 8)
+		printf("%s: lcp parse opt values: ", pppoe->ifname);
+
+	p = (void *) (h + 1);
+	len = origlen;
+	for (rlen=0; len>1 && p[1]; len-=p[1], p+=p[1]) {
+		if (debug & 8)
+			printf("%s ", sppp_lcp_opt_name(*p));
+		switch (*p) {
+		case LCP_OPT_MAGIC:
+			/* Magic number -- extract. */
+			nmagic = (uint32_t)p[2] << 24 |
+				 (uint32_t)p[3] << 16 | p[4] << 8 | p[5];
+			if (nmagic != sp->lcp.magic) {
+				if (debug & 8)
+					printf("0x%.8x ", nmagic);
+				continue;
+			}
+			if (debug & 8)
+				printf("[glitch] ");
+			++sp->pp_loopcnt;
+			/*
+			 * We negate our magic here, and NAK it.  If
+			 * we see it later in an NAK packet, we
+			 * suggest a new one.
+			 */
+			nmagic = ~sp->lcp.magic;
+			/* Gonna NAK it. */
+			p[2] = nmagic >> 24;
+			p[3] = nmagic >> 16;
+			p[4] = nmagic >> 8;
+			p[5] = nmagic;
+			break;
+
+		case LCP_OPT_ASYNC_MAP:
+			/* Async control character map -- check to be zero. */
+			if (! p[2] && ! p[3] && ! p[4] && ! p[5]) {
+				if (debug & 8)
+					printf("[empty] ");
+				continue;
+			}
+			if (debug & 8)
+				printf("[non-empty] ");
+			/* suggest a zero one */
+			p[2] = p[3] = p[4] = p[5] = 0;
+			break;
+
+		case LCP_OPT_MRU:
+			/*
+			 * Maximum receive unit.  Always agreeable,
+			 * but ignored by now.
+			 */
+			sp->lcp.their_mru = p[2] * 256 + p[3];
+			if (debug & 8)
+				printf("%d ", sp->lcp.their_mru);
+			continue;
+
+		case LCP_OPT_AUTH_PROTO:
+			authproto = (p[2] << 8) + p[3];
+			if (sp->myauth.proto != authproto) {
+				/* not agreed, nak */
+				if (debug & 8)
+					printf("[mine %s != his %s] ",
+					       sppp_proto_name(sp->hisauth.proto),
+					       sppp_proto_name(authproto));
+				p[2] = sp->myauth.proto >> 8;
+				p[3] = sp->myauth.proto;
+				break;
+			}
+			if (authproto == PPP_CHAP && p[4] != CHAP_MD5) {
+				if (debug & 8)
+					printf("[chap not MD5] ");
+				p[4] = CHAP_MD5;
+				break;
+			}
+			continue;
+		}
+		/* Add the option to nak'ed list. */
+		bcopy(p, r, p[1]);
+		r += p[1];
+		rlen += p[1];
+	}
+	if (rlen) {
+		if (++sp->fail_counter[IDX_LCP] >= sp->lcp.max_failure) {
+			if (debug & 8)
+				printf(" max_failure (%d) exceeded, "
+				       "send conf-rej\n",
+				       sp->lcp.max_failure);
+			sppp_cp_send(sp, PPP_LCP, CONF_REJ, h->ident, rlen, buf);
+		} else {
+			if (debug & 8)
+				printf(" send conf-nak\n");
+			sppp_cp_send(sp, PPP_LCP, CONF_NAK, h->ident, rlen, buf);
+		}
+		goto end;
+	} else {
+		if (debug & 8)
+			printf("send conf-ack\n");
+		sp->fail_counter[IDX_LCP] = 0;
+		sp->pp_loopcnt = 0;
+		sppp_cp_send(sp, PPP_LCP, CONF_ACK, h->ident, origlen, h+1);
+	}
+
+ end:
+	FREE(buf);
+	return (rlen == 0);
+}
+
+/*
+ * Analyze the LCP Configure-Reject option list, and adjust our
+ * negotiation.
+ */
+void
+sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	uint8_t *p;
+
+	len -= 4;
+
+	if (debug & 8)
+		printf("%s: lcp rej opts: ", pppoe->ifname);
+
+	p = (void *) (h + 1);
+	for (; len > 1; len -= p[1], p += p[1]) {
+		if (p[1] < 2 || p[1] > len)
+			return;
+		if (debug & 8)
+			printf("%s ", sppp_lcp_opt_name(*p));
+		switch (*p) {
+		case LCP_OPT_MAGIC:
+			/* Magic number -- can't use it, use 0 */
+			sp->lcp.opts &= ~(1 << LCP_OPT_MAGIC);
+			sp->lcp.magic = 0;
+			break;
+		case LCP_OPT_MRU:
+			/*
+			 * Should not be rejected anyway, since we only
+			 * negotiate a MRU if explicitly requested by
+			 * peer.
+			 */
+			sp->lcp.opts &= ~(1 << LCP_OPT_MRU);
+			break;
+		case LCP_OPT_AUTH_PROTO:
+			/*
+			 * Peer doesn't want to authenticate himself,
+			 * deny unless this is a dialout call, and
+			 * AUTHFLAG_NOCALLOUT is set.
+			 */
+			if ((sp->pp_flags & PP_CALLIN) == 0 &&
+			    (sp->hisauth.flags & AUTHFLAG_NOCALLOUT) != 0) {
+				if (debug & 8)
+					printf("[don't insist on auth "
+					       "for callout]");
+				sp->lcp.opts &= ~(1 << LCP_OPT_AUTH_PROTO);
+				break;
+			}
+			if (debug & 8)
+				printf("[access denied]\n");
+			lcp.Close(sp);
+			break;
+		}
+	}
+	if (debug & 8)
+		printf("\n");
+}
+
+/*
+ * Analyze the LCP Configure-NAK option list, and adjust our
+ * negotiation.
+ */
+void
+sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	uint8_t *p;
+	uint32_t magic;
+
+	len -= 4;
+
+	if (debug & 8)
+		printf("%s: lcp nak opts: ", pppoe->ifname);
+
+	p = (void *) (h + 1);
+	for (; len > 1; len -= p[1], p += p[1]) {
+		if (p[1] < 2 || p[1] > len)
+			return;
+		if (debug & 8)
+			printf("%s ", sppp_lcp_opt_name(*p));
+		switch (*p) {
+		case LCP_OPT_MAGIC:
+			/* Magic number -- renegotiate */
+			if ((sp->lcp.opts & (1 << LCP_OPT_MAGIC)) &&
+			    len >= 6 && p[1] == 6) {
+				magic = (uint32_t)p[2] << 24 |
+					(uint32_t)p[3] << 16 | p[4] << 8 | p[5];
+				/*
+				 * If the remote magic is our negated one,
+				 * this looks like a loopback problem.
+				 * Suggest a new magic to make sure.
+				 */
+				if (magic == ~sp->lcp.magic) {
+					if (debug & 8)
+						printf("magic glitch ");
+					sp->lcp.magic = poor_prng(&pppoe->seed);
+				} else {
+					sp->lcp.magic = magic;
+					if (debug & 8)
+						printf("0x%.8x ", magic);
+				}
+			}
+			break;
+		case LCP_OPT_MRU:
+			/*
+			 * Peer wants to advise us to negotiate an MRU.
+			 * Agree on it if it's reasonable, or use
+			 * default otherwise.
+			 */
+			if (len >= 4 && p[1] == 4) {
+				int mru = p[2] * 256 + p[3];
+				if (debug & 8)
+					printf("%d ", mru);
+				if (mru < PP_MIN_MRU)
+					mru = PP_MIN_MRU;
+				if (mru > PP_MAX_MRU)
+					mru = PP_MAX_MRU;
+				sp->lcp.mru = mru;
+				sp->lcp.opts |= (1 << LCP_OPT_MRU);
+			}
+			break;
+		case LCP_OPT_AUTH_PROTO:
+			/*
+			 * Peer doesn't like our authentication method,
+			 * deny.
+			 */
+			if (debug & 8)
+				printf("[access denied]\n");
+			lcp.Close(sp);
+			break;
+		}
+	}
+	if (debug & 8)
+		printf("\n");
+}
+
+void
+sppp_lcp_tlu(sppp_t *sp)
+{
+	int i;
+	uint32_t mask;
+
+	for (i = 0; i < IDX_COUNT; i++)
+		if ((cps[i])->flags & CP_QUAL)
+			(cps[i])->Open(sp);
+
+	if ((sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) != 0 ||
+	    (sp->pp_flags & PP_NEEDAUTH) != 0)
+		sp->pp_phase = PHASE_AUTHENTICATE;
+	else
+		sp->pp_phase = PHASE_NETWORK;
+
+	/*
+	 * Open all authentication protocols.  This is even required
+	 * if we already proceeded to network phase, since it might be
+	 * that remote wants us to authenticate, so we might have to
+	 * send a PAP request.  Undesired authentication protocols
+	 * don't do anything when they get an Open event.
+	 */
+	for (i = 0; i < IDX_COUNT; i++)
+		if ((cps[i])->flags & CP_AUTH)
+			(cps[i])->Open(sp);
+
+	if (sp->pp_phase == PHASE_NETWORK) {
+		/* Notify all NCPs. */
+		for (i = 0; i < IDX_COUNT; i++)
+			if ((cps[i])->flags & CP_NCP)
+				(cps[i])->Open(sp);
+	}
+
+	/* Send Up events to all started protos. */
+	for (i = 0, mask = 1; i < IDX_COUNT; i++, mask <<= 1)
+		if (sp->lcp.protos & mask && ((cps[i])->flags & CP_LCP) == 0)
+			(cps[i])->Up(sp);
+
+	/* notify low-level driver of state change */
+	if (sp->pp_chg)
+		sp->pp_chg(sp, (int)sp->pp_phase);
+
+	if (sp->pp_phase == PHASE_NETWORK)
+		/* if no NCP is starting, close down */
+		sppp_lcp_check_and_close(sp);
+}
+
+void
+sppp_lcp_tld(sppp_t *sp)
+{
+	int i;
+	uint32_t mask;
+
+	sp->pp_phase = PHASE_TERMINATE;
+
+	/*
+	 * Take upper layers down.  We send the Down event first and
+	 * the Close second to prevent the upper layers from sending
+	 * ``a flurry of terminate-request packets'', as the RFC
+	 * describes it.
+	 */
+	for (i = 0, mask = 1; i < IDX_COUNT; i++, mask <<= 1) {
+		if (sp->lcp.protos & mask && ((cps[i])->flags & CP_LCP) == 0) {
+			(cps[i])->Down(sp);
+			(cps[i])->Close(sp);
+		}
+	}
+}
+
+void
+sppp_lcp_tls(sppp_t *sp)
+{
+	sp->pp_phase = PHASE_ESTABLISH;
+
+	/* Notify lower layer if desired. */
+	if (sp->pp_tls)
+		(sp->pp_tls)(sp);
+}
+
+void
+sppp_lcp_tlf(sppp_t *sp)
+{
+	sp->pp_phase = PHASE_DEAD;
+
+	/* Notify lower layer if desired. */
+	if (sp->pp_tlf)
+		(sp->pp_tlf)(sp);
+}
+
+void
+sppp_lcp_scr(sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	char opt[6 /* magicnum */ + 4 /* mru */ + 5 /* chap */];
+	int i = 0;
+	uint16_t authproto;
+
+	if (sp->lcp.opts & (1 << LCP_OPT_MAGIC)) {
+		if (!sp->lcp.magic)
+			sp->lcp.magic = poor_prng(&pppoe->seed);
+		opt[i++] = LCP_OPT_MAGIC;
+		opt[i++] = 6;
+		opt[i++] = sp->lcp.magic >> 24;
+		opt[i++] = sp->lcp.magic >> 16;
+		opt[i++] = sp->lcp.magic >> 8;
+		opt[i++] = sp->lcp.magic;
+	}
+
+	if (sp->lcp.opts & (1 << LCP_OPT_MRU)) {
+		opt[i++] = LCP_OPT_MRU;
+		opt[i++] = 4;
+		opt[i++] = sp->lcp.mru >> 8;
+		opt[i++] = sp->lcp.mru;
+	}
+
+	if (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) {
+		authproto = sp->hisauth.proto;
+		opt[i++] = LCP_OPT_AUTH_PROTO;
+		opt[i++] = authproto == PPP_CHAP? 5: 4;
+		opt[i++] = authproto >> 8;
+		opt[i++] = authproto;
+		if (authproto == PPP_CHAP)
+			opt[i++] = CHAP_MD5;
+	}
+
+	sp->confid[IDX_LCP] = ++sp->pp_seq;
+	sppp_cp_send(sp, PPP_LCP, CONF_REQ, sp->confid[IDX_LCP], i, opt);
+}
+
+
+/*
+ * Check the open NCPs, return true if at least one NCP is open.
+ */
+int
+sppp_ncp_check(sppp_t *sp)
+{
+	int i, mask;
+
+	for (i = 0, mask = 1; i < IDX_COUNT; i++, mask <<= 1) {
+		if (sp->lcp.protos & mask && (cps[i])->flags & CP_NCP) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Re-check the open NCPs and see if we should terminate the link.
+ * Called by the NCPs during their tlf action handling.
+ */
+void
+sppp_lcp_check_and_close(sppp_t *sp)
+{
+
+	if (sp->pp_phase < PHASE_NETWORK)
+		/* don't bother, we are already going down */
+		return;
+
+	if (sppp_ncp_check(sp))
+		return;
+
+	lcp.Close(sp);
+}
+
 
 
 
@@ -518,8 +1144,8 @@ sppp_init(spppoe_t *s)
 	/* FIXME: correlate keepalive timer with pppoe_connect... */
 	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
 
-#if 0
 	sppp_lcp_init(sp);
+#if 0
 	sppp_ipcp_init(sp);
 	sppp_ipv6cp_init(sp);
 	sppp_pap_init(sp);
