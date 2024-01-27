@@ -85,8 +85,8 @@ struct sipcp {
 struct sauth {
 	uint16_t	proto;		/* authentication protocol to use */
 	uint16_t	flags;
-	uint8_t		*name;		/* system identification name */
-	uint8_t		*secret;	/* secret password */
+	char		*name;		/* system identification name */
+	char		*secret;	/* secret password */
 };
 
 #define IDX_PAP		3
@@ -209,18 +209,15 @@ extern void sppp_ipv6cp_tls(sppp_t *);
 extern void sppp_ipv6cp_tlf(sppp_t *);
 extern void sppp_ipv6cp_scr(sppp_t *);
 
-#if 0
 //extern void sppp_pap_input(sppp_t *, struct mbuf *m);
 extern void sppp_pap_init(sppp_t *);
 extern void sppp_pap_open(sppp_t *);
 extern void sppp_pap_close(sppp_t *);
-extern void sppp_pap_TO(void *);
-extern void sppp_pap_my_TO(void *);
+extern int sppp_pap_TO(void *);
+extern int sppp_pap_my_TO(void *);
 extern void sppp_pap_tlu(sppp_t *);
 extern void sppp_pap_tld(sppp_t *);
 extern void sppp_pap_scr(sppp_t *);
-#endif
-
 
 extern sppp_t *sppp_init(spppoe_t *);
 extern void sppp_destroy(sppp_t *);

@@ -110,8 +110,10 @@ static const struct cp ipv6cp = {
 
 static const struct cp pap = {
 	PPP_PAP, IDX_PAP, CP_AUTH, "pap",
-	NULL, NULL, NULL, NULL,	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL, NULL
+	sppp_null, sppp_null, sppp_pap_open, sppp_pap_close,
+	sppp_pap_TO, 0, 0, 0,
+	sppp_pap_tlu, sppp_pap_tld, sppp_null, sppp_null,
+	sppp_pap_scr
 };
 
 static const struct cp *cps[IDX_COUNT] = {
@@ -495,6 +497,28 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 			(cp->scr)(sp);
 			break;
 		}
+}
+
+void
+sppp_phase_network(sppp_t *sp)
+{
+	int i;
+	uint32_t mask;
+
+	sp->pp_phase = PHASE_NETWORK;
+
+	/* Notify NCPs now. */
+	for (i = 0; i < IDX_COUNT; i++)
+		if ((cps[i])->flags & CP_NCP)
+			(cps[i])->Open(sp);
+
+	/* Send Up events to all NCPs. */
+	for (i = 0, mask = 1; i < IDX_COUNT; i++, mask <<= 1)
+		if (sp->lcp.protos & mask && ((cps[i])->flags & CP_NCP))
+			(cps[i])->Up(sp);
+
+	/* if no NCP is starting, all this was in vain, close down */
+	sppp_lcp_check_and_close(sp);
 }
 
 
@@ -1831,33 +1855,176 @@ sppp_ipv6cp_scr(sppp_t *sp)
 }
 
 
+/*
+ *--------------------------------------------------------------------------*
+ *                                                                          *
+ *                        The PAP implementation.                           *
+ *                                                                          *
+ *--------------------------------------------------------------------------*
+ */
+/*
+ * For PAP, we need to keep a little state also if we are the peer, not the
+ * authenticator.  This is since we don't get a request to authenticate, but
+ * have to repeatedly authenticate ourself until we got a response (or the
+ * retry counter is expired).
+ */
 
-
-
-
-
-
-
-
-
-
-
-
-int
-sppp_pap_my_TO(void *arg)
+void
+sppp_auth_send(const struct cp *cp, sppp_t *sp,
+		unsigned int type, int id, ...)
 {
-	sppp_t *sp = (sppp_t *)arg;
+	/* TODO */
+}
+
+/*
+ * Handle incoming PAP packets.  */
+void
+sppp_pap_input(sppp_t *sp, pkt_t *pkt)
+{
+	/* TODO */
+}
+
+void
+sppp_pap_init(sppp_t *sp)
+{
+	/* PAP doesn't have STATE_INITIAL at all. */
+	sp->state[IDX_PAP] = STATE_CLOSED;
+	sp->fail_counter[IDX_PAP] = 0;
+}
+
+void
+sppp_pap_open(sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (sp->hisauth.proto == PPP_PAP &&
+	    (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) != 0) {
+		/* we are authenticator for PAP, start our timer */
+		sp->rst_counter[IDX_PAP] = sp->lcp.max_configure;
+		sppp_cp_change_state(&pap, sp, STATE_REQ_SENT);
+	}
+	if (sp->myauth.proto == PPP_PAP) {
+		/* we are peer, send a request, and start a timer */
+		pap.scr(sp);
+		timer_node_add(&pppoe->ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
+	}
+}
+
+void
+sppp_pap_close(sppp_t *sp)
+{
+	if (sp->state[IDX_PAP] != STATE_CLOSED)
+		sppp_cp_change_state(&pap, sp, STATE_CLOSED);
+}
+
+/*
+ * That's the timeout routine if we are authenticator.  Since the
+ * authenticator is basically passive in PAP, we can't do much here.
+ */
+int
+sppp_pap_TO(void *cookie)
+{
+	sppp_t *sp = (sppp_t *)cookie;
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	if (debug & 8)
-		printf("pap peer timeout\n");
+		printf("%s: pap TO(%s) rst_counter = %d\n",
+		       pppoe->ifname,
+		       sppp_state_name(sp->state[IDX_PAP]),
+		       sp->rst_counter[IDX_PAP]);
 
+	if (--sp->rst_counter[IDX_PAP] < 0) {
+		/* TO- event */
+		switch (sp->state[IDX_PAP]) {
+		case STATE_REQ_SENT:
+			pap.tld(sp);
+			sppp_cp_change_state(&pap, sp, STATE_CLOSED);
+			break;
+		}
+	} else {
+		/* TO+ event, not very much we could do */
+		switch (sp->state[IDX_PAP]) {
+		case STATE_REQ_SENT:
+			/* sppp_cp_change_state() will restart the timer */
+			sppp_cp_change_state(&pap, sp, STATE_REQ_SENT);
+			break;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * That's the timeout handler if we are peer.  Since the peer is active,
+ * we need to retransmit our PAP request since it is apparently lost.
+ * XXX We should impose a max counter.
+ */
+int
+sppp_pap_my_TO(void *cookie)
+{
+	sppp_t *sp = (sppp_t *)cookie;
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (debug & 8)
+		printf("%s: pap peer TO\n", pppoe->ifname);
 	pap.scr(sp);
 	return 0;
 }
 
+void
+sppp_pap_tlu(sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
+	sp->rst_counter[IDX_PAP] = sp->lcp.max_configure;
 
+	if (debug & 8)
+		printf("%s: %s tlu\n", pppoe->ifname, pap.name);
 
+	/* indicate to LCP that we need to be closed down */
+	sp->lcp.protos |= (1 << IDX_PAP);
+
+	if (sp->pp_flags & PP_NEEDAUTH) {
+		/*
+		 * Remote is authenticator, but his auth proto didn't
+		 * complete yet.  Defer the transition to network
+		 * phase.
+		 */
+		return;
+	}
+	sppp_phase_network(sp);
+}
+
+void
+sppp_pap_tld(sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (debug & 8)
+		printf("%s: pap tld\n", pppoe->ifname);
+	timer_node_del(&pppoe->ppp_timer, &sp->ch[IDX_PAP]);
+	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+	sp->lcp.protos &= ~(1 << IDX_PAP);
+
+	lcp.Close(sp);
+}
+
+void
+sppp_pap_scr(sppp_t *sp)
+{
+	uint8_t idlen, pwdlen;
+
+	sp->confid[IDX_PAP] = ++sp->pp_seq;
+	pwdlen = strlen(sp->myauth.secret);
+	idlen = strlen(sp->myauth.name);
+
+	sppp_auth_send(&pap, sp, PAP_REQ, sp->confid[IDX_PAP],
+		       sizeof idlen, (const char *)&idlen,
+		       (size_t)idlen, sp->myauth.name,
+		       sizeof pwdlen, (const char *)&pwdlen,
+		       (size_t)pwdlen, sp->myauth.secret,
+		       0);
+}
 
 
 /*
@@ -1868,7 +2035,6 @@ sppp_keepalive(void *arg)
 {
 	return 0;
 }
-
 
 
 /*
@@ -1907,9 +2073,7 @@ sppp_init(spppoe_t *s)
 	sppp_lcp_init(sp);
 	sppp_ipcp_init(sp);
 	sppp_ipv6cp_init(sp);
-#if 0
 	sppp_pap_init(sp);
-#endif
 
 	return sp;
 }
