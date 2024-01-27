@@ -182,23 +182,21 @@ extern void sppp_lcp_scr(sppp_t *);
 extern void sppp_lcp_check_and_close(sppp_t *);
 extern int sppp_ncp_check(sppp_t *);
 
-#if 0
 extern void sppp_ipcp_init(sppp_t *);
 extern void sppp_ipcp_destroy(sppp_t *);
 extern void sppp_ipcp_up(sppp_t *);
 extern void sppp_ipcp_down(sppp_t *);
 extern void sppp_ipcp_open(sppp_t *);
 extern void sppp_ipcp_close(sppp_t *);
-extern void sppp_ipcp_TO(void *);
+extern int sppp_ipcp_TO(void *);
 extern int sppp_ipcp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipcp_tlu(sppp_t *);
-extern void sppp_ipcp_tld(sppp_t *);
 extern void sppp_ipcp_tls(sppp_t *);
 extern void sppp_ipcp_tlf(sppp_t *);
 extern void sppp_ipcp_scr(sppp_t *);
 
+#if 0
 extern void sppp_ipv6cp_init(sppp_t *);
 extern void sppp_ipv6cp_destroy(sppp_t *);
 extern void sppp_ipv6cp_up(sppp_t *);

@@ -94,8 +94,10 @@ static const struct cp lcp = {
 
 static const struct cp ipcp = {
 	PPP_IPCP, IDX_IPCP, CP_NCP, "ipcp",
-	NULL, NULL, NULL, NULL,	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL, NULL
+	sppp_ipcp_up, sppp_ipcp_down, sppp_ipcp_open, sppp_ipcp_close,
+	sppp_ipcp_TO, sppp_ipcp_RCR, sppp_ipcp_RCN_rej, sppp_ipcp_RCN_nak,
+	sppp_null, sppp_null, sppp_ipcp_tls, sppp_ipcp_tlf,
+	sppp_ipcp_scr
 };
 
 static const struct cp ipv6cp = {
@@ -139,6 +141,19 @@ sppp_lcp_opt_name(uint8_t opt)
 	case LCP_OPT_MAGIC:		return "magic";
 	case LCP_OPT_PROTO_COMP:	return "proto-comp";
 	case LCP_OPT_ADDR_COMP:		return "addr-comp";
+	}
+	return "unknown";
+}
+
+const char *
+sppp_ipcp_opt_name(u_char opt)
+{
+	switch (opt) {
+	case IPCP_OPT_ADDRESSES:	return "addresses";
+	case IPCP_OPT_COMPRESSION:	return "compression";
+	case IPCP_OPT_ADDRESS:		return "address";
+	case IPCP_OPT_PRIMDNS:		return "primdns";
+	case IPCP_OPT_SECDNS:		return "secdns";
 	}
 	return "unknown";
 }
@@ -650,7 +665,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			printf(" send conf-rej\n");
 		sppp_cp_send(sp, PPP_LCP, CONF_REJ, h->ident, rlen, buf);
 		goto end;
-	} else if (debug)
+	} else if (debug & 8)
 		printf("\n");
 
 	/*
@@ -1068,6 +1083,395 @@ sppp_lcp_check_and_close(sppp_t *sp)
 }
 
 
+/*
+ *--------------------------------------------------------------------------*
+ *                                                                          *
+ *                        The IPCP implementation.                          *
+ *                                                                          *
+ *--------------------------------------------------------------------------*
+ */
+
+void
+sppp_ipcp_init(sppp_t *sp)
+{
+	sp->ipcp.opts = 0;
+	sp->ipcp.flags = 0;
+	sp->state[IDX_IPCP] = STATE_INITIAL;
+	sp->fail_counter[IDX_IPCP] = 0;
+}
+
+void
+sppp_ipcp_destroy(sppp_t *sp)
+{
+}
+
+void
+sppp_ipcp_up(sppp_t *sp)
+{
+	sppp_up_event(&ipcp, sp);
+}
+
+void
+sppp_ipcp_down(sppp_t *sp)
+{
+	sppp_down_event(&ipcp, sp);
+}
+
+void
+sppp_ipcp_open(sppp_t *sp)
+{
+	sppp_open_event(&ipcp, sp);
+}
+
+void
+sppp_ipcp_close(sppp_t *sp)
+{
+	sppp_close_event(&ipcp, sp);
+}
+
+int
+sppp_ipcp_TO(void *cookie)
+{
+	sppp_to_event(&ipcp, (sppp_t *)cookie);
+	return 0;
+}
+
+/*
+ * Analyze a configure request.  Return true if it was agreeable, and
+ * caused action sca, false if it has been rejected or nak'ed, and
+ * caused action scn.  (The return value is used to make the state
+ * transition decision in the state automaton.)
+ */
+int
+sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	uint8_t *buf, *r, *p;
+	int rlen, origlen, buflen;
+	uint32_t hisaddr = 0, desiredaddr;
+
+	len -= 4;
+	origlen = len;
+	/*
+	 * Make sure to allocate a buf that can at least hold a
+	 * conf-nak with an `address' option.  We might need it below.
+	 */
+	buflen = len < 6? 6: len;
+	buf = r = MALLOC(buflen);
+	if (!buf)
+		return 0;
+
+	/* pass 1: see if we can recognize them */
+	if (debug & 8)
+		printf("%s: ipcp parse opts: ", pppoe->ifname);
+	p = (void *) (h + 1);
+	for (rlen = 0; len > 1; len -= p[1], p += p[1]) {
+		if (p[1] < 2 || p[1] > len) {
+			FREE(buf);
+			return -1;
+		}
+		if (debug & 8)
+			printf("%s ", sppp_ipcp_opt_name(*p));
+		switch (*p) {
+		case IPCP_OPT_ADDRESS:
+			if (len >= 6 && p[1] == 6) {
+				/* correctly formed address option */
+				continue;
+			}
+			if (debug & 8)
+				printf("[invalid] ");
+			break;
+		default:
+			/* Others not supported. */
+			if (debug & 8)
+				printf("[rej] ");
+			break;
+		}
+		/* Add the option to rejected list. */
+		bcopy(p, r, p[1]);
+		r += p[1];
+		rlen += p[1];
+	}
+	if (rlen) {
+		if (debug & 8)
+			printf(" send conf-rej\n");
+		sppp_cp_send(sp, PPP_IPCP, CONF_REJ, h->ident, rlen, buf);
+		goto end;
+	} else if (debug & 8)
+		printf("\n");
+
+	/* pass 2: parse option values */
+	if (sp->ipcp.flags & IPCP_HISADDR_SEEN)
+		hisaddr = sp->ipcp.req_hisaddr; /* we already agreed on that */
+	if (debug & 8)
+		printf("%s: ipcp parse opt values: ", pppoe->ifname);
+	p = (void *) (h + 1);
+	len = origlen;
+	for (rlen=0; len>1 && p[1]; len-=p[1], p+=p[1]) {
+		if (debug & 8)
+			printf(" %s ", sppp_ipcp_opt_name(*p));
+		switch (*p) {
+		case IPCP_OPT_ADDRESS:
+			desiredaddr = p[2] << 24 | p[3] << 16 |
+				p[4] << 8 | p[5];
+			if (desiredaddr == hisaddr ||
+			    ((sp->ipcp.flags & IPCP_HISADDR_DYN) &&
+			    desiredaddr != 0)) {
+				/*
+				 * Peer's address is same as our value,
+				 * or we have set it to 0.0.0.1 to
+				 * indicate that we do not really care,
+				 * this is agreeable.  Gonna conf-ack
+				 * it.
+				 */
+				if (debug & 8)
+					printf("%u.%u.%u.%u [ack] ",
+					       NIPQUAD(desiredaddr));
+				/* record that we've seen it already */
+				sp->ipcp.flags |= IPCP_HISADDR_SEEN;
+				sp->ipcp.req_hisaddr = desiredaddr;
+				hisaddr = desiredaddr;
+				continue;
+			}
+			/*
+			 * The address wasn't agreeable.  This is either
+			 * he sent us 0.0.0.0, asking to assign him an
+			 * address, or he send us another address not
+			 * matching our value.  Either case, we gonna
+			 * conf-nak it with our value.
+			 */
+			if (debug & 8) {
+				if (desiredaddr == 0)
+					printf("[addr requested] ");
+				else
+					printf("%u.%u.%u.%u [not agreed] ",
+					       NIPQUAD(desiredaddr));
+			}
+
+			p[2] = hisaddr >> 24;
+			p[3] = hisaddr >> 16;
+			p[4] = hisaddr >> 8;
+			p[5] = hisaddr;
+			break;
+		}
+		/* Add the option to nak'ed list. */
+		bcopy(p, r, p[1]);
+		r += p[1];
+		rlen += p[1];
+	}
+
+	/*
+	 * If we are about to conf-ack the request, but haven't seen
+	 * his address so far, gonna conf-nak it instead, with the
+	 * `address' option present and our idea of his address being
+	 * filled in there, to request negotiation of both addresses.
+	 *
+	 * XXX This can result in an endless req - nak loop if peer
+	 * doesn't want to send us his address.  Q: What should we do
+	 * about it?  XXX  A: implement the max-failure counter.
+	 */
+	if (rlen == 0 && !(sp->ipcp.flags & IPCP_HISADDR_SEEN)) {
+		buf[0] = IPCP_OPT_ADDRESS;
+		buf[1] = 6;
+		buf[2] = hisaddr >> 24;
+		buf[3] = hisaddr >> 16;
+		buf[4] = hisaddr >> 8;
+		buf[5] = hisaddr;
+		rlen = 6;
+		if (debug & 8)
+			printf("still need hisaddr ");
+	}
+
+	if (rlen) {
+		if (debug & 8)
+			printf(" send conf-nak\n");
+		sppp_cp_send(sp, PPP_IPCP, CONF_NAK, h->ident, rlen, buf);
+	} else {
+		if (debug & 8)
+			printf(" send conf-ack\n");
+		sppp_cp_send(sp, PPP_IPCP, CONF_ACK, h->ident, origlen, h+1);
+	}
+
+ end:
+	FREE(buf);
+	return (rlen == 0);
+}
+
+/*
+ * Analyze the IPCP Configure-Reject option list, and adjust our
+ * negotiation.
+ */
+void
+sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	uint8_t *p;
+
+	len -= 4;
+
+	if (debug & 8)
+		printf("%s: ipcp rej opts: ", pppoe->ifname);
+
+	p = (void*) (h+1);
+	for (; len > 1; len -= p[1], p += p[1]) {
+		if (p[1] < 2 || p[1] > len)
+			return;
+		if (debug & 8)
+			printf("%s ", sppp_ipcp_opt_name(*p));
+		switch (*p) {
+		case IPCP_OPT_ADDRESS:
+			/*
+			 * Peer doesn't grok address option.  This is
+			 * bad.  XXX  Should we better give up here?
+			 */
+			sp->ipcp.opts &= ~(1 << SPPP_IPCP_OPT_ADDRESS);
+			break;
+		case IPCP_OPT_PRIMDNS:
+			sp->ipcp.opts &= ~(1 << SPPP_IPCP_OPT_PRIMDNS);
+			break;
+		case IPCP_OPT_SECDNS:
+			sp->ipcp.opts &= ~(1 << SPPP_IPCP_OPT_SECDNS);
+			break;
+		}
+	}
+	if (debug & 8)
+		printf("\n");
+}
+
+/*
+ * Analyze the IPCP Configure-NAK option list, and adjust our
+ * negotiation.
+ */
+void
+sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	uint8_t *p;
+	uint32_t wantaddr;
+
+	len -= 4;
+
+	if (debug & 8)
+		printf("%s: ipcp nak opts: ", pppoe->ifname);
+
+	p = (void *) (h + 1);
+	for (; len > 1; len -= p[1], p += p[1]) {
+		if (p[1] < 2 || p[1] > len)
+			return;
+		if (debug & 8)
+			printf("%s ", sppp_ipcp_opt_name(*p));
+		switch (*p) {
+		case IPCP_OPT_ADDRESS:
+			/*
+			 * Peer doesn't like our local IP address.  See
+			 * if we can do something for him.  We'll drop
+			 * him our address then.
+			 */
+			if (len >= 6 && p[1] == 6) {
+				wantaddr = p[2] << 24 | p[3] << 16 |
+					p[4] << 8 | p[5];
+				sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_ADDRESS);
+				if (debug & 8)
+					printf("[wantaddr %u.%u.%u.%u] ", NIPQUAD(wantaddr));
+				/*
+				 * When doing dynamic address assignment,
+				 * we accept his offer.  Otherwise, we
+				 * ignore it and thus continue to negotiate
+				 * our already existing value.
+				 */
+				if (sp->ipcp.flags & IPCP_MYADDR_DYN) {
+					if (debug & 8)
+						printf("[agree] ");
+					sp->ipcp.flags |= IPCP_MYADDR_SEEN;
+					sp->ipcp.req_myaddr = wantaddr;
+				}
+			}
+			break;
+		case IPCP_OPT_PRIMDNS:
+			if (len >= 6 && p[1] == 6)
+				memcpy(&sp->ipcp.dns[0].s_addr, p + 2, sizeof(sp->ipcp.dns[0]));
+			break;
+		case IPCP_OPT_SECDNS:
+			if (len >= 6 && p[1] == 6)
+				memcpy(&sp->ipcp.dns[1].s_addr, p + 2, sizeof(sp->ipcp.dns[1]));
+			break;
+		}
+	}
+	if (debug & 8)
+		printf("\n");
+}
+
+void
+sppp_ipcp_tls(sppp_t *sp)
+{
+	sp->ipcp.flags &= ~(IPCP_HISADDR_SEEN|IPCP_MYADDR_SEEN|IPCP_MYADDR_DYN|IPCP_HISADDR_DYN);
+	sp->ipcp.req_myaddr = 0;
+	sp->ipcp.req_hisaddr = 0;
+	memset(&sp->ipcp.dns, 0, sizeof(sp->ipcp.dns));
+
+	/*
+	 * I don't have an assigned address, so i need to
+	 * negotiate my address.
+	 */
+	sp->ipcp.flags |= IPCP_MYADDR_DYN;
+	sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_ADDRESS);
+
+	/*
+	 * remote has no valid address, we need to get one assigned.
+	 */
+	sp->ipcp.flags |= IPCP_HISADDR_DYN;
+
+	/* negotiate name server addresses */
+	sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_PRIMDNS);
+	sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_SECDNS);
+
+	/* indicate to LCP that it must stay alive */
+	sp->lcp.protos |= (1 << IDX_IPCP);
+}
+
+void
+sppp_ipcp_tlf(sppp_t *sp)
+{
+	/* we no longer need LCP */
+	sp->lcp.protos &= ~(1 << IDX_IPCP);
+	sppp_lcp_check_and_close(sp);
+}
+
+void
+sppp_ipcp_scr(sppp_t *sp)
+{
+	char opt[6 /* compression */ + 6 /* address */ + 12 /* dns addrs */];
+	u_int32_t ouraddr = 0;
+	int i = 0;
+
+	if (sp->ipcp.opts & (1 << SPPP_IPCP_OPT_ADDRESS)) {
+		opt[i++] = IPCP_OPT_ADDRESS;
+		opt[i++] = 6;
+		opt[i++] = ouraddr >> 24;
+		opt[i++] = ouraddr >> 16;
+		opt[i++] = ouraddr >> 8;
+		opt[i++] = ouraddr;
+	}
+
+	if (sp->ipcp.opts & (1 << SPPP_IPCP_OPT_PRIMDNS)) {
+		opt[i++] = IPCP_OPT_PRIMDNS;
+		opt[i++] = 6;
+		memcpy(&opt[i], &sp->ipcp.dns[0].s_addr, sizeof(sp->ipcp.dns[0]));
+		i += sizeof(sp->ipcp.dns[0]);
+	}
+
+	if (sp->ipcp.opts & (1 << SPPP_IPCP_OPT_SECDNS)) {
+		opt[i++] = IPCP_OPT_SECDNS;
+		opt[i++] = 6;
+		memcpy(&opt[i], &sp->ipcp.dns[1].s_addr, sizeof(sp->ipcp.dns[1]));
+		i += sizeof(sp->ipcp.dns[1]);
+	}
+
+	sp->confid[IDX_IPCP] = ++sp->pp_seq;
+	sppp_cp_send(sp, PPP_IPCP, CONF_REQ, sp->confid[IDX_IPCP], i, opt);
+}
+
+
 
 
 
@@ -1145,8 +1549,8 @@ sppp_init(spppoe_t *s)
 	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
 
 	sppp_lcp_init(sp);
-#if 0
 	sppp_ipcp_init(sp);
+#if 0
 	sppp_ipv6cp_init(sp);
 	sppp_pap_init(sp);
 	sppp_chap_init(sp);
@@ -1160,8 +1564,9 @@ sppp_destroy(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	int i;
-#if 0
+
 	sppp_ipcp_destroy(sp);
+#if 0
 	sppp_ipv6cp_destroy(sp);
 #endif
 
