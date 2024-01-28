@@ -124,13 +124,15 @@ typedef struct _gtp_pppoe {
 	unsigned int		seed;
 	pthread_t		task;
 
-	gtp_htab_t		session_tab;	/* Session Tracking */
+	gtp_htab_t		session_tab;	/* Session Tracking by sesion-id */
+	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
 	timer_thread_t		session_timer;	/* Sesion timer */
 	timer_thread_t		ppp_timer;	/* PPP sesion timer */
 
 	/* I/O MUX related */
 	thread_master_t		*master;
-	thread_ref_t		r_thread;
+	thread_ref_t		r_disc_thread;
+	thread_ref_t		r_sess_thread;
 
 	pkt_queue_t		pkt_q;
 

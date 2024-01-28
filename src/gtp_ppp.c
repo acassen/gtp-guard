@@ -230,6 +230,13 @@ sppp_proto_name(uint16_t proto)
 	return buf;
 }
 
+static void
+sppp_print_bytes(const uint8_t *p, uint16_t len)
+{
+	printf(" %02x", *p++);
+	while (--len > 0)
+		printf("-%02x", *p++);
+}
 
 /*
  *	PPP protocol implementation.
@@ -238,18 +245,52 @@ sppp_proto_name(uint16_t proto)
 /*
  * Send PPP control protocol packet.
  */
-void
+int
 sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 	     uint8_t ident, uint16_t len, void *data)
 {
-	/* TODO */
+	spppoe_t *s = sp->s_pppoe;
+	gtp_pppoe_t *pppoe = s->pppoe;
+	lcp_hdr_t *lcp;
+	pkt_t *pkt;
+
+	/* get ethernet pkt buffer */
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
+
+	/* fill in pkt*/
+	lcp = (lcp_hdr_t *) pkt->pbuff->data;
+	lcp->type = type;
+	lcp->ident = ident;
+	lcp->len = htons(LCP_HEADER_LEN + len);
+	if (len)
+		bcopy(data, lcp+1, len);
+
+	if (debug & 8) {
+		printf("%s: %s output <%s id=0x%x len=%d",
+		       pppoe->ifname,
+		       sppp_proto_name(proto),
+		       sppp_cp_type_name(lcp->type), lcp->ident,
+		       ntohs(lcp->len));
+		if (len)
+			sppp_print_bytes((uint8_t *) (lcp+1), len);
+		printf(">\n");
+	}
+
+	/* send pkt */
+	return pkt_send(pppoe->fd_session, &pppoe->pkt_q, pkt);
 }
 
 /*
  * Handle incoming PPP control protocol packets.
  */
-void
+static void
 sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
+{
+	/* TODO */
+}
+
+void
+sppp_input(sppp_t *sp, pkt_t *pkt)
 {
 	/* TODO */
 }
@@ -459,7 +500,7 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 		       sppp_state_name(sp->state[cp->protoidx]),
 		       sp->rst_counter[cp->protoidx]);
 
-	if (--sp->rst_counter[cp->protoidx] < 0)
+	if (--sp->rst_counter[cp->protoidx] < 0) {
 		/* TO- event */
 		switch (sp->state[cp->protoidx]) {
 		case STATE_CLOSING:
@@ -477,7 +518,7 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 			(cp->tlf)(sp);
 			break;
 		}
-	else
+	} else {
 		/* TO+ event */
 		switch (sp->state[cp->protoidx]) {
 		case STATE_CLOSING:
@@ -497,6 +538,7 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 			(cp->scr)(sp);
 			break;
 		}
+	}
 }
 
 void

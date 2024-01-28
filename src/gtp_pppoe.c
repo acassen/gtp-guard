@@ -85,7 +85,19 @@ gtp_pppoe_add(gtp_pppoe_t *pppoe)
 static int
 gtp_pppoe_ingress(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
-	pppoe_dispatch_disc_pkt(pppoe, pkt);
+	struct ether_header *eh = (struct ether_header *) pkt->pbuff->head;
+
+	switch (ntohs(eh->ether_type)) {
+	case ETH_PPPOE_DISCOVERY:
+		pppoe_dispatch_disc_pkt(pppoe, pkt);
+		break;
+	case ETH_PPPOE_SESSION:
+		pppoe_dispatch_session_pkt(pppoe, pkt);
+		break;
+	default:
+		break;
+	}
+
 	pkt_put(&pppoe->pkt_q, pkt);
 	return 0;
 }
@@ -199,9 +211,10 @@ gtp_pppoe_rps(gtp_pppoe_t *pppoe, pkt_t *pkt)
 }
 
 static void
-gtp_pppoe_discovery_read(thread_ref_t thread)
+gtp_pppoe_read(thread_ref_t thread)
 {
 	gtp_pppoe_t *pppoe;
+	thread_ref_t t;
 	pkt_t *pkt = NULL;
 	ssize_t nbytes;
 	int fd;
@@ -238,8 +251,12 @@ gtp_pppoe_discovery_read(thread_ref_t thread)
   next_pkt:
 	pkt_put(&pppoe->pkt_q, pkt);
   next_read:
-	pppoe->r_thread = thread_add_read(thread->master, gtp_pppoe_discovery_read, pppoe,
-					  fd, GTP_PPPOE_RECV_TIMER, 0);
+	t = thread_add_read(thread->master, gtp_pppoe_read, pppoe,
+			    fd, GTP_PPPOE_RECV_TIMER, 0);
+	if (fd == pppoe->fd_disc)
+		pppoe->r_disc_thread = t;
+	else
+		pppoe->r_sess_thread = t;
 }
 
 static void *
@@ -252,14 +269,18 @@ gtp_pppoe_pkt_task(void *arg)
 	snprintf(pname, 127, "pppoe-%s", pppoe->ifname);
 	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
 
-	log_message(LOG_INFO, "%s(): Starting PPPoE on interface %s", __FUNCTION__, pppoe->ifname);
+	log_message(LOG_INFO, "%s(): Starting PPPoE on interface %s"
+			    , __FUNCTION__, pppoe->ifname);
 
 	/* I/O MUX init */
 	pppoe->master = thread_make_master(true);
 
 	/* Add socket event reader */
-	pppoe->r_thread = thread_add_read(pppoe->master, gtp_pppoe_discovery_read, pppoe,
-					  pppoe->fd_disc, GTP_PPPOE_RECV_TIMER, 0);
+	pppoe->r_disc_thread = thread_add_read(pppoe->master, gtp_pppoe_read, pppoe,
+					       pppoe->fd_disc, GTP_PPPOE_RECV_TIMER, 0);
+
+	pppoe->r_sess_thread = thread_add_read(pppoe->master, gtp_pppoe_read, pppoe,
+					       pppoe->fd_session, GTP_PPPOE_RECV_TIMER, 0);
 
 	/* Inifinite loop */
 	launch_thread_scheduler(pppoe->master);
@@ -270,17 +291,17 @@ gtp_pppoe_pkt_task(void *arg)
 }
 
 static int
-gtp_pppoe_pkt_init(gtp_pppoe_t *pppoe)
+gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto)
 {
 	struct sockaddr_ll sll;
 	int fd, ret;
 
 	/* PPPoE Discovery channel init */
 	sll.sll_family = PF_PACKET;
-	sll.sll_protocol = htons(ETH_PPPOE_DISCOVERY);
+	sll.sll_protocol = htons(proto);
 	sll.sll_ifindex = if_nametoindex(pppoe->ifname);
 
-	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, htons(ETH_PPPOE_DISCOVERY));
+	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, htons(proto));
 	fd = if_setsockopt_broadcast(fd);
 	fd = if_setsockopt_promisc(fd, sll.sll_ifindex, true);
 	if (fd < 0) {
@@ -299,7 +320,19 @@ gtp_pppoe_pkt_init(gtp_pppoe_t *pppoe)
 		return -1;
 	}
 
-	pppoe->fd_disc = fd;
+	return fd;
+}
+
+static int
+gtp_pppoe_pkt_init(gtp_pppoe_t *pppoe)
+{
+	pppoe->fd_disc = gtp_pppoe_socket_init(pppoe, ETH_PPPOE_DISCOVERY);
+	if (pppoe->fd_disc < 0)
+		return -1;
+
+	pppoe->fd_session = gtp_pppoe_socket_init(pppoe, ETH_PPPOE_SESSION);
+	if (pppoe->fd_session < 0)
+		return -1;
 
 	pthread_create(&pppoe->task, NULL, gtp_pppoe_pkt_task, pppoe);
 	return 0;
@@ -364,6 +397,7 @@ gtp_pppoe_init(const char *ifname)
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
 	pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
+	gtp_htab_init(&pppoe->unique_tab, CONN_HASHTAB_SIZE);
 	gtp_pppoe_timer_init(pppoe);
 	gtp_ppp_init(pppoe);
 	gtp_pppoe_add(pppoe);
@@ -383,6 +417,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	close(pppoe->fd_disc);
 	list_head_del(&pppoe->next);
 	gtp_htab_destroy(&pppoe->session_tab);
+	gtp_htab_destroy(&pppoe->unique_tab);
 	pkt_queue_destroy(&pppoe->pkt_q);
 	FREE(pppoe);
 	return 0;

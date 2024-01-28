@@ -28,7 +28,9 @@
 } while(0)
 
 /* Prototypes */
+extern pkt_t *pppoe_eth_pkt_get(spppoe_t *, const struct ether_addr *);
 extern void pppoe_dispatch_disc_pkt(gtp_pppoe_t *, pkt_t *);
+extern void pppoe_dispatch_session_pkt(gtp_pppoe_t *, pkt_t *);
 extern int pppoe_timeout(void *);
 extern int pppoe_connect(spppoe_t *);
 extern int pppoe_abort_connect(spppoe_t *);

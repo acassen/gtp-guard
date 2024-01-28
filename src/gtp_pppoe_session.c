@@ -41,20 +41,22 @@ extern thread_master_t *master;
 /*
  *	PPPoE Session tracking
  */
+
+/* Host-Unique related */
 static struct hlist_head *
-spppoe_hashkey(gtp_htab_t *h, uint32_t id)
+spppoe_unique_hashkey(gtp_htab_t *h, uint32_t id)
 {
 	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
 }
 
 static spppoe_t *
-__spppoe_get(gtp_htab_t *h, uint32_t id)
+__spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
 {
-	struct hlist_head *head = spppoe_hashkey(h, id);
+	struct hlist_head *head = spppoe_unique_hashkey(h, id);
 	struct hlist_node *n;
 	spppoe_t *s;
 
-	hlist_for_each_entry(s, n, head, hlist) {
+	hlist_for_each_entry(s, n, head, h_unique) {
 		if (s->unique == id) {
 			__sync_add_and_fetch(&s->refcnt, 1);
 			return s;
@@ -65,48 +67,48 @@ __spppoe_get(gtp_htab_t *h, uint32_t id)
 }
 
 spppoe_t *
-spppoe_get(gtp_htab_t *h, uint32_t id)
+spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
 {
 	spppoe_t *s;
 
 	dlock_lock_id(h->dlock, id, 0);
-	s = __spppoe_get(h, id);
+	s = __spppoe_get_by_unique(h, id);
 	dlock_unlock_id(h->dlock, id, 0);
 
 	return s;
 }
 
 int
-__spppoe_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
+__spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
 {
 	struct hlist_head *head;
 
-	if (__test_and_set_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
+	if (__test_and_set_bit(GTP_PPPOE_UNIQUE_FL_HASHED, &s->flags)) {
 		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already hashed !!!"
-				    , __FUNCTION__, s->unique, ntohl(s->session_id));
+				    , __FUNCTION__, s->unique, s->session_id);
 		return -1;
 	}
 
-	head = spppoe_hashkey(h, id);
+	head = spppoe_unique_hashkey(h, id);
 	s->unique = id;
-	hlist_add_head(&s->hlist, head);
+	hlist_add_head(&s->h_unique, head);
 
 	__sync_add_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
 int
-spppoe_unhash(gtp_htab_t *h, spppoe_t *s)
+spppoe_unique_unhash(gtp_htab_t *h, spppoe_t *s)
 {
 	dlock_lock_id(h->dlock, s->unique, 0);
-	if (!__test_and_clear_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
+	if (!__test_and_clear_bit(GTP_PPPOE_UNIQUE_FL_HASHED, &s->flags)) {
 		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already unhashed !!!"
-				    , __FUNCTION__, s->unique, ntohl(s->session_id));
+				    , __FUNCTION__, s->unique, s->session_id);
 		dlock_unlock_id(h->dlock, s->unique, 0);
 		return -1;
 	}
 
-	hlist_del_init(&s->hlist);
+	hlist_del_init(&s->h_unique);
 	__sync_sub_and_fetch(&s->refcnt, 1);
 	dlock_unlock_id(h->dlock, s->unique, 0);
 
@@ -114,7 +116,7 @@ spppoe_unhash(gtp_htab_t *h, spppoe_t *s)
 }
 
 int
-spppoe_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
+spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
 {
 	spppoe_t *_s;
 	uint32_t id;
@@ -123,7 +125,7 @@ spppoe_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
 	id = poor_prng(seed) ^ (uint32_t) imsi;
 
 	dlock_lock_id(h->dlock, id, 0);
-	_s = __spppoe_get(h, id);
+	_s = __spppoe_get_by_unique(h, id);
 	if (_s) {
 		dlock_unlock_id(h->dlock, id, 0);
 		/* same player */
@@ -131,8 +133,87 @@ spppoe_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
 		goto shoot_again;
 	}
 
-	__spppoe_hash(h, s, id);
+	__spppoe_unique_hash(h, s, id);
 	dlock_unlock_id(h->dlock, id, 0);
+	return 0;
+}
+
+/* Session-ID related */
+static struct hlist_head *
+spppoe_session_hashkey(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
+{
+	void *pkey = (void *) hw_addr->ether_addr_octet;
+	uint32_t hbits = *(uint32_t *) pkey;
+	uint32_t lbits = *(uint32_t *) (pkey + 4);
+
+	return h->htab + (jhash_3words(hbits, lbits, id, 0) & CONN_HASHTAB_MASK);
+}
+
+static spppoe_t *
+__spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
+{
+	struct hlist_head *head = spppoe_session_hashkey(h, hw_addr, id);
+	struct hlist_node *n;
+	spppoe_t *s;
+
+	hlist_for_each_entry(s, n, head, h_session) {
+		if (s->session_id == id && !memcmp(&s->hw_src, hw_addr, ETH_ALEN)) {
+			__sync_add_and_fetch(&s->refcnt, 1);
+			return s;
+		}
+	}
+
+	return NULL;
+}
+
+spppoe_t *
+spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
+{
+	spppoe_t *s;
+
+	dlock_lock_id(h->dlock, id, 0);
+	s = __spppoe_get_by_session(h, hw_addr, id);
+	dlock_unlock_id(h->dlock, id, 0);
+
+	return s;
+}
+
+int
+spppoe_session_hash(gtp_htab_t *h, spppoe_t *s, struct ether_addr *hw_addr, uint16_t id)
+{
+	struct hlist_head *head;
+
+	dlock_lock_id(h->dlock, s->session_id, 0);
+	if (__test_and_set_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already hashed !!!"
+				    , __FUNCTION__, s->unique, s->session_id);
+		dlock_unlock_id(h->dlock, s->session_id, 0);
+		return -1;
+	}
+
+	head = spppoe_session_hashkey(h, hw_addr, id);
+	hlist_add_head(&s->h_session, head);
+	__sync_add_and_fetch(&s->refcnt, 1);
+	dlock_unlock_id(h->dlock, s->session_id, 0);
+
+	return 0;
+}
+
+int
+spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
+{
+	dlock_lock_id(h->dlock, s->session_id, 0);
+	if (!__test_and_clear_bit(GTP_PPPOE_SESSION_FL_HASHED, &s->flags)) {
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already unhashed !!!"
+				    , __FUNCTION__, s->unique, s->session_id);
+		dlock_unlock_id(h->dlock, s->session_id, 0);
+		return -1;
+	}
+
+	hlist_del_init(&s->h_session);
+	__sync_sub_and_fetch(&s->refcnt, 1);
+	dlock_unlock_id(h->dlock, s->session_id, 0);
+
 	return 0;
 }
 
@@ -146,7 +227,8 @@ spppoe_destroy(spppoe_t *s)
 	if (!s)
 		return -1;
 
-	spppoe_unhash(&s->pppoe->session_tab, s);
+	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
+	spppoe_session_unhash(&s->pppoe->session_tab, s);
 	FREE(s);
 	return 0;
 }
@@ -166,7 +248,7 @@ spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
 	s->pppoe = pppoe;
 	sppp_init(s);
 	timer_node_init(&s->t_node, NULL, s);
-	spppoe_hash(&pppoe->session_tab, s, imsi, &pppoe->seed);
+	spppoe_unique_hash(&pppoe->unique_tab, s, imsi, &pppoe->seed);
 
 	err = pppoe_connect(s);
 	if (err < 0) {

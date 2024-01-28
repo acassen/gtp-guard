@@ -23,6 +23,7 @@
 #define _GTP_PPPOE_SESSION_H
 
 enum gtp_pppoe_session_flags {
+	GTP_PPPOE_UNIQUE_FL_HASHED,
 	GTP_PPPOE_SESSION_FL_HASHED,
 };
 
@@ -50,7 +51,8 @@ typedef struct _spppoe {
 	struct tm		creation_time;
 	timer_node_t		t_node;
 
-	struct hlist_node	hlist;
+	struct hlist_node	h_session;
+	struct hlist_node	h_unique;
 
 	unsigned long		flags;
 	int			refcnt;
@@ -58,7 +60,9 @@ typedef struct _spppoe {
 
 
 /* Prototypes */
-extern spppoe_t *spppoe_get(gtp_htab_t *, uint32_t);
+extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
+extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
+extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
 extern spppoe_t *spppoe_init(gtp_pppoe_t *, struct ether_addr *, uint64_t);
 extern int spppoe_destroy(spppoe_t *);
 

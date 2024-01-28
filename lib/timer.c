@@ -227,6 +227,13 @@ time_now_to_calendar(struct tm *t)
 RB_TIMER_LESS(timer_node, n);
 
 void
+timer_node_clear(timer_node_t *n)
+{
+	n->sands.tv_sec = 0;
+	n->sands.tv_usec = 0;
+}
+
+void
 timer_node_expire_now(timer_thread_t *t, timer_node_t *t_node)
 {
 	pthread_mutex_lock(&t->timer_mutex);
@@ -243,8 +250,7 @@ timer_node_init(timer_node_t *t_node, int (*fn) (void *), void *arg)
 {
 	t_node->to_func = fn;
 	t_node->to_arg = arg;
-	t_node->sands.tv_sec = 0;
-	t_node->sands.tv_usec = 0;
+	timer_node_clear(t_node);
 }
 
 void
@@ -271,8 +277,7 @@ timer_node_del(timer_thread_t *t, timer_node_t *t_node)
 	pthread_mutex_lock(&t->timer_mutex);
 	rb_erase_cached(&t_node->n, &t->timer);
 	pthread_mutex_unlock(&t->timer_mutex);
-	t_node->sands.tv_sec = 0;
-	t_node->sands.tv_usec = 0;
+	timer_node_clear(t_node);
 	return 0;
 }
 
@@ -287,6 +292,7 @@ timer_thread_fired(timer_thread_t *t, timeval_t *now)
 			break;
 
 		rb_erase_cached(&node->n, &t->timer);
+		timer_node_clear(node);
 
 		pthread_mutex_unlock(&t->timer_mutex);
 		/* Cascade handlers */

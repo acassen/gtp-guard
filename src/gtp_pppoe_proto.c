@@ -43,8 +43,8 @@ static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
  */
 
 
-static pkt_t *
-pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_src, const struct ether_addr *hw_dst)
+pkt_t *
+pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	struct ether_header *eh;
@@ -56,7 +56,7 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_src, const struct eth
 	/* fill in ethernet header */
 	eh = (struct ether_header *) pkt->pbuff->head;
 	memcpy(eh->ether_dhost, hw_dst, ETH_ALEN);
-	memcpy(eh->ether_shost, hw_src, ETH_ALEN);
+	memcpy(eh->ether_shost, &s->hw_src, ETH_ALEN);
 	eh->ether_type = htons(ETH_PPPOE_DISCOVERY);
 	pkt_buffer_put_data(pkt->pbuff, sizeof(struct ether_header));
 
@@ -85,7 +85,7 @@ pppoe_send_padi(spppoe_t *s)
 	}
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_src, &hw_brd);
+	pkt = pppoe_eth_pkt_get(s, &hw_brd);
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -139,7 +139,7 @@ pppoe_send_padr(spppoe_t *s)
 		len += sizeof(pppoe_tag_t) + s->relay_sid_len;	/* Relay SID */
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_src, &s->hw_dst);
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -185,7 +185,7 @@ pppoe_send_padt(spppoe_t *s)
 	uint8_t *p;
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_src, &s->hw_dst);
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -309,18 +309,56 @@ pppoe_timeout(void *arg)
 	return 0;
 }
 
+static int
+pppoe_sanitize_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt,
+		   int *off, uint16_t *session, uint16_t *plen, uint8_t *code)
+{
+	struct ether_header *eh;
+	pppoe_hdr_t *ph;
+
+	eh = (struct ether_header *) pkt->pbuff->head;
+	*off += sizeof(*eh);
+	if (pkt_buffer_len(pkt->pbuff) - *off <= PPPOE_HEADERLEN) {
+		log_message(LOG_INFO, "%s(): %s: packet too short: %d"
+				    , __FUNCTION__, pppoe->ifname
+				    , pkt_buffer_len(pkt->pbuff));
+		return -1;
+	}
+
+	ph = (pppoe_hdr_t *) (pkt->pbuff->head + *off);
+	if (ph->vertype != PPPOE_VERTYPE) {
+		log_message(LOG_INFO, "%s(): %s: unknown version/type packet: 0x%.x"
+				    , __FUNCTION__, pppoe->ifname
+				    , ph->vertype);
+		return -1;
+	}
+	*off += sizeof(*ph);
+
+	*session = ntohs(ph->session);
+	*plen = ntohs(ph->plen);
+	*code = ph->code;
+	if (*plen + *off > pkt_buffer_len(pkt->pbuff)) {
+		log_message(LOG_INFO, "%s(): %s: packet content does not fit: "
+				      "data available = %d, packet size = %u"
+				    , __FUNCTION__, pppoe->ifname
+				    , pkt_buffer_len(pkt->pbuff) - *off, plen);
+		return -1;
+	}
+
+	return 0;
+}
+
 void
 pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
 	spppoe_t *s = NULL;
 	gtp_conn_t *c = NULL;
 	struct ether_header *eh;
-	pppoe_hdr_t *ph;
 	pppoe_tag_t *pt;
 	const char *err_msg = NULL;
 	size_t ac_cookie_len = 0;
 	size_t relay_sid_len = 0;
-	int i, off = 0, errortag = 0, max_payloadtag = 0;
+	int i, off = 0, errortag = 0, max_payloadtag = 0, ret;
 	uint16_t max_payload = 0;
 	uint16_t tag = 0, len = 0;
 	uint16_t session = 0, plen = 0;
@@ -330,34 +368,10 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	uint8_t code = 0;
 	uint8_t tmp[PPPOE_BUFSIZE];
 
+	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
+	if (ret < 0)
+		return;
 	eh = (struct ether_header *) pkt->pbuff->head;
-	off += sizeof(*eh);
-	if (pkt_buffer_len(pkt->pbuff) - off <= PPPOE_HEADERLEN) {
-		log_message(LOG_INFO, "%s(): %s: packet too short: %d"
-				    , __FUNCTION__, pppoe->ifname
-				    , pkt_buffer_len(pkt->pbuff));
-		return;
-	}
-
-	ph = (pppoe_hdr_t *) (pkt->pbuff->head + off);
-	if (ph->vertype != PPPOE_VERTYPE) {
-		log_message(LOG_INFO, "%s(): %s: unknown version/type packet: 0x%.x"
-				    , __FUNCTION__, pppoe->ifname
-				    , ph->vertype);
-		return;
-	}
-	off += sizeof(*ph);
-
-	session = ntohs(ph->session);
-	plen = ntohs(ph->plen);
-	code = ph->code;
-	if (plen + off > pkt_buffer_len(pkt->pbuff)) {
-		log_message(LOG_INFO, "%s(): %s: packet content does not fit: "
-				      "data available = %d, packet size = %u"
-				    , __FUNCTION__, pppoe->ifname
-				    , pkt_buffer_len(pkt->pbuff) - off, plen);
-		return;
-	}
 
 	while (off + sizeof(*pt) <= pkt_buffer_len(pkt->pbuff)) {
 		pt = (pppoe_tag_t *) (pkt->pbuff->head + off);
@@ -391,7 +405,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 			}
 
 			hunique = (uint32_t *) (pkt->pbuff->head + off);
-			s = spppoe_get(&pppoe->session_tab, ntohl(*hunique));
+			s = spppoe_get_by_unique(&pppoe->unique_tab, ntohl(*hunique));
 			break;
 		case PPPOE_TAG_ACCOOKIE:
 			if (ac_cookie == NULL) {
@@ -504,6 +518,7 @@ breakbreak:
 			return;
 
 		s->session_id = session;
+		spppoe_session_hash(&pppoe->session_tab, s, &s->hw_src, s->session_id);
 		timer_node_del(&pppoe->session_timer, &s->t_node);
 		c = s->s_gtp->conn;
 		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.48x connected"
@@ -530,4 +545,18 @@ breakbreak:
 				    , code, session);
 		break;
 	}
+}
+
+void
+pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
+{
+	int off = 0, ret;
+	uint16_t session = 0, plen = 0;
+	uint8_t code = 0;
+
+	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
+	if (ret < 0)
+		return;
+
+	/* TODO */
 }
