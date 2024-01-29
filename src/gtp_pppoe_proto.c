@@ -57,7 +57,7 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst)
 	eh = (struct ether_header *) pkt->pbuff->head;
 	memcpy(eh->ether_dhost, hw_dst, ETH_ALEN);
 	memcpy(eh->ether_shost, &s->hw_src, ETH_ALEN);
-	eh->ether_type = htons(ETH_PPPOE_DISCOVERY);
+	eh->ether_type = htons(ETH_P_PPP_DISC);
 	pkt_buffer_put_data(pkt->pbuff, sizeof(struct ether_header));
 
 	return pkt;
@@ -550,6 +550,8 @@ breakbreak:
 void
 pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
+	struct ether_header *eh;
+	spppoe_t *sp;
 	int off = 0, ret;
 	uint16_t session = 0, plen = 0;
 	uint8_t code = 0;
@@ -557,6 +559,26 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
 	if (ret < 0)
 		return;
+	eh = (struct ether_header *) pkt->pbuff->head;
 
-	/* TODO */
+	sp = spppoe_get_by_session(&pppoe->session_tab, (struct ether_addr *) eh->ether_dhost,
+				   session);
+	if (!sp) {
+		log_message(LOG_INFO, "%s(): %s: unknown pppoe session for "
+				      "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x"
+				    , __FUNCTION__, pppoe->ifname
+				    , ETHER_BYTES(eh->ether_shost), session);
+		return;
+	}
+
+	if (code) {
+		log_message(LOG_INFO, "%s(): %s: pppoe session invalid code:0x..2x for "
+				      "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x"
+				    , __FUNCTION__, pppoe->ifname
+				    , ETHER_BYTES(eh->ether_shost), session);
+		return;
+	}
+
+	pkt_buffer_put_data(pkt->pbuff, off);
+	sppp_input(sp->s_ppp, pkt);
 }

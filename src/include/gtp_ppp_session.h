@@ -209,7 +209,7 @@ extern void sppp_ipv6cp_tls(sppp_t *);
 extern void sppp_ipv6cp_tlf(sppp_t *);
 extern void sppp_ipv6cp_scr(sppp_t *);
 
-//extern void sppp_pap_input(sppp_t *, struct mbuf *m);
+extern void sppp_pap_input(sppp_t *, pkt_t *pkt);
 extern void sppp_pap_init(sppp_t *);
 extern void sppp_pap_open(sppp_t *);
 extern void sppp_pap_close(sppp_t *);
@@ -219,6 +219,7 @@ extern void sppp_pap_tlu(sppp_t *);
 extern void sppp_pap_tld(sppp_t *);
 extern void sppp_pap_scr(sppp_t *);
 
+extern void sppp_input(sppp_t *, pkt_t *);
 extern sppp_t *sppp_init(spppoe_t *);
 extern void sppp_destroy(sppp_t *);
 

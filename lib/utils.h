@@ -57,19 +57,27 @@
 /* defines */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define NIPQUAD(__addr)                         \
-        ((unsigned char *)&(__addr))[0],        \
-        ((unsigned char *)&(__addr))[1],        \
-        ((unsigned char *)&(__addr))[2],        \
-        ((unsigned char *)&(__addr))[3]
+	((unsigned char *)&(__addr))[0],        \
+	((unsigned char *)&(__addr))[1],        \
+	((unsigned char *)&(__addr))[2],        \
+	((unsigned char *)&(__addr))[3]
 #elif __BYTE_ORDER == __BIG_ENDIAN
 #define NIPQUAD(__addr)                         \
-        ((unsigned char *)&(__addr))[3],        \
-        ((unsigned char *)&(__addr))[2],        \
-        ((unsigned char *)&(__addr))[1],        \
-        ((unsigned char *)&(__addr))[0]
+	((unsigned char *)&(__addr))[3],        \
+	((unsigned char *)&(__addr))[2],        \
+	((unsigned char *)&(__addr))[1],        \
+	((unsigned char *)&(__addr))[0]
 #else
 #error "Please fix <bits/endian.h>"
 #endif
+
+#define ETHER_BYTES(__eth_addr)			\
+	(unsigned char)__eth_addr[5],		\
+	(unsigned char)__eth_addr[4],		\
+	(unsigned char)__eth_addr[3],		\
+	(unsigned char)__eth_addr[2],		\
+	(unsigned char)__eth_addr[1],		\
+	(unsigned char)__eth_addr[0]
 
 /* ASM related */
 static inline void cpu_relax(void)

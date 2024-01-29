@@ -88,10 +88,10 @@ gtp_pppoe_ingress(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	struct ether_header *eh = (struct ether_header *) pkt->pbuff->head;
 
 	switch (ntohs(eh->ether_type)) {
-	case ETH_PPPOE_DISCOVERY:
+	case ETH_P_PPP_DISC:
 		pppoe_dispatch_disc_pkt(pppoe, pkt);
 		break;
-	case ETH_PPPOE_SESSION:
+	case ETH_P_PPP_SES:
 		pppoe_dispatch_session_pkt(pppoe, pkt);
 		break;
 	default:
@@ -256,7 +256,7 @@ gtp_pppoe_read(thread_ref_t thread)
 	if (fd == pppoe->fd_disc)
 		pppoe->r_disc_thread = t;
 	else
-		pppoe->r_sess_thread = t;
+		pppoe->r_ses_thread = t;
 }
 
 static void *
@@ -279,8 +279,8 @@ gtp_pppoe_pkt_task(void *arg)
 	pppoe->r_disc_thread = thread_add_read(pppoe->master, gtp_pppoe_read, pppoe,
 					       pppoe->fd_disc, GTP_PPPOE_RECV_TIMER, 0);
 
-	pppoe->r_sess_thread = thread_add_read(pppoe->master, gtp_pppoe_read, pppoe,
-					       pppoe->fd_session, GTP_PPPOE_RECV_TIMER, 0);
+	pppoe->r_ses_thread = thread_add_read(pppoe->master, gtp_pppoe_read, pppoe,
+					      pppoe->fd_session, GTP_PPPOE_RECV_TIMER, 0);
 
 	/* Inifinite loop */
 	launch_thread_scheduler(pppoe->master);
@@ -326,11 +326,11 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto)
 static int
 gtp_pppoe_pkt_init(gtp_pppoe_t *pppoe)
 {
-	pppoe->fd_disc = gtp_pppoe_socket_init(pppoe, ETH_PPPOE_DISCOVERY);
+	pppoe->fd_disc = gtp_pppoe_socket_init(pppoe, ETH_P_PPP_DISC);
 	if (pppoe->fd_disc < 0)
 		return -1;
 
-	pppoe->fd_session = gtp_pppoe_socket_init(pppoe, ETH_PPPOE_SESSION);
+	pppoe->fd_session = gtp_pppoe_socket_init(pppoe, ETH_P_PPP_SES);
 	if (pppoe->fd_session < 0)
 		return -1;
 

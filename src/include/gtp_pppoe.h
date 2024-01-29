@@ -25,9 +25,6 @@
 /*
  *	PPPoE RFC 2516 related
  */
-#define ETH_PPPOE_DISCOVERY 0x8863
-#define ETH_PPPOE_SESSION   0x8864
-
 #define PPPOE_STATE_INITIAL	0
 #define PPPOE_STATE_PADI_SENT	1
 #define	PPPOE_STATE_PADR_SENT	2
@@ -132,7 +129,7 @@ typedef struct _gtp_pppoe {
 	/* I/O MUX related */
 	thread_master_t		*master;
 	thread_ref_t		r_disc_thread;
-	thread_ref_t		r_sess_thread;
+	thread_ref_t		r_ses_thread;
 
 	pkt_queue_t		pkt_q;
 

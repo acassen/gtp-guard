@@ -242,6 +242,53 @@ sppp_print_bytes(const uint8_t *p, uint16_t len)
  *	PPP protocol implementation.
  */
 
+void
+sppp_increasing_timeout (const struct cp *cp, sppp_t *sp)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	int timo;
+
+	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
+	if (timo < 1)
+		timo = 1;
+	timer_node_add(&pppoe->ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
+}
+
+/*
+ * Change the state of a control protocol in the state automaton.
+ * Takes care of starting/stopping the restart timer.
+ */
+void
+sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
+{
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (debug & 8 && sp->state[cp->protoidx] != newstate)
+		printf("%s: %s %s->%s\n",
+		       pppoe->ifname, cp->name,
+		       sppp_state_name(sp->state[cp->protoidx]),
+		       sppp_state_name(newstate));
+	sp->state[cp->protoidx] = newstate;
+
+	switch (newstate) {
+	case STATE_INITIAL:
+	case STATE_STARTING:
+	case STATE_CLOSED:
+	case STATE_STOPPED:
+	case STATE_OPENED:
+		timer_node_del(&pppoe->ppp_timer, &sp->ch[cp->protoidx]);
+		break;
+	case STATE_CLOSING:
+	case STATE_STOPPING:
+	case STATE_REQ_SENT:
+	case STATE_ACK_RCVD:
+	case STATE_ACK_SENT:
+		if (!timer_node_pending(&sp->ch[cp->protoidx]))
+			sppp_increasing_timeout(cp, sp);
+		break;
+	}
+}
+
 /*
  * Send PPP control protocol packet.
  */
@@ -286,59 +333,417 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 static void
 sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 {
-	/* TODO */
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pkt_buffer_t *pbuff = pkt->pbuff;
+	int rv, len = pbuff->end - pbuff->data;
+	lcp_hdr_t *h;
+	uint32_t nmagic;
+	uint8_t *p;
+
+	if (len < LCP_HEADER_LEN) {
+		if (debug & 8)
+			printf("%s: %s invalid packet length: %d bytes\n",
+			       pppoe->ifname, cp->name, len);
+		return;
+	}
+
+	h = (lcp_hdr_t *) pbuff->data;
+	if (debug & 8) {
+		printf("%s: %s input(%s): <%s id=0x%x len=%d",
+		       pppoe->ifname, cp->name,
+		       sppp_state_name(sp->state[cp->protoidx]),
+		       sppp_cp_type_name(h->type), h->ident, ntohs(h->len));
+		if (len > 4)
+			sppp_print_bytes((uint8_t *) (h+1), len-4);
+		printf(">\n");
+	}
+	if (len > ntohs(h->len))
+		len = ntohs(h->len);
+	p = (uint8_t *) (h + 1);
+	switch (h->type) {
+	case CONF_REQ:
+		if (len < 4) {
+			if (debug & 8)
+				printf("%s: %s invalid conf-req length %d\n",
+				       pppoe->ifname, cp->name, len);
+			break;
+		}
+		/* handle states where RCR doesn't get a SCA/SCN */
+		switch (sp->state[cp->protoidx]) {
+		case STATE_CLOSING:
+		case STATE_STOPPING:
+			return;
+		case STATE_CLOSED:
+			sppp_cp_send(sp, cp->proto, TERM_ACK, h->ident, 0, 0);
+			return;
+		}
+		rv = (cp->RCR)(sp, h, len);
+		/* silently drop illegal packets */
+		if (rv == -1)
+			return;
+		switch (sp->state[cp->protoidx]) {
+		case STATE_OPENED:
+			sppp_cp_change_state(cp, sp, rv ? STATE_ACK_SENT : STATE_REQ_SENT);
+			(cp->tld)(sp);
+			(cp->scr)(sp);
+			break;
+		case STATE_ACK_SENT:
+		case STATE_REQ_SENT:
+			sppp_cp_change_state(cp, sp, rv ? STATE_ACK_SENT : STATE_REQ_SENT);
+			break;
+		case STATE_STOPPED:
+			sp->rst_counter[cp->protoidx] = sp->lcp.max_configure;
+			sppp_cp_change_state(cp, sp, rv ? STATE_ACK_SENT : STATE_REQ_SENT);
+			(cp->scr)(sp);
+			break;
+		case STATE_ACK_RCVD:
+			if (rv) {
+				sppp_cp_change_state(cp, sp, STATE_OPENED);
+				if (debug & 8)
+					printf("%s: %s tlu\n", pppoe->ifname, cp->name);
+				(cp->tlu)(sp);
+			} else
+				sppp_cp_change_state(cp, sp, STATE_ACK_RCVD);
+			break;
+		default:
+			if (debug & 8)
+				printf("%s: %s illegal %s in state %s\n",
+				       pppoe->ifname, cp->name,
+				       sppp_cp_type_name(h->type),
+				       sppp_state_name(sp->state[cp->protoidx]));
+		}
+		break;
+	case CONF_ACK:
+		if (h->ident != sp->confid[cp->protoidx]) {
+			if (debug & 8)
+				printf("%s: %s id mismatch 0x%x != 0x%x\n",
+				       pppoe->ifname, cp->name,
+				       h->ident, sp->confid[cp->protoidx]);
+			break;
+		}
+		switch (sp->state[cp->protoidx]) {
+		case STATE_CLOSED:
+		case STATE_STOPPED:
+			sppp_cp_send(sp, cp->proto, TERM_ACK, h->ident, 0, 0);
+			break;
+		case STATE_CLOSING:
+		case STATE_STOPPING:
+			break;
+		case STATE_REQ_SENT:
+			sp->rst_counter[cp->protoidx] = sp->lcp.max_configure;
+			sppp_cp_change_state(cp, sp, STATE_ACK_RCVD);
+			break;
+		case STATE_OPENED:
+			sppp_cp_change_state(cp, sp, STATE_REQ_SENT);
+			(cp->tld)(sp);
+			(cp->scr)(sp);
+			break;
+		case STATE_ACK_RCVD:
+			sppp_cp_change_state(cp, sp, STATE_REQ_SENT);
+			(cp->scr)(sp);
+			break;
+		case STATE_ACK_SENT:
+			sp->rst_counter[cp->protoidx] = sp->lcp.max_configure;
+			sppp_cp_change_state(cp, sp, STATE_OPENED);
+			if (debug & 8)
+				printf("%s: %s tlu\n", pppoe->ifname, cp->name);
+			(cp->tlu)(sp);
+			break;
+		default:
+			if (debug & 8)
+				printf("%s: %s illegal %s in state %s\n",
+				       pppoe->ifname, cp->name,
+				       sppp_cp_type_name(h->type),
+			               sppp_state_name(sp->state[cp->protoidx]));
+		}
+		break;
+	case CONF_NAK:
+	case CONF_REJ:
+		if (h->ident != sp->confid[cp->protoidx]) {
+			if (debug & 8)
+				printf("%s: %s id mismatch 0x%x != 0x%x\n",
+				       pppoe->ifname, cp->name,
+				       h->ident, sp->confid[cp->protoidx]);
+			break;
+		}
+		if (h->type == CONF_NAK)
+			(cp->RCN_nak)(sp, h, len);
+		else /* CONF_REJ */
+			(cp->RCN_rej)(sp, h, len);
+
+		switch (sp->state[cp->protoidx]) {
+		case STATE_CLOSED:
+		case STATE_STOPPED:
+			sppp_cp_send(sp, cp->proto, TERM_ACK, h->ident, 0, 0);
+			break;
+		case STATE_REQ_SENT:
+		case STATE_ACK_SENT:
+			sp->rst_counter[cp->protoidx] = sp->lcp.max_configure;
+			(cp->scr)(sp);
+			break;
+		case STATE_OPENED:
+			sppp_cp_change_state(cp, sp, STATE_ACK_SENT);
+			(cp->tld)(sp);
+			(cp->scr)(sp);
+			break;
+		case STATE_ACK_RCVD:
+			sppp_cp_change_state(cp, sp, STATE_ACK_SENT);
+			(cp->scr)(sp);
+			break;
+		case STATE_CLOSING:
+		case STATE_STOPPING:
+			break;
+		default:
+			if (debug & 8)
+				printf("%s: %s illegal %s in state %s\n",
+				       pppoe->ifname, cp->name,
+			               sppp_cp_type_name(h->type),
+			               sppp_state_name(sp->state[cp->protoidx]));
+		}
+		break;
+
+	case TERM_REQ:
+		switch (sp->state[cp->protoidx]) {
+		case STATE_ACK_RCVD:
+		case STATE_ACK_SENT:
+			sppp_cp_change_state(cp, sp, STATE_REQ_SENT);
+			/* FALLTHROUGH */
+		case STATE_CLOSED:
+		case STATE_STOPPED:
+		case STATE_CLOSING:
+		case STATE_STOPPING:
+		case STATE_REQ_SENT:
+		  sta:
+			/* Send Terminate-Ack packet. */
+			if (debug & 8)
+				printf("%s: %s send terminate-ack\n",
+				       pppoe->ifname, cp->name);
+			sppp_cp_send(sp, cp->proto, TERM_ACK, h->ident, 0, 0);
+			break;
+		case STATE_OPENED:
+			sp->rst_counter[cp->protoidx] = 0;
+			sppp_cp_change_state(cp, sp, STATE_STOPPING);
+			(cp->tld)(sp);
+			goto sta;
+			break;
+		default:
+			if (debug & 8)
+				printf("%s: %s illegal %s in state %s\n",
+				       pppoe->ifname, cp->name,
+			               sppp_cp_type_name(h->type),
+			               sppp_state_name(sp->state[cp->protoidx]));
+		}
+		break;
+	case TERM_ACK:
+		switch (sp->state[cp->protoidx]) {
+		case STATE_CLOSED:
+		case STATE_STOPPED:
+		case STATE_REQ_SENT:
+		case STATE_ACK_SENT:
+			break;
+		case STATE_CLOSING:
+			sppp_cp_change_state(cp, sp, STATE_CLOSED);
+			(cp->tlf)(sp);
+			break;
+		case STATE_STOPPING:
+			sppp_cp_change_state(cp, sp, STATE_STOPPED);
+			(cp->tlf)(sp);
+			break;
+		case STATE_ACK_RCVD:
+			sppp_cp_change_state(cp, sp, STATE_REQ_SENT);
+			break;
+		case STATE_OPENED:
+			sppp_cp_change_state(cp, sp, STATE_ACK_RCVD);
+			(cp->tld)(sp);
+			(cp->scr)(sp);
+			break;
+		default:
+			if (debug & 8)
+				printf("%s: %s illegal %s in state %s\n",
+				       pppoe->ifname, cp->name,
+			               sppp_cp_type_name(h->type),
+			               sppp_state_name(sp->state[cp->protoidx]));
+		}
+		break;
+	case CODE_REJ:
+	case PROTO_REJ:
+	    {
+		int catastrophic = 0;
+		const struct cp *upper = NULL;
+		int i;
+		u_int16_t proto;
+
+		if (len < 2) {
+			if (debug & 8)
+				printf("%s: invalid proto-rej length\n", pppoe->ifname);
+			break;
+		}
+
+		proto = ntohs(*((u_int16_t *)p));
+		for (i = 0; i < IDX_COUNT; i++) {
+			if (cps[i]->proto == proto) {
+				upper = cps[i];
+				break;
+			}
+		}
+		if (upper == NULL)
+			catastrophic++;
+
+		if (catastrophic)
+			log_message(LOG_INFO, "%s: RXJ%c (%s) for proto 0x%x (%s/%s)\n"
+					    , pppoe->ifname, cp->name, catastrophic ? '-' : '+'
+					    , sppp_cp_type_name(h->type), proto
+					    , upper ? upper->name : "unknown"
+					    , upper ? sppp_state_name(sp->state[upper->protoidx]) : "?");
+
+		/*
+		 * if we got RXJ+ against conf-req, the peer does not implement
+		 * this particular protocol type.  terminate the protocol.
+		 */
+		if (upper) {
+			if (sp->state[upper->protoidx] == STATE_REQ_SENT) {
+				upper->Close(sp);
+				break;
+			}
+		}
+
+		/* XXX catastrophic rejects (RXJ-) aren't handled yet. */
+		switch (sp->state[cp->protoidx]) {
+		case STATE_CLOSED:
+		case STATE_STOPPED:
+		case STATE_REQ_SENT:
+		case STATE_ACK_SENT:
+		case STATE_CLOSING:
+		case STATE_STOPPING:
+		case STATE_OPENED:
+			break;
+		case STATE_ACK_RCVD:
+			sppp_cp_change_state(cp, sp, STATE_REQ_SENT);
+			break;
+		default:
+			if (debug & 8)
+				printf("%s: %s illegal %s in state %s\n",
+				       pppoe->ifname, cp->name,
+			               sppp_cp_type_name(h->type),
+			               sppp_state_name(sp->state[cp->protoidx]));
+		}
+		break;
+	    }
+	case DISC_REQ:
+		if (cp->proto != PPP_LCP)
+			goto illegal;
+		/* Discard the packet. */
+		break;
+	case ECHO_REQ:
+		if (cp->proto != PPP_LCP)
+			goto illegal;
+		if (sp->state[cp->protoidx] != STATE_OPENED) {
+			if (debug & 8)
+				printf("%s: lcp echo req but lcp closed\n",
+				       pppoe->ifname);
+			break;
+		}
+		if (len < 8) {
+			if (debug & 8)
+				printf("%s: invalid lcp echo request "
+				       "packet length: %d bytes\n",
+				       pppoe->ifname, len);
+			break;
+		}
+
+		nmagic = (uint32_t)p[0] << 24 |
+			 (uint32_t)p[1] << 16 | p[2] << 8 | p[3];
+
+		if (nmagic == sp->lcp.magic) {
+			/* Line loopback mode detected. */
+			log_message(LOG_INFO, "%s: loopback\n", pppoe->ifname);
+			/* Shut down the PPP link. */
+			lcp.Close(sp);
+			break;
+		}
+
+		p[0] = sp->lcp.magic >> 24;
+		p[1] = sp->lcp.magic >> 16;
+		p[2] = sp->lcp.magic >> 8;
+		p[3] = sp->lcp.magic;
+
+		if (debug & 8)
+			printf("%s: got lcp echo req, sending echo rep\n",
+			       pppoe->ifname);
+		sppp_cp_send(sp, PPP_LCP, ECHO_REPLY, h->ident, len-4, h+1);
+		break;
+	case ECHO_REPLY:
+		if (cp->proto != PPP_LCP)
+			goto illegal;
+		if (h->ident != sp->lcp.echoid) {
+			break;
+		}
+		if (len < 8) {
+			if (debug & 8)
+				printf("%s: lcp invalid echo reply "
+				       "packet length: %d bytes\n",
+				       pppoe->ifname, len);
+			break;
+		}
+		if (debug & 8)
+			printf("%s: lcp got echo rep\n", pppoe->ifname);
+
+		nmagic = (uint32_t)p[0] << 24 |
+			 (uint32_t)p[1] << 16 | p[2] << 8 | p[3];
+
+		if (nmagic != sp->lcp.magic)
+			sp->pp_alivecnt = 0;
+		break;
+	default:
+		/* Unknown packet type -- send Code-Reject packet. */
+	  illegal:
+		if (debug & 8)
+			printf("%s: %s send code-rej for 0x%x\n",
+			       pppoe->ifname, cp->name, h->type);
+		sppp_cp_send(sp, cp->proto, CODE_REJ, ++sp->pp_seq, len, h);
+	}
 }
 
 void
 sppp_input(sppp_t *sp, pkt_t *pkt)
 {
-	/* TODO */
-}
-
-void
-sppp_increasing_timeout (const struct cp *cp, sppp_t *sp)
-{
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	int timo;
+	ppp_hdr_t ht;
 
-	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
-	if (timo < 1)
-		timo = 1;
-	timer_node_add(&pppoe->ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
-}
+	ht.address = PPP_ALLSTATIONS;
+	ht.control = PPP_UI;
+	ht.protocol = *(uint16_t *) pkt->pbuff->data;
+	pkt_buffer_put_data(pkt->pbuff, sizeof(uint16_t));
 
-
-/*
- * Change the state of a control protocol in the state automaton.
- * Takes care of starting/stopping the restart timer.
- */
-void
-sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
-{
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
-
-	if (debug & 8 && sp->state[cp->protoidx] != newstate)
-		printf("%s: %s %s->%s\n",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]),
-		       sppp_state_name(newstate));
-	sp->state[cp->protoidx] = newstate;
-
-	switch (newstate) {
-	case STATE_INITIAL:
-	case STATE_STARTING:
-	case STATE_CLOSED:
-	case STATE_STOPPED:
-	case STATE_OPENED:
-		timer_node_del(&pppoe->ppp_timer, &sp->ch[cp->protoidx]);
+	switch (ntohs(ht.protocol)) {
+	case PPP_LCP:
+		sppp_cp_input(&lcp, sp, pkt);
 		break;
-	case STATE_CLOSING:
-	case STATE_STOPPING:
-	case STATE_REQ_SENT:
-	case STATE_ACK_RCVD:
-	case STATE_ACK_SENT:
-		if (!timer_node_pending(&sp->ch[cp->protoidx]))
-			sppp_increasing_timeout(cp, sp);
+	case PPP_PAP:
+		if (sp->pp_phase >= PHASE_AUTHENTICATE)
+			sppp_pap_input(sp, pkt);
+		break;
+	case PPP_IPCP:
+		if (sp->pp_phase == PHASE_NETWORK)
+			sppp_cp_input(&ipcp, sp, pkt);
+		break;
+	case PPP_IPV6CP:
+		if (sp->pp_phase == PHASE_NETWORK)
+			sppp_cp_input(&ipv6cp, sp, pkt);
+		return;
+	case PPP_IP:
+	case PPP_IPV6:
+		/* data-plane offloaded: if not: ignore */
+		break;
+	default:
+		if (sp->state[IDX_LCP] == STATE_OPENED)
+			sppp_cp_send(sp, PPP_LCP, PROTO_REJ,
+				     ++sp->pp_seq, 2, &ht.protocol);
+		if (debug & 8)
+			printf("%s: invalid input protocol "
+			       "<addr=0x%x ctrl=0x%x proto=0x%x>\n",
+			       pppoe->ifname,
+			       ht.address, ht.control, ntohs(ht.protocol));
 		break;
 	}
 }
