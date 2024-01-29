@@ -709,6 +709,10 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	ppp_hdr_t ht;
+	timeval_t tv;
+
+	gettimeofday(&tv, NULL);
+	sp->pp_last_receive = tv.tv_sec;
 
 	ht.address = PPP_ALLSTATIONS;
 	ht.control = PPP_UI;
@@ -2480,6 +2484,56 @@ sppp_pap_scr(sppp_t *sp)
 static int
 sppp_keepalive(void *arg)
 {
+	sppp_t *sp = arg;
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timeval_t tv;
+
+	/* Keepalive mode disabled */
+	if (!(sp->pp_flags & PP_KEEPALIVE))
+		goto next_timer;
+
+	/* No keepalive if LCP not opened yet. */
+	if (sp->pp_phase < PHASE_AUTHENTICATE)
+		goto next_timer;
+
+	gettimeofday(&tv, NULL);
+	/* No echo reply, but maybe user data passed through? */
+	if ((tv.tv_sec - sp->pp_last_receive) < NORECV_TIME) {
+		sp->pp_alivecnt = 0;
+		goto next_timer;
+	}
+
+	if (sp->pp_alivecnt < MAXALIVECNT)
+		goto next_timer;
+
+	/* LCP Keepalive timeout */
+	log_message(LOG_INFO, "%s: PPP session:0x%.8x LCP keepalive timeout\n"
+			    , pppoe->ifname, sp->s_pppoe->session_id);
+	sp->pp_alivecnt = 0;
+
+	/* we are down, close all open protocols */
+	lcp.Close(sp);
+
+	/* And now prepare LCP to reestablish the link,
+	 * if configured to do so. */
+	sppp_cp_change_state(&lcp, sp, STATE_STOPPED);
+
+	/* Close connection immediately, completion of this
+	 * will summon the magic needed to reestablish it. */
+	if (sp->pp_tlf)
+		sp->pp_tlf(sp);
+	goto next_timer;
+
+	if (sp->pp_alivecnt < MAXALIVECNT)
+		++sp->pp_alivecnt;
+	if (sp->pp_phase >= PHASE_AUTHENTICATE) {
+		uint32_t nmagic = htonl(sp->lcp.magic);
+		sp->lcp.echoid = ++sp->pp_seq;
+		sppp_cp_send(sp, PPP_LCP, ECHO_REQ, sp->lcp.echoid, 4, &nmagic);
+	}
+
+  next_timer:
+	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
 	return 0;
 }
 

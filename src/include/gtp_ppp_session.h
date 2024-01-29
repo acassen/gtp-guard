@@ -160,6 +160,8 @@ typedef struct _sppp {
 #define PP_MTU		1500	/* default MTU */
 #define PP_MAX_MRU	2048	/* maximal MRU we want to negotiate */
 
+#define MAXALIVECNT	3	/* max. missed alive packets */
+#define	NORECV_TIME	15	/* before we get worried */
 
 /* Prototypes */
 extern void sppp_lcp_init(sppp_t *);
