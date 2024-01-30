@@ -163,6 +163,9 @@ typedef struct _sppp {
 #define MAXALIVECNT	3	/* max. missed alive packets */
 #define	NORECV_TIME	15	/* before we get worried */
 
+#define FAILMSG "Failed..."
+#define SUCCMSG "Welcome!"
+
 /* Prototypes */
 extern void sppp_lcp_init(sppp_t *);
 extern void sppp_lcp_up(sppp_t *);

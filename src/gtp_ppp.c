@@ -147,6 +147,27 @@ sppp_cp_type_name(uint8_t type)
 }
 
 const char *
+sppp_auth_type_name(uint16_t proto, uint8_t type)
+{
+	switch (proto) {
+	case PPP_CHAP:
+		switch (type) {
+		case CHAP_CHALLENGE:	return "challenge";
+		case CHAP_RESPONSE:	return "response";
+		case CHAP_SUCCESS:	return "success";
+		case CHAP_FAILURE:	return "failure";
+		}
+	case PPP_PAP:
+		switch (type) {
+		case PAP_REQ:		return "req";
+		case PAP_ACK:		return "ack";
+		case PAP_NAK:		return "nak";
+		}
+	}
+	return "unknown";
+}
+
+const char *
 sppp_lcp_opt_name(uint8_t opt)
 {
 	switch (opt) {
@@ -236,6 +257,23 @@ sppp_print_bytes(const uint8_t *p, uint16_t len)
 	printf(" %02x", *p++);
 	while (--len > 0)
 		printf("-%02x", *p++);
+}
+
+void
+sppp_print_string(const char *p, uint8_t len)
+{
+	uint8_t c;
+
+	while (len-- > 0) {
+		c = *p++;
+		/*
+		 * Print only ASCII chars directly.  RFC 1994 recommends
+		 * using only them, but we don't rely on it.  */
+		if (c < ' ' || c > '~')
+			printf("\\x%x", c);
+		else
+			printf("%c", c);
+	}
 }
 
 /*
@@ -2321,10 +2359,59 @@ sppp_ipv6cp_scr(sppp_t *sp)
  */
 
 void
-sppp_auth_send(const struct cp *cp, sppp_t *sp,
-		unsigned int type, int id, ...)
+sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 {
-	/* TODO */
+	spppoe_t *s = sp->s_pppoe;
+	gtp_pppoe_t *pppoe = s->pppoe;
+	lcp_hdr_t *lcp;
+	pkt_t *pkt;
+	uint8_t *p;
+	int len;
+	unsigned int mlen;
+	const char *msg;
+	uint16_t *proto;
+	va_list ap;
+
+	/* get ethernet pkt buffer */
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
+
+	/* fill in pkt */
+	proto = (uint16_t *) pkt->pbuff->data;
+	*proto = htons(cp->proto);
+	lcp = (lcp_hdr_t *) (pkt->pbuff->data + 2);
+	lcp->type = type;
+	lcp->ident = id;
+	p = (uint8_t *) (lcp + 1);
+
+	va_start(ap, id);
+	len = 0;
+
+	while ((mlen = (unsigned int)va_arg(ap, size_t)) != 0) {
+		msg = va_arg(ap, const char *);
+		len += mlen;
+		if (len > DEFAULT_PKT_BUFFER_SIZE - PKTHDRLEN - LCP_HEADER_LEN) {
+			va_end(ap);
+			return;
+		}
+
+		bcopy(msg, p, mlen);
+		p += mlen;
+	}
+	va_end(ap);
+
+	pkt_buffer_set_end_pointer(pkt->pbuff, sizeof(struct ether_header) +
+					       PKTHDRLEN + LCP_HEADER_LEN + len);
+	lcp->len = htons(LCP_HEADER_LEN + len);
+
+	if (debug & 8) {
+		printf("%s: %s output <%s id=0x%x len=%d",
+		       pppoe->ifname, cp->name,
+		       sppp_auth_type_name(cp->proto, lcp->type),
+		       lcp->ident, ntohs(lcp->len));
+		if (len)
+			sppp_print_bytes((uint8_t *) (lcp + 1), len);
+		printf(">\n");
+	}
 }
 
 /*
@@ -2332,7 +2419,135 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp,
 void
 sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 {
-	/* TODO */
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pkt_buffer_t *pbuff = pkt->pbuff;
+	int len = pbuff->end - pbuff->data;
+	lcp_hdr_t *h;
+	uint8_t *name, *passwd, mlen;
+	int name_len, passwd_len;
+
+	if (len < 5) {
+		if (debug & 8)
+			printf("%s: pap invalid packet length: %d bytes\n",
+			       pppoe->ifname, len);
+		return;
+	}
+
+	h = (lcp_hdr_t *) pbuff->data;
+	if (len > ntohs(h->len))
+		len = ntohs(h->len);
+	switch (h->type) {
+	/* PAP request is my authproto */
+	case PAP_REQ:
+		name = 1 + (uint8_t *) (h + 1);
+		name_len = name[-1];
+		passwd = name + name_len + 1;
+		if (name_len > len - 6 ||
+		    (passwd_len = passwd[-1]) > len - 6 - name_len) {
+			if (debug & 8) {
+				printf("%s: pap corrupted input <%s id=0x%x len=%d",
+				       pppoe->ifname,
+				       sppp_auth_type_name(PPP_PAP, h->type),
+				       h->ident, ntohs(h->len));
+				if (len > 4)
+					sppp_print_bytes((uint8_t *) (h + 1), len - 4);
+				printf(">\n");
+			}
+			break;
+		}
+		if (debug & 8) {
+			printf("%s: pap input(%s) <%s id=0x%x len=%d name=",
+			       pppoe->ifname,
+			       sppp_state_name(sp->state[IDX_PAP]),
+			       sppp_auth_type_name(PPP_PAP, h->type),
+			       h->ident, ntohs(h->len));
+			sppp_print_string((char*)name, name_len);
+			printf(" passwd=");
+			sppp_print_string((char*)passwd, passwd_len);
+			printf(">\n");
+		}
+		if (name_len > AUTHMAXLEN ||
+		    passwd_len > AUTHMAXLEN ||
+		    bcmp(name, sp->hisauth.name, name_len) != 0 ||
+		    bcmp(passwd, sp->hisauth.secret, passwd_len) != 0) {
+			/* action scn, tld */
+			mlen = sizeof(FAILMSG) - 1;
+			sppp_auth_send(&pap, sp, PAP_NAK, h->ident,
+				       sizeof mlen, (const char *)&mlen,
+				       sizeof(FAILMSG) - 1, (uint8_t *)FAILMSG,
+				       0);
+			pap.tld(sp);
+			break;
+		}
+		/* action sca, perhaps tlu */
+		if (sp->state[IDX_PAP] == STATE_REQ_SENT ||
+		    sp->state[IDX_PAP] == STATE_OPENED) {
+			mlen = sizeof(SUCCMSG) - 1;
+			sppp_auth_send(&pap, sp, PAP_ACK, h->ident,
+				       sizeof mlen, (const char *)&mlen,
+				       sizeof(SUCCMSG) - 1, (uint8_t *)SUCCMSG,
+				       0);
+		}
+		if (sp->state[IDX_PAP] == STATE_REQ_SENT) {
+			sppp_cp_change_state(&pap, sp, STATE_OPENED);
+			pap.tlu(sp);
+		}
+		break;
+
+	/* ack and nak are his authproto */
+	case PAP_ACK:
+		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+		if (debug & 8) {
+			printf("%s: pap success", pppoe->ifname);
+			name_len = *((char *)h);
+			if (len > 5 && name_len) {
+				printf(": ");
+				sppp_print_string((char *)(h + 1), name_len);
+			}
+			printf("\n");
+		}
+		sp->pp_flags &= ~PP_NEEDAUTH;
+		if (sp->myauth.proto == PPP_PAP &&
+		    (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) &&
+		    (sp->lcp.protos & (1 << IDX_PAP)) == 0) {
+			/*
+			 * We are authenticator for PAP but didn't
+			 * complete yet.  Leave it to tlu to proceed
+			 * to network phase.
+			 */
+			break;
+		}
+		sppp_phase_network(sp);
+		break;
+
+	case PAP_NAK:
+		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+		if (debug & 8) {
+			printf("%s: pap failure", pppoe->ifname);
+			name_len = *((char *)h);
+			if (len > 5 && name_len) {
+				printf(": ");
+				sppp_print_string((char*)(h + 1), name_len);
+			}
+			printf("\n");
+		} else
+			log_message(LOG_INFO, "%s: pap failure\n", pppoe->ifname);
+		/* await LCP shutdown by authenticator */
+		break;
+
+	default:
+		/* Unknown PAP packet type -- ignore. */
+		if (debug & 8) {
+			printf("%s: pap corrupted input <0x%x id=0x%x len=%d",
+			       pppoe->ifname,
+			       h->type, h->ident, ntohs(h->len));
+			if (len > 4)
+				sppp_print_bytes((uint8_t *)(h + 1), len - 4);
+			printf(">\n");
+		}
+		break;
+
+	}
 }
 
 void
@@ -2503,26 +2718,25 @@ sppp_keepalive(void *arg)
 		goto next_timer;
 	}
 
-	if (sp->pp_alivecnt < MAXALIVECNT)
+	if (sp->pp_alivecnt >= MAXALIVECNT) {
+		/* LCP Keepalive timeout */
+		log_message(LOG_INFO, "%s: PPP session:0x%.8x LCP keepalive timeout\n"
+				, pppoe->ifname, sp->s_pppoe->session_id);
+		sp->pp_alivecnt = 0;
+
+		/* we are down, close all open protocols */
+		lcp.Close(sp);
+
+		/* And now prepare LCP to reestablish the link,
+		* if configured to do so. */
+		sppp_cp_change_state(&lcp, sp, STATE_STOPPED);
+
+		/* Close connection immediately, completion of this
+		* will summon the magic needed to reestablish it. */
+		if (sp->pp_tlf)
+			sp->pp_tlf(sp);
 		goto next_timer;
-
-	/* LCP Keepalive timeout */
-	log_message(LOG_INFO, "%s: PPP session:0x%.8x LCP keepalive timeout\n"
-			    , pppoe->ifname, sp->s_pppoe->session_id);
-	sp->pp_alivecnt = 0;
-
-	/* we are down, close all open protocols */
-	lcp.Close(sp);
-
-	/* And now prepare LCP to reestablish the link,
-	 * if configured to do so. */
-	sppp_cp_change_state(&lcp, sp, STATE_STOPPED);
-
-	/* Close connection immediately, completion of this
-	 * will summon the magic needed to reestablish it. */
-	if (sp->pp_tlf)
-		sp->pp_tlf(sp);
-	goto next_timer;
+	}
 
 	if (sp->pp_alivecnt < MAXALIVECNT)
 		++sp->pp_alivecnt;
