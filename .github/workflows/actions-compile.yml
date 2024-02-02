@@ -1,0 +1,23 @@
+name: basic compilation test
+run-name: ${{ github.actor }} basic compilation test ⚗️
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: add missing packages
+        uses: ConorMacBride/install-package@v1
+        with:
+          apt: libelf-dev
+      - name: recursive checkout (with libbpf submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: make
+        run : make -j $(nproc)
