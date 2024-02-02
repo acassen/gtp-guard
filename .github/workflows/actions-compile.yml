@@ -21,3 +21,5 @@ jobs:
           submodules: true
       - name: make
         run : make -j $(nproc)
+      - name: basic run
+        run : bin/gtp-guard --version
