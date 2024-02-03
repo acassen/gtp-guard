@@ -35,7 +35,7 @@ static inline unsigned int bpf_num_possible_cpus(void)
 	if (possible_cpus < 0) {
 		printf("Failed to get # of possible cpus: '%s'!\n",
 			strerror(-possible_cpus));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 	return possible_cpus;
 }
