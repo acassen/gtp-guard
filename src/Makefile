@@ -19,7 +19,7 @@
 # Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
 #
 
-CC	 = gcc
+CC	 ?= gcc
 INCLUDES = -Iinclude -I../lib -I../libbpf/src -I../libbpf/src/uapi
 CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Wall -Wunused -Wstrict-prototypes -D_GNU_SOURCE
 #DEFS	 = -D_DEBUG_
