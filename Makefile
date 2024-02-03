@@ -32,7 +32,7 @@ sysconfdir  = ${prefix}/etc
 init_script = etc/init.d/gtp-guard.init
 conf_file   = etc/gtp-guard/gtp-guard.conf
 
-CC        = gcc
+CC        ?= gcc
 LDFLAGS   = -lpthread -lcrypt -ggdb -lm -lz -lresolv -lelf
 SUBDIRS   = lib src
 LIBBPF    = libbpf

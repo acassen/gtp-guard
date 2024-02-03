@@ -19,7 +19,7 @@
 # Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
 #
 
-CC	 = gcc
+CC	 ?= gcc
 INCLUDES = -I.
 CFLAGS	 = -g -O2 $(INCLUDES) -Wall -Wunused -Wstrict-prototypes
 #DEFS	 = -D_DEBUG_
