@@ -46,7 +46,7 @@
 
 /* a dummy, used to drop uninteresting events */
 static void
-sppp_null(sppp_t *)
+sppp_null(__attribute__((unused)) sppp_t *unused)
 {
 	/* do just nothing */
 }
