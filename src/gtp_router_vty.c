@@ -113,7 +113,7 @@ DEFUN(gtpc_router_tunnel_endpoint,
 
         if (argc == 2) {
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-                if (port) ; /* dummy test */
+                if (port) {}; /* dummy test */
         	ret = inet_stosockaddr(argv[0], argv[1], addr);
         } else {
         	ret = inet_stosockaddr(argv[0], "2123", addr);
@@ -154,7 +154,7 @@ DEFUN(gtpu_router_tunnel_endpoint,
 
 	if (argc == 2) {
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-		if (port) ; /* dummy test */
+		if (port) {}; /* dummy test */
 		ret = inet_stosockaddr(argv[0], argv[1], addr);
 	} else {
 		ret = inet_stosockaddr(argv[0], "2152", addr);

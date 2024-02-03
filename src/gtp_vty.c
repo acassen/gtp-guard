@@ -338,7 +338,7 @@ pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 	}
 
         VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
-	if (port) ; /* Dummy test */
+	if (port) {} ; /* Dummy test */
         ret = inet_stosockaddr(argv[0], argv[1], addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
@@ -508,7 +508,7 @@ DEFUN(request_channel,
 	}
 
         VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
-	if (port) ; /* Dummy test */
+	if (port) {} ; /* Dummy test */
         ret = inet_stosockaddr(argv[0], argv[1], addr);
 
 	if (ret < 0) {
@@ -679,10 +679,10 @@ DEFUN(gtp_send_echo_request_standard,
 	PMALLOC(gtp_cmd_args);
 
 	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[0], 1, 2);
-	if (version) ; /* Dummy test */
+	if (version) {} ; /* Dummy test */
 
 	VTY_GET_INTEGER_RANGE("remote-port", port, argv[2], 1024, 65535);
-	if (port) ; /* Dummy test */
+	if (port) {} ; /* Dummy test */
 	ret = inet_stosockaddr(argv[1], argv[2], &gtp_cmd_args->dst_addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
@@ -692,7 +692,7 @@ DEFUN(gtp_send_echo_request_standard,
 
 	if (argc > 4) {
 		VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
-		if (count) ; /* Dummy test */
+		if (count) {} ; /* Dummy test */
 	}
 
 	gtp_cmd_args->type = GTP_CMD_ECHO_REQUEST;
@@ -738,10 +738,10 @@ DEFUN(gtp_send_echo_request_extended,
 	PMALLOC(gtp_cmd_args);
 
 	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[0], 1, 2);
-	if (version) ; /* Dummy test */
+	if (version) {} ; /* Dummy test */
 
 	VTY_GET_INTEGER_RANGE("port-src", port, argv[2], 1024, 65535);
-	if (port) ; /* Dummy test */
+	if (port) {} ; /* Dummy test */
 	ret = inet_stosockaddr(argv[1], argv[2], &gtp_cmd_args->src_addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
@@ -750,7 +750,7 @@ DEFUN(gtp_send_echo_request_extended,
 	}
 
 	VTY_GET_INTEGER_RANGE("port-dst", port, argv[4], 1024, 65535);
-	if (port) ; /* Dummy test */
+	if (port) {} ; /* Dummy test */
 	ret = inet_stosockaddr(argv[3], argv[4], &gtp_cmd_args->dst_addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
@@ -760,7 +760,7 @@ DEFUN(gtp_send_echo_request_extended,
 
 	if (argc > 5) {
 		VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
-		if (count) ; /* Dummy test */
+		if (count) {} ; /* Dummy test */
 	}
 
 	ifindex = inet_sockaddrifindex(&gtp_cmd_args->src_addr);

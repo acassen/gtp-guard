@@ -113,7 +113,7 @@ DEFUN(gtpc_switch_tunnel_endpoint,
 
         if (argc == 2) {
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-                if (port) ; /* dummy test */
+                if (port) {} ; /* dummy test */
         	ret = inet_stosockaddr(argv[0], argv[1], addr);
         } else {
         	ret = inet_stosockaddr(argv[0], "2123", addr);
@@ -154,7 +154,7 @@ DEFUN(gtpu_switch_tunnel_endpoint,
 
         if (argc == 2) {
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-                if (port) ; /* dummy test */
+                if (port) {} ; /* dummy test */
         	ret = inet_stosockaddr(argv[0], argv[1], addr);
         } else {
 		ret = inet_stosockaddr(argv[0], "2152", addr);
@@ -252,7 +252,7 @@ DEFUN(gtpu_ipip,
 
 	if (argc == 4) {
                 VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[3], 1, 4095);
-                if (vlan) ; /* dummy test */
+                if (vlan) {} ; /* dummy test */
 	}
 
 	t->selector_addr = saddr;
@@ -453,7 +453,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	}
 
 	VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[0], 1, 4095);
-	if (vlan) ; /* dummy test */
+	if (vlan) {} ; /* dummy test */
 
 	t->flags |= IPTNL_FL_TAG_VLAN;
 	t->decap_vlan_id = vlan;
