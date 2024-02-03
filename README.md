@@ -16,3 +16,8 @@ git clone --recursive git@github.com:acassen/gtp-guard.git
 cd gtp-guard
 make -j $(nproc)
 ```
+
+gcc is the default compiled. Should you prefer the usage of clang, then use:
+```
+CC=clang make -j $(nproc)
+```
