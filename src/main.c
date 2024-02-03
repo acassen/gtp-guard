@@ -64,7 +64,7 @@ stop_gtp(void)
 #endif
 	closelog();
 	pidfile_rm(PROG_PID_FILE);
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 /* Daemon init sequence */
@@ -174,11 +174,11 @@ parse_cmdline(int argc, char **argv)
 		case 'v':
 			fprintf(stderr, VERSION_STRING "\n");
 			fprintf(stderr, "libbpf %s\n", libbpf_version_string());
-			exit(0);
+			exit(EXIT_SUCCESS);
 			break;
 		case 'h':
 			usage(argv[0]);
-			exit(0);
+			exit(EXIT_SUCCESS);
 			break;
 		case 'l':
 			debug |= 1;
@@ -216,7 +216,7 @@ parse_cmdline(int argc, char **argv)
 			bad_option = true;
 			break;
 		default:
-			exit(1);
+			exit(EXIT_FAILURE);
 			break;
 		}
                 curind = optind;
@@ -231,7 +231,7 @@ parse_cmdline(int argc, char **argv)
 	}
 
 	if (bad_option)
-		exit(1);
+		exit(EXIT_FAILURE);
 }
 
 /* Entry point */
@@ -296,5 +296,5 @@ main(int argc, char **argv)
 	 */
       end:
 	closelog();
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
