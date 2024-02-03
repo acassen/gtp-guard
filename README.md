@@ -21,3 +21,36 @@ gcc is the default compiled. Should you prefer the usage of clang, then use:
 ```
 CC=clang make -j $(nproc)
 ```
+
+Basic Run
+=========
+
+Define your own `gtp-guard.conf` settings in order to enable its vty over TCP.
+
+```
+$ cat <<EOFCONF > /tmp/gtp-guard.conf
+!
+line vty
+  no login
+  listen 127.0.0.1 8888
+!
+EOFCONF
+
+$ sudo bin/gtp-guard --dont-fork --log-console --log-detail -f /tmp/gtp-guard.conf
+```
+
+then from another console, you can `telnet 127.0.0.1 8888` in order to get the CLI:
+```
+$ telnet 127.0.0.1 8888
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+
+ Welcome to GTP-Guard VTY
+
+xps> show version
+gtp-guard v1.0.4-pre1 (2023/11/28) ().
+Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
+xps> quit
+Connection closed by foreign host.
+```
