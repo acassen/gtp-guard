@@ -204,7 +204,7 @@ inet_stor(char *addr)
 
 /* IP string to sockaddr_storage */
 int
-inet_stosockaddr(const char *ip, const char *port, struct sockaddr_storage *addr)
+inet_stosockaddr(const char *ip, const uint16_t port, struct sockaddr_storage *addr)
 {
 	void *addr_ip;
 
@@ -213,12 +213,12 @@ inet_stosockaddr(const char *ip, const char *port, struct sockaddr_storage *addr
 	if (addr->ss_family == AF_INET6) {
 		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) addr;
 		if (port)
-			addr6->sin6_port = htons(atoi(port));
+			addr6->sin6_port = htons(port);
 		addr_ip = &addr6->sin6_addr;
 	} else {
 		struct sockaddr_in *addr4 = (struct sockaddr_in *) addr;
 		if (port)
-			addr4->sin_port = htons(atoi(port));
+			addr4->sin_port = htons(port);
 		addr_ip = &addr4->sin_addr;
 	}
 

@@ -104,21 +104,17 @@ DEFUN(gtpc_switch_tunnel_endpoint,
         gtp_switch_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->addr;
-	int port = 0, ret = 0;
+	int port = 2123, ret = 0;
 
         if (argc < 1) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
-        if (argc == 2) {
+        if (argc == 2)
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-                if (port) {} ; /* dummy test */
-        	ret = inet_stosockaddr(argv[0], argv[1], addr);
-        } else {
-        	ret = inet_stosockaddr(argv[0], "2123", addr);
-        }
 
+	ret = inet_stosockaddr(argv[0], port, addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
@@ -145,21 +141,17 @@ DEFUN(gtpu_switch_tunnel_endpoint,
         gtp_switch_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
-	int port, ret = 0;
+	int port = 2152, ret = 0;
 
         if (argc < 1) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
-        if (argc == 2) {
+        if (argc == 2)
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-                if (port) {} ; /* dummy test */
-        	ret = inet_stosockaddr(argv[0], argv[1], addr);
-        } else {
-		ret = inet_stosockaddr(argv[0], "2152", addr);
-        }
 
+	ret = inet_stosockaddr(argv[0], port, addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
@@ -190,7 +182,7 @@ DEFUN(gtpc_force_pgw_selection,
                 return CMD_WARNING;
 	}
 
-       	ret = inet_stosockaddr(argv[0], "2123", addr);
+	ret = inet_stosockaddr(argv[0], 2123, addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));

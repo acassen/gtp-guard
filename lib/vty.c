@@ -2013,10 +2013,9 @@ DEFUN(vty_line_listen,
 	}
 
 	VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
-	if (port) {}
 
 	vty_listen_addr = (struct sockaddr_storage *) MALLOC(sizeof(struct sockaddr_storage));
-	ret = inet_stosockaddr(argv[0], argv[1], vty_listen_addr);
+	ret = inet_stosockaddr(argv[0], port, vty_listen_addr);
 	if (ret < 0) {
 		vty_out(vty, "%% Invalid IP Address%s", VTY_NEWLINE);
 		FREE(vty_listen_addr);
@@ -2054,10 +2053,9 @@ DEFUN(no_vty_line_listen,
 	}
 
 	VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
-	if (port) {}
 
 	memset(&addr, 0, sizeof(struct sockaddr_storage));
-	ret = inet_stosockaddr(argv[0], argv[1], &addr);
+	ret = inet_stosockaddr(argv[0], port, &addr);
 	if (ret < 0) {
 		vty_out(vty, "%% Invalid IP Address%s", VTY_NEWLINE);
 		return CMD_WARNING;

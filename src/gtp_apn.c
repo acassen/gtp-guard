@@ -492,7 +492,7 @@ DEFUN(apn_nameserver,
 		return CMD_WARNING;
 	}
 
-	ret = inet_stosockaddr(argv[0], "53", addr);
+	ret = inet_stosockaddr(argv[0], 53, addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
@@ -884,7 +884,7 @@ DEFUN(apn_pco_ipcp_primary_ns,
 		return CMD_WARNING;
 	}
 
-	ret = inet_stosockaddr(argv[0], "53", addr);
+	ret = inet_stosockaddr(argv[0], 53, addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
@@ -921,7 +921,7 @@ DEFUN(apn_pco_ipcp_secondary_ns,
 		return CMD_WARNING;
 	}
 
-	ret = inet_stosockaddr(argv[0], "53", addr);
+	ret = inet_stosockaddr(argv[0], 53, addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
@@ -1003,7 +1003,7 @@ DEFUN(apn_pco_ip_ns,
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
-	ret = inet_stosockaddr(argv[0], "53", &new->addr);
+	ret = inet_stosockaddr(argv[0], 53, &new->addr);
 	if (ret < 0) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		FREE(new);
