@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [ gcc, clang ]
     steps:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
@@ -20,6 +23,6 @@ jobs:
         with:
           submodules: true
       - name: make
-        run : make -j $(nproc)
+        run : CC=${{ matrix.compiler }} make -j $(nproc)
       - name: basic run
         run : bin/gtp-guard --version
