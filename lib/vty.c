@@ -765,7 +765,7 @@ vty_complete_command(vty_t *vty)
 
 	/* In case of 'help \t'. */
 	if (isspace ((int) vty->buf[vty->length - 1]))
-		vector_set(vline, '\0');
+		vector_set(vline, NULL);
 
 	matched = cmd_complete_command(vline, vty, &ret);
   
@@ -873,10 +873,10 @@ vty_describe_command(vty_t *vty)
 	/* In case of '> ?'. */
 	if (vline == NULL) {
 		vline = vector_init(1);
-		vector_set(vline, '\0');
+		vector_set(vline, NULL);
 	} else {
 		if (isspace ((int) vty->buf[vty->length - 1])) {
-			vector_set(vline, '\0');
+			vector_set(vline, NULL);
 		}
 	}
 

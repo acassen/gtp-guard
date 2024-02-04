@@ -46,7 +46,7 @@
 
 /* a dummy, used to drop uninteresting events */
 static void
-sppp_null(sppp_t *)
+sppp_null(__attribute__((unused)) sppp_t *unused)
 {
 	/* do just nothing */
 }
@@ -1977,7 +1977,7 @@ sppp_ipcp_tlf(sppp_t *sp)
 void
 sppp_ipcp_scr(sppp_t *sp)
 {
-	char opt[6 /* compression */ + 6 /* address */ + 12 /* dns addrs */];
+	uint8_t opt[6 /* compression */ + 6 /* address */ + 12 /* dns addrs */];
 	u_int32_t ouraddr = 0;
 	int i = 0;
 
