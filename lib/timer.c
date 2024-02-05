@@ -329,7 +329,7 @@ timer_thread_task(void *arg)
   timer_process:
 	/* Schedule interruptible timeout */
 	pthread_mutex_lock(&t->cond_mutex);
-	gettimeofday(&now, NULL);
+	monotonic_gettimeofday(&now);
 	timespec_add_now_ms(&timeout, &now, 500 * TIMER_HZ); /* 500ms granularity */
 	pthread_cond_timedwait(&t->cond, &t->cond_mutex, &timeout);
 	pthread_mutex_unlock(&t->cond_mutex);

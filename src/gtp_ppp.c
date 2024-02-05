@@ -2755,11 +2755,23 @@ sppp_keepalive(void *arg)
 /*
  *	PPP Sessions related
  */
+int
+sppp_up(spppoe_t *s)
+{
+	gtp_pppoe_t *pppoe = s->pppoe;
+	sppp_t *sp = s->s_ppp;
+
+	/* LCP layer */
+	sppp_lcp_up(sp);
+
+	/* Register keepalive timer */
+	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
+	return 0;
+}
 
 sppp_t *
 sppp_init(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;
 	int i;
 
@@ -2781,9 +2793,6 @@ sppp_init(spppoe_t *s)
 
 	/* keepalive init */
 	timer_node_init(&sp->keepalive, sppp_keepalive, sp);
-	
-	/* FIXME: correlate keepalive timer with pppoe_connect... */
-	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
 
 	sppp_lcp_init(sp);
 	sppp_ipcp_init(sp);

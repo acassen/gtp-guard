@@ -526,7 +526,8 @@ breakbreak:
 		s->state = PPPOE_STATE_SESSION;
 		s->session_time = time(NULL);
 
-		/* TODO: Notify ppp upper layer */
+		/* Notify ppp layer */
+		sppp_up(s);
 		break;
 	case PPPOE_CODE_PADT:
 		if (s == NULL)

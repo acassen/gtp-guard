@@ -246,7 +246,7 @@ spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
 	s->session_time = time(NULL);
 	s->hw_src = *s_eth;
 	s->pppoe = pppoe;
-	sppp_init(s);
+	s->s_ppp = sppp_init(s);
 	timer_node_init(&s->t_node, NULL, s);
 	spppoe_unique_hash(&pppoe->unique_tab, s, imsi, &pppoe->seed);
 
