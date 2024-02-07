@@ -422,6 +422,25 @@ DEFUN(ip_vrf_pppoe_auth_pap_passwd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_ipv6cp_disable,
+      ip_vrf_pppoe_ipv6cp_disable_cmd,
+      "pppoe ipv6cp disable",
+      "PPP Over Ethernet\n"
+      "IPv6 Control Protocol\n"
+      "Disable\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
 /* Configuration writer */
 static int
 gtp_config_write(vty_t *vty)
@@ -454,6 +473,10 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe service-name %s%s"
 					   , pppoe->service_name
 					   , VTY_NEWLINE);
+			if (pppoe->mru)
+				vty_out(vty, " pppoe maximum-receive-unit %d%s"
+					   , pppoe->mru
+					   , VTY_NEWLINE);
 			if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe authentication pap gtp-username%s"
 					   , VTY_NEWLINE);
@@ -465,9 +488,8 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe authentication pap password %s%s"
 					   , pppoe->pap_passwd
 					   , VTY_NEWLINE);
-			if (pppoe->mru)
-				vty_out(vty, " pppoe maximum-receive-unit %d%s"
-					   , pppoe->mru
+			if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe ipv6cp disable%s"
 					   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
@@ -500,6 +522,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ipv6cp_disable_cmd);
 
 	return 0;
 }

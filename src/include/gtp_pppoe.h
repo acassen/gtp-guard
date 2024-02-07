@@ -105,6 +105,7 @@ enum pppoe_flags {
 	PPPOE_FL_GTP_USERNAME_BIT,
 	PPPOE_FL_STATIC_USERNAME_BIT,
 	PPPOE_FL_STATIC_PASSWD_BIT,
+	PPPOE_FL_IPV6CP_DISABLE_BIT,
 };
 
 typedef struct _gtp_pppoe_worker {

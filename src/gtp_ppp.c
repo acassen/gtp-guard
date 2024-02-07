@@ -2050,6 +2050,10 @@ sppp_ipv6cp_destroy(sppp_t *sp)
 void
 sppp_ipv6cp_up(sppp_t *sp)
 {
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
+		return;
 	sppp_up_event(&ipv6cp, sp);
 }
 
@@ -2062,6 +2066,10 @@ sppp_ipv6cp_down(sppp_t *sp)
 void
 sppp_ipv6cp_open(sppp_t *sp)
 {
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
+		return;
 	sp->ipv6cp.flags &= ~(IPV6CP_MYIFID_SEEN|IPV6CP_MYIFID_DYN);
 	sp->ipv6cp.opts |= (1 << IPV6CP_OPT_IFID);
 	sppp_open_event(&ipv6cp, sp);
@@ -2070,6 +2078,10 @@ sppp_ipv6cp_open(sppp_t *sp)
 void
 sppp_ipv6cp_close(sppp_t *sp)
 {
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
+		return;
 	sppp_close_event(&ipv6cp, sp);
 }
 
