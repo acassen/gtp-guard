@@ -1036,22 +1036,7 @@ sppp_phase_network(sppp_t *sp)
 void
 sppp_lcp_init(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
-
 	__set_bit(LCP_OPT_MAGIC, &sp->lcp.opts);
-	if (pppoe->mru) {
-		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);
-		sp->lcp.mru = pppoe->mru;
-	}
-	if (pppoe->pap_username[0]) {
-		sp->myauth.proto = PPP_PAP;
-		sp->myauth.name = pppoe->pap_username;
-	}
-	if (pppoe->pap_passwd[0]) {
-		sp->myauth.proto = PPP_PAP;
-		sp->myauth.secret = pppoe->pap_passwd;
-	}
-
 	sp->lcp.magic = 0;
 	sp->state[IDX_LCP] = STATE_INITIAL;
 	sp->fail_counter[IDX_LCP] = 0;
@@ -2818,6 +2803,7 @@ sppp_up(spppoe_t *s)
 sppp_t *
 sppp_init(spppoe_t *s)
 {
+	gtp_pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;
 	int i;
 
@@ -2832,6 +2818,22 @@ sppp_init(spppoe_t *s)
 	sp->pp_phase = PHASE_DEAD;
 	sp->pp_up = lcp.Up;
 	sp->pp_down = lcp.Down;
+
+	if (pppoe->mru) {
+		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);
+		sp->lcp.mru = pppoe->mru;
+	}
+	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags)) {
+		sp->myauth.name = s->gtp_username;
+	}
+	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
+		sp->myauth.proto = PPP_PAP;
+		sp->myauth.name = pppoe->pap_username;
+	}
+	if (__test_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags)) {
+		sp->myauth.proto = PPP_PAP;
+		sp->myauth.secret = pppoe->pap_passwd;
+	}
 
 	for (i = 0; i < IDX_COUNT; i++)
 		timer_node_init(&sp->ch[i], (cps[i])->TO, sp);
@@ -2865,10 +2867,6 @@ sppp_destroy(sppp_t *sp)
 	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
 
 	/* release authentication data */
-	if (sp->myauth.name != NULL)
-		FREE(sp->myauth.name);
-	if (sp->myauth.secret != NULL)
-		FREE(sp->myauth.secret);
 	if (sp->hisauth.name != NULL)
 		FREE(sp->hisauth.name);
 	if (sp->hisauth.secret != NULL)

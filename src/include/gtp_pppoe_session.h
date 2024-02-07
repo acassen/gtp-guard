@@ -31,6 +31,7 @@ typedef struct _spppoe {
 	int			state;		/* [K] discovery phase or session connected */
 	struct ether_addr	hw_src;		/* [K] our hardware address */
 	struct ether_addr	hw_dst;		/* [K] hardware address of concentrator */
+	char			gtp_username[PPPOE_NAMELEN];
 	uint16_t		session_id;	/* [K] PPPoE session id */
 	uint8_t			*ac_cookie;	/* [K] content of AC cookie we must echo back */
 	size_t			ac_cookie_len;	/* [K] length of cookie data */
@@ -63,7 +64,8 @@ typedef struct _spppoe {
 extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
 extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
 extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
-extern spppoe_t *spppoe_init(gtp_pppoe_t *, struct ether_addr *, uint64_t);
+extern spppoe_t *spppoe_init(gtp_pppoe_t *, struct ether_addr *,
+			     const uint64_t, const uint64_t, const char *);
 extern int spppoe_destroy(spppoe_t *);
 
 #endif

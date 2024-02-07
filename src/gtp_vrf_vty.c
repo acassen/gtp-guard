@@ -338,6 +338,31 @@ DEFUN(ip_vrf_pppoe_mru,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_auth_pap_gtp_username,
+      ip_vrf_pppoe_auth_pap_gtp_username_cmd,
+      "pppoe authentication pap gtp-username",
+      "PPP Over Ethernet\n"
+      "Authentication method\n"
+      "Password Authentication Protocol\n"
+      "Username built from GTP imsi+mei@apn\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
+		vty_out(vty, "%% Static username already configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(ip_vrf_pppoe_auth_pap_username,
       ip_vrf_pppoe_auth_pap_username_cmd,
       "pppoe authentication pap username STRING",
@@ -355,12 +380,18 @@ DEFUN(ip_vrf_pppoe_auth_pap_username,
 		return CMD_WARNING;
 	}
 
+	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags)) {
+		vty_out(vty, "%% GTP username already configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	if (!pppoe) {
 		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
 	strlcpy(pppoe->pap_username, argv[0], PPPOE_NAMELEN);
+	__set_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -387,6 +418,7 @@ DEFUN(ip_vrf_pppoe_auth_pap_passwd,
 	}
 
 	strlcpy(pppoe->pap_passwd, argv[0], PPPOE_NAMELEN);
+	__set_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -422,11 +454,14 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe service-name %s%s"
 					   , pppoe->service_name
 					   , VTY_NEWLINE);
-			if (pppoe->pap_username[0])
+			if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe authentication pap gtp-username%s"
+					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe authentication pap username %s%s"
 					   , pppoe->pap_username
 					   , VTY_NEWLINE);
-			if (pppoe->pap_passwd[0])
+			if (__test_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe authentication pap password %s%s"
 					   , pppoe->pap_passwd
 					   , VTY_NEWLINE);
@@ -462,6 +497,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_mru_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
 

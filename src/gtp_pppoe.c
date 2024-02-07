@@ -126,7 +126,7 @@ gtp_pppoe_worker_task(void *arg)
 	pthread_cond_timedwait(&w->cond, &w->mutex, &timeout);
 	pthread_mutex_unlock(&w->mutex);
 
-	if (__test_bit(GTP_FL_STOPPING_BIT, &pppoe->flags))
+	if (__test_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags))
 		goto end;
 
 	/* Queue processing */
@@ -366,7 +366,7 @@ gtp_pppoe_start(gtp_pppoe_t *pppoe)
 {
 	int ret, i;
 
-	if (__test_bit(GTP_FL_RUNNING_BIT, &pppoe->flags))
+	if (__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
 		return -1;
 
 	/* worker init */
@@ -379,7 +379,7 @@ gtp_pppoe_start(gtp_pppoe_t *pppoe)
 	if (ret < 0)
 		return -1;
 
-	__set_bit(GTP_FL_RUNNING_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags);
 	return 0;
 }
 
@@ -408,7 +408,7 @@ gtp_pppoe_init(const char *ifname)
 static int
 __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 {
-	__set_bit(GTP_FL_STOPPING_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags);
 	gtp_pppoe_worker_destroy(pppoe);
 	gtp_ppp_destroy(pppoe);
 	gtp_pppoe_timer_destroy(pppoe);

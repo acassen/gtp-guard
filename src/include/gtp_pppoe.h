@@ -98,6 +98,15 @@ typedef struct _pppoe_tag {
 #define GTP_PPPOE_RPS_SIZE	(1 << GTP_PPPOE_RPS_BITS)
 #define GTP_PPPOE_RPS_MASK	(GTP_PPPOE_RPS_SIZE - 1)
 
+/* flags */
+enum pppoe_flags {
+	PPPOE_FL_STOPPING_BIT,
+	PPPOE_FL_RUNNING_BIT,
+	PPPOE_FL_GTP_USERNAME_BIT,
+	PPPOE_FL_STATIC_USERNAME_BIT,
+	PPPOE_FL_STATIC_PASSWD_BIT,
+};
+
 typedef struct _gtp_pppoe_worker {
 	char			pname[GTP_PNAME];
 	int			id;

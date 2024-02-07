@@ -235,7 +235,8 @@ spppoe_destroy(spppoe_t *s)
 }
 
 spppoe_t *
-spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
+spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth,
+	    const uint64_t imsi, const uint64_t mei, const char *apn_str)
 {
 	spppoe_t *s;
 	int err;
@@ -247,6 +248,10 @@ spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth, uint64_t imsi)
 	s->session_time = time(NULL);
 	s->hw_src = *s_eth;
 	s->pppoe = pppoe;
+	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
+		snprintf(s->gtp_username, PPPOE_NAMELEN
+					, "%lu+%lu@%s"
+					, imsi, mei, apn_str);
 	s->s_ppp = sppp_init(s);
 	timer_node_init(&s->t_node, NULL, s);
 	spppoe_unique_hash(&pppoe->unique_tab, s, imsi, &pppoe->seed);
