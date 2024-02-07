@@ -336,32 +336,47 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 {
 	spppoe_t *s = sp->s_pppoe;
 	gtp_pppoe_t *pppoe = s->pppoe;
-	lcp_hdr_t *lcp;
+	lcp_hdr_t *lh;
+	uint8_t *p;
 	pkt_t *pkt;
+	int plen;
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_SES);
 
-	/* fill in pkt*/
-	lcp = (lcp_hdr_t *) pkt->pbuff->data;
-	lcp->type = type;
-	lcp->ident = ident;
-	lcp->len = htons(LCP_HEADER_LEN + len);
+	/* PPPoE header*/
+	p = pkt->pbuff->data;
+	plen = sizeof(uint16_t) + sizeof(lcp_hdr_t) + len;
+	PPPOE_ADD_HEADER(p, PPPOE_CODE_SESSION, s->session_id, plen);
+	pkt_buffer_put_data(pkt->pbuff, sizeof(pppoe_hdr_t));
+
+	/* PPP LCP TAG */
+	p = pkt->pbuff->data;
+	PPPOE_ADD_16(p, PPP_LCP);
+	pkt_buffer_put_data(pkt->pbuff, sizeof(uint16_t));
+
+	/* LCP header */
+	lh = (lcp_hdr_t *) pkt->pbuff->data;
+	lh->type = type;
+	lh->ident = ident;
+	lh->len = htons(LCP_HEADER_LEN + len);
 	if (len)
-		bcopy(data, lcp+1, len);
+		bcopy(data, lh+1, len);
+	pkt_buffer_put_data(pkt->pbuff, sizeof(lcp_hdr_t) + len);
 
 	if (debug & 8) {
 		printf("%s: %s output <%s id=0x%x len=%d",
 		       pppoe->ifname,
 		       sppp_proto_name(proto),
-		       sppp_cp_type_name(lcp->type), lcp->ident,
-		       ntohs(lcp->len));
+		       sppp_cp_type_name(lh->type), lh->ident,
+		       ntohs(lh->len));
 		if (len)
-			sppp_print_bytes((uint8_t *) (lcp+1), len);
+			sppp_print_bytes((uint8_t *) (lh+1), len);
 		printf(">\n");
 	}
 
 	/* send pkt */
+	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
 	return pkt_send(pppoe->fd_session, &pppoe->pkt_q, pkt);
 }
 
@@ -1573,7 +1588,7 @@ sppp_lcp_scr(sppp_t *sp)
 	if (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) {
 		authproto = sp->hisauth.proto;
 		opt[i++] = LCP_OPT_AUTH_PROTO;
-		opt[i++] = authproto == PPP_CHAP? 5: 4;
+		opt[i++] = authproto == PPP_CHAP ? 5: 4;
 		opt[i++] = authproto >> 8;
 		opt[i++] = authproto;
 		if (authproto == PPP_CHAP)
@@ -2373,7 +2388,7 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 	va_list ap;
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_SES);
 
 	/* fill in pkt */
 	proto = (uint16_t *) pkt->pbuff->data;
@@ -2765,7 +2780,8 @@ sppp_up(spppoe_t *s)
 	sppp_lcp_up(sp);
 
 	/* Register keepalive timer */
-	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
+	if (sp->pp_flags & PP_KEEPALIVE)
+		timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
 	return 0;
 }
 

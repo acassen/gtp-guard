@@ -229,6 +229,7 @@ spppoe_destroy(spppoe_t *s)
 
 	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
 	spppoe_session_unhash(&s->pppoe->session_tab, s);
+	sppp_destroy(s->s_ppp);
 	FREE(s);
 	return 0;
 }

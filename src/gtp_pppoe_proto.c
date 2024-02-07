@@ -44,7 +44,7 @@ static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
 
 
 pkt_t *
-pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst)
+pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t proto)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	struct ether_header *eh;
@@ -57,7 +57,7 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst)
 	eh = (struct ether_header *) pkt->pbuff->head;
 	memcpy(eh->ether_dhost, hw_dst, ETH_ALEN);
 	memcpy(eh->ether_shost, &s->hw_src, ETH_ALEN);
-	eh->ether_type = htons(ETH_P_PPP_DISC);
+	eh->ether_type = htons(proto);
 	pkt_buffer_put_data(pkt->pbuff, sizeof(struct ether_header));
 
 	return pkt;
@@ -85,7 +85,7 @@ pppoe_send_padi(spppoe_t *s)
 	}
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &hw_brd);
+	pkt = pppoe_eth_pkt_get(s, &hw_brd, ETH_P_PPP_DISC);
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -139,7 +139,7 @@ pppoe_send_padr(spppoe_t *s)
 		len += sizeof(pppoe_tag_t) + s->relay_sid_len;	/* Relay SID */
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_DISC);
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -185,7 +185,7 @@ pppoe_send_padt(spppoe_t *s)
 	uint8_t *p;
 
 	/* get ethernet pkt buffer */
-	pkt = pppoe_eth_pkt_get(s, &s->hw_dst);
+	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_DISC);
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
