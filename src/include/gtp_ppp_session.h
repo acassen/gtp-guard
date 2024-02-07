@@ -48,7 +48,7 @@ struct sdnsreq {
 #define IDX_LCP 0		/* idx into state table */
 
 struct slcp {
-	uint32_t	opts;		/* LCP options to send (bitfield) */
+	unsigned long	opts;		/* LCP options to send (bitfield) */
 	uint32_t	magic;          /* local magic number */
 	uint32_t	mru;		/* our max receive unit */
 	uint32_t	their_mru;	/* their max receive unit */
@@ -66,7 +66,7 @@ struct slcp {
 #define IDX_IPV6CP	2
 
 struct sipcp {
-	uint32_t	opts;		/* IPCP options to send (bitfield) */
+	unsigned long	opts;		/* IPCP options to send (bitfield) */
 	uint32_t	flags;
 #define IPCP_HISADDR_SEEN	1	/* have seen his address already */
 #define IPCP_MYADDR_DYN		2	/* my address is dynamically assigned */
@@ -95,7 +95,7 @@ struct sauth {
 
 typedef struct _sppp {
 	spppoe_t	*s_pppoe;		/* PPPoE back-pointer */
-	uint32_t	pp_flags;
+	unsigned long	pp_flags;
 	uint32_t	pp_framebytes;		/* number of bytes added by hardware framing */
 	uint16_t	pp_alivecnt;		/* keepalive packets counter */
 	uint16_t	pp_loopcnt;		/* loopback detection counter */

@@ -50,30 +50,38 @@
 #define ECHO_REPLY	10		/* PPP echo reply */
 #define DISC_REQ	11		/* PPP discard request */
 
-#define LCP_OPT_MRU		1	/* maximum receive unit */
-#define LCP_OPT_ASYNC_MAP	2	/* async control character map */
-#define LCP_OPT_AUTH_PROTO	3	/* authentication protocol */
-#define LCP_OPT_QUAL_PROTO	4	/* quality protocol */
-#define LCP_OPT_MAGIC		5	/* magic number */
-#define LCP_OPT_RESERVED	6	/* reserved */
-#define LCP_OPT_PROTO_COMP	7	/* protocol field compression */
-#define LCP_OPT_ADDR_COMP	8	/* address/control field compression */
+enum lcp_opts {
+	LCP_OPT_MRU = 1,	/* maximum receive unit */
+	LCP_OPT_ASYNC_MAP,	/* async control character map */
+	LCP_OPT_AUTH_PROTO,	/* authentication protocol */
+	LCP_OPT_QUAL_PROTO,	/* quality protocol */
+	LCP_OPT_MAGIC,		/* magic number */
+	LCP_OPT_RESERVED,	/* reserved */
+	LCP_OPT_PROTO_COMP,	/* protocol field compression */
+	LCP_OPT_ADDR_COMP,	/* address/control field compression */
+};
 
-#define IPCP_OPT_ADDRESSES	1	/* both IP addresses; deprecated */
-#define IPCP_OPT_COMPRESSION	2	/* IP compression protocol (VJ) */
-#define IPCP_OPT_ADDRESS	3	/* local IP address */
-#define IPCP_OPT_PRIMDNS	129	/* primary remote dns address */
-#define IPCP_OPT_SECDNS		131	/* secondary remote dns address */
+enum ipcp_opts {
+	IPCP_OPT_ADDRESSES =	1,	/* both IP addresses; deprecated */
+	IPCP_OPT_COMPRESSION =	2,	/* IP compression protocol (VJ) */
+	IPCP_OPT_ADDRESS =	3,	/* local IP address */
+	IPCP_OPT_PRIMDNS =	129,	/* primary remote dns address */
+	IPCP_OPT_SECDNS =	131,	/* secondary remote dns address */
+};
 
 /* bitmask value to enable or disable individual IPCP options */
-#define SPPP_IPCP_OPT_ADDRESSES		1
-#define SPPP_IPCP_OPT_COMPRESSION	2
-#define SPPP_IPCP_OPT_ADDRESS		3
-#define SPPP_IPCP_OPT_PRIMDNS		4
-#define SPPP_IPCP_OPT_SECDNS		5
+enum ipcp_bitmask {
+	SPPP_IPCP_OPT_ADDRESSES = 1,
+	SPPP_IPCP_OPT_COMPRESSION,
+	SPPP_IPCP_OPT_ADDRESS,
+	SPPP_IPCP_OPT_PRIMDNS,
+	SPPP_IPCP_OPT_SECDNS,
+};
 
-#define IPV6CP_OPT_IFID		1	/* interface identifier */
-#define IPV6CP_OPT_COMPRESSION	2	/* IPv6 compression protocol */
+enum ipv6cp_opts {
+	IPV6CP_OPT_IFID = 1,	/* interface identifier */
+	IPV6CP_OPT_COMPRESSION,	/* IPv6 compression protocol */
+};
 
 #define PAP_REQ			1	/* PAP name/password request */
 #define PAP_ACK			2	/* PAP acknowledge */

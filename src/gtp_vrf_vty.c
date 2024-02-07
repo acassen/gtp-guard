@@ -314,6 +314,31 @@ DEFUN(ip_vrf_pppoe_service_name,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_mru,
+      ip_vrf_pppoe_mru_cmd,
+      "pppoe maximum-receive-unit INTEGER",
+      "PPP Over Ethernet\n"
+      "Maximum Receive Unit\n"
+      "Integer\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pppoe->mru = strtoul(argv[0], NULL, 10);
+	return CMD_SUCCESS;
+}
+
+
 /* Configuration writer */
 static int
 gtp_config_write(vty_t *vty)
@@ -346,6 +371,10 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe service-name %s%s"
 					   , pppoe->service_name
 					   , VTY_NEWLINE);
+			if (pppoe->mru)
+				vty_out(vty, " pppoe maximum-receive-unit %d%s"
+					   , pppoe->mru
+					   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -373,6 +402,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_mru_cmd);
 
 	return 0;
 }

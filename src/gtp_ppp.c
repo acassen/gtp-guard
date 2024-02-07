@@ -1036,7 +1036,13 @@ sppp_phase_network(sppp_t *sp)
 void
 sppp_lcp_init(sppp_t *sp)
 {
-	sp->lcp.opts = (1 << LCP_OPT_MAGIC);
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	__set_bit(LCP_OPT_MAGIC, &sp->lcp.opts);
+	if (pppoe->mru) {
+		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);
+		sp->lcp.mru = pppoe->mru;
+	}
 	sp->lcp.magic = 0;
 	sp->state[IDX_LCP] = STATE_INITIAL;
 	sp->fail_counter[IDX_LCP] = 0;
@@ -1064,7 +1070,7 @@ sppp_lcp_up(sppp_t *sp)
 	timeval_t tv;
 
 	sp->pp_alivecnt = 0;
-	sp->lcp.opts = (1 << LCP_OPT_MAGIC);
+	__set_bit(LCP_OPT_MAGIC, &sp->lcp.opts);
 	sp->lcp.magic = 0;
 	sp->lcp.protos = 0;
 	sp->lcp.mru = (pppoe->mru && pppoe->mru != PP_MTU) ? pppoe->mru : PP_MTU;
@@ -1567,7 +1573,7 @@ sppp_lcp_scr(sppp_t *sp)
 	int i = 0;
 	uint16_t authproto;
 
-	if (sp->lcp.opts & (1 << LCP_OPT_MAGIC)) {
+	if (__test_bit(LCP_OPT_MAGIC, &sp->lcp.opts)) {
 		if (!sp->lcp.magic)
 			sp->lcp.magic = poor_prng(&pppoe->seed);
 		opt[i++] = LCP_OPT_MAGIC;
@@ -1578,14 +1584,14 @@ sppp_lcp_scr(sppp_t *sp)
 		opt[i++] = sp->lcp.magic;
 	}
 
-	if (sp->lcp.opts & (1 << LCP_OPT_MRU)) {
+	if (__test_bit(LCP_OPT_MRU, &sp->lcp.opts)) {
 		opt[i++] = LCP_OPT_MRU;
 		opt[i++] = 4;
 		opt[i++] = sp->lcp.mru >> 8;
 		opt[i++] = sp->lcp.mru;
 	}
 
-	if (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) {
+	if (__test_bit(LCP_OPT_AUTH_PROTO, &sp->lcp.opts)) {
 		authproto = sp->hisauth.proto;
 		opt[i++] = LCP_OPT_AUTH_PROTO;
 		opt[i++] = authproto == PPP_CHAP ? 5: 4;
