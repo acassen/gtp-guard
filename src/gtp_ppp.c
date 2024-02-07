@@ -352,7 +352,7 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 
 	/* PPP LCP TAG */
 	p = pkt->pbuff->data;
-	PPPOE_ADD_16(p, PPP_LCP);
+	PPPOE_ADD_16(p, proto);
 	pkt_buffer_put_data(pkt->pbuff, sizeof(uint16_t));
 
 	/* LCP header */
@@ -1920,8 +1920,7 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			 * him our address then.
 			 */
 			if (len >= 6 && p[1] == 6) {
-				wantaddr = p[2] << 24 | p[3] << 16 |
-					p[4] << 8 | p[5];
+				wantaddr = p[2] << 24 | p[3] << 16 | p[4] << 8 | p[5];
 				sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_ADDRESS);
 				if (debug & 8)
 					printf("[wantaddr %u.%u.%u.%u] ", NIPQUAD(wantaddr));
@@ -1997,6 +1996,8 @@ sppp_ipcp_scr(sppp_t *sp)
 	int i = 0;
 
 	if (sp->ipcp.opts & (1 << SPPP_IPCP_OPT_ADDRESS)) {
+		if (sp->ipcp.flags & IPCP_MYADDR_SEEN)
+			ouraddr = sp->ipcp.req_myaddr;
 		opt[i++] = IPCP_OPT_ADDRESS;
 		opt[i++] = 6;
 		opt[i++] = ouraddr >> 24;
