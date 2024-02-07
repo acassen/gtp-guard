@@ -2755,13 +2755,19 @@ sppp_keepalive(void *arg)
 		goto next_timer;
 
 	gettimeofday(&tv, NULL);
-	/* No echo reply, but maybe user data passed through? */
+	/* No echo reply, but maybe user data passed through?
+	 * We start sending echo-request when we just didnt
+	 * see PPP traffic for NORECV_TIME. if remote AC
+	 * is sending echo-request, we will not overload
+	 * by sending our echo-request as peer. We are just
+	 * sending it in case remote AC is no longer sending.
+	 */
 	if ((tv.tv_sec - sp->pp_last_receive) < NORECV_TIME) {
 		sp->pp_alivecnt = 0;
 		goto next_timer;
 	}
 
-	if (sp->pp_alivecnt >= MAXALIVECNT) {
+	if (sp->pp_alivecnt++ >= MAXALIVECNT) {
 		/* LCP Keepalive timeout */
 		log_message(LOG_INFO, "%s: PPP session:0x%.8x LCP keepalive timeout\n"
 				, pppoe->ifname, sp->s_pppoe->session_id);
@@ -2781,8 +2787,6 @@ sppp_keepalive(void *arg)
 		goto next_timer;
 	}
 
-	if (sp->pp_alivecnt < MAXALIVECNT)
-		++sp->pp_alivecnt;
 	if (sp->pp_phase >= PHASE_AUTHENTICATE) {
 		uint32_t nmagic = htonl(sp->lcp.magic);
 		sp->lcp.echoid = ++sp->pp_seq;
@@ -2790,7 +2794,7 @@ sppp_keepalive(void *arg)
 	}
 
   next_timer:
-	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
+	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, pppoe->keepalive);
 	return 0;
 }
 
@@ -2808,8 +2812,10 @@ sppp_up(spppoe_t *s)
 	sppp_lcp_up(sp);
 
 	/* Register keepalive timer */
-	if (sp->pp_flags & PP_KEEPALIVE)
-		timer_node_add(&pppoe->ppp_timer, &sp->keepalive, 10);
+	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
+		sp->pp_flags |= PP_KEEPALIVE;
+		timer_node_add(&pppoe->ppp_timer, &sp->keepalive, pppoe->keepalive);
+	}
 	return 0;
 }
 

@@ -441,6 +441,31 @@ DEFUN(ip_vrf_pppoe_ipv6cp_disable,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_keepalive,
+      ip_vrf_pppoe_keepalive_cmd,
+      "pppoe keepalive INTEGER",
+      "PPP Over Ethernet\n"
+      "PPP Keepalive interval\n"
+      "Number of seconds\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags);
+	pppoe->keepalive = strtoul(argv[0], NULL, 10);
+	return CMD_SUCCESS;
+}
+
 /* Configuration writer */
 static int
 gtp_config_write(vty_t *vty)
@@ -491,6 +516,10 @@ gtp_config_write(vty_t *vty)
 			if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe ipv6cp disable%s"
 					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe keepalive %d%s"
+					   , pppoe->keepalive
+					   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -523,6 +552,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ipv6cp_disable_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_keepalive_cmd);
 
 	return 0;
 }
