@@ -369,15 +369,15 @@ gtp_pppoe_start(gtp_pppoe_t *pppoe)
 	if (__test_bit(GTP_FL_RUNNING_BIT, &pppoe->flags))
 		return -1;
 
-	/* ingress socket init */
-	ret = gtp_pppoe_pkt_init(pppoe);
-	if (ret < 0)
-		return -1;
-
 	/* worker init */
 	pppoe->worker = MALLOC(sizeof(gtp_pppoe_worker_t) * pppoe->thread_cnt);
 	for (i = 0; i < pppoe->thread_cnt; i++)
 		gtp_pppoe_worker_init(pppoe, i);
+
+	/* ingress socket init */
+	ret = gtp_pppoe_pkt_init(pppoe);
+	if (ret < 0)
+		return -1;
 
 	__set_bit(GTP_FL_RUNNING_BIT, &pppoe->flags);
 	return 0;

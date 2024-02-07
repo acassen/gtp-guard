@@ -338,6 +338,57 @@ DEFUN(ip_vrf_pppoe_mru,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_auth_pap_username,
+      ip_vrf_pppoe_auth_pap_username_cmd,
+      "pppoe authentication pap username STRING",
+      "PPP Over Ethernet\n"
+      "Authentication method\n"
+      "Password Authentication Protocol\n"
+      "Username\n"
+      "String\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	strlcpy(pppoe->pap_username, argv[0], PPPOE_NAMELEN);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_auth_pap_passwd,
+      ip_vrf_pppoe_auth_pap_passwd_cmd,
+      "pppoe authentication pap password STRING",
+      "PPP Over Ethernet\n"
+      "Authentication method\n"
+      "Password Authentication Protocol\n"
+      "Password\n"
+      "String\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	strlcpy(pppoe->pap_passwd, argv[0], PPPOE_NAMELEN);
+	return CMD_SUCCESS;
+}
 
 /* Configuration writer */
 static int
@@ -371,6 +422,14 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe service-name %s%s"
 					   , pppoe->service_name
 					   , VTY_NEWLINE);
+			if (pppoe->pap_username[0])
+				vty_out(vty, " pppoe authentication pap username %s%s"
+					   , pppoe->pap_username
+					   , VTY_NEWLINE);
+			if (pppoe->pap_passwd[0])
+				vty_out(vty, " pppoe authentication pap password %s%s"
+					   , pppoe->pap_passwd
+					   , VTY_NEWLINE);
 			if (pppoe->mru)
 				vty_out(vty, " pppoe maximum-receive-unit %d%s"
 					   , pppoe->mru
@@ -403,6 +462,8 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_mru_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
 
 	return 0;
 }

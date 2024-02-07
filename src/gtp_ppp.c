@@ -1043,6 +1043,15 @@ sppp_lcp_init(sppp_t *sp)
 		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);
 		sp->lcp.mru = pppoe->mru;
 	}
+	if (pppoe->pap_username[0]) {
+		sp->myauth.proto = PPP_PAP;
+		sp->myauth.name = pppoe->pap_username;
+	}
+	if (pppoe->pap_passwd[0]) {
+		sp->myauth.proto = PPP_PAP;
+		sp->myauth.secret = pppoe->pap_passwd;
+	}
+
 	sp->lcp.magic = 0;
 	sp->state[IDX_LCP] = STATE_INITIAL;
 	sp->fail_counter[IDX_LCP] = 0;
@@ -1111,9 +1120,9 @@ sppp_lcp_open(sppp_t *sp)
 	 * If we are authenticator, negotiate LCP_AUTH
 	 */
 	if (sp->hisauth.proto != 0)
-		sp->lcp.opts |= (1 << LCP_OPT_AUTH_PROTO);
+		__set_bit(LCP_OPT_AUTH_PROTO, &sp->lcp.opts);
 	else
-		sp->lcp.opts &= ~(1 << LCP_OPT_AUTH_PROTO);
+		__clear_bit(LCP_OPT_AUTH_PROTO, &sp->lcp.opts);
 	sp->pp_flags &= ~PP_NEEDAUTH;
 	sppp_open_event(&lcp, sp);
 }
@@ -2384,10 +2393,11 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 {
 	spppoe_t *s = sp->s_pppoe;
 	gtp_pppoe_t *pppoe = s->pppoe;
-	lcp_hdr_t *lcp;
+	pppoe_hdr_t *ph;
+	lcp_hdr_t *lh;
 	pkt_t *pkt;
 	uint8_t *p;
-	int len;
+	int len = 0;
 	unsigned int mlen;
 	const char *msg;
 	uint16_t *proto;
@@ -2396,17 +2406,26 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 	/* get ethernet pkt buffer */
 	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_SES);
 
-	/* fill in pkt */
+	/* PPPoE header */
+	ph = (pppoe_hdr_t *) pkt->pbuff->data;
+	p = pkt->pbuff->data;
+	PPPOE_ADD_HEADER(p, PPPOE_CODE_SESSION, s->session_id, 0);
+	pkt_buffer_put_data(pkt->pbuff, sizeof(pppoe_hdr_t));
+
+	/* PPP Auth TAG */
 	proto = (uint16_t *) pkt->pbuff->data;
 	*proto = htons(cp->proto);
-	lcp = (lcp_hdr_t *) (pkt->pbuff->data + 2);
-	lcp->type = type;
-	lcp->ident = id;
-	p = (uint8_t *) (lcp + 1);
+	pkt_buffer_put_data(pkt->pbuff, sizeof(uint16_t));
 
+	/* LCP header */
+	lh = (lcp_hdr_t *) pkt->pbuff->data;
+	lh->type = type;
+	lh->ident = id;
+	pkt_buffer_put_data(pkt->pbuff, LCP_HEADER_LEN);
+
+	/* Data */
+	p = (uint8_t *) pkt->pbuff->data;
 	va_start(ap, id);
-	len = 0;
-
 	while ((mlen = (unsigned int)va_arg(ap, size_t)) != 0) {
 		msg = va_arg(ap, const char *);
 		len += mlen;
@@ -2419,20 +2438,25 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 		p += mlen;
 	}
 	va_end(ap);
+	pkt_buffer_put_data(pkt->pbuff, len);
 
-	pkt_buffer_set_end_pointer(pkt->pbuff, sizeof(struct ether_header) +
-					       PKTHDRLEN + LCP_HEADER_LEN + len);
-	lcp->len = htons(LCP_HEADER_LEN + len);
+	/* Adjust header len */
+	lh->len = htons(LCP_HEADER_LEN + len);
+	ph->plen = htons(LCP_HEADER_LEN + len + 2);
 
 	if (debug & 8) {
 		printf("%s: %s output <%s id=0x%x len=%d",
 		       pppoe->ifname, cp->name,
-		       sppp_auth_type_name(cp->proto, lcp->type),
-		       lcp->ident, ntohs(lcp->len));
+		       sppp_auth_type_name(cp->proto, lh->type),
+		       lh->ident, ntohs(lh->len));
 		if (len)
-			sppp_print_bytes((uint8_t *) (lcp + 1), len);
+			sppp_print_bytes((uint8_t *) (lh + 1), len);
 		printf(">\n");
 	}
+
+	/* send pkt */
+	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
+	pkt_send(pppoe->fd_session, &pppoe->pkt_q, pkt);
 }
 
 /*
