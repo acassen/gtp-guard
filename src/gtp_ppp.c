@@ -1036,6 +1036,8 @@ sppp_phase_network(sppp_t *sp)
 void
 sppp_lcp_init(sppp_t *sp)
 {
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
 	__set_bit(LCP_OPT_MAGIC, &sp->lcp.opts);
 	sp->lcp.magic = 0;
 	sp->state[IDX_LCP] = STATE_INITIAL;
@@ -1051,10 +1053,10 @@ sppp_lcp_init(sppp_t *sp)
 	 * the exponential backoff option.  Note that these values are
 	 * relevant for all control protocols, not just LCP only.
 	 */
-	sp->lcp.timeout = 1;	/* seconds */
-	sp->lcp.max_terminate = 2;
-	sp->lcp.max_configure = 10;
-	sp->lcp.max_failure = 10;
+	sp->lcp.timeout = pppoe->lcp_timeout;
+	sp->lcp.max_terminate = pppoe->lcp_max_terminate;
+	sp->lcp.max_configure = pppoe->lcp_max_configure;
+	sp->lcp.max_failure = pppoe->lcp_max_failure;
 }
 
 void
@@ -2919,6 +2921,11 @@ gtp_ppp_init(gtp_pppoe_t *pppoe)
 {
 	gtp_ppp_timer_init(pppoe);
 
+	/* Default value */
+	pppoe->lcp_timeout = 1;		/* seconds */
+	pppoe->lcp_max_terminate = 2;
+	pppoe->lcp_max_configure = 10;
+	pppoe->lcp_max_failure = 10;
 	return 0;
 }
 

@@ -466,6 +466,106 @@ DEFUN(ip_vrf_pppoe_keepalive,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_lcp_timeout,
+      ip_vrf_pppoe_lcp_timeout_cmd,
+      "pppoe lcp-timeout INTEGER",
+      "PPP Over Ethernet\n"
+      "PPP lcp-timeout\n"
+      "Number of seconds\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_LCP_TIMEOUT_BIT, &pppoe->flags);
+	pppoe->lcp_timeout = strtoul(argv[0], NULL, 10);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_lcp_max_terminate,
+      ip_vrf_pppoe_lcp_max_terminate_cmd,
+      "pppoe lcp-max-terminate INTEGER",
+      "PPP Over Ethernet\n"
+      "PPP lcp-max-terminate request\n"
+      "Number\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_LCP_MAX_TERMINATE_BIT, &pppoe->flags);
+	pppoe->lcp_max_terminate = strtoul(argv[0], NULL, 10);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_lcp_max_configure,
+      ip_vrf_pppoe_lcp_max_configure_cmd,
+      "pppoe lcp-max-configure INTEGER",
+      "PPP Over Ethernet\n"
+      "PPP lcp-max-configure request\n"
+      "Number\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_LCP_MAX_CONFIGURE_BIT, &pppoe->flags);
+	pppoe->lcp_max_configure = strtoul(argv[0], NULL, 10);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_lcp_max_failure,
+      ip_vrf_pppoe_lcp_max_failure_cmd,
+      "pppoe lcp-max-failure INTEGER",
+      "PPP Over Ethernet\n"
+      "PPP lcp-max-failure\n"
+      "Number\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_LCP_MAX_FAILURE_BIT, &pppoe->flags);
+	pppoe->lcp_max_failure = strtoul(argv[0], NULL, 10);
+	return CMD_SUCCESS;
+}
+
 /* Configuration writer */
 static int
 gtp_config_write(vty_t *vty)
@@ -520,6 +620,22 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe keepalive %d%s"
 					   , pppoe->keepalive
 					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_LCP_TIMEOUT_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe lcp-timeout %d%s"
+					   , pppoe->lcp_timeout
+					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_LCP_MAX_TERMINATE_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe lcp-max-terminate %d%s"
+					   , pppoe->lcp_max_terminate
+					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_LCP_MAX_CONFIGURE_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe lcp-max-configure %d%s"
+					   , pppoe->lcp_max_configure
+					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_LCP_MAX_FAILURE_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe lcp-max-failture %d%s"
+					   , pppoe->lcp_max_failure
+					   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -553,6 +669,10 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ipv6cp_disable_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_keepalive_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_timeout_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_terminate_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_configure_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_failure_cmd);
 
 	return 0;
 }

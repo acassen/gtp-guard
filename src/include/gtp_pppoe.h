@@ -107,6 +107,10 @@ enum pppoe_flags {
 	PPPOE_FL_STATIC_PASSWD_BIT,
 	PPPOE_FL_IPV6CP_DISABLE_BIT,
 	PPPOE_FL_KEEPALIVE_BIT,
+	PPPOE_FL_LCP_TIMEOUT_BIT,
+	PPPOE_FL_LCP_MAX_TERMINATE_BIT,
+	PPPOE_FL_LCP_MAX_CONFIGURE_BIT,
+	PPPOE_FL_LCP_MAX_FAILURE_BIT,
 };
 
 typedef struct _gtp_pppoe_worker {
@@ -129,6 +133,10 @@ typedef struct _gtp_pppoe {
 	char			pap_passwd[PPPOE_NAMELEN];
 	int			keepalive;
 	int			mru;
+	int			lcp_timeout;
+	int			lcp_max_terminate;
+	int			lcp_max_configure;
+	int			lcp_max_failure;
 	int			thread_cnt;
 	int			refcnt;
 	int			fd_disc;
