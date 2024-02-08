@@ -207,7 +207,6 @@ gtp_pppoe_rps(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	uint32_t hkey = gtp_pppoe_rps_hash(eth, pppoe->thread_cnt - 1);
 
 	pkt_put(&pppoe->worker[hkey].pkt_q, pkt);
-printf("### pkt_put [%d] / [%d]\n", hkey, pppoe->thread_cnt - 1);
 	gtp_pppoe_worker_signal(&pppoe->worker[hkey]);
 }
 

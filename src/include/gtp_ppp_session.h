@@ -226,6 +226,7 @@ extern void sppp_pap_scr(sppp_t *);
 
 extern void sppp_input(sppp_t *, pkt_t *);
 extern int sppp_up(spppoe_t *);
+extern int sppp_down(spppoe_t *);
 extern sppp_t *sppp_init(spppoe_t *);
 extern void sppp_destroy(sppp_t *);
 

@@ -507,7 +507,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 				printf("%s: %s illegal %s in state %s\n",
 				       pppoe->ifname, cp->name,
 				       sppp_cp_type_name(h->type),
-			               sppp_state_name(sp->state[cp->protoidx]));
+				       sppp_state_name(sp->state[cp->protoidx]));
 		}
 		break;
 	case CONF_NAK:
@@ -2811,12 +2811,34 @@ sppp_up(spppoe_t *s)
 	sppp_t *sp = s->s_ppp;
 
 	/* LCP layer */
-	sppp_lcp_up(sp);
+	(sp->pp_up)(sp);
 
 	/* Register keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags |= PP_KEEPALIVE;
 		timer_node_add(&pppoe->ppp_timer, &sp->keepalive, pppoe->keepalive);
+	}
+	return 0;
+}
+
+int
+sppp_down(spppoe_t *s)
+{
+	gtp_pppoe_t *pppoe = s->pppoe;
+	sppp_t *sp = s->s_ppp;
+	int i;
+
+	/* LCP layer */
+	(sp->pp_down)(sp);
+
+	for (i = 0; i < IDX_COUNT; i++)
+		timer_node_del(&pppoe->ppp_timer, &sp->ch[i]);
+	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+
+	/* Release keepalive timer */
+	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
+		sp->pp_flags &= ~PP_KEEPALIVE;
+		timer_node_del(&pppoe->ppp_timer, &sp->keepalive);
 	}
 	return 0;
 }

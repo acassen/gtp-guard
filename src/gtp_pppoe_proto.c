@@ -241,7 +241,8 @@ pppoe_disconnect(spppoe_t *s)
 		return -1;
 	}
 
-	/* TODO: timer_node_expire_now() on pppoe session */
+	/* Expire entry and PPP related */
+	sppp_down(s);
 
 	/* TODO: Add support to session release and generate GTP-C delete-beare reflection ! */
 
