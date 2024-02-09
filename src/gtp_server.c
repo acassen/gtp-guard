@@ -46,7 +46,7 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 	ssize_t nbytes = recvfrom(w->fd, w->pbuff->head
 				       , pkt_buffer_size(w->pbuff)
 				       , 0, addr, addrlen);
-	
+
 	/* Update stats */
 	if (nbytes > 0) {
 		w->rx_pkt++;

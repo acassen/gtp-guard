@@ -47,7 +47,7 @@ struct sdnsreq {
 
 #define IDX_LCP 0		/* idx into state table */
 
-struct slcp {
+typedef struct slcp {
 	unsigned long	opts;		/* LCP options to send (bitfield) */
 	uint32_t	magic;          /* local magic number */
 	uint32_t	mru;		/* our max receive unit */
@@ -59,13 +59,13 @@ struct slcp {
 	int		max_terminate;
 	int		max_configure;
 	int		max_failure;
-};
+} slcp_t;
 
 
 #define IDX_IPCP	1		/* idx into state table */
 #define IDX_IPV6CP	2
 
-struct sipcp {
+typedef struct sipcp {
 	unsigned long	opts;		/* IPCP options to send (bitfield) */
 	uint32_t	flags;
 #define IPCP_HISADDR_SEEN	1	/* have seen his address already */
@@ -80,14 +80,14 @@ struct sipcp {
 	uint32_t	req_myaddr;	/* local address requested (IPv4) */
 	struct in_addr	dns[IPCP_MAX_DNSSRV]; /* IPv4 DNS servers (RFC 1877) */
 	struct in6_addr	req_ifid;	/* local ifid requested (IPv6) */
-};
+} sipcp_t;
 
-struct sauth {
+typedef struct sauth {
 	uint16_t	proto;		/* authentication protocol to use */
 	uint16_t	flags;
 	char		*name;		/* system identification name */
 	char		*secret;	/* secret password */
-};
+} sauth_t;
 
 #define IDX_PAP		3
 
@@ -111,11 +111,11 @@ typedef struct _sppp {
 	timer_node_t	ch[IDX_COUNT];
 	timer_node_t	pap_my_to_ch;
 	timer_node_t	keepalive;
-	struct slcp	lcp;			/* LCP params */
-	struct sipcp	ipcp;			/* IPCP params */
-	struct sipcp	ipv6cp;			/* IPV6CP params */
-	struct sauth	myauth;			/* auth params, i'm peer */
-	struct sauth	hisauth;		/* auth params, i'm authenticator */
+	slcp_t		lcp;			/* LCP params */
+	sipcp_t		ipcp;			/* IPCP params */
+	sipcp_t		ipv6cp;			/* IPV6CP params */
+	sauth_t		myauth;			/* auth params, i'm peer */
+	sauth_t		hisauth;		/* auth params, i'm authenticator */
 	uint8_t		chap_challenge[AUTHCHALEN]; /* random challenge used by CHAP */
 
 	/*
@@ -194,6 +194,7 @@ extern int sppp_ipcp_TO(void *);
 extern int sppp_ipcp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
+extern void sppp_ipcp_tlu(sppp_t *);
 extern void sppp_ipcp_tls(sppp_t *);
 extern void sppp_ipcp_tlf(sppp_t *);
 extern void sppp_ipcp_scr(sppp_t *);
@@ -227,7 +228,7 @@ extern void sppp_pap_scr(sppp_t *);
 extern void sppp_input(sppp_t *, pkt_t *);
 extern int sppp_up(spppoe_t *);
 extern int sppp_down(spppoe_t *);
-extern sppp_t *sppp_init(spppoe_t *);
+extern sppp_t *sppp_init(spppoe_t *, void (*pp_con)(sppp_t *));
 extern void sppp_destroy(sppp_t *);
 
 #endif

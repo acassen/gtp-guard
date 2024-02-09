@@ -96,7 +96,7 @@ static const struct cp ipcp = {
 	PPP_IPCP, IDX_IPCP, CP_NCP, "ipcp",
 	sppp_ipcp_up, sppp_ipcp_down, sppp_ipcp_open, sppp_ipcp_close,
 	sppp_ipcp_TO, sppp_ipcp_RCR, sppp_ipcp_RCN_rej, sppp_ipcp_RCN_nak,
-	sppp_null, sppp_null, sppp_ipcp_tls, sppp_ipcp_tlf,
+	sppp_ipcp_tlu, sppp_null, sppp_ipcp_tls, sppp_ipcp_tlf,
 	sppp_ipcp_scr
 };
 
@@ -104,7 +104,7 @@ static const struct cp ipv6cp = {
 	PPP_IPV6CP, IDX_IPV6CP,	CP_NCP,	"ipv6cp",
 	sppp_ipv6cp_up, sppp_ipv6cp_down, sppp_ipv6cp_open, sppp_ipv6cp_close,
 	sppp_ipv6cp_TO, sppp_ipv6cp_RCR, sppp_ipv6cp_RCN_rej, sppp_ipv6cp_RCN_nak,
-	sppp_ipv6cp_tlu, sppp_ipv6cp_tld, sppp_ipv6cp_tls, sppp_ipv6cp_tlf,
+	sppp_ipv6cp_tlu, sppp_null, sppp_ipv6cp_tls, sppp_ipv6cp_tlf,
 	sppp_ipv6cp_scr
 };
 
@@ -1955,6 +1955,13 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 }
 
 void
+sppp_ipcp_tlu(sppp_t *sp)
+{
+	if (sp->pp_con)
+		(sp->pp_con)(sp);
+}
+
+void
 sppp_ipcp_tls(sppp_t *sp)
 {
 	sp->ipcp.flags &= ~(IPCP_HISADDR_SEEN|IPCP_MYADDR_SEEN|IPCP_MYADDR_DYN|IPCP_HISADDR_DYN);
@@ -2329,11 +2336,6 @@ sppp_ipv6cp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 
 void
 sppp_ipv6cp_tlu(sppp_t *sp)
-{
-}
-
-void
-sppp_ipv6cp_tld(sppp_t *sp)
 {
 }
 
@@ -2844,7 +2846,7 @@ sppp_down(spppoe_t *s)
 }
 
 sppp_t *
-sppp_init(spppoe_t *s)
+sppp_init(spppoe_t *s, void (*pp_con)(sppp_t *))
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;
@@ -2861,6 +2863,7 @@ sppp_init(spppoe_t *s)
 	sp->pp_phase = PHASE_DEAD;
 	sp->pp_up = lcp.Up;
 	sp->pp_down = lcp.Down;
+	sp->pp_con = pp_con;
 
 	if (pppoe->mru) {
 		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);

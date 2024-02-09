@@ -46,6 +46,9 @@ typedef struct _spppoe {
 	struct _gtp_session	*s_gtp;		/* our GTP Session peer */
 	struct _sppp		*s_ppp;		/* PPP session */
 	gtp_pppoe_t		*pppoe;		/* back-pointer */
+	gtp_teid_t		*teid;		/* TEID we are linked to */
+	gtp_server_worker_t	*w;		/* Server worker used */
+	struct sockaddr_storage gtpc_peer_addr;	/* Remote GTP-C peer */
 
 	/* Expiration handling */
 	char			tmp_str[64];
@@ -65,6 +68,7 @@ extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
 extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
 extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
 extern spppoe_t *spppoe_init(gtp_pppoe_t *, struct ether_addr *,
+			     void (*pp_con)(struct _sppp *),
 			     const uint64_t, const uint64_t, const char *);
 extern int spppoe_destroy(spppoe_t *);
 

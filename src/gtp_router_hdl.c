@@ -312,12 +312,11 @@ gtpc_pkt_put_indication(pkt_buffer_t *pbuff, uint32_t bits)
 }
 
 static int
-gtpc_pkt_put_ppp_ipcp_ip4(pkt_buffer_t *pbuff, gtp_pco_pid_ipcp_t *pid,
-			  struct sockaddr_storage *addr, uint8_t type)
+gtpc_pkt_put_ppp_ipcp_ip4(pkt_buffer_t *pbuff, gtp_pco_pid_ipcp_t *pid, uint32_t ip4, uint8_t type)
 {
 	gtp_ppp_ipcp_option_ip4_t *ppp_ipcp_ip4;
 
-	if (!addr->ss_family)
+	if (!ip4)
 		return 0;
 
 	if (pkt_buffer_put_zero(pbuff, sizeof(gtp_ppp_ipcp_option_ip4_t)) < 0)
@@ -326,16 +325,17 @@ gtpc_pkt_put_ppp_ipcp_ip4(pkt_buffer_t *pbuff, gtp_pco_pid_ipcp_t *pid,
 	ppp_ipcp_ip4 = (gtp_ppp_ipcp_option_ip4_t *) pbuff->data;
 	ppp_ipcp_ip4->type = type;
 	ppp_ipcp_ip4->length = 6;
-	ppp_ipcp_ip4->addr = inet_sockaddrip4(addr);
+	ppp_ipcp_ip4->addr = ip4;
 	pkt_buffer_put_data(pbuff, sizeof(gtp_ppp_ipcp_option_ip4_t));
 	pid->length = htons(ntohs(pid->length) + sizeof(gtp_ppp_ipcp_option_ip4_t));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp_ie_pco_t *ie_pco)
 {
 	gtp_pco_pid_ipcp_t *pid;
+	uint32_t pdns = 0, sdns = 0;
 	int err = 0;
 
 	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_IPCP, sizeof(gtp_pco_pid_ipcp_t)) < 0)
@@ -347,8 +347,17 @@ gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 	pid->length = htons(sizeof(gtp_pco_pid_ipcp_t)-sizeof(gtp_pco_pid_t));
 	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_ipcp_t));
 
-	err = err ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_primary_ns, PPP_IPCP_PRIMARY_NS);
-	err = err ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, &pco->ipcp_secondary_ns, PPP_IPCP_SECONDARY_NS);
+	if (ipcp) {
+		pdns = ipcp->dns[0].s_addr;
+		sdns = ipcp->dns[1].s_addr;
+	} else {
+		if (pco->ipcp_primary_ns.ss_family == AF_INET)
+			pdns = inet_sockaddrip4(&pco->ipcp_primary_ns);
+		if (pco->ipcp_secondary_ns.ss_family == AF_INET)
+			sdns = inet_sockaddrip4(&pco->ipcp_secondary_ns);
+	}
+	err = err ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, pdns, PPP_IPCP_PRIMARY_NS);
+	err = err ? : gtpc_pkt_put_ppp_ipcp_ip4(pbuff, pid, sdns, PPP_IPCP_SECONDARY_NS);
 	if (err)
 		return 1;
 
@@ -358,27 +367,49 @@ gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 }
 
 static int
-gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_dns4(pkt_buffer_t *pbuff, gtp_pco_t *pco, uint32_t ip4, gtp_ie_pco_t *ie_pco)
+{
+	gtp_pco_pid_dns_t *pid;
+
+	if (!ip4)
+		return 0;
+
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_DNS, sizeof(gtp_pco_pid_dns_t)) < 0)
+		return 1;
+
+	pid = (gtp_pco_pid_dns_t *) pbuff->data;
+	pid->h.length = 4;
+	pid->addr = ip4;
+	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_dns_t));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
+	return 0;
+}
+
+static int
+gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp_ie_pco_t *ie_pco)
 {
 	list_head_t *l = &pco->ns;
 	gtp_ns_t *ns;
-	gtp_pco_pid_dns_t *pid;
+	uint32_t ip4;
+	int err = 0;
+
+	if (ipcp) {
+		err = err ? : gtpc_pkt_put_pco_pid_dns4(pbuff, pco, ipcp->dns[0].s_addr, ie_pco);
+		err = err ? : gtpc_pkt_put_pco_pid_dns4(pbuff, pco, ipcp->dns[1].s_addr, ie_pco);
+		return err;
+	}
 
 	list_for_each_entry(ns, l, next) {
-		if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_DNS, sizeof(gtp_pco_pid_dns_t)) < 0)
+		ip4 = (ns->addr.ss_family == AF_INET) ? inet_sockaddrip4(&ns->addr) : 0;
+		if (gtpc_pkt_put_pco_pid_dns4(pbuff, pco, ip4, ie_pco))
 			return 1;
-		pid = (gtp_pco_pid_dns_t *) pbuff->data;
-		pid->h.length = 4;
-		pid->addr = inet_sockaddrip4(&ns->addr);
-		pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_dns_t));
-		ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
 	}
 
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco_pid_mtu(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_mtu(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp_ie_pco_t *ie_pco)
 {
 	gtp_pco_pid_mtu_t *pid;
 
@@ -416,7 +447,7 @@ gtpc_pkt_put_pco_pid_sbcm(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 }
 
 static int
-gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
+gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 	gtp_ie_pco_t *ie_pco;
@@ -431,9 +462,9 @@ gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco)
 	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_pco_t));
 
 	/* Put Protocol or Container ID */
-	err = err ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ie_pco);
-	err = err ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ie_pco);
-	err = err ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ipcp, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ipcp, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ipcp, ie_pco);
 	err = err ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
 	if (err)
 		return 1;
@@ -573,7 +604,8 @@ gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
 }
 
 static int
-gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid,
+				   struct sipcp *ipcp)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 	gtp_apn_t *apn = s->apn;
@@ -586,7 +618,7 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
 	err = err ? : gtpc_pkt_put_recovery(pbuff);
 	err = err ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
-	err = err ? : gtpc_pkt_put_pco(pbuff, apn->pco);
+	err = err ? : gtpc_pkt_put_pco(pbuff, apn->pco, ipcp);
 	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1);
 	err = err ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
 	err = err ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
@@ -644,6 +676,38 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
 	/* 3GPP TS 129.274 Section 5.5.1 */
 	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
 	return 0;
+}
+
+
+/*
+ *	GTP-C PPP Callback
+ */
+void
+gtpc_pppoe_create_session_response(sppp_t *sp)
+{
+	gtp_session_t *s = sp->s_pppoe->s_gtp;
+	gtp_teid_t *teid = sp->s_pppoe->teid;
+	gtp_server_worker_t *w = sp->s_pppoe->w;
+	pkt_buffer_t *pbuff;
+	int rc;
+
+	/* Call from the context of PPP stack.
+	 * It's called at the end of PPP negiciation when IPCP
+	 * is up and working. We are runing asyncrhonously from
+	 * GTP stack workers so we need to alloc/build and send
+	 * create-session-response to remote peer */
+
+	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
+
+	s->ipv4 = sp->ipcp.req_myaddr;
+	rc = gtpc_build_create_session_response(pbuff, s, teid, &sp->ipcp);
+	if (rc < 0) {
+		pkt_buffer_free(pbuff);
+		return;
+	}
+
+	pkt_buffer_send(w->fd, pbuff, &sp->s_pppoe->gtpc_peer_addr);
+	pkt_buffer_free(pbuff);
 }
 
 
@@ -792,18 +856,17 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (msg_ie)
 		s->msisdn = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
 
-	gtp_teid_update_sgw(teid, addr);
-
 	/* Update last sGW visited */
-	c->sgw_addr = *((struct sockaddr_in *) addr);
+	gtp_teid_update_sgw(teid, addr);
 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
 	/* IP VRF is in use and PPPOE session forwarding is configured */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
-		s_pppoe = spppoe_init(apn->vrf->pppoe, &c->veth_addr, imsi, s->mei,
-				      apn_str);
+		s_pppoe = spppoe_init(apn->vrf->pppoe, &c->veth_addr,
+				      gtpc_pppoe_create_session_response,
+				      imsi, s->mei, apn_str);
 		if (!s_pppoe) {
 			rc = gtpc_build_errmsg(w->pbuff, teid
 						       , GTP_CREATE_SESSION_RESPONSE_TYPE
@@ -811,12 +874,15 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 			goto end;
 		}
 		s_pppoe->s_gtp = s;
+		s_pppoe->teid = teid;
+		s_pppoe->w = w;
+		s_pppoe->gtpc_peer_addr = *addr;
 		s->s_pppoe = s_pppoe;
 		rc = GTP_ROUTER_DELAYED;
 		goto end;
 	}
 
-	rc = gtpc_build_create_session_response(w->pbuff, s, teid);
+	rc = gtpc_build_create_session_response(w->pbuff, s, teid, NULL);
   end:
 	gtp_msg_destroy(msg);
 	return rc;

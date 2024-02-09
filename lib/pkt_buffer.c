@@ -120,6 +120,22 @@ pkt_queue_destroy(pkt_queue_t *q)
 /*
  *	Pkt helpers
  */
+ssize_t
+pkt_buffer_send(int fd, pkt_buffer_t *b, struct sockaddr_storage *addr)
+{
+	struct iovec iov = { .iov_base = b->head, .iov_len = pkt_buffer_len(b) };
+	struct msghdr msg = {
+		.msg_name = addr,
+		.msg_namelen = sizeof(*addr),
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+		.msg_control = NULL,
+		.msg_controllen = 0
+	};
+
+	return sendmsg(fd, &msg, 0);
+}
+
 int
 pkt_buffer_put_zero(pkt_buffer_t *b, unsigned int size)
 {
