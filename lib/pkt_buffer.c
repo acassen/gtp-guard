@@ -147,6 +147,17 @@ pkt_buffer_put_zero(pkt_buffer_t *b, unsigned int size)
 	return 0;
 }
 
+int
+pkt_buffer_pad(pkt_buffer_t *b, unsigned int size)
+{
+	int len = pkt_buffer_len(b);
+
+	if (len >= size)
+		return -1;
+
+	return pkt_buffer_put_zero(b, size - len);
+}
+
 pkt_buffer_t *
 pkt_buffer_alloc(unsigned int size)
 {

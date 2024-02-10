@@ -111,6 +111,7 @@ pppoe_send_padi(spppoe_t *s)
 	p += sizeof(s->unique);
 	pkt_buffer_put_data(pkt->pbuff, p - pkt->pbuff->data);
 	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
+	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
 
 	/* send pkt */
 	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
@@ -172,6 +173,7 @@ pppoe_send_padr(spppoe_t *s)
 	p += sizeof(s->unique);
 	pkt_buffer_put_data(pkt->pbuff, p - pkt->pbuff->data);
 	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
+	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
 
 	/* send pkt */
 	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
@@ -190,6 +192,9 @@ pppoe_send_padt(spppoe_t *s)
 	/* fill in pkt */
 	p = pkt->pbuff->data;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADT, s->session_id, 0);
+	pkt_buffer_put_data(pkt->pbuff, p - pkt->pbuff->data);
+	pkt_buffer_set_end_pointer(pkt->pbuff, p - pkt->pbuff->head);
+	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
 
 	/* send pkt */
 	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);

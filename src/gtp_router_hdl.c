@@ -367,7 +367,7 @@ gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gt
 }
 
 static int
-gtpc_pkt_put_pco_pid_dns4(pkt_buffer_t *pbuff, gtp_pco_t *pco, uint32_t ip4, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_dns4(pkt_buffer_t *pbuff, uint32_t ip4, gtp_ie_pco_t *ie_pco)
 {
 	gtp_pco_pid_dns_t *pid;
 
@@ -394,14 +394,14 @@ gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp
 	int err = 0;
 
 	if (ipcp) {
-		err = err ? : gtpc_pkt_put_pco_pid_dns4(pbuff, pco, ipcp->dns[0].s_addr, ie_pco);
-		err = err ? : gtpc_pkt_put_pco_pid_dns4(pbuff, pco, ipcp->dns[1].s_addr, ie_pco);
+		err = err ? : gtpc_pkt_put_pco_pid_dns4(pbuff, ipcp->dns[0].s_addr, ie_pco);
+		err = err ? : gtpc_pkt_put_pco_pid_dns4(pbuff, ipcp->dns[1].s_addr, ie_pco);
 		return err;
 	}
 
 	list_for_each_entry(ns, l, next) {
 		ip4 = (ns->addr.ss_family == AF_INET) ? inet_sockaddrip4(&ns->addr) : 0;
-		if (gtpc_pkt_put_pco_pid_dns4(pbuff, pco, ip4, ie_pco))
+		if (gtpc_pkt_put_pco_pid_dns4(pbuff, ip4, ie_pco))
 			return 1;
 	}
 
@@ -413,7 +413,7 @@ gtpc_pkt_put_pco_pid_mtu(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp
 {
 	gtp_pco_pid_mtu_t *pid;
 
-	if (!pco->link_mtu)
+	if (!pco || !pco->link_mtu)
 		return 0;
 
 	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_MTU, sizeof(gtp_pco_pid_mtu_t)) < 0)
@@ -432,7 +432,7 @@ gtpc_pkt_put_pco_pid_sbcm(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_
 {
 	gtp_pco_pid_sbcm_t *pid;
 
-	if (!pco->selected_bearer_control_mode)
+	if (!pco || !pco->selected_bearer_control_mode)
 		return 0;
 
 	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_SBCM, sizeof(gtp_pco_pid_sbcm_t)) < 0)
@@ -594,6 +594,7 @@ gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 
+	h->version = 2;
 	h->type = type;
 	h->teid_presence = 1;
 	h->length = 0;
@@ -699,7 +700,7 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 
 	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 
-	s->ipv4 = sp->ipcp.req_myaddr;
+	s->ipv4 = htonl(sp->ipcp.req_myaddr);
 	rc = gtpc_build_create_session_response(pbuff, s, teid, &sp->ipcp);
 	if (rc < 0) {
 		pkt_buffer_free(pbuff);

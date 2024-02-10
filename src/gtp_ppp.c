@@ -377,6 +377,7 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 
 	/* send pkt */
 	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
+	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
 	return pkt_send(pppoe->fd_session, &pppoe->pkt_q, pkt);
 }
 
@@ -2458,6 +2459,7 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 
 	/* send pkt */
 	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
+	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
 	pkt_send(pppoe->fd_session, &pppoe->pkt_q, pkt);
 }
 
