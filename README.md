@@ -27,6 +27,10 @@ Define your own `gtp-guard.conf` settings in order to enable its vty over TCP.
 ```
 $ cat <<EOFCONF > /tmp/gtp-guard.conf
 !
+gtp-router demo
+  gtpc-tunnel-endpoint 0.0.0.0 port 2123
+  gtpu-tunnel-endpoint 0.0.0.0 port 2152
+!
 line vty
   no login
   listen 127.0.0.1 8888
