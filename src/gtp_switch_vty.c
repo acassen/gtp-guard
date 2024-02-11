@@ -96,10 +96,12 @@ DEFUN(gtpc_switch_tunnel_endpoint,
       gtpc_switch_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Control channel ingress tunnel endpoint\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "listening UDP Port\n"
-      "Number\n")
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2123)\n"
+      "Number\n"
+      "max UDP listener pthreads\n"
+      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
         gtp_switch_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
@@ -134,10 +136,12 @@ DEFUN(gtpu_switch_tunnel_endpoint,
       gtpu_switch_tunnel_endpoint_cmd,
       "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Userplane channel tunnel endpoint\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "listening UDP Port\n"
-      "Number\n")
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2152)\n"
+      "Number\n"
+      "max UDP listener pthreads\n"
+      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
         gtp_switch_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpu;

@@ -22,6 +22,10 @@
 #ifndef _GTP_VTY_H
 #define _GTP_VTY_H
 
+/* STR(MACRO) stringifies MACRO */
+#define _STR(x) #x
+#define STR(x) _STR(x)
+
 /* Prototypes */
 extern int gtp_vty_init(void);
 
