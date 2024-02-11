@@ -125,6 +125,7 @@ DEFUN(gtpc_switch_tunnel_endpoint,
 
 	/* argv[3] is listnener-count */
 	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
 	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
 	gtp_server_start(srv);
@@ -165,6 +166,7 @@ DEFUN(gtpu_switch_tunnel_endpoint,
 
 	/* argv[3] is listnener-count */
         srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+        srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
         __set_bit(GTP_FL_UPF_BIT, &srv->flags);
         gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
         gtp_server_start(srv);
