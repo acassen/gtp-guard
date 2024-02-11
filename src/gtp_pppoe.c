@@ -388,6 +388,9 @@ gtp_pppoe_init(const char *ifname)
 {
 	gtp_pppoe_t *pppoe = NULL;
 
+	if (!if_nametoindex(ifname))
+		return NULL;
+
 	pppoe = gtp_pppoe_get(ifname);
 	if (pppoe)
 		return pppoe;
