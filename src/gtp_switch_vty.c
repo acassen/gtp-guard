@@ -113,6 +113,11 @@ DEFUN(gtpc_switch_tunnel_endpoint,
                 return CMD_WARNING;
         }
 
+        if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
+                vty_out(vty, "%% GTPc already configured!%s", VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
         if (argc == 2)
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
@@ -151,6 +156,11 @@ DEFUN(gtpu_switch_tunnel_endpoint,
 
         if (argc < 1) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
+        if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
+                vty_out(vty, "%% GTPu already configured!%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
