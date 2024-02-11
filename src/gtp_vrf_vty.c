@@ -235,7 +235,7 @@ DEFUN(ip_vrf_pppoe,
       "Interface\n"
       "IFNAME\n"
       "RPS bits for pthread workers\n"
-      "max bits of pthread workers\n")
+      "max bits of pthread workers (default = "STR(GTP_PPPOE_RPS_BITS)" bits)\n")
 {
 	ip_vrf_t *vrf = vty->index;
 	gtp_pppoe_t *pppoe;
