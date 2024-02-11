@@ -233,7 +233,9 @@ DEFUN(ip_vrf_pppoe,
       "pppoe interface STRING [rps-bits [INTEGER]]",
       "PPP Over Ethernet support\n"
       "Interface\n"
-      "String\n")
+      "IFNAME\n"
+      "RPS bits for pthread workers\n"
+      "max bits of pthread workers\n")
 {
 	ip_vrf_t *vrf = vty->index;
 	gtp_pppoe_t *pppoe;
@@ -255,7 +257,9 @@ DEFUN(ip_vrf_pppoe,
 		return CMD_WARNING;
 	}
 
-	pppoe->thread_cnt = (argc == 2) ? (1 << strtoul(argv[1], NULL, 10)) : GTP_PPPOE_RPS_SIZE;
+	/* argv[3] is listnener-count */
+	pppoe->thread_cnt = (argc == 3) ? (1 << strtoul(argv[2], NULL, 10)) : GTP_PPPOE_RPS_SIZE;
+	pppoe->thread_cnt = (pppoe->thread_cnt < 1) ? 1 : pppoe->thread_cnt; /* XXX useless */
 	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
 	vrf->pppoe = pppoe;
 	ret = gtp_pppoe_start(pppoe);
@@ -589,7 +593,10 @@ gtp_config_write(vty_t *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags)) {
 			pppoe = vrf->pppoe;
-			vty_out(vty, " pppoe interface %s%s", pppoe->ifname, VTY_NEWLINE);
+			vty_out(vty, " pppoe interface %s", pppoe->ifname);
+			if (pppoe->thread_cnt != GTP_PPPOE_RPS_SIZE)
+				vty_out(vty, " rps-bits %d", __builtin_ctz(pppoe->thread_cnt));
+			vty_out(vty, "%s", VTY_NEWLINE);
 			if (pppoe->ac_name[0])
 				vty_out(vty, " pppoe access-concentrator-name %s%s"
 					   , pppoe->ac_name
