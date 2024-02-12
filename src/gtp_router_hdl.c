@@ -684,6 +684,18 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
  *	GTP-C PPP Callback
  */
 void
+gtpc_pppoe_tls(sppp_t *sp)
+{
+	/* Session is starting */
+}
+
+void
+gtpc_pppoe_tlf(sppp_t *sp)
+{
+	/* Session is released */
+}
+
+void
 gtpc_pppoe_create_session_response(sppp_t *sp)
 {
 	gtp_session_t *s = sp->s_pppoe->s_gtp;
@@ -709,6 +721,12 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 
 	pkt_buffer_send(w->fd, pbuff, &sp->s_pppoe->gtpc_peer_addr);
 	pkt_buffer_free(pbuff);
+}
+
+void
+gtpc_pppoe_chg(sppp_t *sp, int state)
+{
+	/* Session is changing state */
 }
 
 
@@ -866,7 +884,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* IP VRF is in use and PPPOE session forwarding is configured */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
 		s_pppoe = spppoe_init(apn->vrf->pppoe, &c->veth_addr,
-				      gtpc_pppoe_create_session_response,
+				      gtpc_pppoe_tls, gtpc_pppoe_tlf,
+				      gtpc_pppoe_create_session_response, gtpc_pppoe_chg,
 				      imsi, s->mei, apn_str);
 		if (!s_pppoe) {
 			rc = gtpc_build_errmsg(w->pbuff, teid

@@ -281,7 +281,7 @@ sppp_print_string(const char *p, uint8_t len)
  */
 
 void
-sppp_increasing_timeout (const struct cp *cp, sppp_t *sp)
+sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	int timo;
@@ -2848,7 +2848,8 @@ sppp_down(spppoe_t *s)
 }
 
 sppp_t *
-sppp_init(spppoe_t *s, void (*pp_con)(sppp_t *))
+sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
+		     , void (*pp_con)(sppp_t *), void (*pp_chg)(struct _sppp *, int))
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;
@@ -2865,7 +2866,10 @@ sppp_init(spppoe_t *s, void (*pp_con)(sppp_t *))
 	sp->pp_phase = PHASE_DEAD;
 	sp->pp_up = lcp.Up;
 	sp->pp_down = lcp.Down;
+	sp->pp_tls = pp_tls;
+	sp->pp_tlf = pp_tlf;
 	sp->pp_con = pp_con;
+	sp->pp_chg = pp_chg;
 
 	if (pppoe->mru) {
 		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);

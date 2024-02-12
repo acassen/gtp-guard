@@ -22,9 +22,9 @@
 #ifndef _GTP_PPPOE_PROTO_H
 #define _GTP_PPPOE_PROTO_H
 
-#define PPPOEDEBUG(a)	do {				\
-	if (__test_bit(GTP_CONN_F_DEBUG, &c->flags))	\
-		log_message a;				\
+#define PPPOEDEBUG(a)	do {	\
+	if (debug & 8)		\
+		log_message a;	\
 } while(0)
 
 /* Prototypes */

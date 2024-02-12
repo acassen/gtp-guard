@@ -262,8 +262,6 @@ int
 pppoe_timeout(void *arg)
 {
 	spppoe_t *s = (spppoe_t *) arg;
-	gtp_session_t *s_gtp = s->s_gtp;
-	gtp_conn_t *c = s_gtp->conn;
 	gtp_pppoe_t *pppoe = s->pppoe;
 	int retry_wait;
 
@@ -361,7 +359,6 @@ void
 pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 {
 	spppoe_t *s = NULL;
-	gtp_conn_t *c = NULL;
 	struct ether_header *eh;
 	pppoe_tag_t *pt;
 	const char *err_msg = NULL;
@@ -514,7 +511,6 @@ breakbreak:
 		memcpy(&s->hw_dst, eh->ether_shost, sizeof(s->hw_dst));
 		s->padr_retried = 0;
 		s->state = PPPOE_STATE_PADR_SENT;
-		c = s->s_gtp->conn;
 		if (pppoe_send_padr(s) < 0) {
 			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADR (%m)"
 					    , __FUNCTION__, s->unique));
@@ -529,8 +525,7 @@ breakbreak:
 		s->session_id = session;
 		spppoe_session_hash(&pppoe->session_tab, s, &s->hw_src, s->session_id);
 		timer_node_del(&pppoe->session_timer, &s->t_node);
-		c = s->s_gtp->conn;
-		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.48x connected"
+		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.4x connected"
 				    , __FUNCTION__, s->unique, session));
 		s->state = PPPOE_STATE_SESSION;
 		s->session_time = time(NULL);
@@ -539,15 +534,21 @@ breakbreak:
 		sppp_up(s);
 		break;
 	case PPPOE_CODE_PADT:
-		if (s == NULL)
-			return;
+		if (s == NULL) {
+			/* Some AC implementation doesnt tag PADT with Host-Uniq...
+			 * At least that's the way it is with Cisco implementation.
+			 * So try to find PPPoE session by session-id */
+			s = spppoe_get_by_session(&pppoe->session_tab,
+						  (struct ether_addr *) eh->ether_dhost, session);
+			if (s == NULL)
+				return;
+		}
 
 		/* stop timer (we might be about to transmit a PADT ourself) */
 		timer_node_del(&pppoe->session_timer, &s->t_node);
 		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.4x terminated, received PADT"
 				    , __FUNCTION__, s->unique, session));
-
-		pppoe_disconnect(s);
+		sppp_down(s);
 		break;
 	default:
 		log_message(LOG_INFO, "%s(): %s: unknown code (0x%04x) session = 0x%.4x"
