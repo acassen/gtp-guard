@@ -96,10 +96,12 @@ DEFUN(gtpc_router_tunnel_endpoint,
       gtpc_router_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Control channel tunnel endpoint\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "listening UDP Port\n"
-      "Number\n")
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2123)\n"
+      "Number\n"
+      "max UDP listener pthreads\n"
+      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
         gtp_router_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
@@ -108,6 +110,11 @@ DEFUN(gtpc_router_tunnel_endpoint,
 
         if (argc < 1) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
+        if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
+                vty_out(vty, "%% GTPc already configured!%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
@@ -121,7 +128,9 @@ DEFUN(gtpc_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	srv->thread_cnt = (argc == 3) ? strtoul(argv[2], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	/* argv[3] is listnener-count */
+	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
 	gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
 	gtp_server_start(srv);
@@ -131,12 +140,14 @@ DEFUN(gtpc_router_tunnel_endpoint,
 
 DEFUN(gtpu_router_tunnel_endpoint,
       gtpu_router_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Userplane channel tunnel endpoint\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "listening UDP Port\n"
-      "Number\n")
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2152)\n"
+      "Number\n"
+      "max UDP listener pthreads\n"
+      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
 	gtp_router_t *ctx = vty->index;
 	gtp_server_t *srv = &ctx->gtpu;
@@ -145,6 +156,11 @@ DEFUN(gtpu_router_tunnel_endpoint,
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
+		vty_out(vty, "%% GTPu already configured!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -158,7 +174,9 @@ DEFUN(gtpu_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	srv->thread_cnt = GTP_DEFAULT_THREAD_CNT;
+	/* argv[3] is listnener-count */
+	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 	gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
 	gtp_server_start(srv);
@@ -178,17 +196,29 @@ gtp_config_write(vty_t *vty)
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-router %s%s", ctx->name, VTY_NEWLINE);
 		srv = &ctx->gtpc;
-		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags))
-			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
+		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
+			vty_out(vty, " gtpc-tunnel-endpoint %s port %d"
 				   , inet_sockaddrtos(&srv->addr)
 				   , ntohs(inet_sockaddrport(&srv->addr))
-				   , VTY_NEWLINE);
+				   );
+			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
+				vty_out(vty, " listener-count %d"
+				   , srv->thread_cnt
+				   );
+			vty_out(vty, "%s" , VTY_NEWLINE);
+		}
 		srv = &ctx->gtpu;
-		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint %s port %d%s"
+		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
+			vty_out(vty, " gtpu-tunnel-endpoint %s port %d"
 				   , inet_sockaddrtos(&srv->addr)
 				   , ntohs(inet_sockaddrport(&srv->addr))
-				   , VTY_NEWLINE);
+				   );
+			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
+				vty_out(vty, " listener-count %d"
+				   , srv->thread_cnt
+				   );
+			vty_out(vty, "%s" , VTY_NEWLINE);
+		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 

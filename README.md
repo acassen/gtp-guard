@@ -28,8 +28,8 @@ Define your own `gtp-guard.conf` settings in order to enable its vty over TCP.
 $ cat <<EOFCONF > /tmp/gtp-guard.conf
 !
 gtp-router demo
-  gtpc-tunnel-endpoint 0.0.0.0 port 2123
-  gtpu-tunnel-endpoint 0.0.0.0 port 2152
+  gtpc-tunnel-endpoint 0.0.0.0 port 2123 listener-count 3
+  gtpu-tunnel-endpoint 0.0.0.0 port 2152 listener-count 3
 !
 line vty
   no login
@@ -55,3 +55,5 @@ Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
 xps> quit
 Connection closed by foreign host.
 ```
+
+Then you can start sending your GTPc and GTPu workload to the UDP ports 2123 and 2152.
