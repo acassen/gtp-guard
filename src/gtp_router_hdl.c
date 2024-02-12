@@ -693,6 +693,8 @@ void
 gtpc_pppoe_tlf(sppp_t *sp)
 {
 	/* Session is released */
+
+	/* TODO: Send delete-bearer-request */
 }
 
 void

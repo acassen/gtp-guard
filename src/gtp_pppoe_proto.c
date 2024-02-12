@@ -263,7 +263,7 @@ pppoe_timeout(void *arg)
 {
 	spppoe_t *s = (spppoe_t *) arg;
 	gtp_pppoe_t *pppoe = s->pppoe;
-	int retry_wait;
+	int retry_wait = 1;
 
 	PPPDEBUG(("%s: pppoe hunique:0x%.8x\n", pppoe->ifname, s->unique));
 
@@ -279,7 +279,8 @@ pppoe_timeout(void *arg)
 			PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to transmit PADI\n",
 				 pppoe->ifname, s->unique));
 		}
-		retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
+		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
+			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
 		timer_node_add(&pppoe->session_timer , &s->t_node, retry_wait);
 		break;
 

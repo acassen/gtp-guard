@@ -470,6 +470,29 @@ DEFUN(ip_vrf_pppoe_keepalive,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_padi_fast_retry,
+      ip_vrf_pppoe_padi_fast_retry_cmd,
+      "pppoe padi-fast-retry",
+      "PPP Over Ethernet\n"
+      "PADI Fast Retry (1s)\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(ip_vrf_pppoe_lcp_timeout,
       ip_vrf_pppoe_lcp_timeout_cmd,
       "pppoe lcp-timeout INTEGER",
@@ -627,6 +650,9 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe keepalive %d%s"
 					   , pppoe->keepalive
 					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe padi-fast-retry%s"
+					   , VTY_NEWLINE);
 			if (__test_bit(PPPOE_FL_LCP_TIMEOUT_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe lcp-timeout %d%s"
 					   , pppoe->lcp_timeout
@@ -676,6 +702,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ipv6cp_disable_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_keepalive_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_padi_fast_retry_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_timeout_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_terminate_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_configure_cmd);
