@@ -22,7 +22,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: true
-      - name: make
+      - name: make gtp-guard
         run : CC=${{ matrix.compiler }} make -j $(nproc)
+      - name: make eBPF
+        run : cd src/bpf && make
       - name: basic run
         run : bin/gtp-guard --version
