@@ -229,7 +229,7 @@ pppoe_connect(spppoe_t *s)
 int
 pppoe_abort_connect(spppoe_t *s)
 {
-	PPPDEBUG(("%s: pppoe could not establish connection\n", pppoe->ifname));
+	PPPDEBUG(("%s: pppoe could not establish connection\n", s->pppoe->ifname));
 	s->state = PPPOE_STATE_CLOSING;
 
 	/* Notify ppp upper layer */
@@ -242,7 +242,7 @@ pppoe_disconnect(spppoe_t *s)
 {
 	int ret;
 
-	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", pppoe->ifname, s->unique));
+	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", s->pppoe->ifname, s->unique));
 
 	if (s->state >= PPPOE_STATE_SESSION) {
 		ret = pppoe_send_padt(s);
