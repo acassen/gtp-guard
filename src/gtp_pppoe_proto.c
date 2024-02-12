@@ -265,7 +265,7 @@ pppoe_timeout(void *arg)
 	gtp_pppoe_t *pppoe = s->pppoe;
 	int retry_wait;
 
-	PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x", __FUNCTION__, s->unique));
+	PPPDEBUG(("%s: pppoe hunique:0x%.8x\n", pppoe->ifname, s->unique));
 
 	switch (s->state) {
 	case PPPOE_STATE_PADI_SENT:
@@ -276,8 +276,8 @@ pppoe_timeout(void *arg)
 
 		if (pppoe_send_padi(s) < 0) {
 			s->padi_retried--;
-			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to transmit PADI"
-					    , __FUNCTION__, s->unique));
+			PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to transmit PADI\n",
+				 pppoe->ifname, s->unique));
 		}
 		retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
 		timer_node_add(&pppoe->session_timer , &s->t_node, retry_wait);
@@ -288,8 +288,8 @@ pppoe_timeout(void *arg)
 			s->state = PPPOE_STATE_PADI_SENT;
 			s->padr_retried = 0;
 			if (pppoe_send_padi(s) < 0) {
-				PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADI"
-						    , __FUNCTION__, s->unique));
+				PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to send PADI\n",
+					 pppoe->ifname, s->unique));
 			}
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
 			timer_node_add(&pppoe->session_timer , &s->t_node, retry_wait);
@@ -298,8 +298,8 @@ pppoe_timeout(void *arg)
 
 		if (pppoe_send_padr(s) < 0) {
 			s->padr_retried--;
-			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADR"
-					    , __FUNCTION__, s->unique));
+			PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to send PADR\n",
+				 pppoe->ifname, s->unique));
 		}
 		retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padr_retried);
 		timer_node_add(&pppoe->session_timer , &s->t_node, retry_wait);
@@ -512,8 +512,8 @@ breakbreak:
 		s->padr_retried = 0;
 		s->state = PPPOE_STATE_PADR_SENT;
 		if (pppoe_send_padr(s) < 0) {
-			PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x failed to send PADR (%m)"
-					    , __FUNCTION__, s->unique));
+			PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to send PADR (%m)\n",
+				 pppoe->ifname, s->unique));
 		}
 		timer_node_add(&pppoe->session_timer, &s->t_node
 						    , PPPOE_DISC_TIMEOUT * (1 + s->padr_retried));
@@ -525,8 +525,8 @@ breakbreak:
 		s->session_id = session;
 		spppoe_session_hash(&pppoe->session_tab, s, &s->hw_src, s->session_id);
 		timer_node_del(&pppoe->session_timer, &s->t_node);
-		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.4x connected"
-				    , __FUNCTION__, s->unique, session));
+		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x connected\n",
+			 pppoe->ifname, s->unique, session));
 		s->state = PPPOE_STATE_SESSION;
 		s->session_time = time(NULL);
 
@@ -546,8 +546,8 @@ breakbreak:
 
 		/* stop timer (we might be about to transmit a PADT ourself) */
 		timer_node_del(&pppoe->session_timer, &s->t_node);
-		PPPOEDEBUG((LOG_INFO, "%s(): hunique:0x%.8x session:0x%.4x terminated, received PADT"
-				    , __FUNCTION__, s->unique, session));
+		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x terminated, received PADT\n",
+			 pppoe->ifname, s->unique, session));
 		sppp_down(s);
 		break;
 	default:

@@ -22,11 +22,6 @@
 #ifndef _GTP_PPPOE_PROTO_H
 #define _GTP_PPPOE_PROTO_H
 
-#define PPPOEDEBUG(a)	do {	\
-	if (debug & 8)		\
-		log_message a;	\
-} while(0)
-
 /* Prototypes */
 extern pkt_t *pppoe_eth_pkt_get(spppoe_t *, const struct ether_addr *, const uint16_t);
 extern void pppoe_dispatch_disc_pkt(gtp_pppoe_t *, pkt_t *);

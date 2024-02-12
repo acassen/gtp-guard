@@ -22,6 +22,11 @@
 #ifndef _GTP_PPP_H
 #define _GTP_PPP_H
 
+#define PPPDEBUG(a)	do {	\
+	if (debug & 8)		\
+		printf a;	\
+} while(0)
+
 /*
  *	PPPoE RFC 1661 related
  */

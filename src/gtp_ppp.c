@@ -364,16 +364,14 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 		bcopy(data, lh+1, len);
 	pkt_buffer_put_data(pkt->pbuff, sizeof(lcp_hdr_t) + len);
 
-	if (debug & 8) {
-		printf("%s: %s output <%s id=0x%x len=%d",
-		       pppoe->ifname,
-		       sppp_proto_name(proto),
-		       sppp_cp_type_name(lh->type), lh->ident,
-		       ntohs(lh->len));
-		if (len)
-			sppp_print_bytes((uint8_t *) (lh+1), len);
-		printf(">\n");
-	}
+	PPPDEBUG(("%s: %s output <%s id=0x%x len=%d",
+		 pppoe->ifname,
+		 sppp_proto_name(proto),
+		 sppp_cp_type_name(lh->type), lh->ident,
+		 ntohs(lh->len)));
+	if (debug & 8 && len)
+		sppp_print_bytes((uint8_t *) (lh+1), len);
+	PPPDEBUG((">\n"));
 
 	/* send pkt */
 	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
@@ -395,31 +393,28 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 	uint8_t *p;
 
 	if (len < LCP_HEADER_LEN) {
-		if (debug & 8)
-			printf("%s: %s invalid packet length: %d bytes\n",
-			       pppoe->ifname, cp->name, len);
+		PPPDEBUG(("%s: %s invalid packet length: %d bytes\n",
+			 pppoe->ifname, cp->name, len));
 		return;
 	}
 
 	h = (lcp_hdr_t *) pbuff->data;
-	if (debug & 8) {
-		printf("%s: %s input(%s): <%s id=0x%x len=%d",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]),
-		       sppp_cp_type_name(h->type), h->ident, ntohs(h->len));
-		if (len > 4)
-			sppp_print_bytes((uint8_t *) (h+1), len-4);
-		printf(">\n");
-	}
+	PPPDEBUG(("%s: %s input(%s): <%s id=0x%x len=%d",
+	         pppoe->ifname, cp->name,
+	         sppp_state_name(sp->state[cp->protoidx]),
+	         sppp_cp_type_name(h->type), h->ident, ntohs(h->len)));
+	if (debug & 8 && len > 4)
+		sppp_print_bytes((uint8_t *) (h+1), len-4);
+	PPPDEBUG((">\n"));
+
 	if (len > ntohs(h->len))
 		len = ntohs(h->len);
 	p = (uint8_t *) (h + 1);
 	switch (h->type) {
 	case CONF_REQ:
 		if (len < 4) {
-			if (debug & 8)
-				printf("%s: %s invalid conf-req length %d\n",
-				       pppoe->ifname, cp->name, len);
+			PPPDEBUG(("%s: %s invalid conf-req length %d\n",
+				 pppoe->ifname, cp->name, len));
 			break;
 		}
 		/* handle states where RCR doesn't get a SCA/SCN */
@@ -453,26 +448,23 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		case STATE_ACK_RCVD:
 			if (rv) {
 				sppp_cp_change_state(cp, sp, STATE_OPENED);
-				if (debug & 8)
-					printf("%s: %s tlu\n", pppoe->ifname, cp->name);
+				PPPDEBUG(("%s: %s tlu\n", pppoe->ifname, cp->name));
 				(cp->tlu)(sp);
 			} else
 				sppp_cp_change_state(cp, sp, STATE_ACK_RCVD);
 			break;
 		default:
-			if (debug & 8)
-				printf("%s: %s illegal %s in state %s\n",
-				       pppoe->ifname, cp->name,
-				       sppp_cp_type_name(h->type),
-				       sppp_state_name(sp->state[cp->protoidx]));
+			PPPDEBUG(("%s: %s illegal %s in state %s\n",
+				 pppoe->ifname, cp->name,
+				 sppp_cp_type_name(h->type),
+				 sppp_state_name(sp->state[cp->protoidx])));
 		}
 		break;
 	case CONF_ACK:
 		if (h->ident != sp->confid[cp->protoidx]) {
-			if (debug & 8)
-				printf("%s: %s id mismatch 0x%x != 0x%x\n",
-				       pppoe->ifname, cp->name,
-				       h->ident, sp->confid[cp->protoidx]);
+			PPPDEBUG(("%s: %s id mismatch 0x%x != 0x%x\n",
+				 pppoe->ifname, cp->name,
+				 h->ident, sp->confid[cp->protoidx]));
 			break;
 		}
 		switch (sp->state[cp->protoidx]) {
@@ -499,25 +491,22 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		case STATE_ACK_SENT:
 			sp->rst_counter[cp->protoidx] = sp->lcp.max_configure;
 			sppp_cp_change_state(cp, sp, STATE_OPENED);
-			if (debug & 8)
-				printf("%s: %s tlu\n", pppoe->ifname, cp->name);
+			PPPDEBUG(("%s: %s tlu\n", pppoe->ifname, cp->name));
 			(cp->tlu)(sp);
 			break;
 		default:
-			if (debug & 8)
-				printf("%s: %s illegal %s in state %s\n",
-				       pppoe->ifname, cp->name,
-				       sppp_cp_type_name(h->type),
-				       sppp_state_name(sp->state[cp->protoidx]));
+			PPPDEBUG(("%s: %s illegal %s in state %s\n",
+				 pppoe->ifname, cp->name,
+				 sppp_cp_type_name(h->type),
+				 sppp_state_name(sp->state[cp->protoidx])));
 		}
 		break;
 	case CONF_NAK:
 	case CONF_REJ:
 		if (h->ident != sp->confid[cp->protoidx]) {
-			if (debug & 8)
-				printf("%s: %s id mismatch 0x%x != 0x%x\n",
-				       pppoe->ifname, cp->name,
-				       h->ident, sp->confid[cp->protoidx]);
+			PPPDEBUG(("%s: %s id mismatch 0x%x != 0x%x\n",
+				 pppoe->ifname, cp->name,
+				 h->ident, sp->confid[cp->protoidx]));
 			break;
 		}
 		if (h->type == CONF_NAK)
@@ -548,11 +537,10 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		case STATE_STOPPING:
 			break;
 		default:
-			if (debug & 8)
-				printf("%s: %s illegal %s in state %s\n",
-				       pppoe->ifname, cp->name,
-			               sppp_cp_type_name(h->type),
-			               sppp_state_name(sp->state[cp->protoidx]));
+			PPPDEBUG(("%s: %s illegal %s in state %s\n",
+				 pppoe->ifname, cp->name,
+				 sppp_cp_type_name(h->type),
+				 sppp_state_name(sp->state[cp->protoidx])));
 		}
 		break;
 
@@ -569,9 +557,8 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		case STATE_REQ_SENT:
 		  sta:
 			/* Send Terminate-Ack packet. */
-			if (debug & 8)
-				printf("%s: %s send terminate-ack\n",
-				       pppoe->ifname, cp->name);
+			PPPDEBUG(("%s: %s send terminate-ack\n",
+				 pppoe->ifname, cp->name));
 			sppp_cp_send(sp, cp->proto, TERM_ACK, h->ident, 0, 0);
 			break;
 		case STATE_OPENED:
@@ -581,11 +568,10 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 			goto sta;
 			break;
 		default:
-			if (debug & 8)
-				printf("%s: %s illegal %s in state %s\n",
-				       pppoe->ifname, cp->name,
-			               sppp_cp_type_name(h->type),
-			               sppp_state_name(sp->state[cp->protoidx]));
+			PPPDEBUG(("%s: %s illegal %s in state %s\n",
+				 pppoe->ifname, cp->name,
+				 sppp_cp_type_name(h->type),
+				 sppp_state_name(sp->state[cp->protoidx])));
 		}
 		break;
 	case TERM_ACK:
@@ -612,11 +598,10 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 			(cp->scr)(sp);
 			break;
 		default:
-			if (debug & 8)
-				printf("%s: %s illegal %s in state %s\n",
-				       pppoe->ifname, cp->name,
-			               sppp_cp_type_name(h->type),
-			               sppp_state_name(sp->state[cp->protoidx]));
+			PPPDEBUG(("%s: %s illegal %s in state %s\n",
+				 pppoe->ifname, cp->name,
+				 sppp_cp_type_name(h->type),
+				 sppp_state_name(sp->state[cp->protoidx])));
 		}
 		break;
 	case CODE_REJ:
@@ -628,8 +613,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		u_int16_t proto;
 
 		if (len < 2) {
-			if (debug & 8)
-				printf("%s: invalid proto-rej length\n", pppoe->ifname);
+			PPPDEBUG(("%s: invalid proto-rej length\n", pppoe->ifname));
 			break;
 		}
 
@@ -675,11 +659,10 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 			sppp_cp_change_state(cp, sp, STATE_REQ_SENT);
 			break;
 		default:
-			if (debug & 8)
-				printf("%s: %s illegal %s in state %s\n",
-				       pppoe->ifname, cp->name,
-			               sppp_cp_type_name(h->type),
-			               sppp_state_name(sp->state[cp->protoidx]));
+			PPPDEBUG(("%s: %s illegal %s in state %s\n",
+				 pppoe->ifname, cp->name,
+				 sppp_cp_type_name(h->type),
+				 sppp_state_name(sp->state[cp->protoidx])));
 		}
 		break;
 	    }
@@ -692,16 +675,14 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		if (cp->proto != PPP_LCP)
 			goto illegal;
 		if (sp->state[cp->protoidx] != STATE_OPENED) {
-			if (debug & 8)
-				printf("%s: lcp echo req but lcp closed\n",
-				       pppoe->ifname);
+			PPPDEBUG(("%s: lcp echo req but lcp closed\n",
+				 pppoe->ifname));
 			break;
 		}
 		if (len < 8) {
-			if (debug & 8)
-				printf("%s: invalid lcp echo request "
-				       "packet length: %d bytes\n",
-				       pppoe->ifname, len);
+			PPPDEBUG(("%s: invalid lcp echo request "
+				  "packet length: %d bytes\n",
+				 pppoe->ifname, len));
 			break;
 		}
 
@@ -721,9 +702,8 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		p[2] = sp->lcp.magic >> 8;
 		p[3] = sp->lcp.magic;
 
-		if (debug & 8)
-			printf("%s: got lcp echo req, sending echo rep\n",
-			       pppoe->ifname);
+		PPPDEBUG(("%s: got lcp echo req, sending echo rep\n",
+			 pppoe->ifname));
 		sppp_cp_send(sp, PPP_LCP, ECHO_REPLY, h->ident, len-4, h+1);
 		break;
 	case ECHO_REPLY:
@@ -733,10 +713,9 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 			break;
 		}
 		if (len < 8) {
-			if (debug & 8)
-				printf("%s: lcp invalid echo reply "
-				       "packet length: %d bytes\n",
-				       pppoe->ifname, len);
+			PPPDEBUG(("%s: lcp invalid echo reply "
+				  "packet length: %d bytes\n",
+				 pppoe->ifname, len));
 			break;
 		}
 		if (debug & 8)
@@ -751,9 +730,8 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 	default:
 		/* Unknown packet type -- send Code-Reject packet. */
 	  illegal:
-		if (debug & 8)
-			printf("%s: %s send code-rej for 0x%x\n",
-			       pppoe->ifname, cp->name, h->type);
+		PPPDEBUG(("%s: %s send code-rej for 0x%x\n",
+			 pppoe->ifname, cp->name, h->type));
 		sppp_cp_send(sp, cp->proto, CODE_REJ, ++sp->pp_seq, len, h);
 	}
 }
@@ -797,11 +775,10 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 		if (sp->state[IDX_LCP] == STATE_OPENED)
 			sppp_cp_send(sp, PPP_LCP, PROTO_REJ,
 				     ++sp->pp_seq, 2, &ht.protocol);
-		if (debug & 8)
-			printf("%s: invalid input protocol "
-			       "<addr=0x%x ctrl=0x%x proto=0x%x>\n",
-			       pppoe->ifname,
-			       ht.address, ht.control, ntohs(ht.protocol));
+		PPPDEBUG(("%s: invalid input protocol "
+			  "<addr=0x%x ctrl=0x%x proto=0x%x>\n",
+			 pppoe->ifname,
+			 ht.address, ht.control, ntohs(ht.protocol)));
 		break;
 	}
 }
@@ -815,10 +792,9 @@ sppp_up_event(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: %s up(%s)\n",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]));
+	PPPDEBUG(("%s: %s up(%s)\n",
+		 pppoe->ifname, cp->name,
+		 sppp_state_name(sp->state[cp->protoidx])));
 
 	switch (sp->state[cp->protoidx]) {
 	case STATE_INITIAL:
@@ -842,10 +818,9 @@ sppp_down_event(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: %s down(%s)\n",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]));
+	PPPDEBUG(("%s: %s down(%s)\n",
+		 pppoe->ifname, cp->name,
+		 sppp_state_name(sp->state[cp->protoidx])));
 
 	switch (sp->state[cp->protoidx]) {
 	case STATE_CLOSED:
@@ -880,10 +855,9 @@ sppp_open_event(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: %s open(%s)\n",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]));
+	PPPDEBUG(("%s: %s open(%s)\n",
+		 pppoe->ifname, cp->name,
+		 sppp_state_name(sp->state[cp->protoidx])));
 
 	switch (sp->state[cp->protoidx]) {
 	case STATE_INITIAL:
@@ -916,10 +890,9 @@ sppp_close_event(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: %s close(%s)\n",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]));
+	PPPDEBUG(("%s: %s close(%s)\n",
+		 pppoe->ifname, cp->name,
+		 sppp_state_name(sp->state[cp->protoidx])));
 
 	switch (sp->state[cp->protoidx]) {
 	case STATE_INITIAL:
@@ -957,11 +930,10 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: %s TO(%s) rst_counter = %d\n",
-		       pppoe->ifname, cp->name,
-		       sppp_state_name(sp->state[cp->protoidx]),
-		       sp->rst_counter[cp->protoidx]);
+	PPPDEBUG(("%s: %s TO(%s) rst_counter = %d\n",
+		 pppoe->ifname, cp->name,
+		 sppp_state_name(sp->state[cp->protoidx]),
+		 sp->rst_counter[cp->protoidx]));
 
 	if (--sp->rst_counter[cp->protoidx] < 0) {
 		/* TO- event */
@@ -1077,8 +1049,7 @@ sppp_lcp_up(sppp_t *sp)
 	sp->pp_last_receive = sp->pp_last_activity = tv.tv_sec;
 
 	if (sp->state[IDX_LCP] == STATE_INITIAL) {
-		if (debug & 8)
-			printf("%s: UP event: incoming call\n", pppoe->ifname);
+		PPPDEBUG(("%s: UP event: incoming call\n", pppoe->ifname));
 		lcp.Open(sp);
 	}
 
@@ -1092,8 +1063,7 @@ sppp_lcp_down(sppp_t *sp)
 
 	sppp_down_event(&lcp, sp);
 
-	if (debug & 8)
-		printf("%s: Down event (carrier loss)\n", pppoe->ifname);
+	PPPDEBUG(("%s: Down event (carrier loss)\n", pppoe->ifname));
 
 	if (sp->state[IDX_LCP] != STATE_INITIAL)
 		lcp.Close(sp);
@@ -1149,8 +1119,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 	if (!buf)
 		return 0;
 
-	if (debug & 8)
-		printf("%s: lcp parse opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: lcp parse opts: ", pppoe->ifname));
 
 	/* pass 1: check for things that need to be rejected */
 	p = (void *) (h + 1);
@@ -1159,8 +1128,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			FREE(buf);
 			return -1;
 		}
-		if (debug & 8)
-			printf("%s ", sppp_lcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_lcp_opt_name(*p)));
 		switch (*p) {
 		case LCP_OPT_MAGIC:
 			/* Magic number. */
@@ -1169,32 +1137,27 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			/* Async control character map. */
 			if (len >= 6 && p[1] == 6)
 				continue;
-			if (debug & 8)
-				printf("[invalid] ");
+			PPPDEBUG(("[invalid] "));
 			break;
 		case LCP_OPT_MRU:
 			/* Maximum receive unit. */
 			if (len >= 4 && p[1] == 4)
 				continue;
-			if (debug & 8)
-				printf("[invalid] ");
+			PPPDEBUG(("[invalid] "));
 			break;
 		case LCP_OPT_AUTH_PROTO:
 			if (len < 4) {
-				if (debug & 8)
-					printf("[invalid] ");
+				PPPDEBUG(("[invalid] "));
 				break;
 			}
 			authproto = (p[2] << 8) + p[3];
 			if (authproto == PPP_CHAP && p[1] != 5) {
-				if (debug & 8)
-					printf("[invalid chap len] ");
+				PPPDEBUG(("[invalid chap len] "));
 				break;
 			}
 			if (sp->myauth.proto == 0) {
 				/* we are not configured to do auth */
-				if (debug & 8)
-					printf("[not configured] ");
+				PPPDEBUG(("[not configured] "));
 				break;
 			}
 			/*
@@ -1206,8 +1169,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			continue;
 		default:
 			/* Others not supported. */
-			if (debug & 8)
-				printf("[rej] ");
+			PPPDEBUG(("[rej] "));
 			break;
 		}
 		/* Add the option to rejected list. */
@@ -1216,8 +1178,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		rlen += p[1];
 	}
 	if (rlen) {
-		if (debug & 8)
-			printf(" send conf-rej\n");
+		PPPDEBUG((" send conf-rej\n"));
 		sppp_cp_send(sp, PPP_LCP, CONF_REJ, h->ident, rlen, buf);
 		goto end;
 	} else if (debug & 8)
@@ -1227,26 +1188,22 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 	 * pass 2: check for option values that are unacceptable and
 	 * thus require to be nak'ed.
 	 */
-	if (debug & 8)
-		printf("%s: lcp parse opt values: ", pppoe->ifname);
+	PPPDEBUG(("%s: lcp parse opt values: ", pppoe->ifname));
 
 	p = (void *) (h + 1);
 	len = origlen;
 	for (rlen=0; len>1 && p[1]; len-=p[1], p+=p[1]) {
-		if (debug & 8)
-			printf("%s ", sppp_lcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_lcp_opt_name(*p)));
 		switch (*p) {
 		case LCP_OPT_MAGIC:
 			/* Magic number -- extract. */
 			nmagic = (uint32_t)p[2] << 24 |
 				 (uint32_t)p[3] << 16 | p[4] << 8 | p[5];
 			if (nmagic != sp->lcp.magic) {
-				if (debug & 8)
-					printf("0x%.8x ", nmagic);
+				PPPDEBUG(("0x%.8x ", nmagic));
 				continue;
 			}
-			if (debug & 8)
-				printf("[glitch] ");
+			PPPDEBUG(("[glitch] "));
 			++sp->pp_loopcnt;
 			/*
 			 * We negate our magic here, and NAK it.  If
@@ -1264,12 +1221,10 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		case LCP_OPT_ASYNC_MAP:
 			/* Async control character map -- check to be zero. */
 			if (! p[2] && ! p[3] && ! p[4] && ! p[5]) {
-				if (debug & 8)
-					printf("[empty] ");
+				PPPDEBUG(("[empty] "));
 				continue;
 			}
-			if (debug & 8)
-				printf("[non-empty] ");
+			PPPDEBUG(("[non-empty] "));
 			/* suggest a zero one */
 			p[2] = p[3] = p[4] = p[5] = 0;
 			break;
@@ -1280,25 +1235,22 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			 * but ignored by now.
 			 */
 			sp->lcp.their_mru = p[2] * 256 + p[3];
-			if (debug & 8)
-				printf("%d ", sp->lcp.their_mru);
+			PPPDEBUG(("%d ", sp->lcp.their_mru));
 			continue;
 
 		case LCP_OPT_AUTH_PROTO:
 			authproto = (p[2] << 8) + p[3];
 			if (sp->myauth.proto != authproto) {
 				/* not agreed, nak */
-				if (debug & 8)
-					printf("[mine %s != his %s] ",
-					       sppp_proto_name(sp->hisauth.proto),
-					       sppp_proto_name(authproto));
+				PPPDEBUG(("[mine %s != his %s] ",
+					 sppp_proto_name(sp->hisauth.proto),
+					 sppp_proto_name(authproto)));
 				p[2] = sp->myauth.proto >> 8;
 				p[3] = sp->myauth.proto;
 				break;
 			}
 			if (authproto == PPP_CHAP && p[4] != CHAP_MD5) {
-				if (debug & 8)
-					printf("[chap not MD5] ");
+				PPPDEBUG(("[chap not MD5] "));
 				p[4] = CHAP_MD5;
 				break;
 			}
@@ -1311,20 +1263,17 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 	}
 	if (rlen) {
 		if (++sp->fail_counter[IDX_LCP] >= sp->lcp.max_failure) {
-			if (debug & 8)
-				printf(" max_failure (%d) exceeded, "
-				       "send conf-rej\n",
-				       sp->lcp.max_failure);
+			PPPDEBUG((" max_failure (%d) exceeded, "
+				  "send conf-rej\n",
+				 sp->lcp.max_failure));
 			sppp_cp_send(sp, PPP_LCP, CONF_REJ, h->ident, rlen, buf);
 		} else {
-			if (debug & 8)
-				printf(" send conf-nak\n");
+			PPPDEBUG((" send conf-nak\n"));
 			sppp_cp_send(sp, PPP_LCP, CONF_NAK, h->ident, rlen, buf);
 		}
 		goto end;
 	} else {
-		if (debug & 8)
-			printf("send conf-ack\n");
+		PPPDEBUG(("send conf-ack\n"));
 		sp->fail_counter[IDX_LCP] = 0;
 		sp->pp_loopcnt = 0;
 		sppp_cp_send(sp, PPP_LCP, CONF_ACK, h->ident, origlen, h+1);
@@ -1347,15 +1296,13 @@ sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 
 	len -= 4;
 
-	if (debug & 8)
-		printf("%s: lcp rej opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: lcp rej opts: ", pppoe->ifname));
 
 	p = (void *) (h + 1);
 	for (; len > 1; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len)
 			return;
-		if (debug & 8)
-			printf("%s ", sppp_lcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_lcp_opt_name(*p)));
 		switch (*p) {
 		case LCP_OPT_MAGIC:
 			/* Magic number -- can't use it, use 0 */
@@ -1378,20 +1325,17 @@ sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 			 */
 			if ((sp->pp_flags & PP_CALLIN) == 0 &&
 			    (sp->hisauth.flags & AUTHFLAG_NOCALLOUT) != 0) {
-				if (debug & 8)
-					printf("[don't insist on auth "
-					       "for callout]");
+				PPPDEBUG(("[don't insist on auth "
+					       "for callout]"));
 				sp->lcp.opts &= ~(1 << LCP_OPT_AUTH_PROTO);
 				break;
 			}
-			if (debug & 8)
-				printf("[access denied]\n");
+			PPPDEBUG(("[access denied]\n"));
 			lcp.Close(sp);
 			break;
 		}
 	}
-	if (debug & 8)
-		printf("\n");
+	PPPDEBUG(("\n"));
 }
 
 /*
@@ -1407,15 +1351,13 @@ sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 
 	len -= 4;
 
-	if (debug & 8)
-		printf("%s: lcp nak opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: lcp nak opts: ", pppoe->ifname));
 
 	p = (void *) (h + 1);
 	for (; len > 1; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len)
 			return;
-		if (debug & 8)
-			printf("%s ", sppp_lcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_lcp_opt_name(*p)));
 		switch (*p) {
 		case LCP_OPT_MAGIC:
 			/* Magic number -- renegotiate */
@@ -1429,13 +1371,11 @@ sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 				 * Suggest a new magic to make sure.
 				 */
 				if (magic == ~sp->lcp.magic) {
-					if (debug & 8)
-						printf("magic glitch ");
+					PPPDEBUG(("magic glitch "));
 					sp->lcp.magic = poor_prng(&pppoe->seed);
 				} else {
 					sp->lcp.magic = magic;
-					if (debug & 8)
-						printf("0x%.8x ", magic);
+					PPPDEBUG(("0x%.8x ", magic));
 				}
 			}
 			break;
@@ -1447,8 +1387,7 @@ sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			 */
 			if (len >= 4 && p[1] == 4) {
 				int mru = p[2] * 256 + p[3];
-				if (debug & 8)
-					printf("%d ", mru);
+				PPPDEBUG(("%d ", mru));
 				if (mru < PP_MIN_MRU)
 					mru = PP_MIN_MRU;
 				if (mru > PP_MAX_MRU)
@@ -1462,8 +1401,7 @@ sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			 * Peer doesn't like our authentication method,
 			 * deny.
 			 */
-			if (debug & 8)
-				printf("[access denied]\n");
+			PPPDEBUG(("[access denied]\n"));
 			lcp.Close(sp);
 			break;
 		}
@@ -1717,29 +1655,25 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		return 0;
 
 	/* pass 1: see if we can recognize them */
-	if (debug & 8)
-		printf("%s: ipcp parse opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipcp parse opts: ", pppoe->ifname));
 	p = (void *) (h + 1);
 	for (rlen = 0; len > 1; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len) {
 			FREE(buf);
 			return -1;
 		}
-		if (debug & 8)
-			printf("%s ", sppp_ipcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_ipcp_opt_name(*p)));
 		switch (*p) {
 		case IPCP_OPT_ADDRESS:
 			if (len >= 6 && p[1] == 6) {
 				/* correctly formed address option */
 				continue;
 			}
-			if (debug & 8)
-				printf("[invalid] ");
+			PPPDEBUG(("[invalid] "));
 			break;
 		default:
 			/* Others not supported. */
-			if (debug & 8)
-				printf("[rej] ");
+			PPPDEBUG(("[rej] "));
 			break;
 		}
 		/* Add the option to rejected list. */
@@ -1748,23 +1682,20 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		rlen += p[1];
 	}
 	if (rlen) {
-		if (debug & 8)
-			printf(" send conf-rej\n");
+		PPPDEBUG((" send conf-rej\n"));
 		sppp_cp_send(sp, PPP_IPCP, CONF_REJ, h->ident, rlen, buf);
 		goto end;
-	} else if (debug & 8)
-		printf("\n");
+	}
+	PPPDEBUG(("\n"));
 
 	/* pass 2: parse option values */
 	if (sp->ipcp.flags & IPCP_HISADDR_SEEN)
 		hisaddr = sp->ipcp.req_hisaddr; /* we already agreed on that */
-	if (debug & 8)
-		printf("%s: ipcp parse opt values: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipcp parse opt values: ", pppoe->ifname));
 	p = (void *) (h + 1);
 	len = origlen;
 	for (rlen=0; len>1 && p[1]; len-=p[1], p+=p[1]) {
-		if (debug & 8)
-			printf(" %s ", sppp_ipcp_opt_name(*p));
+		PPPDEBUG((" %s ", sppp_ipcp_opt_name(*p)));
 		switch (*p) {
 		case IPCP_OPT_ADDRESS:
 			desiredaddr = p[2] << 24 | p[3] << 16 |
@@ -1779,9 +1710,8 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 				 * this is agreeable.  Gonna conf-ack
 				 * it.
 				 */
-				if (debug & 8)
-					printf("%u.%u.%u.%u [ack] ",
-					       NIPQUAD(desiredaddr));
+				PPPDEBUG(("%u.%u.%u.%u [ack] ",
+					 NIPQUAD(desiredaddr)));
 				/* record that we've seen it already */
 				sp->ipcp.flags |= IPCP_HISADDR_SEEN;
 				sp->ipcp.req_hisaddr = desiredaddr;
@@ -1795,13 +1725,11 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			 * matching our value.  Either case, we gonna
 			 * conf-nak it with our value.
 			 */
-			if (debug & 8) {
-				if (desiredaddr == 0)
-					printf("[addr requested] ");
-				else
-					printf("%u.%u.%u.%u [not agreed] ",
-					       NIPQUAD(desiredaddr));
-			}
+			if (desiredaddr == 0)
+				PPPDEBUG(("[addr requested] "));
+			else
+				PPPDEBUG(("%u.%u.%u.%u [not agreed] ",
+					 NIPQUAD(desiredaddr)));
 
 			p[2] = hisaddr >> 24;
 			p[3] = hisaddr >> 16;
@@ -1833,17 +1761,14 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		buf[4] = hisaddr >> 8;
 		buf[5] = hisaddr;
 		rlen = 6;
-		if (debug & 8)
-			printf("still need hisaddr ");
+		PPPDEBUG(("still need hisaddr "));
 	}
 
 	if (rlen) {
-		if (debug & 8)
-			printf(" send conf-nak\n");
+		PPPDEBUG((" send conf-nak\n"));
 		sppp_cp_send(sp, PPP_IPCP, CONF_NAK, h->ident, rlen, buf);
 	} else {
-		if (debug & 8)
-			printf(" send conf-ack\n");
+		PPPDEBUG((" send conf-ack\n"));
 		sppp_cp_send(sp, PPP_IPCP, CONF_ACK, h->ident, origlen, h+1);
 	}
 
@@ -1864,15 +1789,13 @@ sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 
 	len -= 4;
 
-	if (debug & 8)
-		printf("%s: ipcp rej opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipcp rej opts: ", pppoe->ifname));
 
 	p = (void*) (h+1);
 	for (; len > 1; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len)
 			return;
-		if (debug & 8)
-			printf("%s ", sppp_ipcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_ipcp_opt_name(*p)));
 		switch (*p) {
 		case IPCP_OPT_ADDRESS:
 			/*
@@ -1889,8 +1812,7 @@ sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 			break;
 		}
 	}
-	if (debug & 8)
-		printf("\n");
+	PPPDEBUG(("\n"));
 }
 
 /*
@@ -1906,15 +1828,13 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 
 	len -= 4;
 
-	if (debug & 8)
-		printf("%s: ipcp nak opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipcp nak opts: ", pppoe->ifname));
 
 	p = (void *) (h + 1);
 	for (; len > 1; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len)
 			return;
-		if (debug & 8)
-			printf("%s ", sppp_ipcp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_ipcp_opt_name(*p)));
 		switch (*p) {
 		case IPCP_OPT_ADDRESS:
 			/*
@@ -1925,8 +1845,7 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			if (len >= 6 && p[1] == 6) {
 				wantaddr = p[2] << 24 | p[3] << 16 | p[4] << 8 | p[5];
 				sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_ADDRESS);
-				if (debug & 8)
-					printf("[wantaddr %u.%u.%u.%u] ", NIPQUAD(wantaddr));
+				PPPDEBUG(("[wantaddr %u.%u.%u.%u] ", NIPQUAD(wantaddr)));
 				/*
 				 * When doing dynamic address assignment,
 				 * we accept his offer.  Otherwise, we
@@ -1934,8 +1853,7 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 				 * our already existing value.
 				 */
 				if (sp->ipcp.flags & IPCP_MYADDR_DYN) {
-					if (debug & 8)
-						printf("[agree] ");
+					PPPDEBUG(("[agree] "));
 					sp->ipcp.flags |= IPCP_MYADDR_SEEN;
 					sp->ipcp.req_myaddr = wantaddr;
 				}
@@ -1951,8 +1869,7 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			break;
 		}
 	}
-	if (debug & 8)
-		printf("\n");
+	PPPDEBUG(("\n"));
 }
 
 void
@@ -2126,8 +2043,7 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		return (0);
 
 	/* pass 1: see if we can recognize them */
-	if (debug & 8)
-		printf("%s: ipv6cp parse opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipv6cp parse opts: ", pppoe->ifname));
 	p = (void *) (h + 1);
 	ifidcount = 0;
 	for (rlen=0; len>1 && p[1]; len-=p[1], p+=p[1]) {
@@ -2136,8 +2052,7 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			FREE(buf);
 			return -1;
 		}
-		if (debug & 8)
-			printf("%s ", sppp_ipv6cp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_ipv6cp_opt_name(*p)));
 		switch (*p) {
 		case IPV6CP_OPT_IFID:
 			if (len >= 10 && p[1] == 10 && ifidcount == 0) {
@@ -2145,13 +2060,11 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 				ifidcount++;
 				continue;
 			}
-			if (debug & 8)
-				printf("[invalid] ");
+			PPPDEBUG(("[invalid] "));
 			break;
 		default:
 			/* Others not supported. */
-			if (debug & 8)
-				printf("[rej] ");
+			PPPDEBUG(("[rej] "));
 			break;
 		}
 		/* Add the option to rejected list. */
@@ -2160,24 +2073,21 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		rlen += p[1];
 	}
 	if (rlen) {
-		if (debug & 8)
-			printf("send conf-rej\n");
+		PPPDEBUG(("send conf-rej\n"));
 		sppp_cp_send(sp, PPP_IPV6CP, CONF_REJ, h->ident, rlen, buf);
 		goto end;
-	} else if (debug & 8)
-		printf("\n");
+	}
+	PPPDEBUG(("\n"));
 
 	/* pass 2: parse option values */
 	if (sp->ipv6cp.flags & IPV6CP_MYIFID_DYN)
 		myaddr = sp->ipv6cp.req_ifid;
-	if (debug & 8)
-		printf("%s: ipv6cp parse opt values: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipv6cp parse opt values: ", pppoe->ifname));
 	p = (void *) (h + 1);
 	len = origlen;
 	type = CONF_ACK;
 	for (rlen=0; len>1 && p[1]; len-=p[1], p+=p[1]) {
-		if (debug & 8)
-			printf(" %s", sppp_ipv6cp_opt_name(*p));
+		PPPDEBUG((" %s", sppp_ipv6cp_opt_name(*p)));
 		switch (*p) {
 		case IPV6CP_OPT_IFID:
 			memset(&desiredaddr, 0, sizeof(desiredaddr));
@@ -2192,12 +2102,10 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 				/* no collision, hisaddr known - Conf-Ack */
 				type = CONF_ACK;
 
-				if (debug & 8) {
-					printf(" %s [%s]",
-					       inet_ntop(AF_INET6, &desiredaddr,
-					       addr, sizeof(addr)),
-					       sppp_cp_type_name(type));
-				}
+				PPPDEBUG((" %s [%s]",
+					 inet_ntop(AF_INET6, &desiredaddr,
+					 addr, sizeof(addr)),
+					 sppp_cp_type_name(type)));
 				continue;
 			}
 
@@ -2216,10 +2124,9 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 				//sppp_suggest_ip6_addr(sp, &suggestaddr);
 				bcopy(&suggestaddr.s6_addr[8], &p[2], 8);
 			}
-			if (debug & 8)
-				printf(" %s [%s]",
-				       inet_ntop(AF_INET6, &desiredaddr, addr, sizeof(addr)),
-				       sppp_cp_type_name(type));
+			PPPDEBUG((" %s [%s]",
+				 inet_ntop(AF_INET6, &desiredaddr, addr, sizeof(addr)),
+				 sppp_cp_type_name(type)));
 			break;
 		}
 		/* Add the option to nak'ed list. */
@@ -2229,13 +2136,11 @@ sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 	}
 
 	if (rlen == 0 && type == CONF_ACK) {
-		if (debug & 8)
-			printf(" send %s\n", sppp_cp_type_name(type));
+		PPPDEBUG((" send %s\n", sppp_cp_type_name(type)));
 		sppp_cp_send(sp, PPP_IPV6CP, type, h->ident, origlen, h + 1);
 	} else {
-		if (debug & 8)
-			printf(" send %s suggest %s\n", sppp_cp_type_name(type),
-			       inet_ntop(AF_INET6, &suggestaddr, addr, sizeof(addr)));
+		PPPDEBUG((" send %s suggest %s\n", sppp_cp_type_name(type),
+			 inet_ntop(AF_INET6, &suggestaddr, addr, sizeof(addr))));
 		sppp_cp_send(sp, PPP_IPV6CP, type, h->ident, rlen, buf);
 	}
 
@@ -2252,15 +2157,13 @@ sppp_ipv6cp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 
 	len -= 4;
 
-	if (debug & 8)
-		printf("%s: ipv6cp rej opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipv6cp rej opts: ", pppoe->ifname));
 
 	p = (void *) (h + 1);
 	for (; len > 1 && p[1]; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len)
 			return;
-		if (debug & 8)
-			printf("%s ", sppp_ipv6cp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_ipv6cp_opt_name(*p)));
 		switch (*p) {
 		case IPV6CP_OPT_IFID:
 			/*
@@ -2271,8 +2174,7 @@ sppp_ipv6cp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 			break;
 		}
 	}
-	if (debug & 8)
-		printf("\n");
+	PPPDEBUG(("\n"));
 	return;
 }
 
@@ -2286,15 +2188,13 @@ sppp_ipv6cp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 
 	len -= 4;
 
-	if (debug)
-		printf("%s: ipv6cp nak opts: ", pppoe->ifname);
+	PPPDEBUG(("%s: ipv6cp nak opts: ", pppoe->ifname));
 
 	p = (void *) (h + 1);
 	for (; len > 1; len -= p[1], p += p[1]) {
 		if (p[1] < 2 || p[1] > len)
 			return;
-		if (debug & 8)
-			printf("%s ", sppp_ipv6cp_opt_name(*p));
+		PPPDEBUG(("%s ", sppp_ipv6cp_opt_name(*p)));
 		switch (*p) {
 		case IPV6CP_OPT_IFID:
 			/*
@@ -2320,19 +2220,15 @@ sppp_ipv6cp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 				/* Configure address suggested by peer. */
 				suggestaddr.s6_addr16[0] = htons(0xfe80);
 				sp->ipv6cp.opts |= (1 << IPV6CP_OPT_IFID);
-				if (debug & 8)
-					printf(" [suggestaddr %s]",
-					       inet_ntop(AF_INET6, &suggestaddr,
-							 addr, sizeof(addr)));
-				if (debug & 8)
-					printf(" [agree]");
+				PPPDEBUG((" [suggestaddr %s] [agree]",
+					 inet_ntop(AF_INET6, &suggestaddr,
+						   addr, sizeof(addr))));
 				sp->ipv6cp.flags |= IPV6CP_MYIFID_SEEN;
 			}
 			break;
 		}
 	}
-	if (debug & 8)
-		printf("\n");
+	PPPDEBUG(("\n"));
 }
 
 void
@@ -2447,15 +2343,13 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 	lh->len = htons(LCP_HEADER_LEN + len);
 	ph->plen = htons(LCP_HEADER_LEN + len + 2);
 
-	if (debug & 8) {
-		printf("%s: %s output <%s id=0x%x len=%d",
-		       pppoe->ifname, cp->name,
-		       sppp_auth_type_name(cp->proto, lh->type),
-		       lh->ident, ntohs(lh->len));
-		if (len)
-			sppp_print_bytes((uint8_t *) (lh + 1), len);
-		printf(">\n");
-	}
+	PPPDEBUG(("%s: %s output <%s id=0x%x len=%d",
+		 pppoe->ifname, cp->name,
+		 sppp_auth_type_name(cp->proto, lh->type),
+		 lh->ident, ntohs(lh->len)));
+	if (debug & 8 && len)
+		sppp_print_bytes((uint8_t *) (lh + 1), len);
+	PPPDEBUG((">\n"));
 
 	/* send pkt */
 	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
@@ -2476,9 +2370,8 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 	int name_len, passwd_len;
 
 	if (len < 5) {
-		if (debug & 8)
-			printf("%s: pap invalid packet length: %d bytes\n",
-			       pppoe->ifname, len);
+		PPPDEBUG(("%s: pap invalid packet length: %d bytes\n",
+			 pppoe->ifname, len));
 		return;
 	}
 
@@ -2493,28 +2386,28 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		passwd = name + name_len + 1;
 		if (name_len > len - 6 ||
 		    (passwd_len = passwd[-1]) > len - 6 - name_len) {
-			if (debug & 8) {
-				printf("%s: pap corrupted input <%s id=0x%x len=%d",
-				       pppoe->ifname,
-				       sppp_auth_type_name(PPP_PAP, h->type),
-				       h->ident, ntohs(h->len));
-				if (len > 4)
-					sppp_print_bytes((uint8_t *) (h + 1), len - 4);
-				printf(">\n");
-			}
+			PPPDEBUG(("%s: pap corrupted input <%s id=0x%x len=%d",
+				 pppoe->ifname,
+				 sppp_auth_type_name(PPP_PAP, h->type),
+				 h->ident, ntohs(h->len)));
+			if (debug & 8 && len > 4)
+				sppp_print_bytes((uint8_t *) (h + 1), len - 4);
+			PPPDEBUG((">\n"));
 			break;
 		}
-		if (debug & 8) {
-			printf("%s: pap input(%s) <%s id=0x%x len=%d name=",
-			       pppoe->ifname,
-			       sppp_state_name(sp->state[IDX_PAP]),
-			       sppp_auth_type_name(PPP_PAP, h->type),
-			       h->ident, ntohs(h->len));
+
+		PPPDEBUG(("%s: pap input(%s) <%s id=0x%x len=%d name=",
+		       pppoe->ifname,
+		       sppp_state_name(sp->state[IDX_PAP]),
+		       sppp_auth_type_name(PPP_PAP, h->type),
+		       h->ident, ntohs(h->len)));
+		if (debug & 8)
 			sppp_print_string((char*)name, name_len);
-			printf(" passwd=");
+		PPPDEBUG((" passwd="));
+		if (debug & 8)
 			sppp_print_string((char*)passwd, passwd_len);
-			printf(">\n");
-		}
+		PPPDEBUG((">\n"));
+
 		if (name_len > AUTHMAXLEN ||
 		    passwd_len > AUTHMAXLEN ||
 		    bcmp(name, sp->hisauth.name, name_len) != 0 ||
@@ -2547,13 +2440,14 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 	case PAP_ACK:
 		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
 		if (debug & 8) {
-			printf("%s: pap success", pppoe->ifname);
+			PPPDEBUG(("%s: pap success", pppoe->ifname));
 			name_len = *((char *)h);
 			if (len > 5 && name_len) {
-				printf(": ");
-				sppp_print_string((char *)(h + 1), name_len);
+				PPPDEBUG((": "));
+				if (debug & 8)
+					sppp_print_string((char *)(h + 1), name_len);
 			}
-			printf("\n");
+			PPPDEBUG(("\n"));
 		}
 		sp->pp_flags &= ~PP_NEEDAUTH;
 		if (sp->myauth.proto == PPP_PAP &&
@@ -2572,13 +2466,14 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 	case PAP_NAK:
 		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
 		if (debug & 8) {
-			printf("%s: pap failure", pppoe->ifname);
+			PPPDEBUG(("%s: pap failure", pppoe->ifname));
 			name_len = *((char *)h);
 			if (len > 5 && name_len) {
-				printf(": ");
-				sppp_print_string((char*)(h + 1), name_len);
+				PPPDEBUG((": "));
+				if (debug & 8)
+					sppp_print_string((char*)(h + 1), name_len);
 			}
-			printf("\n");
+			PPPDEBUG(("\n"));
 		} else
 			log_message(LOG_INFO, "%s: pap failure\n", pppoe->ifname);
 		/* await LCP shutdown by authenticator */
@@ -2586,14 +2481,11 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 
 	default:
 		/* Unknown PAP packet type -- ignore. */
-		if (debug & 8) {
-			printf("%s: pap corrupted input <0x%x id=0x%x len=%d",
-			       pppoe->ifname,
-			       h->type, h->ident, ntohs(h->len));
-			if (len > 4)
-				sppp_print_bytes((uint8_t *)(h + 1), len - 4);
-			printf(">\n");
-		}
+		PPPDEBUG(("%s: pap corrupted input <0x%x id=0x%x len=%d",
+			 pppoe->ifname, h->type, h->ident, ntohs(h->len)));
+		if (debug & 8 && len > 4)
+			sppp_print_bytes((uint8_t *)(h + 1), len - 4);
+		PPPDEBUG((">\n"));
 		break;
 
 	}
@@ -2642,11 +2534,10 @@ sppp_pap_TO(void *cookie)
 	sppp_t *sp = (sppp_t *)cookie;
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: pap TO(%s) rst_counter = %d\n",
-		       pppoe->ifname,
-		       sppp_state_name(sp->state[IDX_PAP]),
-		       sp->rst_counter[IDX_PAP]);
+	PPPDEBUG(("%s: pap TO(%s) rst_counter = %d\n",
+		 pppoe->ifname,
+		 sppp_state_name(sp->state[IDX_PAP]),
+		 sp->rst_counter[IDX_PAP]));
 
 	if (--sp->rst_counter[IDX_PAP] < 0) {
 		/* TO- event */
@@ -2680,8 +2571,7 @@ sppp_pap_my_TO(void *cookie)
 	sppp_t *sp = (sppp_t *)cookie;
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: pap peer TO\n", pppoe->ifname);
+	PPPDEBUG(("%s: pap peer TO\n", pppoe->ifname));
 	pap.scr(sp);
 	return 0;
 }
@@ -2693,8 +2583,7 @@ sppp_pap_tlu(sppp_t *sp)
 
 	sp->rst_counter[IDX_PAP] = sp->lcp.max_configure;
 
-	if (debug & 8)
-		printf("%s: %s tlu\n", pppoe->ifname, pap.name);
+	PPPDEBUG(("%s: %s tlu\n", pppoe->ifname, pap.name));
 
 	/* indicate to LCP that we need to be closed down */
 	sp->lcp.protos |= (1 << IDX_PAP);
@@ -2715,8 +2604,7 @@ sppp_pap_tld(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8)
-		printf("%s: pap tld\n", pppoe->ifname);
+	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
 	timer_node_del(&pppoe->ppp_timer, &sp->ch[IDX_PAP]);
 	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
 	sp->lcp.protos &= ~(1 << IDX_PAP);
