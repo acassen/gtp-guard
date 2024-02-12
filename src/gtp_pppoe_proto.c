@@ -229,11 +229,11 @@ pppoe_connect(spppoe_t *s)
 int
 pppoe_abort_connect(spppoe_t *s)
 {
-	/* TODO: timer_node_expire_now() on pppoe session */
+	PPPDEBUG(("%s: pppoe could not establish connection\n", pppoe->ifname));
+	s->state = PPPOE_STATE_CLOSING;
 
-	/* TODO: Add support to session release and generate GTP-C delete-beare reflection ! */
-
-	/* TODO: Notify ppp upper layer */
+	/* Notify ppp upper layer */
+	sppp_down(s);
 	return 0;
 }
 
@@ -242,19 +242,19 @@ pppoe_disconnect(spppoe_t *s)
 {
 	int ret;
 
-	ret = pppoe_send_padt(s);
-	if (ret < 0) {
-		log_message(LOG_INFO, "%s(): Error sending padt (%m)"
-				    , __FUNCTION__);
-		return -1;
+	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", pppoe->ifname, s->unique));
+
+	if (s->state >= PPPOE_STATE_SESSION) {
+		ret = pppoe_send_padt(s);
+		if (ret < 0) {
+			log_message(LOG_INFO, "%s(): Error sending padt (%m)"
+					, __FUNCTION__);
+			return -1;
+		}
 	}
 
-	/* Expire entry and PPP related */
+	/* Notify ppp upper layer */
 	sppp_down(s);
-
-	/* TODO: Add support to session release and generate GTP-C delete-beare reflection ! */
-
-	/* TODO: Notify ppp upper layer */
 	return 0;
 }
 
