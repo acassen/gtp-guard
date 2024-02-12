@@ -118,13 +118,22 @@ struct gtp_mirror_rule {
 struct ip_rt_key {
 	__u32		id;
 	__u32		addr;
-};
+} __attribute__ ((__aligned__(8)));
+
+struct ip_ppp_key {
+	__u8	hw[6];
+	__u16	session_id;
+} __attribute__ ((__aligned__(8)));
 
 struct gtp_rt_rule {
+	__u8	h_src[6];
+	__u8	h_dst[6];
+	__u16	session_id;
 	__be32  teid;
 	__be32  saddr;
 	__be32  daddr;
 	__be32  dst_key;
+	__u8	ifindex;
 
 	/* Some stats */
 	__u64   packets;

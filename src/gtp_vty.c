@@ -95,6 +95,48 @@ DEFUN(pdn_nameserver,
         return CMD_SUCCESS;
 }
 
+static int
+gtp_bpf_opts_prepare(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
+		     int (*bpf_load) (gtp_bpf_opts_t *))
+{
+	int ret, ifindex;
+
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return -1;
+	}
+
+	strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
+	ifindex = if_nametoindex(argv[1]);
+	if (argc == 3)
+		strlcpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
+	if (!ifindex) {
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
+			   , argv[1]
+			   , VTY_NEWLINE);
+		return -1;
+	}
+	opts->ifindex = ifindex;
+	opts->vty = vty;
+
+	ret = (*bpf_load) (opts);
+	if (ret < 0) {
+		vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
+			   , opts->filename
+			   , opts->ifindex
+			   , VTY_NEWLINE);
+		/* Reset data */
+		memset(opts, 0, sizeof(gtp_bpf_opts_t));
+		return -1;
+	}
+
+        vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
+                   , opts->filename
+		   , opts->ifindex
+                   , VTY_NEWLINE);
+	return 0;
+}
+
 DEFUN(pdn_xdp_gtp_route,
       pdn_xdp_gtp_route_cmd,
       "xdp-gtp-route STRING interface STRING [xdp-prog STRING]",
@@ -105,44 +147,21 @@ DEFUN(pdn_xdp_gtp_route,
       "XDP Program Name"
       "Name")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_route;
-        int ret, ifindex;
+        int ret;
 
-        if (argc < 2) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
-
-	strncpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
-	ifindex = if_nametoindex(argv[1]);
-	if (argc == 3)
-		strncpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
-	if (!ifindex) {
-		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[1]
+	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% GTP-ROUTE XDP program already loaded.%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	opts->ifindex = ifindex;
-	opts->vty = vty;
 
-        ret = gtp_xdp_rt_load(opts);
-        if (ret < 0) {
-                vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
-                           , opts->filename
-                           , opts->ifindex
-                           , VTY_NEWLINE);
-                /* Reset data */
-		memset(opts, 0, sizeof(gtp_bpf_opts_t));
-                return CMD_WARNING;
-        }
+	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_gtp_route, vty, argc, argv,
+				   gtp_xdp_rt_load);
+	if (ret < 0)
+		return CMD_WARNING;
 
-        vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
-                   , opts->filename
-		   , opts->ifindex
-                   , VTY_NEWLINE);
 	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(no_pdn_xdp_gtp_route,
@@ -152,11 +171,11 @@ DEFUN(no_pdn_xdp_gtp_route,
 {
 	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_route;
 
-        if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-                vty_out(vty, "%% No GTP-ROUTE XDP program is currently configured. Ignoring%s"
-                           , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No GTP-ROUTE XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
         gtp_xdp_rt_unload(opts);
 
@@ -180,44 +199,21 @@ DEFUN(pdn_xdp_gtpu,
       "XDP Program Name"
       "Name")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
-        int ret, ifindex;
+	int ret;
 
-        if (argc < 2) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
-
-	strncpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
-	ifindex = if_nametoindex(argv[1]);
-	if (argc == 3)
-		strncpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
-	if (!ifindex) {
-		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[1]
+	if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% GTP-U XDP program already loaded.%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	opts->ifindex = ifindex;
-	opts->vty = vty;
 
-        ret = gtp_xdp_fwd_load(opts);
-        if (ret < 0) {
-                vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
-                           , opts->filename
-                           , opts->ifindex
-                           , VTY_NEWLINE);
-                /* Reset data */
-		memset(opts, 0, sizeof(gtp_bpf_opts_t));
-                return CMD_WARNING;
-        }
+	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_gtpu, vty, argc, argv,
+				   gtp_xdp_fwd_load);
+	if (ret < 0)
+		return CMD_WARNING;
 
-        vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
-                   , opts->filename
-		   , opts->ifindex
-                   , VTY_NEWLINE);
 	__set_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags);
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(no_pdn_xdp_gtpu,
@@ -227,11 +223,11 @@ DEFUN(no_pdn_xdp_gtpu,
 {
 	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
 
-        if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-                vty_out(vty, "%% No GTP-U XDP program is currently configured. Ignoring%s"
-                           , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No GTP-U XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
         gtp_xdp_fwd_unload(opts);
 
@@ -255,42 +251,19 @@ DEFUN(pdn_xdp_mirror,
       "XDP Program Name"
       "Name")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_mirror;
-	int ret, ifindex;
+	int ret;
 
-	if (argc < 2) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	strncpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
-	ifindex = if_nametoindex(argv[1]);
-	if (argc == 3)
-		strncpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
-	if (!ifindex) {
-		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[1]
+	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% Mirroring XDP program already loaded.%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	opts->ifindex = ifindex;
-	opts->vty = vty;
 
-	ret = gtp_xdp_mirror_load(opts);
-	if (ret < 0) {
-		vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
-			   , opts->filename
-			   , opts->ifindex
-			   , VTY_NEWLINE);
-		/* Reset data */
-		memset(opts, 0, sizeof(gtp_bpf_opts_t));
+	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_mirror, vty, argc, argv,
+				   gtp_xdp_mirror_load);
+	if (ret < 0)
 		return CMD_WARNING;
-	}
 
-	vty_out(vty, "Success loading eBPF program:%s on ifindex:%d Qdisc%s"
-		   , opts->filename
-		   , opts->ifindex
-		   , VTY_NEWLINE);
 	__set_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
@@ -317,6 +290,58 @@ DEFUN(no_pdn_xdp_mirror,
                    , opts->filename
                    , VTY_NEWLINE);
 	__clear_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags);
+        return CMD_SUCCESS;
+}
+
+DEFUN(pdn_xdp_ppp_ingress,
+      pdn_xdp_ppp_ingress_cmd,
+      "xdp-ppp-ingress STRING interface STRING [xdp-prog STRING]",
+      "PPP Ingress XDP program\n"
+      "path to BPF file\n"
+      "Interface name\n"
+      "Name"
+      "XDP Program Name"
+      "Name")
+{
+	int ret;
+
+	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% PPP Ingress XDP programalready loaded.%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_ppp_ingress, vty, argc, argv,
+				   gtp_xdp_rt_load);
+	if (ret < 0)
+		return CMD_WARNING;
+
+	__set_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pdn_ppp_ingress,
+      no_pdn_xdp_ppp_ingress_cmd,
+      "no xdp-ppp-ingress",
+      "PPP Ingress XDP program\n")
+{
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_ppp_ingress;
+
+	if (!__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No PPP Ingress XDP program is currently configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+        gtp_xdp_mirror_unload(opts);
+
+        /* Reset data */
+	memset(opts, 0, sizeof(gtp_bpf_opts_t));
+
+        vty_out(vty, "Success unloading eBPF program:%s%s"
+                   , opts->filename
+                   , VTY_NEWLINE);
+	__clear_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags);
         return CMD_SUCCESS;
 }
 
@@ -371,7 +396,6 @@ pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 
 	return CMD_SUCCESS;
 }
-
 
 DEFUN(pdn_mirror,
       pdn_mirror_cmd,
@@ -861,6 +885,7 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &no_pdn_xdp_gtpu_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_mirror_cmd);
+	install_element(PDN_NODE, &pdn_xdp_ppp_ingress_cmd);
 	install_element(PDN_NODE, &pdn_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_mirror_cmd);
 	install_element(PDN_NODE, &restart_counter_file_cmd);

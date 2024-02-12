@@ -25,6 +25,8 @@
 enum {
 	XDP_RT_MAP_TEID_INGRESS = 0,
 	XDP_RT_MAP_TEID_EGRESS,
+	XDP_RT_MAP_PPP_INGRESS,
+	XDP_RT_MAP_PPP_EGRESS,
 	XDP_RT_MAP_IPTNL,
 	XDP_RT_MAP_CNT
 };
@@ -33,15 +35,24 @@ enum {
 #define GTP_RT_FL_PPP		(1 << 1)
 
 struct ip_rt_key {
-	__u32		id;
-	__u32		addr;
-};
+	__u32	id;
+	__u32	addr;
+} __attribute__ ((__aligned__(8)));
+
+struct ip_ppp_key {
+	__u8	hw[6];
+	__u16	session_id;
+} __attribute__ ((__aligned__(8)));
 
 struct gtp_rt_rule {
+	__u8	h_src[6];
+	__u8	h_dst[6];
+	__u16	session_id;
 	__be32	teid;
 	__be32	saddr;
 	__be32	daddr;
 	__be32	dst_key;
+	__u8	ifindex;
 
 	/* Some stats */
 	__u64	packets;
@@ -49,6 +60,7 @@ struct gtp_rt_rule {
 
 	__u8	flags;
 } __attribute__ ((__aligned__(8)));
+
 
 /* Prototypes */
 extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);

@@ -493,25 +493,21 @@ gtp_config_write(vty_t *vty)
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-tunnel-endpoint %s port %d"
 				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
-				   );
+				   , ntohs(inet_sockaddrport(&srv->addr)));
 			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
 				vty_out(vty, " listener-count %d"
-				   , srv->thread_cnt
-				   );
+					   , srv->thread_cnt);
 			vty_out(vty, "%s" , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpu;
 		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
 			vty_out(vty, " gtpu-tunnel-endpoint %s port %d"
 				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
-				   );
+				   , ntohs(inet_sockaddrport(&srv->addr)));
 			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
 				vty_out(vty, " listener-count %d"
-				   , srv->thread_cnt
-				   );
-			vty_out(vty, "%s" , VTY_NEWLINE);
+					   , srv->thread_cnt);
+			vty_out(vty, "%s", VTY_NEWLINE);
 		}
 		if (__test_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags))
 			vty_out(vty, " pgw-force-selection %s%s"

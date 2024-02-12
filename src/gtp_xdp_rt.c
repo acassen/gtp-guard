@@ -73,6 +73,20 @@ gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
 	}
 	xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
 
+	map = gtp_bpf_load_map(opts->bpf_obj, "ppp_ingress");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
+
+	map = gtp_bpf_load_map(opts->bpf_obj, "ppp_egress");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map = map;
+
 	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
 	if (!map) {
 		gtp_xdp_unload(opts);

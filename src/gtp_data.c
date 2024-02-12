@@ -155,6 +155,10 @@ free_daemon_data(void)
 		gtp_xdp_fwd_unload(&daemon_data->xdp_gtpu);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_mirror_unload(&daemon_data->xdp_mirror);
+	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+		gtp_xdp_rt_unload(&daemon_data->xdp_gtp_route);
+	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
+		gtp_xdp_rt_unload(&daemon_data->xdp_ppp_ingress);
 	gtp_mirror_destroy();
 	gtp_vrf_destroy();
 	gtp_pppoe_destroy();

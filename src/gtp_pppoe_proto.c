@@ -263,7 +263,7 @@ pppoe_timeout(void *arg)
 {
 	spppoe_t *s = (spppoe_t *) arg;
 	gtp_pppoe_t *pppoe = s->pppoe;
-	int retry_wait = 1;
+	int retry_wait = 2;
 
 	PPPDEBUG(("%s: pppoe hunique:0x%.8x\n", pppoe->ifname, s->unique));
 

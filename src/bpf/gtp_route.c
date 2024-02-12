@@ -44,7 +44,7 @@
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__uint(max_entries, 1000000);
+	__uint(max_entries, 10000000);
 	__type(key, struct ip_rt_key);			/* TEID */
 	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
 } teid_egress SEC(".maps");
@@ -52,10 +52,26 @@ struct {
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__uint(max_entries, 1000000);
+	__uint(max_entries, 10000000);
+	__type(key, struct ip_rt_key);			/* TEID */
+	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
+} ppp_egress SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(max_entries, 10000000);
 	__type(key, struct ip_rt_key);			/* ipaddr + tunnelid */
 	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
 } teid_ingress SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(max_entries, 10000000);
+	__type(key, struct ip_ppp_key);			/* hw + sessionid */
+	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
+} ppp_ingress SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
