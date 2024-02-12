@@ -96,7 +96,7 @@ DEFUN(pdn_nameserver,
 }
 
 static int
-gtp_bpf_opts_prepare(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
+gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
 		     int (*bpf_load) (gtp_bpf_opts_t *))
 {
 	int ret, ifindex;
@@ -155,8 +155,8 @@ DEFUN(pdn_xdp_gtp_route,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_gtp_route, vty, argc, argv,
-				   gtp_xdp_rt_load);
+	ret = gtp_bpf_opts_load(&daemon_data->xdp_gtp_route, vty, argc, argv,
+				gtp_xdp_rt_load);
 	if (ret < 0)
 		return CMD_WARNING;
 
@@ -207,8 +207,8 @@ DEFUN(pdn_xdp_gtpu,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_gtpu, vty, argc, argv,
-				   gtp_xdp_fwd_load);
+	ret = gtp_bpf_opts_load(&daemon_data->xdp_gtpu, vty, argc, argv,
+				gtp_xdp_fwd_load);
 	if (ret < 0)
 		return CMD_WARNING;
 
@@ -259,8 +259,8 @@ DEFUN(pdn_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_mirror, vty, argc, argv,
-				   gtp_xdp_mirror_load);
+	ret = gtp_bpf_opts_load(&daemon_data->xdp_mirror, vty, argc, argv,
+				gtp_xdp_mirror_load);
 	if (ret < 0)
 		return CMD_WARNING;
 
@@ -306,13 +306,13 @@ DEFUN(pdn_xdp_ppp_ingress,
 	int ret;
 
 	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% PPP Ingress XDP programalready loaded.%s"
+		vty_out(vty, "%% PPP Ingress XDP program already loaded.%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_prepare(&daemon_data->xdp_ppp_ingress, vty, argc, argv,
-				   gtp_xdp_rt_load);
+	ret = gtp_bpf_opts_load(&daemon_data->xdp_ppp_ingress, vty, argc, argv,
+				gtp_xdp_rt_load);
 	if (ret < 0)
 		return CMD_WARNING;
 

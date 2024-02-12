@@ -415,9 +415,9 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	gtp_pppoe_worker_destroy(pppoe);
 	gtp_ppp_destroy(pppoe);
 	gtp_pppoe_timer_destroy(pppoe);
-	pthread_cancel(pppoe->task);
 	pthread_join(pppoe->task, NULL);
 	close(pppoe->fd_disc);
+	close(pppoe->fd_session);
 	list_head_del(&pppoe->next);
 	gtp_htab_destroy(&pppoe->session_tab);
 	gtp_htab_destroy(&pppoe->unique_tab);

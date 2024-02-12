@@ -479,11 +479,6 @@ DEFUN(ip_vrf_pppoe_padi_fast_retry,
 	ip_vrf_t *vrf = vty->index;
 	gtp_pppoe_t *pppoe = vrf->pppoe;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	if (!pppoe) {
 		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
 		return CMD_WARNING;
