@@ -519,7 +519,7 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
-	int offset = 0, tot_len = 0;
+	int offset = 0;
 	struct ip_frag_key frag_key;
 	struct gtp_teid_frag *gtpf = NULL;
 	struct gtp_teid_frag frag;
@@ -535,7 +535,6 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	if (iph->protocol == IPPROTO_IPIP)
 		return gtpu_ipip_traffic_selector(pkt);
 
-	tot_len = bpf_ntohs(iph->tot_len);
 	offset += pkt->l3_offset;
 	if (iph->protocol != IPPROTO_UDP)
 		return XDP_PASS;
