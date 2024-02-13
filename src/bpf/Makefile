@@ -26,7 +26,7 @@ TARGETS := gtp_fwd.bpf gtp_route.bpf gtp_mirror.bpf
 #  make samples/bpf/ LLC=~/git/llvm/build/bin/llc CLANG=~/git/llvm/build/bin/clang
 LLC ?= llc
 CLANG ?= clang
-CFLAGS := -g -O2 -Wall
+CFLAGS := -g -O2 -Wall -Werror
 
 # Include for BPF are pointing to libbpf
 LIBBPF = ../../libbpf
@@ -64,7 +64,7 @@ verify_target_bpf: verify_cmds
 # useless for BPF samples.
 $(TARGETS): %.bpf: %.c
 	@echo "  CLANG-bpf" $@
-	@$(CLANG) -S $(NOSTDINC_FLAGS) $(LINUXINCLUDE) \
+	@$(CLANG) $(CFLAGS) -S $(NOSTDINC_FLAGS) $(LINUXINCLUDE) \
 	    -D__KERNEL__ -D__ASM_SYSREG_H \
 	    -D__BPF_TRACING__ \
 	    -Wall \
