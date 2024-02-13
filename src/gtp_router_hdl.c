@@ -712,6 +712,10 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 	 * GTP stack workers so we need to alloc/build and send
 	 * create-session-response to remote peer */
 
+	/* TODO: Setup GTP-U Fast-Path */
+
+
+	/* Build and send response */
 	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 
 	s->ipv4 = htonl(sp->ipcp.req_myaddr);

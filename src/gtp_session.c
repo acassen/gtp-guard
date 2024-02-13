@@ -107,12 +107,23 @@ gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 int
 gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid, int direction)
 {
+	gtp_apn_t *apn = s->apn;
+	ip_vrf_t *vrf = apn->vrf;
+
+	/* If vrf forwarding is in use with PPPoE we need to
+	 * delay GTP-U rules settings since part of configuration
+	 * will be part of PPP negociation. Setting rules when
+	 * IPCP negociation is completed */
+	if (vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
+		goto end;
+
 	/* Fast-Path setup */
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
 		gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
 		gtp_xdp_rt_teid_action(RULE_ADD, teid);
 
+  end:
 	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
 }
 

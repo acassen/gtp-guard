@@ -312,7 +312,7 @@ DEFUN(pdn_xdp_ppp_ingress,
 	}
 
 	ret = gtp_bpf_opts_load(&daemon_data->xdp_ppp_ingress, vty, argc, argv,
-				gtp_xdp_rt_load);
+				gtp_xdp_ppp_load);
 	if (ret < 0)
 		return CMD_WARNING;
 

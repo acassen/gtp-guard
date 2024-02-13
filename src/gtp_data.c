@@ -158,7 +158,7 @@ free_daemon_data(void)
 	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_rt_unload(&daemon_data->xdp_gtp_route);
 	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
-		gtp_xdp_rt_unload(&daemon_data->xdp_ppp_ingress);
+		gtp_xdp_ppp_unload(&daemon_data->xdp_ppp_ingress);
 	gtp_mirror_destroy();
 	gtp_vrf_destroy();
 	gtp_pppoe_destroy();

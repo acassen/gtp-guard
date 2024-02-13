@@ -19,51 +19,16 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_RT_H
-#define _GTP_XDP_RT_H
+#ifndef _GTP_XDP_PPP_H
+#define _GTP_XDP_PPP_H
 
-enum {
-	XDP_RT_MAP_TEID_INGRESS = 0,
-	XDP_RT_MAP_TEID_EGRESS,
-	XDP_RT_MAP_PPP_INGRESS,
-	XDP_RT_MAP_PPP_EGRESS,
-	XDP_RT_MAP_IPTNL,
-	XDP_RT_MAP_CNT
-};
-
-#define GTP_RT_FL_IPIP		(1 << 0)
-#define GTP_RT_FL_PPP		(1 << 1)
-
-struct ip_rt_key {
-	__u32	id;
-	__u32	addr;
-} __attribute__ ((__aligned__(8)));
-
-struct gtp_rt_rule {
-	__u8	h_src[6];
-	__u8	h_dst[6];
+struct ip_ppp_key {
+	__u8	hw[6];
 	__u16	session_id;
-	__be32	teid;
-	__be32	saddr;
-	__be32	daddr;
-	__be32	dst_key;
-	__u8	ifindex;
-
-	/* Some stats */
-	__u64	packets;
-	__u64	bytes;
-
-	__u8	flags;
 } __attribute__ ((__aligned__(8)));
-
 
 /* Prototypes */
-extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_rt_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_rt_teid_action(int, gtp_teid_t *);
-extern int gtp_xdp_rt_teid_vty(vty_t *, __be32);
-extern int gtp_xdp_rt_vty(vty_t *);
-extern int gtp_xdp_rt_iptnl_action(int, gtp_iptnl_t *);
-extern int gtp_xdp_rt_iptnl_vty(vty_t *);
+extern int gtp_xdp_ppp_load(gtp_bpf_opts_t *);
+extern void gtp_xdp_ppp_unload(gtp_bpf_opts_t *);
 
 #endif

@@ -46,13 +46,13 @@ pthread_mutex_t gtp_pppoe_mutex = PTHREAD_MUTEX_INITIALIZER;
  *	PPPoE utilities
  */
 static gtp_pppoe_t *
-gtp_pppoe_get(const char *ifname)
+gtp_pppoe_get(const unsigned int ifindex)
 {
 	gtp_pppoe_t *pppoe;
 
 	pthread_mutex_lock(&gtp_pppoe_mutex);
 	list_for_each_entry(pppoe, &daemon_data->pppoe, next) {
-		if (!strncmp(ifname, pppoe->ifname, strlen(ifname))) {
+		if (pppoe->ifindex == ifindex) {
 			pppoe->refcnt++;
 			pthread_mutex_unlock(&gtp_pppoe_mutex);
 			return pppoe;
@@ -387,17 +387,19 @@ gtp_pppoe_t *
 gtp_pppoe_init(const char *ifname)
 {
 	gtp_pppoe_t *pppoe = NULL;
+	unsigned int ifindex = if_nametoindex(ifname);
 
-	if (!if_nametoindex(ifname))
+	if (!ifindex)
 		return NULL;
 
-	pppoe = gtp_pppoe_get(ifname);
+	pppoe = gtp_pppoe_get(ifindex);
 	if (pppoe)
 		return pppoe;
 
 	PMALLOC(pppoe);
 	srand(pppoe->seed);
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
+	pppoe->ifindex = ifindex;
 	pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
 	gtp_htab_init(&pppoe->unique_tab, CONN_HASHTAB_SIZE);
