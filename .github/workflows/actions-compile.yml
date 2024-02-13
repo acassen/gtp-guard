@@ -87,9 +87,9 @@ jobs:
         shell: bash
         run : |
           ls -R -la
-          chmod 755 bin/artifact-gtp-guard-gcc/gtp-guard
+          chmod 755 bin/artifact-gtp-guard-gcc/bin/gtp-guard
           chmod 755 bin/artifact-gtping/gtping
-          GTP_GUARD_PID_FILE=/tmp/gtp-guard.pid bin/artifact-gtp-guard-gcc/gtp-guard --dump-conf --dont-fork --log-console --log-detail -f etc/gtp-guard.conf &
+          GTP_GUARD_PID_FILE=/tmp/gtp-guard.pid bin/artifact-gtp-guard-gcc/bin/gtp-guard --dump-conf --dont-fork --log-console --log-detail -f etc/gtp-guard.conf &
           sleep 5
           bin/artifact-gtping/gtping -vvvv -c 3 127.0.0.1 -t 100
           # kill -TERM $(cat /var/run/gtp-guard.pid)
