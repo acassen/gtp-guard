@@ -1,5 +1,5 @@
 name: basic compilation test
-run-name: ${{ github.actor }} basic compilation test ⚗️
+run-name: ${{ github.actor }} basic compilation and basic tests ⚗️
 on:
   push:
     branches:
@@ -8,7 +8,8 @@ on:
     branches:
       - '**'
 jobs:
-  build:
+  build-gtp-guard:
+    name: Build gtp-guard
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,3 +29,66 @@ jobs:
         run : cd src/bpf && make
       - name: basic run
         run : bin/gtp-guard --version
+      - name: Upload gtp-guard artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name : artifact-gtp-guard-${{ matrix.compiler }}
+          path : |
+            bin/gtp-guard
+  build-gtping:
+    name: Build gtping
+    runs-on: ubuntu-latest
+    needs: build-gtp-guard
+    steps:
+      - name: gtping from upstream
+        uses: actions/checkout@v4
+        with:
+          repository: 'vjardin/gtping'
+      - name: build gtping from upstream
+        shell: bash
+        run : |
+          ./configure
+          make -j $(nproc)
+      - name: check gtping from upstream
+        run : src/gtping --version
+      - name: Upload gtping artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name : artifact-gtping
+          path : src/gtping
+  test-using-gtping:
+    name: gtp-guard test using gtping
+    needs: build-gtping
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch artifact gtping
+        uses: actions/download-artifact@v4
+        with:
+          path: bin
+          pattern: artifact-gtp*
+          merge-multiple: false
+      - name: Create config file
+        uses: 1arp/create-a-file-action@0.3
+        with:
+          path: 'etc'
+          file: 'gtp-guard.conf'
+          content: |
+            !
+            gtp-router demo
+              gtpc-tunnel-endpoint 0.0.0.0 port 2123 listener-count 3
+              gtpu-tunnel-endpoint 0.0.0.0 port 2152 listener-count 3
+            !
+            line vty
+              no login
+              listen 127.0.0.1 8888
+            !
+      - name: run the test
+        shell: bash
+        run : |
+          ls -R -la
+          chmod 755 bin/artifact-gtp-guard-gcc/gtp-guard
+          chmod 755 bin/artifact-gtping/gtping
+          bin/artifact-gtp-guard-gcc/gtp-guard --dump-conf --dont-fork --log-console --log-detail -f etc/gtp-guard.conf &
+          sleep 5
+          bin/artifact-gtping/gtping -vvvv -c 3 127.0.0.1 -t 100
+          # kill -TERM $(cat /var/run/gtp-guard.pid)
