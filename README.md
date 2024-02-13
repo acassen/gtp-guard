@@ -57,3 +57,7 @@ Connection closed by foreign host.
 ```
 
 Then you can start sending your GTPc and GTPu workload to the UDP ports 2123 and 2152.
+
+## getenv settings
+
+  - `GTP_GUARD_PID_FILE` : set alternate pid file (default = /var/run/gtp-guard.pid)
