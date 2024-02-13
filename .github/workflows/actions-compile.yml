@@ -93,3 +93,24 @@ jobs:
           sleep 5
           bin/artifact-gtping/gtping -vvvv -c 3 127.0.0.1 -t 100
           # kill -TERM $(cat /var/run/gtp-guard.pid)
+          ls -la /sys/fs/
+          sudo ls -la /sys/fs/bpf/
+          sudo ip -d link show dev lo
+          sudo ip link set dev lo xdpgeneric obj bin/artifact-gtp-guard-gcc/src/bpf/gtp_fwd.bpf sec xdp verbose
+          sudo ip -d link show dev lo
+          sudo ip link set dev lo xdp off
+          echo test netns
+          sudo ip link add vegw2gtp-g   type veth peer name vegtp-g2gw
+          sudo ip link add vegtp-g2bras type veth peer name vebras2gtp-g
+          sudo ip netns add gw
+          sudo ip netns add gtp-guard
+          sudo ip netns add bras
+          sudo ip link set vegw2gtp-g netns gw
+          sudo ip link set vegtp-g2gw netns gtp-guard
+          sudo ip link set vegtp-g2bras netns gtp-guard
+          sudo ip link set vebras2gtp-g netns bras
+          sudo ip netns exec gw ifconfig lo up
+          sudo ip netns exec gtp-guard ifconfig lo up
+          sudo ip netns exec bras ifconfig lo up
+
+
