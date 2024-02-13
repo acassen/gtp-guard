@@ -35,6 +35,7 @@ jobs:
           name : artifact-gtp-guard-${{ matrix.compiler }}
           path : |
             bin/gtp-guard
+            src/bpf/*.bpf
   build-gtping:
     name: Build gtping
     runs-on: ubuntu-latest
