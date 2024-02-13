@@ -17,12 +17,14 @@ jobs:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
         with:
-          apt: libelf-dev
+          apt: libelf-dev llvm
       - name: recursive checkout (with libbpf submodule)
         uses: actions/checkout@v4
         with:
           submodules: true
-      - name: make
+      - name: make gtp-guard
         run : CC=${{ matrix.compiler }} make -j $(nproc)
+      - name: make eBPF
+        run : cd src/bpf && make
       - name: basic run
         run : bin/gtp-guard --version

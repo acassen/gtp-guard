@@ -355,13 +355,11 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 	void *data = (void *) (long) pkt->ctx->data;
 	struct gtp_rt_rule *rule = NULL;
 	struct ip_rt_key rt_key;
-	struct ethhdr *ethh;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
-	int offset = 0, tot_len = 0;
+	int offset = 0;
 
-	ethh = data;
 	iph = data + pkt->l3_offset;
 	if (iph + 1 > data_end)
 		return XDP_PASS;
@@ -369,7 +367,6 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 	if (iph->protocol == IPPROTO_IPIP)
 		return gtp_route_ipip_decap(pkt);
 
-	tot_len = bpf_ntohs(iph->tot_len);
 	offset += pkt->l3_offset;
 	if (iph->protocol != IPPROTO_UDP)
 		return XDP_PASS;
