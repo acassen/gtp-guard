@@ -41,6 +41,8 @@ struct {
 	{LOG_LOCAL4}, {LOG_LOCAL5}, {LOG_LOCAL6}, {LOG_LOCAL7}
 };
 
+static char * __prog_pid_file = PROG_PID_FILE;
+
 /* Daemon stop sequence */
 static void
 stop_gtp(void)
@@ -63,7 +65,7 @@ stop_gtp(void)
 	memory_free_final("gtp-guard process");
 #endif
 	closelog();
-	pidfile_rm(PROG_PID_FILE);
+	pidfile_rm(__prog_pid_file);
 	exit(EXIT_SUCCESS);
 }
 
@@ -253,8 +255,10 @@ main(int argc, char **argv)
 	openlog(PROG, LOG_PID | (debug & 1) ? LOG_PERROR : 0, log_facility);
 	syslog(LOG_INFO, "Starting " VERSION_STRING "\n");
 
+	if (getenv("GTP_GUARD_PID_FILE"))
+		__prog_pid_file = getenv("GTP_GUARD_PID_FILE");
 	/* Check if ncsd is already running */
-	if (process_running(PROG_PID_FILE)) {
+	if (process_running(__prog_pid_file)) {
 		syslog(LOG_INFO, "daemon is already running");
 		goto end;
 	}
@@ -267,7 +271,7 @@ main(int argc, char **argv)
 		xdaemon(0, 0, 0);
 
 	/* write the pidfile */
-	if (!pidfile_write(PROG_PID_FILE, getpid()))
+	if (!pidfile_write(__prog_pid_file, getpid()))
 		goto end;
 
 	/* Increase maximum fd limit */
