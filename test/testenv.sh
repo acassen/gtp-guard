@@ -123,6 +123,7 @@ function nsreset() {
   [ -f /run/netns/gw ]        && ip netns del gw
   [ -f /run/netns/gtp-guard ] && ip netns del gtp-guard
   [ -f /run/netns/bras ]      && ip netns del bras
+  [ -f /run/netns/sandbox ]   && ip netns del sandbox
   return 0
 }
 
