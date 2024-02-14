@@ -69,7 +69,7 @@ struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
 	__uint(max_entries, 10000000);
-	__type(key, struct ip_ppp_key);			/* hw + sessionid */
+	__type(key, struct ppp_key);			/* hw + sessionid */
 	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
 } ppp_ingress SEC(".maps");
 
