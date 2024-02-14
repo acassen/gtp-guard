@@ -145,8 +145,8 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 	}
 }
 
-static int
-gtp_xdp_rt_key_set(int direction, gtp_teid_t *t, struct ip_rt_key *rt_key)
+int
+gtp_xdp_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 {
 	gtp_session_t *s = t->session;
 	gtp_conn_t *c = s->conn;
@@ -154,7 +154,7 @@ gtp_xdp_rt_key_set(int direction, gtp_teid_t *t, struct ip_rt_key *rt_key)
 	gtp_server_t *srv = &r->gtpu;
 
 	/* egress (upstream) : GTP TEID + pGW GTP Tunnel endpoint */
-	if (direction == GTP_EGRESS) {
+	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
 		rt_key->id = t->id;
 		rt_key->addr = inet_sockaddrip4(&srv->addr);
 		return 0;
@@ -162,20 +162,16 @@ gtp_xdp_rt_key_set(int direction, gtp_teid_t *t, struct ip_rt_key *rt_key)
 
 	/* ingress (downstream) : session ipv4 address + IPIP or PPP tunnel endpoint */
 	rt_key->id = 0;
-	if (s->apn->vrf) {
-		if (__test_bit(IP_VRF_FL_IPIP_BIT, &s->apn->vrf->flags))
-			rt_key->id = s->apn->vrf->iptnl.local_addr;
-	}
+	if (s->apn->vrf && __test_bit(IP_VRF_FL_IPIP_BIT, &s->apn->vrf->flags))
+		rt_key->id = s->apn->vrf->iptnl.local_addr;
 	rt_key->addr = s->ipv4;
 	return 0;
 }
 
 static int
-gtp_xdp_rt_action(int action, gtp_teid_t *t)
+gtp_xdp_rt_action(int action, gtp_teid_t *t, struct bpf_map *map)
 {
 	struct gtp_rt_rule *new = NULL;
-	int direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
-	struct bpf_map *map = xdp_rt_maps[direction].map;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err = 0;
 	struct ip_rt_key rt_key;
@@ -187,10 +183,7 @@ gtp_xdp_rt_action(int action, gtp_teid_t *t)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	if (!t)
-		return -1;
-
-	gtp_xdp_rt_key_set(direction, t, &rt_key);
+	gtp_xdp_rt_key_set(t, &rt_key);
 
 	/* Set rule */
 	if (action == RULE_ADD) {
@@ -210,7 +203,7 @@ gtp_xdp_rt_action(int action, gtp_teid_t *t)
 		return -1;
 	if (err) {
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant %s rule for TEID:0x%.8x (%s)"
+		log_message(LOG_INFO, "%s(): Cant %s XDP routing rule for TEID:0x%.8x (%s)"
 				    , __FUNCTION__
 				    , (action) ? "del" : "add"
 				    , ntohl(t->id)
@@ -223,7 +216,7 @@ gtp_xdp_rt_action(int action, gtp_teid_t *t)
 			      "{teid:0x%.8x, dst_addr:%u.%u.%u.%u}"
 			    , __FUNCTION__
 			    , (action) ? "deleting" : "adding"
-			    , (direction) ? "egress" : "ingress"
+			    , (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) ? "egress" : "ingress"
 			    , ntohl(t->id), NIPQUAD(t->ipv4));
   end:
 	if (new)
@@ -282,10 +275,24 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 int
 gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 {
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	gtp_session_t *s;
+	gtp_apn_t *apn;
+	int direction;
+
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
 		return -1;
 
-	return gtp_xdp_rt_action(action, t);
+	direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
+	s = t->session;
+	apn = s->apn;
+
+	/* PPPoE vrf ? */
+	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
+		return gtp_xdp_ppp_action(action, t,
+					  xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
+					  xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map);
+
+	return gtp_xdp_rt_action(action, t, xdp_rt_maps[direction].map);
 }
 
 int

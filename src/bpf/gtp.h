@@ -120,7 +120,7 @@ struct ip_rt_key {
 	__u32		addr;
 } __attribute__ ((__aligned__(8)));
 
-struct ip_ppp_key {
+struct ppp_key {
 	__u8	hw[6];
 	__u16	session_id;
 } __attribute__ ((__aligned__(8)));

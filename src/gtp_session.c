@@ -104,6 +104,17 @@ gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 	return gtp_session_teid_add(s, teid, &s->gtpc_teid);
 }
 
+static int
+gtp_session_gtu_teid_xdp_rule_add(gtp_teid_t *teid, int direction)
+{
+	/* TODO : remove direction, flag it in teid->flags */
+	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
+		return gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
+	if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
+		return gtp_xdp_rt_teid_action(RULE_ADD, teid);
+	return 0;
+}
+
 int
 gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid, int direction)
 {
@@ -118,13 +129,32 @@ gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid, int direction)
 		goto end;
 
 	/* Fast-Path setup */
-	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
-		gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
-	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
-		gtp_xdp_rt_teid_action(RULE_ADD, teid);
+	/* TODO : add support to return value */
+	gtp_session_gtu_teid_xdp_rule_add(teid, direction);
 
   end:
 	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
+}
+
+int
+gtp_session_gtpu_teid_xdp_add(gtp_session_t *s, int direction)
+{
+	gtp_conn_t *c = s->conn;
+	list_head_t *l = &s->gtpu_teid;
+	gtp_teid_t *teid;
+	int ret;
+
+	/* Fast-Path setup */
+	pthread_mutex_lock(&c->gtp_session_mutex);
+	list_for_each_entry(teid, l, next) {
+		ret = gtp_session_gtu_teid_xdp_rule_add(teid, direction);
+		if (ret < 0) {
+			pthread_mutex_unlock(&c->gtp_session_mutex);
+			return -1;
+		}
+	}
+	pthread_mutex_unlock(&c->gtp_session_mutex);
+	return 0;
 }
 
 static void

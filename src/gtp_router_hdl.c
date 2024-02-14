@@ -606,7 +606,7 @@ gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
 
 static int
 gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid,
-				   struct sipcp *ipcp)
+				   sipcp_t *ipcp)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 	gtp_apn_t *apn = s->apn;
@@ -704,27 +704,32 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 	gtp_teid_t *teid = sp->s_pppoe->teid;
 	gtp_server_worker_t *w = sp->s_pppoe->w;
 	pkt_buffer_t *pbuff;
-	int rc;
+	int ret;
 
-	/* Call from the context of PPP stack.
-	 * It's called at the end of PPP negiciation when IPCP
-	 * is up and working. We are runing asyncrhonously from
-	 * GTP stack workers so we need to alloc/build and send
-	 * create-session-response to remote peer */
-
-	/* TODO: Setup GTP-U Fast-Path */
-
+	/* Called from PPP stack, at the end of PPP negiciation
+	 * when IPCP is up and working. We are runing asyncrhonously
+	 * from GTP stack workers so we need to alloc/build and
+	 * send create-session-response to remote peer */
 
 	/* Build and send response */
 	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 
 	s->ipv4 = htonl(sp->ipcp.req_myaddr);
-	rc = gtpc_build_create_session_response(pbuff, s, teid, &sp->ipcp);
-	if (rc < 0) {
-		pkt_buffer_free(pbuff);
-		return;
+	ret = gtpc_build_create_session_response(pbuff, s, teid, &sp->ipcp);
+	if (ret < 0) {
+		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+					     , GTP_CAUSE_REQUEST_REJECTED);
+		goto end;
 	}
 
+	/* Setup GTP-U Fast-Path */
+	ret = gtp_session_gtpu_teid_xdp_add(s, 0);
+	if (ret < 0) {
+		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+					     , GTP_CAUSE_REQUEST_REJECTED);
+	}
+
+  end:
 	pkt_buffer_send(w->fd, pbuff, &sp->s_pppoe->gtpc_peer_addr);
 	pkt_buffer_free(pbuff);
 }
@@ -887,7 +892,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
-	/* IP VRF is in use and PPPOE session forwarding is configured */
+	/* IP VRF is in use and PPPoE session forwarding is configured */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
 		s_pppoe = spppoe_init(apn->vrf->pppoe, &c->veth_addr,
 				      gtpc_pppoe_tls, gtpc_pppoe_tlf,

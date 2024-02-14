@@ -22,12 +22,13 @@
 #ifndef _GTP_XDP_PPP_H
 #define _GTP_XDP_PPP_H
 
-struct ip_ppp_key {
+struct ppp_key {
 	__u8	hw[6];
 	__u16	session_id;
 } __attribute__ ((__aligned__(8)));
 
 /* Prototypes */
+extern int gtp_xdp_ppp_action(int, gtp_teid_t *, struct bpf_map *, struct bpf_map *);
 extern int gtp_xdp_ppp_load(gtp_bpf_opts_t *);
 extern void gtp_xdp_ppp_unload(gtp_bpf_opts_t *);
 

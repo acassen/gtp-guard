@@ -45,8 +45,7 @@ extern data_t *daemon_data;
 /*
  *	Tunneling Handling
  */
-static 
-struct gtp_iptnl_rule *
+static struct gtp_iptnl_rule *
 gtp_xdp_iptnl_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
