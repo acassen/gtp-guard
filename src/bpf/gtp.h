@@ -134,6 +134,7 @@ struct gtp_rt_rule {
 	__be32  daddr;
 	__be32  dst_key;
 	__u8	ifindex;
+	__u16	vlan_id;
 
 	/* Some stats */
 	__u64   packets;

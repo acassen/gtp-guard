@@ -99,7 +99,13 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 	gtp_conn_t *c = s->conn;
 	gtp_router_t *rtr = c->ctx;
 	gtp_server_t *srv = &rtr->gtpu;
+	ip_vrf_t *vrf = s->apn->vrf;
+	__u16 vlan_id = 0;
 	int i;
+
+	vlan_id = (vrf) ? vrf->encap_vlan_id : 0;
+	if (__test_bit(GTP_TEID_FL_INGRESS, &t->flags))
+		vlan_id = (vrf) ? vrf->decap_vlan_id : 0;
 
 	for (i = 0; i < nr_cpus; i++) {
 		/* PPP related */
@@ -111,6 +117,8 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 		r[i].teid = t->id;
 		r[i].saddr = inet_sockaddrip4(&srv->addr);
 		r[i].daddr = t->ipv4;
+		r[i].vlan_id = vlan_id;
+		r[i].ifindex = spppoe->pppoe->ifindex;
 		r[i].dst_key = 0;
 		r[i].packets = 0;
 		r[i].bytes = 0;

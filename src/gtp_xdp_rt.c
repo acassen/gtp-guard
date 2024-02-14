@@ -132,13 +132,19 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 	ip_vrf_t *vrf = s->apn->vrf;
 	__be32 dst_key = (vrf) ? vrf->id : 0;
 	__u8 flags = __test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags) ? GTP_RT_FL_IPIP : 0;
+	__u16 vlan_id = 0;
 	int i;
+
+	vlan_id = (vrf) ? vrf->encap_vlan_id : 0;
+	if (__test_bit(GTP_TEID_FL_INGRESS, &t->flags))
+		vlan_id = (vrf) ? vrf->decap_vlan_id : 0;
 
 	for (i = 0; i < nr_cpus; i++) {
 		r[i].teid = t->id;
 		r[i].saddr = inet_sockaddrip4(&srv->addr);
 		r[i].daddr = t->ipv4;
 		r[i].dst_key = dst_key;
+		r[i].vlan_id = vlan_id;
 		r[i].packets = 0;
 		r[i].bytes = 0;
 		r[i].flags = flags;
