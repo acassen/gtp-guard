@@ -259,7 +259,7 @@ gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 
 static const struct {
 	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
-} gtpu_msg_hdl[0xff] = {
+} gtpu_msg_hdl[0xff + 1] = {
 	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
 	[GTPU_END_MARKER_TYPE]			= { gtpu_end_marker_hdl	},

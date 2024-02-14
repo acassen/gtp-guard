@@ -689,7 +689,7 @@ gtp1_delete_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 static const struct {
 	uint8_t family; /* GTP_INIT : Initial | GTP_TRIG : Triggered*/
 	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
-} gtpc_msg_hdl[0xff] = {
+} gtpc_msg_hdl[0xff + 1] = {
 	[GTP_ECHO_REQUEST_TYPE]			= { GTP_INIT, gtp1_echo_request_hdl },
 	[GTP_CREATE_PDP_CONTEXT_REQUEST]	= { GTP_INIT, gtp1_create_pdp_request_hdl },
 	[GTP_CREATE_PDP_CONTEXT_RESPONSE]	= { GTP_TRIG, gtp1_create_pdp_response_hdl },

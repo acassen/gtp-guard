@@ -175,7 +175,7 @@ gtp_xdp_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 }
 
 static int
-gtp_xdp_rt_action(int action, gtp_teid_t *t, struct bpf_map *map)
+gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t)
 {
 	struct gtp_rt_rule *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -231,14 +231,14 @@ gtp_xdp_rt_action(int action, gtp_teid_t *t, struct bpf_map *map)
 }
 
 static int
-gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
+gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key key = { 0 }, next_key = { 0 };
 	struct gtp_rt_rule *r;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char addr_ip[16];
-        int err = 0, i;
+	int err = 0, i;
 	uint64_t packets, bytes;
 	size_t sz;
 
@@ -247,6 +247,28 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 	if (!r) {
 		vty_out(vty, "%% Cant allocate temp rt_rule%s", VTY_NEWLINE);
 		return -1;
+	}
+
+	if (t) {
+		gtp_xdp_rt_key_set(t, &key);
+		err = bpf_map__lookup_elem(map, &key, sizeof(struct ip_rt_key), r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+			vty_out(vty, "       %% No data-plane ?! (%s)%s", errmsg, VTY_NEWLINE);
+			goto end;
+		}
+
+		packets = bytes = 0;
+		for (i = 0; i < nr_cpus; i++) {
+			packets += r[i].packets;
+			bytes += r[i].bytes;
+		}
+
+		vty_out(vty, "       %.7s pkts:%ld bytes:%ld%s"
+			   , __test_bit(GTP_TEID_FL_EGRESS, &t->flags) ? "egress" : "ingress"
+			   , packets, bytes, VTY_NEWLINE);
+
+		goto end;
 	}
 
 	/* Walk hashtab */
@@ -274,6 +296,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 			   , VTY_NEWLINE);
 	}
 
+  end:
 	free(r);
 	return 0;
 }
@@ -298,16 +321,30 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 					  xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
 					  xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map);
 
-	return gtp_xdp_rt_action(action, t, xdp_rt_maps[direction].map);
+	return gtp_xdp_rt_action(xdp_rt_maps[direction].map, action, t);
 }
 
 int
-gtp_xdp_rt_teid_vty(vty_t *vty, __be32 id)
+gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 {
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	gtp_session_t *s;
+	gtp_apn_t *apn;
+	int direction;
+
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
 		return -1;
 
-	return 0;
+	direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
+	s = t->session;
+	apn = s->apn;
+
+	/* PPPoE vrf ? */
+	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
+		return gtp_xdp_ppp_teid_vty(vty, t,
+					    xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
+					    xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map);
+
+	return gtp_xdp_teid_vty(xdp_rt_maps[direction].map, vty, t);
 }
 
 int
@@ -320,8 +357,10 @@ gtp_xdp_rt_vty(vty_t *vty)
 		     "|    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, 0);
-	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, 0);
+	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, NULL);
+	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, NULL);
+	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map, vty, NULL);
+	gtp_xdp_ppp_vty(vty, xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map);
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;

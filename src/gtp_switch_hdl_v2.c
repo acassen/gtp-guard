@@ -1053,7 +1053,7 @@ static const struct {
 	uint8_t family;	/* GTP_INIT : Initial | GTP_TRIG : Triggered*/
 	int direction;	/* GTP_INGRESS : sGW -> pGW | GTP_EGRESS  : pGW -> sGW */
 	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *, int);
-} gtpc_msg_hdl[0xff] = {
+} gtpc_msg_hdl[0xff + 1] = {
 	[GTP_ECHO_REQUEST_TYPE]			= { GTP_INIT, GTP_INGRESS, gtpc_echo_request_hdl },
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { GTP_INIT, GTP_INGRESS, gtpc_create_session_request_hdl },
 	[GTP_CREATE_SESSION_RESPONSE_TYPE]	= { GTP_TRIG, GTP_EGRESS, gtpc_create_session_response_hdl },

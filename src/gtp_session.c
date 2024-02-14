@@ -472,7 +472,7 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 				     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
 				   , ntohl(t->id), t->bearer_id, NIPQUAD(t->ipv4)
 				   , VTY_NEWLINE);
-			gtp_xdp_rt_teid_vty(vty, ntohl(t->id));
+			gtp_xdp_rt_teid_vty(vty, t);
 		}
 	}
 	return 0;

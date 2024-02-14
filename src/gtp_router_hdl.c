@@ -1077,7 +1077,7 @@ gtpc_change_notification_request_hdl(gtp_server_worker_t *w, struct sockaddr_sto
  */
 static const struct {
 	int (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
-} gtpc_msg_hdl[0xff] = {
+} gtpc_msg_hdl[0xff + 1] = {
 	[GTP_ECHO_REQUEST_TYPE]			= { gtpc_echo_request_hdl },
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { gtpc_create_session_request_hdl },
 	[GTP_DELETE_SESSION_REQUEST_TYPE]	= { gtpc_delete_session_request_hdl },
@@ -1142,7 +1142,7 @@ gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 
 static const struct {
 	int (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
-} gtpu_msg_hdl[0xff] = {
+} gtpu_msg_hdl[0xff + 1] = {
 	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
 	[GTPU_END_MARKER_TYPE]			= { gtpu_end_marker_hdl	},

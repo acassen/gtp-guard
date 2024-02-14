@@ -136,7 +136,7 @@ gtp_xdp_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
 }
 
 static int
-gtp_xdp_ppp_map_action(int action, gtp_teid_t *t, struct bpf_map *map)
+gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 {
 	gtp_session_t *s = t->session;
 	spppoe_t *spppoe = s->s_pppoe;
@@ -205,6 +205,84 @@ gtp_xdp_ppp_map_action(int action, gtp_teid_t *t, struct bpf_map *map)
 	return err;
 }
 
+static int
+gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	gtp_session_t *s = t->session;
+	spppoe_t *spppoe = s->s_pppoe;
+	struct ip_rt_key rt_k = { 0 };
+	struct ppp_key ppp_k = { 0 }, next_ppp_k = { 0 };
+	struct gtp_rt_rule *r;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err = 0, i;
+	uint64_t packets, bytes;
+	size_t sz;
+
+	/* Allocate temp rule */
+	r = gtp_xdp_ppp_rule_alloc(&sz);
+	if (!r) {
+		vty_out(vty, "%% Cant allocate temp rt_rule%s", VTY_NEWLINE);
+		return -1;
+	}
+
+	if (t) {
+		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
+			gtp_xdp_rt_key_set(t, &rt_k);
+			err = bpf_map__lookup_elem(map, &rt_k, sizeof(struct ip_rt_key), r, sz, 0);
+		} else {
+			gtp_xdp_ppp_key_set(t, &ppp_k, spppoe);
+			err = bpf_map__lookup_elem(map, &ppp_k, sizeof(struct ppp_key), r, sz, 0);
+		}
+
+		if (err) {
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+			vty_out(vty, "       %% No data-plane ?! (%s)%s", errmsg, VTY_NEWLINE);
+			goto end;
+		}
+
+		packets = bytes = 0;
+		for (i = 0; i < nr_cpus; i++) {
+			packets += r[i].packets;
+			bytes += r[i].bytes;
+		}
+
+		vty_out(vty, "       %.7s pkts:%ld bytes:%ld%s"
+			, __test_bit(GTP_TEID_FL_EGRESS, &t->flags) ? "egress" : "ingress"
+			, packets, bytes, VTY_NEWLINE);
+		goto end;
+	}
+
+	/* ingress hashtab */
+	while (bpf_map__get_next_key(map, &ppp_k, &next_ppp_k, sizeof(struct ppp_key)) == 0) {
+		ppp_k = next_ppp_k;
+		err = bpf_map__lookup_elem(map, &ppp_k, sizeof(struct ppp_key), r, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+			vty_out(vty, "%% error fetching value for session:0x%.4x (%s)%s"
+				   , ppp_k.session_id, errmsg, VTY_NEWLINE);
+			continue;
+		}
+
+		packets = bytes = 0;
+		for (i = 0; i < nr_cpus; i++) {
+			packets += r[i].packets;
+			bytes += r[i].bytes;
+		}
+
+		vty_out(vty, "| 0x%.8x | %.2x:%.2x:%.2x:%.2x:%.2x:%.2x| %9s | %12ld | %19ld |%s"
+			   , ntohl(r[0].teid)
+			   , r[0].h_dst[0], r[0].h_dst[1], r[0].h_dst[2]
+			   , r[0].h_dst[3], r[0].h_dst[4], r[0].h_dst[5]
+			   , "ingress"
+			   , packets, bytes
+			   , VTY_NEWLINE);
+	}
+  end:
+	free(r);
+	return 0;
+}
+
 int
 gtp_xdp_ppp_action(int action, gtp_teid_t *t,
 		   struct bpf_map *map_ingress, struct bpf_map *map_egress)
@@ -212,10 +290,36 @@ gtp_xdp_ppp_action(int action, gtp_teid_t *t,
 	struct bpf_map *map_ppp_ingress = xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map;
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
-		return gtp_xdp_ppp_map_action(action, t, map_egress);
+		return gtp_xdp_ppp_map_action(map_egress, action, t);
 
 	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
-		return gtp_xdp_ppp_map_action(action, t, map_ppp_ingress);
+		return gtp_xdp_ppp_map_action(map_ppp_ingress, action, t);
 
-	return gtp_xdp_ppp_map_action(action, t, map_ingress);
+	return gtp_xdp_ppp_map_action(map_ingress, action, t);
+}
+
+int
+gtp_xdp_ppp_teid_vty(vty_t *vty, gtp_teid_t *t,
+		     struct bpf_map *map_ingress, struct bpf_map *map_egress)
+{
+	struct bpf_map *map_ppp_ingress = xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map;
+
+	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
+		return gtp_xdp_teid_vty(map_egress, vty, t);
+
+	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
+		return gtp_xdp_teid_vty(map_ppp_ingress, vty, t);
+
+	return gtp_xdp_teid_vty(map_ingress, vty, t);
+}
+
+int
+gtp_xdp_ppp_vty(vty_t *vty, struct bpf_map *map_ingress)
+{
+	struct bpf_map *map_ppp_ingress = xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map;
+
+	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
+		return gtp_xdp_teid_vty(map_ppp_ingress, vty, NULL);
+
+	return gtp_xdp_teid_vty(map_ingress, vty, NULL);
 }

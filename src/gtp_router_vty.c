@@ -189,9 +189,9 @@ DEFUN(gtpu_router_tunnel_endpoint,
 static int
 gtp_config_write(vty_t *vty)
 {
-        list_head_t *l = &daemon_data->gtp_router_ctx;
-        gtp_server_t *srv;
-        gtp_router_t *ctx;
+	list_head_t *l = &daemon_data->gtp_router_ctx;
+	gtp_server_t *srv;
+	gtp_router_t *ctx;
 
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-router %s%s", ctx->name, VTY_NEWLINE);
