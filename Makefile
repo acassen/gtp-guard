@@ -34,7 +34,7 @@ conf_file   = etc/gtp-guard/gtp-guard.conf
 
 CC        ?= gcc
 LDFLAGS   = -lpthread -lcrypt -ggdb -lm -lz -lresolv -lelf
-SUBDIRS   = lib src
+SUBDIRS   = lib src src/bpf
 LIBBPF    = libbpf
 OBJDIR    = $(LIBBPF)/src
 
