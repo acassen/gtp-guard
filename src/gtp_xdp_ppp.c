@@ -209,11 +209,11 @@ static int
 gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
-	gtp_session_t *s = t->session;
-	spppoe_t *spppoe = s->s_pppoe;
 	struct ip_rt_key rt_k = { 0 };
 	struct ppp_key ppp_k = { 0 }, next_ppp_k = { 0 };
 	struct gtp_rt_rule *r;
+	gtp_session_t *s;
+	spppoe_t *spppoe;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err = 0, i;
 	uint64_t packets, bytes;
@@ -227,6 +227,9 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 	}
 
 	if (t) {
+		s = t->session;
+		spppoe = s->s_pppoe;
+
 		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
 			gtp_xdp_rt_key_set(t, &rt_k);
 			err = bpf_map__lookup_elem(map, &rt_k, sizeof(struct ip_rt_key), r, sz, 0);

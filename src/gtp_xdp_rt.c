@@ -238,6 +238,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key key = { 0 }, next_key = { 0 };
+	const char *direction_str = "ingress";
 	struct gtp_rt_rule *r;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char addr_ip[16];
@@ -291,10 +292,13 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 			bytes += r[i].bytes;
 		}
 
+		if (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map ||
+		    xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map == map)
+			direction_str = "egress";
 		vty_out(vty, "| 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
 			   , ntohl(r[0].teid)
 			   , inet_ntoa2(r[0].daddr, addr_ip)
-			   , (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map) ? "egress" : "ingress"
+			   , direction_str
 			   , packets, bytes
 			   , VTY_NEWLINE);
 	}

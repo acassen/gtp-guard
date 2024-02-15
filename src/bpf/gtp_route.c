@@ -455,6 +455,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph;
+	__u16 *ppph;
 	__u16 payload_len;
 	__u32 csum = 0;
 	int headroom;
@@ -467,6 +468,15 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	if (pppoeh + 1 > data_end)
 		return XDP_PASS;
 	payload_len = bpf_ntohs(pppoeh->plen) - 2;
+	offset += sizeof(*pppoeh);
+
+	ppph = data + offset;
+	if (ppph + 1 > data_end)
+		return XDP_PASS;
+
+	/* Only handle IPv4 and IPv6. Punt Control Protocol */
+	if (*ppph != bpf_htons(PPP_IP) && *ppph != bpf_htons(PPP_IPV6))
+		return XDP_PASS;
 
 	/* Ingress lookup */
 	__builtin_memcpy(ppp_k.hw, ethh->h_dest, ETH_ALEN);
