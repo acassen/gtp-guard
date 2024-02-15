@@ -1,4 +1,4 @@
-name: basic compilation test
+name: gtp-guard CI
 run-name: ${{ github.actor }} basic compilation and basic tests ⚗️
 on:
   push:
