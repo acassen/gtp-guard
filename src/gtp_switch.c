@@ -167,6 +167,14 @@ gtp_switch_init(const char *name)
 	return new;
 }
 
+int
+gtp_switch_ctx_server_destroy(gtp_switch_t *ctx)
+{
+	gtp_server_destroy(&ctx->gtpc);
+	gtp_server_destroy(&ctx->gtpu);
+	gtp_dpd_destroy(&ctx->iptnl);
+	return 0;
+}
 
 int
 gtp_switch_ctx_destroy(gtp_switch_t *ctx)
@@ -176,10 +184,18 @@ gtp_switch_ctx_destroy(gtp_switch_t *ctx)
 	gtp_htab_destroy(&ctx->vteid_tab);
 	gtp_htab_destroy(&ctx->vsqn_tab);
 
-	gtp_server_destroy(&ctx->gtpc);
-	gtp_server_destroy(&ctx->gtpu);
-	gtp_dpd_destroy(&ctx->iptnl);
 	list_head_del(&ctx->next);
+	return 0;
+}
+
+int
+gtp_switch_server_destroy(void)
+{
+	gtp_switch_t *c;
+
+	list_for_each_entry(c, &daemon_data->gtp_switch_ctx, next)
+		gtp_switch_ctx_destroy(c);
+
 	return 0;
 }
 

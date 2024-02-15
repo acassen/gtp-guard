@@ -132,15 +132,31 @@ gtp_router_init(const char *name)
 	return new;
 }
 
+int
+gtp_router_ctx_server_destroy(gtp_router_t *ctx)
+{
+	gtp_server_destroy(&ctx->gtpc);
+	gtp_server_destroy(&ctx->gtpu);
+	return 0;
+}
 
 int
 gtp_router_ctx_destroy(gtp_router_t *ctx)
 {
 	gtp_htab_destroy(&ctx->gtpc_teid_tab);
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
-	gtp_server_destroy(&ctx->gtpc);
-	gtp_server_destroy(&ctx->gtpu);
 	list_head_del(&ctx->next);
+	return 0;
+}
+
+int
+gtp_router_server_destroy(void)
+{
+	gtp_router_t *c;
+
+	list_for_each_entry(c, &daemon_data->gtp_router_ctx, next)
+		gtp_router_ctx_server_destroy(c);
+
 	return 0;
 }
 

@@ -52,12 +52,6 @@ stop_gtp(void)
 	/* Just cleanup memory & exit */
 	vty_terminate();
 	cmd_terminate();
-	gtp_request_destroy();
-	gtp_sessions_destroy();
-	gtp_conn_destroy();
-	gtp_xdp_destroy();
-	gtp_teid_destroy();
-
 	free_daemon_data();
 	thread_destroy_master(master);
 

@@ -54,6 +54,7 @@ extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_sto
 extern gtp_switch_t *gtp_switch_get(const char *);
 extern gtp_switch_t *gtp_switch_init(const char *);
 extern int gtp_switch_ctx_destroy(gtp_switch_t *);
+extern int gtp_switch_server_destroy(void);
 extern int gtp_switch_destroy(void);
 extern int gtp_switch_vty_init(void);
 

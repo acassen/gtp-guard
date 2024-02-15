@@ -48,6 +48,7 @@ extern int gtp_router_ingress_process(gtp_server_worker_t *, struct sockaddr_sto
 extern gtp_router_t *gtp_router_get(const char *);
 extern gtp_router_t *gtp_router_init(const char *);
 extern int gtp_router_ctx_destroy(gtp_router_t *);
+extern int gtp_router_server_destroy(void);
 extern int gtp_router_destroy(void);
 extern int gtp_router_vty_init(void);
 

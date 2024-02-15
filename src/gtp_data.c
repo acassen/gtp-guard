@@ -145,6 +145,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_switch_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
 
+
 	return new;
 }
 
@@ -159,12 +160,19 @@ free_daemon_data(void)
 		gtp_xdp_rt_unload(&daemon_data->xdp_gtp_route);
 	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_ppp_unload(&daemon_data->xdp_ppp_ingress);
-	gtp_mirror_destroy();
-	gtp_vrf_destroy();
+	gtp_switch_server_destroy();
+	gtp_router_server_destroy();
+	gtp_request_destroy();
 	gtp_pppoe_destroy();
-	gtp_apn_destroy();
+	gtp_sessions_destroy();
+	gtp_conn_destroy();
 	gtp_switch_destroy();
 	gtp_router_destroy();
+	gtp_xdp_destroy();
+	gtp_teid_destroy();
+	gtp_mirror_destroy();
+	gtp_vrf_destroy();
+	gtp_apn_destroy();
 	FREE(daemon_data);
 }
 
