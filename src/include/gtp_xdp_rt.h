@@ -32,7 +32,7 @@ enum {
 };
 
 #define GTP_RT_FL_IPIP		(1 << 0)
-#define GTP_RT_FL_PPP		(1 << 1)
+#define GTP_RT_FL_PPPOE		(1 << 1)
 
 struct ip_rt_key {
 	__u32	id;

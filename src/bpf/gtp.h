@@ -36,13 +36,23 @@ struct _vlan_hdr {
         __be16  h_vlan_encapsulated_proto;
 };
 
+struct pppoehdr {
+	__u8	vertype;
+	__u8	code;
+	__u16	session;
+	__u16	plen;
+};
+#define PPPOE_VERTYPE		0x11		/* VER=1, TYPE = 1 */
+#define PPPOE_CODE_SESSION	0x00		/* Session */
+#define PPP_IP			0x0021		/* Internet Protocol */
+#define PPP_IPV6		0x0057		/* Internet Protocol v6 */
+
 struct gtphdr {
         __u8    flags;
         __u8    type;
         __be16  length;
         __be32  teid;
 } __attribute__ ((__packed__));
-
 #define GTPU_TPDU		0xff
 #define GTPU_FLAGS		0x30
 #define GTPU_PORT		2152
@@ -143,6 +153,6 @@ struct gtp_rt_rule {
 	__u8	flags;
 } __attribute__ ((__aligned__(8)));
 #define GTP_RT_FL_IPIP		(1 << 0)
-#define GTP_RT_FL_PPP		(1 << 1)
+#define GTP_RT_FL_PPPOE		(1 << 1)
 
 #endif

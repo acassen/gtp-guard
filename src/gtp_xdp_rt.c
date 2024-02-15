@@ -135,6 +135,9 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 	__u16 vlan_id = 0;
 	int i;
 
+	if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
+		flags |= GTP_RT_FL_PPPOE;
+
 	vlan_id = (vrf) ? vrf->encap_vlan_id : 0;
 	if (__test_bit(GTP_TEID_FL_INGRESS, &t->flags))
 		vlan_id = (vrf) ? vrf->decap_vlan_id : 0;
