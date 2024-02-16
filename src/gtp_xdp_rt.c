@@ -80,13 +80,6 @@ gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
 	}
 	xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
 
-	map = gtp_bpf_load_map(opts->bpf_obj, "ppp_egress");
-	if (!map) {
-		gtp_xdp_unload(opts);
-		return -1;
-	}
-	xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map = map;
-
 	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
 	if (!map) {
 		gtp_xdp_unload(opts);
@@ -292,8 +285,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 			bytes += r[i].bytes;
 		}
 
-		if (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map ||
-		    xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map == map)
+		if (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map)
 			direction_str = "egress";
 		vty_out(vty, "| 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
 			   , ntohl(r[0].teid)
@@ -326,7 +318,7 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
 		return gtp_xdp_ppp_action(action, t,
 					  xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
-					  xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map);
+					  xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map);
 
 	return gtp_xdp_rt_action(xdp_rt_maps[direction].map, action, t);
 }
@@ -349,7 +341,7 @@ gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
 		return gtp_xdp_ppp_teid_vty(vty, t,
 					    xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
-					    xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map);
+					    xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map);
 
 	return gtp_xdp_teid_vty(xdp_rt_maps[direction].map, vty, t);
 }
@@ -366,7 +358,6 @@ gtp_xdp_rt_vty(vty_t *vty)
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, NULL);
 	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, NULL);
-	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_PPP_EGRESS].map, vty, NULL);
 	gtp_xdp_ppp_vty(vty, xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map);
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);

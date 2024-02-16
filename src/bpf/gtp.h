@@ -41,7 +41,7 @@ struct pppoehdr {
 	__u8	code;
 	__u16	session;
 	__u16	plen;
-};
+} __attribute__ ((__packed__));
 #define PPPOE_VERTYPE		0x11		/* VER=1, TYPE = 1 */
 #define PPPOE_CODE_SESSION	0x00		/* Session */
 #define PPP_IP			0x0021		/* Internet Protocol */

@@ -54,14 +54,6 @@ struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
 	__uint(max_entries, 10000000);
-	__type(key, struct ip_rt_key);			/* TEID */
-	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
-} ppp_egress SEC(".maps");
-
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__uint(max_entries, 10000000);
 	__type(key, struct ip_rt_key);			/* ipaddr + tunnelid */
 	__type(value, struct gtp_rt_rule);		/* GTP Encapsulation Rule */
 } teid_ingress SEC(".maps");
@@ -347,6 +339,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
 }
 
+
 /*
  *	PPPoE
  */
@@ -491,9 +484,9 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	headroom = sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(struct gtphdr);
 	headroom -= sizeof(struct pppoehdr) + 2;
 	if (pkt->vlan_id != 0 && rt_rule->vlan_id == 0)
-		headroom += sizeof(struct _vlan_hdr);
-	else if (pkt->vlan_id == 0 && rt_rule->vlan_id != 0)
 		headroom -= sizeof(struct _vlan_hdr);
+	else if (pkt->vlan_id == 0 && rt_rule->vlan_id != 0)
+		headroom += sizeof(struct _vlan_hdr);
 	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
 		return XDP_DROP;
 

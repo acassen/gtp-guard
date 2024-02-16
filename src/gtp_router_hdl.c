@@ -599,6 +599,7 @@ gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
 	h->teid_presence = 1;
 	h->length = 0;
 	h->teid = (teid) ? teid->id : 0;
+	h->sqn = (teid) ? teid->sqn : 0;
 	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
 	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
 	return 0;
@@ -970,6 +971,10 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 				    , ntohl(teid->peer_teid->id));
 	}
 
+	/* Update SQN */
+	gtp_sqn_update(w, teid);
+	gtp_sqn_update(w, pteid);
+
 	rc = gtpc_build_errmsg(w->pbuff, pteid
 				       , GTP_DELETE_SESSION_RESPONSE_TYPE
 				       , GTP_CAUSE_REQUEST_ACCEPTED);
@@ -988,7 +993,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
 	gtp_router_t *ctx = srv->ctx;
-	gtp_teid_t *teid, *pteid, *t, *t_u;
+	gtp_teid_t *teid, *pteid = NULL, *t, *t_u;
 	gtp_session_t *s;
 	gtp_msg_t *msg;
 	int rc = -1;
@@ -1014,6 +1019,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
+	gtp_sqn_update(w, teid->peer_teid);
 
 	t = gtpc_teid_create(w, s, msg, false);
 	if (!t)
@@ -1035,8 +1041,8 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	}
 
   accept:
-	rc = gtpc_build_errmsg(w->pbuff, teid, GTP_MODIFY_BEARER_RESPONSE_TYPE
-					     , GTP_CAUSE_REQUEST_ACCEPTED);
+	rc = gtpc_build_errmsg(w->pbuff, teid->peer_teid, GTP_MODIFY_BEARER_RESPONSE_TYPE
+							, GTP_CAUSE_REQUEST_ACCEPTED);
   end:
 	gtp_msg_destroy(msg);
 	return rc;
@@ -1065,6 +1071,10 @@ gtpc_change_notification_request_hdl(gtp_server_worker_t *w, struct sockaddr_sto
 						     , GTP_CAUSE_IMSI_IMEI_NOT_KNOWN);
 		goto end;
 	}
+
+	/* Update SQN */
+	gtp_sqn_update(w, teid);
+	gtp_sqn_update(w, teid->peer_teid);
 
 	rc = gtpc_build_change_notification_response(w->pbuff, teid->session, teid->peer_teid);
   end:

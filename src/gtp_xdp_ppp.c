@@ -100,6 +100,7 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 	gtp_router_t *rtr = c->ctx;
 	gtp_server_t *srv = &rtr->gtpu;
 	ip_vrf_t *vrf = s->apn->vrf;
+	__u8 flags = __test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags) ? GTP_RT_FL_IPIP : 0;
 	__u16 vlan_id = 0;
 	int i;
 
@@ -122,7 +123,7 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 		r[i].dst_key = 0;
 		r[i].packets = 0;
 		r[i].bytes = 0;
-		r[i].flags = 0;
+		r[i].flags = flags | GTP_RT_FL_PPPOE;
 	}
 }
 
@@ -193,8 +194,7 @@ gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 		goto end;
 	}
 
-	log_message(LOG_INFO, "%s(): %s %s XDP PPP rule "
-			      "{teid:0x%.8x, dst_addr:%u.%u.%u.%u}"
+	log_message(LOG_INFO, "%s(): %s %s XDP PPP rule {teid:0x%.8x, dst_addr:%u.%u.%u.%u}"
 			    , __FUNCTION__
 			    , (action) ? "deleting" : "adding"
 			    , (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) ? "egress" : "ingress"
