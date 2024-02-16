@@ -167,13 +167,8 @@ ip netns exec sandbox \
 ip netns exec sandbox \
   ip link set dev lo xdpgeneric off
 
-# XXX TODO: error missing sec prog
-# ip netns exec sandbox \
-#  ip link set dev lo xdpgeneric obj $bpfmirror verbose
-# ip netns exec sandbox \
-#  ip -d link show dev lo
-# ip netns exec sandbox \
-#  ip link set dev lo xdpgeneric off
+ip netns exec sandbox \
+  bpftool -d prog load $bpfmirror /sys/fs/bpf/mirror
 
 ip netns del sandbox
 
