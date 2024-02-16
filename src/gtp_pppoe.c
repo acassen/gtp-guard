@@ -414,10 +414,10 @@ static int
 __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 {
 	__set_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags);
+	pthread_join(pppoe->task, NULL);
 	gtp_pppoe_timer_destroy(pppoe);
 	gtp_pppoe_worker_destroy(pppoe);
 	gtp_ppp_destroy(pppoe);
-	pthread_join(pppoe->task, NULL);
 	close(pppoe->fd_disc);
 	close(pppoe->fd_session);
 	list_head_del(&pppoe->next);

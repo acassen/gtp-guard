@@ -52,7 +52,6 @@ gtp_mirror_rule_get(const struct sockaddr_storage *addr, uint8_t protocol, int i
 	return NULL;
 }
 
-
 gtp_mirror_rule_t *
 gtp_mirror_rule_add(const struct sockaddr_storage *addr, uint8_t protocol, int ifindex)
 {
@@ -128,7 +127,6 @@ gtp_mirror_vty(vty_t *vty)
 }
 
 
-
 /*
  *	Daemon Control Block helpers
  */
@@ -144,7 +142,6 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_apn);
 	INIT_LIST_HEAD(&new->gtp_switch_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
-
 
 	return new;
 }

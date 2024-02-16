@@ -207,7 +207,7 @@ int
 pppoe_connect(spppoe_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
-	int err;
+	int err, retry_wait = 2;
 
 	if (s->state != PPPOE_STATE_INITIAL)
 		return -1;
@@ -222,7 +222,9 @@ pppoe_connect(spppoe_t *s)
 	}
 
 	/* register timer */
-	timer_node_add(&pppoe->session_timer, &s->t_node, PPPOE_DISC_TIMEOUT);
+	if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
+		retry_wait = PPPOE_DISC_TIMEOUT;
+	timer_node_add(&pppoe->session_timer, &s->t_node, retry_wait);
 	return 0;
 }
 
@@ -292,7 +294,8 @@ pppoe_timeout(void *arg)
 				PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to send PADI\n",
 					 pppoe->ifname, s->unique));
 			}
-			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
+			if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
+				retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
 			timer_node_add(&pppoe->session_timer , &s->t_node, retry_wait);
 			break;
 		}
@@ -375,6 +378,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	uint32_t *hunique;
 	uint8_t code = 0;
 	uint8_t tmp[PPPOE_BUFSIZE];
+	int retry_wait = 2;
 
 	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
 	if (ret < 0)
@@ -517,8 +521,9 @@ breakbreak:
 			PPPDEBUG(("%s: pppoe hunique:0x%.8x failed to send PADR (%m)\n",
 				 pppoe->ifname, s->unique));
 		}
-		timer_node_add(&pppoe->session_timer, &s->t_node
-						    , PPPOE_DISC_TIMEOUT * (1 + s->padr_retried));
+		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
+			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padr_retried);
+		timer_node_add(&pppoe->session_timer, &s->t_node, retry_wait);
 		break;
 	case PPPOE_CODE_PADS:
 		if (s == NULL)

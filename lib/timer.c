@@ -253,32 +253,40 @@ timer_node_init(timer_node_t *t_node, int (*fn) (void *), void *arg)
 	timer_node_clear(t_node);
 }
 
-void
-timer_node_add(timer_thread_t *t, timer_node_t *t_node, int sec)
-{
-	pthread_mutex_lock(&t->timer_mutex);
-	t_node->sands = timer_add_now_sec(t_node->sands, sec);
-	rb_add_cached(&t_node->n, &t->timer, timer_node_timer_less);
-	pthread_mutex_unlock(&t->timer_mutex);
-}
-
 int
 timer_node_pending(timer_node_t *t_node)
 {
 	return timerisset(&t_node->sands);
 }
 
+static int
+__timer_node_del(timer_thread_t *t, timer_node_t *t_node)
+{
+	rb_erase_cached(&t_node->n, &t->timer);
+	timer_node_clear(t_node);
+}
+
 int
 timer_node_del(timer_thread_t *t, timer_node_t *t_node)
 {
-	if (!timerisset(&t_node->sands))
+	if (!timer_node_pending(t_node))
 		return -1;
 
 	pthread_mutex_lock(&t->timer_mutex);
-	rb_erase_cached(&t_node->n, &t->timer);
+	__timer_node_del(t, t_node);
 	pthread_mutex_unlock(&t->timer_mutex);
-	timer_node_clear(t_node);
 	return 0;
+}
+
+void
+timer_node_add(timer_thread_t *t, timer_node_t *t_node, int sec)
+{
+	pthread_mutex_lock(&t->timer_mutex);
+	if (timer_node_pending(t_node))
+		__timer_node_del(t, t_node);
+	t_node->sands = timer_add_now_sec(t_node->sands, sec);
+	rb_add_cached(&t_node->n, &t->timer, timer_node_timer_less);
+	pthread_mutex_unlock(&t->timer_mutex);
 }
 
 static void
