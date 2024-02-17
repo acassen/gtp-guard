@@ -259,7 +259,7 @@ timer_node_pending(timer_node_t *t_node)
 	return timerisset(&t_node->sands);
 }
 
-static int
+static void
 __timer_node_del(timer_thread_t *t, timer_node_t *t_node)
 {
 	rb_erase_cached(&t_node->n, &t->timer);
