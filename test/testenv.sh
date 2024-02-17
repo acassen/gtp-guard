@@ -24,6 +24,7 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 gtping="gtping"  # gtping from the default PATH
+gtpuping="gtpu-ping.py"  # gtpu-ping.py from the default PATH
 gtpguard="gtp-guard"  # gtp-guard from the default PATH
 gtpguardconf="/tmp/gtp-guard.conf"  # gtp-guard.conf, default path
 bpffwd="/usr/share/gtp-guard/gtp_fwd.bpf"
@@ -37,6 +38,7 @@ Usage: $(basename $0) [options]
 Options:
   -h                      Display this help message.
   -i path/gtping          gtping to be used (default ${gtping}).
+  -u path/gtpu-ping.py    gtpu-ping.py to be used (default ${gtpuping}).
   -g path/gtp-guard       gtp-guard to be used (default ${gtpguard}).
   -c path/gtp-guard.conf  gtp-guard.conf to be used (default ${gtpguardconf}).
   -f path/gtp_fwd.bpf     gtp_fwd.bpf to be used (default ${bpffwd}).
@@ -46,7 +48,7 @@ Options:
 "
 
 # Parse options to the `pip` command
-while getopts ":hi:g:c:f:r:m:k:" opt; do
+while getopts ":hi:u:g:c:f:r:m:k:" opt; do
   case ${opt} in
     h )
       echo "$__usage"
@@ -54,6 +56,9 @@ while getopts ":hi:g:c:f:r:m:k:" opt; do
       ;;
     i )
       gtping=$OPTARG
+      ;;
+    u )
+      gtpuping=$OPTARG
       ;;
     g )
       gtpguard=$OPTARG
@@ -84,6 +89,7 @@ shift $((OPTIND -1))
 __start="
 $(basename $0) started with:
   -i ${gtping} \\
+  -u ${gtpuping} \\
   -g ${gtpguard} \\
   -c ${gtpguardconf} \\
   -f ${bpffwd} \\
@@ -96,6 +102,10 @@ echo "$__start"
 err=0
 if [ ! -e ${gtping} ] ; then
   echo "${gtping} is not a valid executable"
+  err=1
+fi
+if [ ! -e ${gtpuping} ] ; then
+  echo "${gtpuping} is not a valid executable"
   err=1
 fi
 if [ ! -e ${gtpguard} ] ; then
@@ -205,9 +215,14 @@ sleep 5
 ip netns exec gw \
   $gtping -vvvv -c 3 172.1.0.2 -t 100
 
+ip netns exec gw \
+  $gtpuping 172.1.0.2
+
 if [ ${keepsetup} == "no" ] ; then
   ip netns exec gtp-guard kill -TERM $(pidof gtp-guard)
   nsreset
   sleep 1
   rm -f /tmp/gtp-guard.pid
 fi
+
+echo "Bravo, all test ok"
