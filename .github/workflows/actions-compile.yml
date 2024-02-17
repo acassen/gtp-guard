@@ -61,6 +61,10 @@ jobs:
     needs: build-gtping
     runs-on: ubuntu-latest
     steps:
+      - name: add missing packages
+        uses: ConorMacBride/install-package@v1
+        with:
+          apt: scapy
       - name: Fetch artifact gtping
         uses: actions/download-artifact@v4
         with:
