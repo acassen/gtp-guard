@@ -71,6 +71,7 @@ It assumes that [gtping](https://github.com/ThomasHabets/gtping) has been isntal
 cd test
 sudo ./testenv.sh \
   -i path/dev/gtping/src/gtping \
+  -u path/dev/gtpu-guard/test/gtpu-ping.py \
   -g path/dev/gtp-guard/bin/gtp-guard \
   -c /tmp/gtp-guard.conf \
   -f path/dev/gtp-guard/src/bpf/gtp_fwd.bpf \
