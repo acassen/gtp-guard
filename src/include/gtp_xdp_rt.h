@@ -32,6 +32,7 @@ enum {
 
 #define GTP_RT_FL_IPIP		(1 << 0)
 #define GTP_RT_FL_PPPOE		(1 << 1)
+#define GTP_RT_FL_UDP_LEARNING	(1 << 2)
 
 struct ip_rt_key {
 	__u32	id;
@@ -48,6 +49,7 @@ struct gtp_rt_rule {
 	__be32	dst_key;
 	__u8	ifindex;
 	__u16	vlan_id;
+	__be16	gtp_udp_port;
 
 	/* Some stats */
 	__u64	packets;

@@ -145,6 +145,7 @@ struct gtp_rt_rule {
 	__be32  dst_key;
 	__u8	ifindex;
 	__u16	vlan_id;
+	__be16	gtp_udp_port;
 
 	/* Some stats */
 	__u64   packets;
@@ -152,7 +153,23 @@ struct gtp_rt_rule {
 
 	__u8	flags;
 } __attribute__ ((__aligned__(8)));
+
 #define GTP_RT_FL_IPIP		(1 << 0)
 #define GTP_RT_FL_PPPOE		(1 << 1)
+#define GTP_RT_FL_UDP_LEARNING	(1 << 2)
+
+/* FIXME: How can we fetch cpu_num in BPF context ? */
+const volatile int nr_cpus = 12;
+
+struct rt_percpu_ctx {
+	/* ingress */
+	__u8 hw[6];
+	__u16 session_id;
+	/* egress */
+	__be32 addr;
+	__be32 id;
+
+	__u16 dst_port;
+};
 
 #endif

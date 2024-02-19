@@ -100,9 +100,14 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 	gtp_router_t *rtr = c->ctx;
 	gtp_server_t *srv = &rtr->gtpu;
 	ip_vrf_t *vrf = s->apn->vrf;
-	__u8 flags = __test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags) ? GTP_RT_FL_IPIP : 0;
 	__u16 vlan_id = 0;
+	__u8 flags = 0;
 	int i;
+
+	if (__test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags))
+		flags |= GTP_RT_FL_IPIP;
+	if (__test_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags))
+		flags |= GTP_RT_FL_UDP_LEARNING;
 
 	vlan_id = (vrf) ? vrf->encap_vlan_id : 0;
 	if (__test_bit(GTP_TEID_FL_INGRESS, &t->flags))
@@ -121,6 +126,7 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 		r[i].vlan_id = vlan_id;
 		r[i].ifindex = spppoe->pppoe->ifindex;
 		r[i].dst_key = 0;
+		r[i].gtp_udp_port = 0;
 		r[i].packets = 0;
 		r[i].bytes = 0;
 		r[i].flags = flags | GTP_RT_FL_PPPOE;

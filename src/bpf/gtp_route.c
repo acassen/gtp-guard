@@ -117,6 +117,7 @@ gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
 
 	if (ctx->ingress_ifindex != fib_params->ifindex)
 		return bpf_redirect(fib_params->ifindex, 0);
+
 	return XDP_TX;
 }
 
@@ -532,10 +533,17 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	udph = data + offset;
 	if (udph + 1 > data_end)
 		return XDP_DROP;
+	udph->source = bpf_htons(GTPU_PORT);
 	udph->dest = bpf_htons(GTPU_PORT);
-	udph->source= bpf_htons(65000);
 	udph->len = bpf_htons(payload_len + sizeof(*udph) + sizeof(*gtph));
 	udph->check = 0;
+
+	/* For diversification and efficiency some sGW implementation
+	 * require src port diversification. To keep it state-less
+	 * we are setting src_port transitively learnt from first
+	 * packet originated from remote sGW */
+	if (rt_rule->gtp_udp_port != 0)
+		udph->source = rt_rule->gtp_udp_port;
 
 	offset += sizeof(*udph);
 
@@ -557,6 +565,64 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	return gtp_route_fib_lookup(ctx, ethh, iph, &fib_params);
 }
 
+/*
+ *	GTP-ROUTE rules handling
+ */
+static int
+gtp_rt_rule_update_ingress(__u32 index, struct rt_percpu_ctx *ctx)
+{
+	struct gtp_rt_rule *rt_rule;
+	struct ppp_key ppp_k;
+
+	/* Update ingress */
+	__builtin_memset(&ppp_k, 0, sizeof(struct ppp_key));
+	__builtin_memcpy(ppp_k.hw, ctx->hw, ETH_ALEN);
+	ppp_k.session_id = ctx->session_id;
+
+	rt_rule = bpf_map_lookup_percpu_elem(&ppp_ingress, &ppp_k, index);
+	if (!rt_rule)
+		return 0;
+
+	rt_rule->gtp_udp_port = ctx->dst_port;
+	return 0;
+}
+
+static int
+gtp_rt_rule_update_egress(__u32 index, struct rt_percpu_ctx *ctx)
+{
+	struct gtp_rt_rule *rt_rule;
+	struct ip_rt_key rt_k;
+
+	/* Update egress */
+	__builtin_memset(&rt_k, 0, sizeof(struct ip_rt_key));
+	rt_k.addr = ctx->addr;
+	rt_k.id = ctx->id;
+
+	rt_rule = bpf_map_lookup_percpu_elem(&teid_egress, &rt_k, index);
+	if (!rt_rule)
+		return 0;
+
+	rt_rule->gtp_udp_port = ctx->dst_port;
+	return 0;
+}
+
+static __always_inline int
+gtp_rt_rule_dst_port_update(struct gtp_rt_rule *rt_rule, __u16 port)
+{
+	struct rt_percpu_ctx ctx;
+
+	/* Prepare update context */
+	__builtin_memset(&ctx, 0, sizeof(struct rt_percpu_ctx));
+	__builtin_memcpy(ctx.hw, rt_rule->h_src, ETH_ALEN);
+	ctx.session_id = rt_rule->session_id;
+	ctx.id = rt_rule->teid;
+	ctx.addr = rt_rule->saddr;
+	ctx.dst_port = port;
+
+	bpf_loop(nr_cpus, gtp_rt_rule_update_ingress, &ctx, 0);
+	bpf_loop(nr_cpus, gtp_rt_rule_update_egress, &ctx, 0);
+	return 0;
+}
 
 /*
  *	GTP-ROUTE traffic selector
@@ -607,6 +673,10 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 	rule = bpf_map_lookup_elem(&teid_egress, &rt_key);
 	if (!rule)
 		return XDP_PASS;
+
+	/* remote GTP-U udp port learning */
+	if (rule->flags & GTP_RT_FL_UDP_LEARNING && rule->gtp_udp_port == 0)
+		gtp_rt_rule_dst_port_update(rule, udph->source);
 
 	if (rule->flags & GTP_RT_FL_PPPOE)
 		return gtp_route_ppp_encap(pkt, rule);

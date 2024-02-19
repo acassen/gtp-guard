@@ -115,6 +115,28 @@ DEFUN(ip_vrf_description,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_gtp_udp_port_learning,
+      ip_vrf_gtp_udp_port_learning_cmd,
+      "gtp-udp-port-learning",
+      "GTP-U UDP src-port learning\n")
+{
+	ip_vrf_t *vrf = vty->index;
+
+	__set_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_ip_vrf_gtp_udp_port_learning,
+      no_ip_vrf_gtp_udp_port_learning_cmd,
+      "no gtp-udp-port-learning",
+      "GTP-U UDP src-port learning\n")
+{
+	ip_vrf_t *vrf = vty->index;
+
+	__clear_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(ip_vrf_encapsulation_dot1q,
       ip_vrf_encapsulation_dot1q_cmd,
       "encapsulation dot1q <1-65535>",
@@ -600,6 +622,8 @@ gtp_config_write(vty_t *vty)
         	vty_out(vty, "ip vrf %s%s", vrf->name, VTY_NEWLINE);
 		if (vrf->description[0])
 			vty_out(vty, " description %s%s", vrf->description, VTY_NEWLINE);
+		if (__test_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags))
+			vty_out(vty, " gtp-udp-port-learning%s", VTY_NEWLINE);
 		if (__test_bit(IP_VRF_FL_ENCAP_DOT1Q_BIT, &vrf->flags))
 			vty_out(vty, " encapsulation dot1q %d%s", vrf->encap_vlan_id, VTY_NEWLINE);
 		if (__test_bit(IP_VRF_FL_DECAP_DOT1Q_BIT, &vrf->flags))
@@ -685,6 +709,8 @@ gtp_vrf_vty_init(void)
 
 	install_default(IP_VRF_NODE);
 	install_element(IP_VRF_NODE, &ip_vrf_description_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_gtp_udp_port_learning_cmd);
+	install_element(IP_VRF_NODE, &no_ip_vrf_gtp_udp_port_learning_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_encapsulation_dot1q_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_decapsulation_dot1q_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_encapsulation_ipip_cmd);
