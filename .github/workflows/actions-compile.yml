@@ -61,6 +61,10 @@ jobs:
     needs: build-gtping
     runs-on: ubuntu-latest
     steps:
+      - name: add missing packages
+        uses: ConorMacBride/install-package@v1
+        with:
+          apt: scapy
       - name: Fetch artifact gtping
         uses: actions/download-artifact@v4
         with:
@@ -89,8 +93,10 @@ jobs:
           chmod 755 bin/artifact-gtp-guard-gcc/bin/gtp-guard
           chmod 755 bin/artifact-gtping/gtping
           chmod 755 bin/artifact-gtp-guard-gcc/test/testenv.sh
+          chmod 755 bin/artifact-gtp-guard-gcc/test/gtpu-ping.py
           sudo bin/artifact-gtp-guard-gcc/test/testenv.sh \
             -i bin/artifact-gtping/gtping \
+            -u bin/artifact-gtp-guard-gcc/test/gtpu-ping.py \
             -g bin/artifact-gtp-guard-gcc/bin/gtp-guard \
             -c etc/gtp-guard.conf \
             -f bin/artifact-gtp-guard-gcc/src/bpf/gtp_fwd.bpf \

@@ -21,7 +21,7 @@
 
 CC	 ?= gcc
 INCLUDES = -I.
-CFLAGS	 = -g -O2 $(INCLUDES) -Wall -Wunused -Wstrict-prototypes
+CFLAGS	 = -g -O2 $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes
 #DEFS	 = -D_DEBUG_
 DEFS	 = -D_GNU_SOURCE
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)

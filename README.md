@@ -60,6 +60,26 @@ Connection closed by foreign host.
 
 Then you can start sending your GTPc and GTPu workload to the UDP ports 2123 and 2152.
 
+## basic test
+
+For example, the following `test/testenv.sh` script can be used in order to perform a Basic Run
+along with a set of few GTPu and GTPc ping.
+
+It assumes that [gtping](https://github.com/ThomasHabets/gtping) has been isntalled.
+
+```
+cd test
+sudo ./testenv.sh \
+  -i path/dev/gtping/src/gtping \
+  -u path/dev/gtpu-guard/test/gtpu-ping.py \
+  -g path/dev/gtp-guard/bin/gtp-guard \
+  -c /tmp/gtp-guard.conf \
+  -f path/dev/gtp-guard/src/bpf/gtp_fwd.bpf \
+  -r path/dev/gtp-guard/src/bpf/gtp_route.bpf \
+  -m path/dev/gtp-guard/src/bpf/gtp_mirror.bpf \
+  -k no
+```
+
 ## getenv settings
 
   - `GTP_GUARD_PID_FILE` : set alternate pid file (default = /var/run/gtp-guard.pid)
