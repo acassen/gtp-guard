@@ -169,9 +169,9 @@ gtp_xdp_iptnl_vty(vty_t *vty, struct bpf_map *map)
 		return -1;
 	}
 
-	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
-		     "| Selector Address |  Local Address   |  Remote Address  | Flags |%s"
-		     "+------------------+------------------+------------------+-------+%s"
+	vty_out(vty, "+------------------+------------------+------------------+-------+----+----+%s"
+		     "| Selector Address |  Local Address   |  Remote Address  | Flags |encV|decV|%s"
+		     "+------------------+------------------+------------------+-------+----+----+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 
 	/* Walk hashtab */
@@ -185,15 +185,17 @@ gtp_xdp_iptnl_vty(vty_t *vty, struct bpf_map *map)
 			continue;
 		}
 
-		vty_out(vty, "| %16s | %16s | %16s | %5d |%s"
+		vty_out(vty, "| %16s | %16s | %16s | %5d |%4d|%4d|%s"
 			   , inet_ntoa2(r[0].selector_addr, sip)
 			   , inet_ntoa2(r[0].local_addr, lip)
 			   , inet_ntoa2(r[0].remote_addr, rip)
 			   , r[0].flags
+			   , r[0].encap_vlan_id
+			   , r[0].decap_vlan_id
 			   , VTY_NEWLINE);
 	}
 
-	vty_out(vty, "+------------------+------------------+------------------+-------+%s"
+	vty_out(vty, "+------------------+------------------+------------------+-------+----+----+%s"
 		   , VTY_NEWLINE);
 	free(r);
         return 0;
