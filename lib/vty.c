@@ -2189,9 +2189,11 @@ vty_config_write(vty_t *vty)
 	return CMD_SUCCESS;
 }
 
+static int vty_config_write(vty_t *vty);
 cmd_node_t vty_node = {
 	.node = VTY_NODE,
 	.prompt = "%s(config-line)# ",
+	.config_write = vty_config_write,
 };
 
 /* Reset all VTY status. */
@@ -2281,7 +2283,7 @@ vty_init(void)
 	Vvty_serv_thread = vector_init(VECTOR_DEFAULT_SIZE);
 
 	/* Install basic node. */
-	install_node(&vty_node, vty_config_write);
+	install_node(&vty_node);
 
 	install_element(VIEW_NODE, &config_who_cmd);
 	install_element(VIEW_NODE, &show_history_cmd);

@@ -65,9 +65,11 @@ static cmd_node_t enable_node = {
 	.prompt = "%s# ",
 };
 
+static int config_write_host(vty_t *vty);
 static cmd_node_t config_node = {
 	.node = CONFIG_NODE,
 	.prompt = "%s(config)# ",
+	.config_write = config_write_host,
 };
 
 /* Default motd string. */
@@ -99,10 +101,9 @@ argv_concat(const char **argv, int argc, int shift)
 
 /* Install top node of command vector. */
 void
-install_node(cmd_node_t *node, int (*func) (vty_t *))
+install_node(cmd_node_t *node)
 {
 	vector_set_index(cmdvec, node->node, node);
-	node->func = func;
 	node->cmd_vector = vector_init(VECTOR_DEFAULT_SIZE);
 }
 
@@ -2082,8 +2083,8 @@ DEFUN(config_write_file,
 	vty_out(file_vty, "!\n");
 
 	for (i = 0; i < vector_active(cmdvec); i++) {
-		if ((node = vector_slot(cmdvec, i)) && node->func) {
-			if ((*node->func) (file_vty))
+		if ((node = vector_slot(cmdvec, i)) && node->config_write) {
+			if ((*node->config_write) (file_vty))
 				vty_out(file_vty, "!\n");
 		}
 	}
@@ -2166,8 +2167,8 @@ DEFUN(config_write_terminal,
 
 	if (vty->type == VTY_SHELL_SERV) {
 		for (i = 0; i < vector_active(cmdvec); i++) {
-			if ((node = vector_slot(cmdvec, i)) && node->func) {
-				if ((*node->func) (vty))
+			if ((node = vector_slot(cmdvec, i)) && node->config_write) {
+				if ((*node->config_write) (vty))
 					vty_out(vty, "!%s", VTY_NEWLINE);
 			}
 		}
@@ -2176,8 +2177,8 @@ DEFUN(config_write_terminal,
 		vty_out(vty, "!%s", VTY_NEWLINE);
 
 		for (i = 0; i < vector_active(cmdvec); i++) {
-			if ((node = vector_slot(cmdvec, i)) && node->func) {
-				if ((*node->func) (vty))
+			if ((node = vector_slot(cmdvec, i)) && node->config_write) {
+				if ((*node->config_write) (vty))
 					vty_out(vty, "!%s", VTY_NEWLINE);
 			}
 		}
@@ -2581,11 +2582,11 @@ cmd_init(void)
 	host.motdfile = NULL;
 
 	/* Install top nodes. */
-	install_node(&view_node, NULL);
-	install_node(&enable_node, NULL);
-	install_node(&auth_node, NULL);
-	install_node(&auth_enable_node, NULL);
-	install_node(&config_node, config_write_host);
+	install_node(&view_node);
+	install_node(&enable_node);
+	install_node(&auth_node);
+	install_node(&auth_enable_node);
+	install_node(&config_node);
 
 	/* Each node's basic commands. */
 	install_element(VIEW_NODE, &show_version_cmd);

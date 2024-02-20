@@ -33,9 +33,11 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
+static int gtp_config_write(vty_t *vty);
 cmd_node_t gtp_switch_node = {
         .node = GTP_SWITCH_NODE,
         .prompt = "%s(gtp-switch)# ",
+        .config_write = gtp_config_write,
 };
 
 
@@ -546,7 +548,7 @@ gtp_switch_vty_init(void)
 {
 
 	/* Install PDN commands. */
-	install_node(&gtp_switch_node, gtp_config_write);
+	install_node(&gtp_switch_node);
 	install_element(CONFIG_NODE, &gtp_switch_cmd);
 	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 

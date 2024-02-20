@@ -35,9 +35,11 @@ extern data_t *daemon_data;
 /* Local data */
 static uint32_t gtp_vrf_id;
 
+static int gtp_config_write(vty_t *vty);
 cmd_node_t ip_vrf_node = {
         .node = IP_VRF_NODE,
         .prompt ="%s(ip-vrf)# ",
+        .config_write = gtp_config_write,
 };
 
 
@@ -678,7 +680,7 @@ int
 gtp_vrf_vty_init(void)
 {
 	/* Install PDN commands. */
-	install_node(&ip_vrf_node, gtp_config_write);
+	install_node(&ip_vrf_node);
 	install_element(CONFIG_NODE, &ip_vrf_cmd);
 	install_element(CONFIG_NODE, &no_ip_vrf_cmd);
 

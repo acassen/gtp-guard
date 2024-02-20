@@ -33,9 +33,11 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
+static int gtp_config_write(vty_t *vty);
 cmd_node_t gtp_router_node = {
         .node = GTP_ROUTER_NODE,
         .prompt = "%s(gtp-router)# ",
+	.config_write = gtp_config_write,
 };
 
 
@@ -228,7 +230,7 @@ int
 gtp_router_vty_init(void)
 {
 	/* Install PDN commands. */
-	install_node(&gtp_router_node, gtp_config_write);
+	install_node(&gtp_router_node);
 	install_element(CONFIG_NODE, &gtp_router_cmd);
 	install_element(CONFIG_NODE, &no_gtp_router_cmd);
 
