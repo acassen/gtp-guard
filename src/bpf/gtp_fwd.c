@@ -208,9 +208,9 @@ gtpu_xlat_iph(struct iphdr *iph, __be32 daddr)
 	iph->saddr = iph->daddr;
 	iph->daddr = daddr;
 	--iph->ttl;
-	iph->check = 0;
-	ipv4_csum(iph, sizeof(struct iphdr), &csum);
-	iph->check = csum;
+	/* avoid doing ipv4_csum(iph, sizeof(struct iphdr), &csum); */
+	csum = iph->check + 0x100; /* RFC 1141: incremet checksum high byte */
+	iph->check = csum + (csum >> 16); /* add carry */
 }
 
 static __always_inline void
