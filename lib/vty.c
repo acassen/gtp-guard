@@ -610,18 +610,9 @@ vty_end_config(vty_t *vty)
 	case ENABLE_NODE:
 		/* Nothing to do. */
 		break;
-	case CONFIG_NODE:
-	case PDN_NODE:
-	case APN_NODE:
-	case IP_VRF_NODE:
-	case GTP_SWITCH_NODE:
-	case GTP_ROUTER_NODE:
-	case VTY_NODE:
+	default:
 		vty_config_unlock(vty);
 		vty->node = ENABLE_NODE;
-		break;
-	default:
-		/* Unknown node, we have to ignore it. */
 		break;
 	}
 
@@ -2192,6 +2183,7 @@ vty_config_write(vty_t *vty)
 static int vty_config_write(vty_t *vty);
 cmd_node_t vty_node = {
 	.node = VTY_NODE,
+	.parent_node = CONFIG_NODE,
 	.prompt = "%s(config-line)# ",
 	.config_write = vty_config_write,
 };

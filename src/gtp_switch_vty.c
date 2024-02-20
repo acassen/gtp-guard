@@ -36,6 +36,7 @@ extern thread_master_t *master;
 static int gtp_config_write(vty_t *vty);
 cmd_node_t gtp_switch_node = {
         .node = GTP_SWITCH_NODE,
+        .parent_node = CONFIG_NODE,
         .prompt = "%s(gtp-switch)# ",
         .config_write = gtp_config_write,
 };

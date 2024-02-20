@@ -41,6 +41,7 @@ extern thread_master_t *master;
 static int apn_config_write(vty_t *vty);
 cmd_node_t apn_node = {
 	.node = APN_NODE,
+	.parent_node = CONFIG_NODE,
 	.prompt = "%s(gtp-apn)# ",
 	.config_write = apn_config_write,
 };

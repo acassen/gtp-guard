@@ -68,6 +68,7 @@ static cmd_node_t enable_node = {
 static int config_write_host(vty_t *vty);
 static cmd_node_t config_node = {
 	.node = CONFIG_NODE,
+	.parent_node = ENABLE_NODE,
 	.prompt = "%s(config)# ",
 	.config_write = config_write_host,
 };
@@ -1912,6 +1913,8 @@ DEFUN(config_exit,
       "exit",
       "Exit current mode and down to previous mode\n")
 {
+	cmd_node_t *cnode = vector_lookup(cmdvec, vty->node);
+
 	switch (vty->node) {
 	case VIEW_NODE:
 	case ENABLE_NODE:
@@ -1920,19 +1923,16 @@ DEFUN(config_exit,
 		vty->status = VTY_CLOSE;
 		break;
 	case CONFIG_NODE:
+		/* special case: we need to unlock the vty */
 		vty->node = ENABLE_NODE;
 		vty_config_unlock(vty);
 		break;
-	case APN_NODE:
-	case PDN_NODE:
-	case IP_VRF_NODE:
-	case GTP_SWITCH_NODE:
-	case GTP_ROUTER_NODE:
-	case VTY_NODE:
 	case CFG_LOG_NODE:
 		vty->node = CONFIG_NODE;
 		break;
 	default:
+		if (cnode->parent_node)
+			vty->node = cnode->parent_node;
 		break;
 	}
 
@@ -1956,17 +1956,9 @@ DEFUN(config_end,
 	case ENABLE_NODE:
 		/* Nothing to do. */
 		break;
-	case CFG_LOG_NODE:
-	case CONFIG_NODE:
-	case IP_VRF_NODE:
-	case GTP_SWITCH_NODE:
-	case GTP_ROUTER_NODE:
-	case PDN_NODE:
-	case VTY_NODE:
+	default:
 		vty_config_unlock(vty);
 		vty->node = ENABLE_NODE;
-		break;
-	default:
 		break;
 	}
 

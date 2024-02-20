@@ -88,6 +88,7 @@ typedef enum _match_type {
  * function pointer . */
 typedef struct _cmd_node {
 	node_type_t		node;			/* Node index. */
+	node_type_t		parent_node;		/* Parent Node index. */
 	const char		*prompt;		/* Prompt character at vty interface. */
 	int			(*config_write) (vty_t *);	/* Node's configuration write function */
 	vector_t		*cmd_vector;		/* Vector of this node's command list. */

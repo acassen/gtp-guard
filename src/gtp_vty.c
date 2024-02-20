@@ -36,6 +36,7 @@ extern thread_master_t *master;
 static int pdn_config_write(vty_t *vty);
 cmd_node_t pdn_node = {
         .node = PDN_NODE,
+        .parent_node = CONFIG_NODE,
         .prompt = "%s(pdn)# ",
         .config_write = pdn_config_write,
 };

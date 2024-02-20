@@ -38,6 +38,7 @@ static uint32_t gtp_vrf_id;
 static int gtp_config_write(vty_t *vty);
 cmd_node_t ip_vrf_node = {
         .node = IP_VRF_NODE,
+        .parent_node = CONFIG_NODE,
         .prompt ="%s(ip-vrf)# ",
         .config_write = gtp_config_write,
 };

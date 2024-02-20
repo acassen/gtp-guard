@@ -36,6 +36,7 @@ extern thread_master_t *master;
 static int gtp_config_write(vty_t *vty);
 cmd_node_t gtp_router_node = {
         .node = GTP_ROUTER_NODE,
+        .parent_node = CONFIG_NODE,
         .prompt = "%s(gtp-router)# ",
 	.config_write = gtp_config_write,
 };
