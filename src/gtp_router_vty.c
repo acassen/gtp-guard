@@ -34,9 +34,9 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 cmd_node_t gtp_router_node = {
-        GTP_ROUTER_NODE,
-        "%s(gtp-router)# ",
-        1,
+        .node = GTP_ROUTER_NODE,
+        .prompt = "%s(gtp-router)# ",
+        .vtysh = 1,
 };
 
 

@@ -34,9 +34,9 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 cmd_node_t gtp_switch_node = {
-        GTP_SWITCH_NODE,
-        "%s(gtp-switch)# ",
-        1,
+        .node = GTP_SWITCH_NODE,
+        .prompt = "%s(gtp-switch)# ",
+        .vtysh = 1,
 };
 
 

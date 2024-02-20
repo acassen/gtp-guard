@@ -46,29 +46,29 @@ host_t host;
 
 /* Standard command node structures. */
 static cmd_node_t auth_node = {
-	AUTH_NODE,
-	"Password: ",
+	.node = AUTH_NODE,
+	.prompt = "Password: ",
 };
 
 static cmd_node_t view_node = {
-	VIEW_NODE,
-	"%s> ",
+	.node = VIEW_NODE,
+	.prompt = "%s> ",
 };
 
 static cmd_node_t auth_enable_node = {
-	AUTH_ENABLE_NODE,
-	"Password: ",
+	.node = AUTH_ENABLE_NODE,
+	.prompt = "Password: ",
 };
 
 static cmd_node_t enable_node = {
-	ENABLE_NODE,
-	"%s# ",
+	.node = ENABLE_NODE,
+	.prompt = "%s# ",
 };
 
 static cmd_node_t config_node = {
-	CONFIG_NODE,
-	"%s(config)# ",
-	1
+	.node = CONFIG_NODE,
+	.prompt = "%s(config)# ",
+	.vtysh = 1
 };
 
 /* Default motd string. */

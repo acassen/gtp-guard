@@ -36,9 +36,9 @@ extern data_t *daemon_data;
 static uint32_t gtp_vrf_id;
 
 cmd_node_t ip_vrf_node = {
-        IP_VRF_NODE,
-        "%s(ip-vrf)# ",
-        1,
+        .node = IP_VRF_NODE,
+        .prompt ="%s(ip-vrf)# ",
+        .vtysh = 1,
 };
 
 

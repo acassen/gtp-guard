@@ -39,9 +39,9 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 cmd_node_t apn_node = {
-	APN_NODE,
-	"%s(gtp-apn)# ",
-	1,
+	.node = APN_NODE,
+	.prompt = "%s(gtp-apn)# ",
+	.vtysh = 1,
 };
 
 
