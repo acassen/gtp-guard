@@ -36,7 +36,6 @@ extern thread_master_t *master;
 cmd_node_t gtp_router_node = {
         .node = GTP_ROUTER_NODE,
         .prompt = "%s(gtp-router)# ",
-        .vtysh = 1,
 };
 
 

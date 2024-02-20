@@ -41,7 +41,6 @@ extern thread_master_t *master;
 cmd_node_t apn_node = {
 	.node = APN_NODE,
 	.prompt = "%s(gtp-apn)# ",
-	.vtysh = 1,
 };
 
 

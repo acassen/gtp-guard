@@ -36,7 +36,6 @@ extern thread_master_t *master;
 cmd_node_t pdn_node = {
         .node = PDN_NODE,
         .prompt = "%s(pdn)# ",
-        .vtysh = 1,
 };
 
 

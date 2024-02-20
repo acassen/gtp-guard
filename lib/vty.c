@@ -2192,7 +2192,6 @@ vty_config_write(vty_t *vty)
 cmd_node_t vty_node = {
 	.node = VTY_NODE,
 	.prompt = "%s(config-line)# ",
-	.vtysh = 1,
 };
 
 /* Reset all VTY status. */

@@ -38,7 +38,6 @@ static uint32_t gtp_vrf_id;
 cmd_node_t ip_vrf_node = {
         .node = IP_VRF_NODE,
         .prompt ="%s(ip-vrf)# ",
-        .vtysh = 1,
 };
 
 

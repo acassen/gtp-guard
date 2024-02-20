@@ -68,7 +68,6 @@ static cmd_node_t enable_node = {
 static cmd_node_t config_node = {
 	.node = CONFIG_NODE,
 	.prompt = "%s(config)# ",
-	.vtysh = 1
 };
 
 /* Default motd string. */
@@ -2167,7 +2166,7 @@ DEFUN(config_write_terminal,
 
 	if (vty->type == VTY_SHELL_SERV) {
 		for (i = 0; i < vector_active(cmdvec); i++) {
-			if ((node = vector_slot(cmdvec, i)) && node->func && node->vtysh) {
+			if ((node = vector_slot(cmdvec, i)) && node->func) {
 				if ((*node->func) (vty))
 					vty_out(vty, "!%s", VTY_NEWLINE);
 			}

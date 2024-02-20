@@ -36,7 +36,6 @@ extern thread_master_t *master;
 cmd_node_t gtp_switch_node = {
         .node = GTP_SWITCH_NODE,
         .prompt = "%s(gtp-switch)# ",
-        .vtysh = 1,
 };
 
 
