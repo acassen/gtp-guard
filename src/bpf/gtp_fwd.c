@@ -202,7 +202,7 @@ gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 static __always_inline void
 gtpu_xlat_iph(struct iphdr *iph, __be32 daddr)
 {
-	__u32 csum = 0;
+	__u32 csum;
 
 	/* Phase 1 : rewrite IP header */
 	iph->saddr = iph->daddr;
