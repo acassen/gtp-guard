@@ -610,18 +610,9 @@ vty_end_config(vty_t *vty)
 	case ENABLE_NODE:
 		/* Nothing to do. */
 		break;
-	case CONFIG_NODE:
-	case PDN_NODE:
-	case APN_NODE:
-	case IP_VRF_NODE:
-	case GTP_SWITCH_NODE:
-	case GTP_ROUTER_NODE:
-	case VTY_NODE:
+	default:
 		vty_config_unlock(vty);
 		vty->node = ENABLE_NODE;
-		break;
-	default:
-		/* Unknown node, we have to ignore it. */
 		break;
 	}
 
@@ -2189,10 +2180,12 @@ vty_config_write(vty_t *vty)
 	return CMD_SUCCESS;
 }
 
+static int vty_config_write(vty_t *vty);
 cmd_node_t vty_node = {
-	VTY_NODE,
-	"%s(config-line)# ",
-	1,
+	.node = VTY_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(config-line)# ",
+	.config_write = vty_config_write,
 };
 
 /* Reset all VTY status. */
@@ -2282,7 +2275,7 @@ vty_init(void)
 	Vvty_serv_thread = vector_init(VECTOR_DEFAULT_SIZE);
 
 	/* Install basic node. */
-	install_node(&vty_node, vty_config_write);
+	install_node(&vty_node);
 
 	install_element(VIEW_NODE, &config_who_cmd);
 	install_element(VIEW_NODE, &show_history_cmd);

@@ -33,10 +33,12 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
+static int pdn_config_write(vty_t *vty);
 cmd_node_t pdn_node = {
-        PDN_NODE,
-        "%s(pdn)# ",
-        1,
+        .node = PDN_NODE,
+        .parent_node = CONFIG_NODE,
+        .prompt = "%s(pdn)# ",
+        .config_write = pdn_config_write,
 };
 
 
@@ -873,7 +875,7 @@ gtp_vty_init(void)
 {
 
 	/* Install PDN commands. */
-	install_node(&pdn_node, pdn_config_write);
+	install_node(&pdn_node);
 	install_element(CONFIG_NODE, &pdn_cmd);
 
 	install_default(PDN_NODE);
