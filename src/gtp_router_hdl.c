@@ -693,8 +693,16 @@ gtpc_pppoe_tls(sppp_t *sp)
 void
 gtpc_pppoe_tlf(sppp_t *sp)
 {
-	/* Session is released */
+	spppoe_t *s = sp->s_pppoe;
 
+	/* Session is released via GTP-C */
+	if (__test_bit(GTP_PPPOE_DELETE_FL_HASHED, &s->flags)) {
+		spppoe_destroy(s);
+		gtp_session_destroy(s->s_gtp);
+		return;
+	}
+
+	/* TODO: Session is released via remote BNG */
 	/* TODO: Send delete-bearer-request */
 }
 
@@ -981,7 +989,10 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	gtp_teid_put(teid);
 	gtp_teid_put(pteid);
-	gtp_session_destroy(teid->session);
+	if (teid->session && teid->session->s_pppoe)
+		spppoe_close(teid->session->s_pppoe);
+	else
+		gtp_session_destroy(teid->session);
   end:
 	gtp_msg_destroy(msg);
 	return rc;

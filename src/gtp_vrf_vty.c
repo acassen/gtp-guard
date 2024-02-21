@@ -366,6 +366,32 @@ DEFUN(ip_vrf_pppoe_mru,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_vmac_hbits,
+      ip_vrf_pppoe_vmac_hbits_cmd,
+      "pppoe vmac-hbits INTEGER",
+      "PPP Over Ethernet\n"
+      "Virtual MAC Address first 4bits\n"
+      "hbits\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+	uint8_t hbits;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("hbits", hbits, argv[0], 0, 15);
+	pppoe->vmac_hbits = hbits << 4;
+	return CMD_SUCCESS;
+}
+
 DEFUN(ip_vrf_pppoe_auth_pap_gtp_username,
       ip_vrf_pppoe_auth_pap_gtp_username_cmd,
       "pppoe authentication pap gtp-username",
@@ -612,32 +638,6 @@ DEFUN(ip_vrf_pppoe_lcp_max_failure,
 	return CMD_SUCCESS;
 }
 
-DEFUN(ip_vrf_pppoe_vmac_hbits,
-      ip_vrf_pppoe_vmac_hbits_cmd,
-      "pppoe vmac-hbits INTEGER",
-      "PPP Over Ethernet\n"
-      "Virtual MAC Address first 4bits\n"
-      "hbits\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-	uint8_t hbits;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	VTY_GET_INTEGER_RANGE("hbits", hbits, argv[0], 0, 7);
-	pppoe->vmac_hbits = hbits << 4;
-	return CMD_SUCCESS;
-}
-
 
 /* Configuration writer */
 static int
@@ -751,6 +751,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_mru_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_vmac_hbits_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);

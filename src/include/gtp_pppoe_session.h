@@ -27,6 +27,7 @@
 enum gtp_pppoe_session_flags {
 	GTP_PPPOE_UNIQUE_FL_HASHED,
 	GTP_PPPOE_SESSION_FL_HASHED,
+	GTP_PPPOE_DELETE_FL_HASHED,
 };
 
 typedef struct _spppoe {
@@ -71,10 +72,11 @@ typedef struct _spppoe {
 extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
 extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
 extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
+extern int spppoe_destroy(spppoe_t *);
 extern spppoe_t *spppoe_init(gtp_pppoe_t *, gtp_conn_t *,
 			     void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
 			     void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
 			     const uint64_t, const uint64_t, const char *);
-extern int spppoe_destroy(spppoe_t *);
+extern int spppoe_close(spppoe_t *);
 
 #endif

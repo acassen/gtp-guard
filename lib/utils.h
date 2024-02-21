@@ -72,12 +72,12 @@
 #endif
 
 #define ETHER_BYTES(__eth_addr)			\
-	(unsigned char)__eth_addr[5],		\
-	(unsigned char)__eth_addr[4],		\
-	(unsigned char)__eth_addr[3],		\
-	(unsigned char)__eth_addr[2],		\
+	(unsigned char)__eth_addr[0],		\
 	(unsigned char)__eth_addr[1],		\
-	(unsigned char)__eth_addr[0]
+	(unsigned char)__eth_addr[2],		\
+	(unsigned char)__eth_addr[3],		\
+	(unsigned char)__eth_addr[4],		\
+	(unsigned char)__eth_addr[5]
 
 /* ASM related */
 static inline void cpu_relax(void)

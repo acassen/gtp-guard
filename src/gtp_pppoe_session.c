@@ -257,12 +257,24 @@ spppoe_add(gtp_conn_t *c, spppoe_t *s)
 	return 0;
 }
 
+static int
+spppoe_del(gtp_conn_t *c, spppoe_t *s)
+{
+	pthread_mutex_lock(&c->session_mutex);
+	list_head_del(&s->next);
+	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
+	pthread_mutex_unlock(&c->session_mutex);
+
+	return 0;
+}
+
 int
 spppoe_destroy(spppoe_t *s)
 {
 	if (!s)
 		return -1;
 
+	spppoe_del(s->s_gtp->conn, s);
 	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
 	spppoe_session_unhash(&s->pppoe->session_tab, s);
 	sppp_destroy(s->s_ppp);
@@ -313,4 +325,11 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	}
 
 	return s;
+}
+
+int
+spppoe_close(spppoe_t *s)
+{
+	__set_bit(GTP_PPPOE_DELETE_FL_HASHED, &s->flags);
+	return pppoe_disconnect(s);
 }
