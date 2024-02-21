@@ -612,6 +612,33 @@ DEFUN(ip_vrf_pppoe_lcp_max_failure,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_vmac_hbits,
+      ip_vrf_pppoe_vmac_hbits_cmd,
+      "pppoe vmac-hbits INTEGER",
+      "PPP Over Ethernet\n"
+      "Virtual MAC Address first 4bits\n"
+      "hbits\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+	uint8_t hbits;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("hbits", hbits, argv[0], 0, 7);
+	pppoe->vmac_hbits = hbits << 4;
+	return CMD_SUCCESS;
+}
+
+
 /* Configuration writer */
 static int
 gtp_config_write(vty_t *vty)
@@ -652,6 +679,10 @@ gtp_config_write(vty_t *vty)
 			if (pppoe->mru)
 				vty_out(vty, " pppoe maximum-receive-unit %d%s"
 					   , pppoe->mru
+					   , VTY_NEWLINE);
+			if (pppoe->vmac_hbits)
+				vty_out(vty, " pppoe vmac-hbits %d%s"
+					   , pppoe->vmac_hbits
 					   , VTY_NEWLINE);
 			if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe authentication pap gtp-username%s"

@@ -295,6 +295,7 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	s->id = id;
 	s->session_time = time(NULL);
 	gtp_imsi_ether_addr_build(imsi, &s->hw_src, id);
+	s->hw_src.ether_addr_octet[0] |= pppoe->vmac_hbits;
 	s->pppoe = pppoe;
 	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
 		snprintf(s->gtp_username, PPPOE_NAMELEN

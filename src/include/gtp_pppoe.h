@@ -129,6 +129,7 @@ typedef struct _gtp_pppoe_worker {
 typedef struct _gtp_pppoe {
 	char			ifname[GTP_NAME_MAX_LEN];
 	unsigned int		ifindex;
+	uint8_t			vmac_hbits;
 	char			ac_name[PPPOE_NAMELEN];
 	char			service_name[PPPOE_NAMELEN];
 	char			pap_username[PPPOE_NAMELEN];
