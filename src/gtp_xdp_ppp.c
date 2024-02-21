@@ -142,13 +142,6 @@ gtp_xdp_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
 	return 0;
 }
 
-static void
-gtp_xdp_ppp_key_dump(const char *pfx, struct ppp_key *ppp_k)
-{
-	printf("### [%s] PPP Key = {%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,0x%.4x}\n",
-	       pfx, ETHER_BYTES(ppp_k->hw), ppp_k->session_id);
-}
-
 static int
 gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 {
@@ -186,16 +179,14 @@ gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 			err = bpf_map__update_elem(map, &rt_k, sizeof(struct ip_rt_key),
 						   new, sz, BPF_NOEXIST);
-		else {
+		else
 			err = bpf_map__update_elem(map, &ppp_k, sizeof(struct ppp_key),
 						   new, sz, BPF_NOEXIST);
-		}
 	} else if (action == RULE_DEL) {
 		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 			err = bpf_map__delete_elem(map, &rt_k, sizeof(struct ip_rt_key), 0);
-		else {
+		else
 			err = bpf_map__delete_elem(map, &ppp_k, sizeof(struct ppp_key), 0);
-		}
 	} else
 		return -1;
 	if (err) {

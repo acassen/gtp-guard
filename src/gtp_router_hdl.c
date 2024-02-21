@@ -697,7 +697,6 @@ gtpc_pppoe_tlf(sppp_t *sp)
 
 	/* Session is released via GTP-C */
 	if (__test_bit(GTP_PPPOE_DELETE_FL_HASHED, &s->flags)) {
-		spppoe_destroy(s);
 		gtp_session_destroy(s->s_gtp);
 		return;
 	}

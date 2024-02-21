@@ -289,6 +289,9 @@ __gtp_session_destroy(gtp_session_t *s)
 	/* Release teid */
 	__gtp_session_teid_destroy(s);
 
+	/* Release PPPoE related */
+	__spppoe_destroy(s->s_pppoe);
+
 	/* Release session */
 	list_head_del(&s->next);
 	FREE(s);

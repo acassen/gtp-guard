@@ -228,6 +228,9 @@ spppoe_generate_id(gtp_conn_t *c)
 	bool inuse[GTP_PPPOE_MAX_SESSION_PER_IMSI] = { 0 };
 	int i;
 
+	if (__sync_add_and_fetch(&c->pppoe_cnt, 0) == GTP_PPPOE_MAX_SESSION_PER_IMSI)
+		return -1;
+
 	/* Phase 0 : populate inuse table, since session can
 	 * be deleted or added we need to mark and look for
 	 * available id */
@@ -258,13 +261,41 @@ spppoe_add(gtp_conn_t *c, spppoe_t *s)
 }
 
 static int
+__spppoe_del(gtp_conn_t *c, spppoe_t *s)
+{
+	list_head_del(&s->next);
+	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
+	return 0;
+}
+
+static int
 spppoe_del(gtp_conn_t *c, spppoe_t *s)
 {
 	pthread_mutex_lock(&c->session_mutex);
-	list_head_del(&s->next);
-	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
+	__spppoe_del(c, s);
 	pthread_mutex_unlock(&c->session_mutex);
+	return 0;
+}
 
+static int
+spppoe_release(spppoe_t *s)
+{
+	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
+	spppoe_session_unhash(&s->pppoe->session_tab, s);
+	sppp_destroy(s->s_ppp);
+	FREE(s);
+
+	return 0;
+}
+
+int
+__spppoe_destroy(spppoe_t *s)
+{
+	if (!s)
+		return -1;
+
+	__spppoe_del(s->s_gtp->conn, s);
+	spppoe_release(s);
 	return 0;
 }
 
@@ -275,10 +306,7 @@ spppoe_destroy(spppoe_t *s)
 		return -1;
 
 	spppoe_del(s->s_gtp->conn, s);
-	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
-	spppoe_session_unhash(&s->pppoe->session_tab, s);
-	sppp_destroy(s->s_ppp);
-	FREE(s);
+	spppoe_release(s);
 	return 0;
 }
 
