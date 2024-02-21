@@ -222,10 +222,36 @@ spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
  *	PPPoE Sessions related
  */
 static int
+spppoe_generate_id(gtp_conn_t *c)
+{
+	spppoe_t *s;
+	bool inuse[GTP_PPPOE_MAX_SESSION_PER_IMSI] = { 0 };
+	int i;
+
+	/* Phase 0 : populate inuse table, since session can
+	 * be deleted or added we need to mark and look for
+	 * available id */
+	pthread_mutex_lock(&c->session_mutex);
+	list_for_each_entry(s, &c->pppoe_sessions, next)
+		inuse[s->id] = true;
+	pthread_mutex_unlock(&c->session_mutex);
+
+	/* Phase 1 : return first available id */
+	for (i = 0; i < GTP_PPPOE_MAX_SESSION_PER_IMSI; i++) {
+		if (!inuse[i]) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+static int
 spppoe_add(gtp_conn_t *c, spppoe_t *s)
 {
 	pthread_mutex_lock(&c->session_mutex);
 	list_add_tail(&s->next, &c->pppoe_sessions);
+	__sync_add_and_fetch(&c->pppoe_cnt, 1);
 	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
@@ -251,15 +277,24 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	    const uint64_t imsi, const uint64_t mei, const char *apn_str)
 {
 	spppoe_t *s;
-	int err;
+	int err, id;
 
 	if (!pppoe)
 		return NULL;
 
+	id = spppoe_generate_id(c);
+	if (id < 0) {
+		log_message(LOG_INFO, "%s(): %d veth already allocated to imsi:%ld"
+				    , __FUNCTION__
+				    , GTP_PPPOE_MAX_SESSION_PER_IMSI, imsi);
+		return NULL;
+	}
+
 	PMALLOC(s);
 	INIT_LIST_HEAD(&s->next);
+	s->id = id;
 	s->session_time = time(NULL);
-	gtp_imsi_ether_addr_build(imsi, &s->hw_src);
+	gtp_imsi_ether_addr_build(imsi, &s->hw_src, id);
 	s->pppoe = pppoe;
 	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
 		snprintf(s->gtp_username, PPPOE_NAMELEN

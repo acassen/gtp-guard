@@ -22,12 +22,15 @@
 #ifndef _GTP_PPPOE_SESSION_H
 #define _GTP_PPPOE_SESSION_H
 
+#define GTP_PPPOE_MAX_SESSION_PER_IMSI	8
+
 enum gtp_pppoe_session_flags {
 	GTP_PPPOE_UNIQUE_FL_HASHED,
 	GTP_PPPOE_SESSION_FL_HASHED,
 };
 
 typedef struct _spppoe {
+	uint8_t			id;		/* Local id */
 	int			state;		/* [K] discovery phase or session connected */
 	struct ether_addr	hw_src;		/* [K] our hardware address */
 	struct ether_addr	hw_dst;		/* [K] hardware address of concentrator */

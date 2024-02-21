@@ -37,7 +37,7 @@ extern int str_imsi_to_bcd_swap(char *, size_t, uint8_t *);
 extern int64_t bcd_to_int64(const uint8_t *, size_t);
 extern int int64_to_bcd_swap(const uint64_t, uint8_t *, size_t);
 extern int int64_to_bcd(const uint64_t, uint8_t *, size_t);
-extern int gtp_imsi_ether_addr_build(const uint64_t, struct ether_addr *);
+extern int gtp_imsi_ether_addr_build(const uint64_t, struct ether_addr *, uint8_t);
 extern size_t gtpc_get_header_len(gtp_hdr_t *);
 extern int gtp_imsi_rewrite(gtp_apn_t *, uint8_t *);
 extern int gtp_ie_imsi_rewrite(gtp_apn_t *, uint8_t *);

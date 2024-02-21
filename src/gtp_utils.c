@@ -241,11 +241,14 @@ int64_to_bcd(const uint64_t value, uint8_t *buffer, size_t size)
 }
 
 int
-gtp_imsi_ether_addr_build(const uint64_t imsi, struct ether_addr *eth)
+gtp_imsi_ether_addr_build(const uint64_t imsi, struct ether_addr *eth, uint8_t id)
 {
+	uint8_t eui_oui[8] = { 0x02, 0x03, 0x06, 0x07, 0x0a, 0x0b, 0x0e, 0x0f };
+
 	int64_to_bcd(imsi, eth->ether_addr_octet, ETH_ALEN);
-	/* Tweak it to avoid any special ethernet address */
-	eth->ether_addr_octet[0] = 0;
+
+	/* RFC5342.2.1: Set Local bit of EUI-48 */
+	eth->ether_addr_octet[0] = (id < 8) ? eui_oui[id] : 0;
 	return 0;
 }
 
