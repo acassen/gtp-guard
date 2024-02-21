@@ -23,7 +23,7 @@
 #define _GTP_PPP_H
 
 #define PPPDEBUG(a)	do {	\
-	if (debug & 8)		\
+	if (__test_bit(LOG_DETAIL_BIT, &debug))		\
 		printf a;	\
 } while(0)
 

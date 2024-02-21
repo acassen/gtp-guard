@@ -76,7 +76,7 @@ xfree(void *p)
  * ! 9  ! Allocated             !
  * +----+-----------------------+
  *
- * global variabel debug bit 9 ( 512 ) used to
+ * global variabel debug bit MEM_ERR_DETECT_BIT used to
  * flag some memory error.
  *
  */
@@ -140,7 +140,7 @@ memory_malloc(unsigned long size, char *file, const char *function, const int li
 	alloc_list[i].csum = check;
 	alloc_list[i].type = 9;
 
-	if (debug & 1)
+	if (__test_bit(LOG_CONSOLE_BIT, &debug))
 		printf("%szalloc[%3d:%3d], %p, %4ld at %s, %3d, %s\n",
 		       nspace(s++), i, number_alloc_list, buf, size, file, line,
 		       function);
@@ -168,11 +168,11 @@ memory_free(void *buffer, char *file, const char *function, const int line)
 		alloc_list[i].func = (char *) function;
 		alloc_list[i].line = line;
 		alloc_list[i].type = 2;
-		if (debug & 1)
+		if (__test_bit(LOG_CONSOLE_BIT, &debug))
 			printf("%sfree NULL in %s, %3d, %s\n", nspace(s), file,
 			       line, function);
 
-		debug |= 512;	/* Memory Error detect */
+		__set_bit(MEM_ERR_DETECT_BIT, &debug);	/* Memory Error detect */
 
 		return n;
 	} else
@@ -187,7 +187,7 @@ memory_free(void *buffer, char *file, const char *function, const int line)
 				alloc_list[i].type = 0;	/* Release */
 			else {
 				alloc_list[i].type = 1;	/* Overrun */
-				if (debug & 1) {
+				if (__test_bit(LOG_CONSOLE_BIT, &debug)) {
 					printf
 					    ("%sfree corrupt, buffer overrun [%3d:%3d], %p, %4ld at %s, %3d, %s\n",
 					     nspace(--s), i, number_alloc_list,
@@ -200,7 +200,7 @@ memory_free(void *buffer, char *file, const char *function, const int line)
 					dump_buffer((char *) &alloc_list[i].csum,
 						    sizeof(long));
 
-					debug |= 512;	/* Memory Error detect */
+					__set_bit(MEM_ERR_DETECT_BIT, &debug);	/* Memory Error detect */
 				}
 			}
 			break;
@@ -221,7 +221,7 @@ memory_free(void *buffer, char *file, const char *function, const int line)
 		alloc_list[i].func = (char *) function;
 		alloc_list[i].line = line;
 		alloc_list[i].type = 4;
-		debug |= 512;
+		__set_bit(MEM_ERR_DETECT_BIT, &debug);
 
 		return n;
 	}
@@ -229,7 +229,7 @@ memory_free(void *buffer, char *file, const char *function, const int line)
 	if (buffer != NULL)
 		xfree(buffer);
 
-	if (debug & 1)
+	if (__test_bit(LOG_CONSOLE_BIT, &debug))
 		printf("%sfree  [%3d:%3d], %p, %4ld at %s, %3d, %s\n",
 		       nspace(--s), i, number_alloc_list, buf,
 		       alloc_list[i].size, file, line, function);
@@ -370,7 +370,7 @@ memory_realloc(void *buffer, unsigned long size, char *file, const char *functio
 		alloc_list[i].func = (char *) function;
 		alloc_list[i].line = line;
 		alloc_list[i].type = 9;
-		debug |= 512;	/* Memory Error detect */
+		__set_bit(MEM_ERR_DETECT_BIT, &debug);	/* Memory Error detect */
 		return NULL;
 	}
 
@@ -378,7 +378,7 @@ memory_realloc(void *buffer, unsigned long size, char *file, const char *functio
 
 	if (*(long *) (buf2) != alloc_list[i].csum) {
 		alloc_list[i].type = 1;
-		debug |= 512;	/* Memory Error detect */
+		__set_bit(MEM_ERR_DETECT_BIT, &debug);	/* Memory Error detect */
 	}
 	buf = realloc(buffer, size + sizeof (long));
 
@@ -386,7 +386,7 @@ memory_realloc(void *buffer, unsigned long size, char *file, const char *functio
 	*(long *) ((char *) buf + size) = check;
 	alloc_list[i].csum = check;
 
-	if (debug & 1)
+	if (__test_bit(LOG_CONSOLE_BIT, &debug))
 		printf
 		    ("%srealloc [%3d:%3d] %p, %4ld %s %d %s -> %p %4ld %s %d %s\n",
 		     nspace(s), i, number_alloc_list, alloc_list[i].ptr,

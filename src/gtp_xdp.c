@@ -51,7 +51,7 @@ static const char *pin_basedir = "/sys/fs/bpf";
 static int
 gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list args)
 {
-	if (level == LIBBPF_DEBUG && !(debug & 16))
+	if (level == LIBBPF_DEBUG && !__test_bit(BPF_DEBUG_BIT, &debug))
 		return 0;
 
 	log_message(LOG_INFO, format, args);

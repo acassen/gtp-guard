@@ -177,19 +177,19 @@ parse_cmdline(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 			break;
 		case 'l':
-			debug |= 1;
+			__set_bit(LOG_CONSOLE_BIT, &debug);
 			break;
 		case 'n':
-			debug |= 2;
+			__set_bit(DONT_FORK_BIT, &debug);
 			break;
 		case 'd':
-			debug |= 4;
+			__set_bit(DUMP_CONF_BIT, &debug);
 			break;
 		case 'D':
-			debug |= 8;
+			__set_bit(LOG_DETAIL_BIT, &debug);
 			break;
 		case 'b':
-			debug |= 16;
+			__set_bit(BPF_DEBUG_BIT, &debug);
 			break;
 		case 'S':
 			log_facility = LOG_FACILITY[atoi(optarg)].facility;
@@ -246,7 +246,7 @@ main(int argc, char **argv)
 	 */
 	parse_cmdline(argc, argv);
 
-	openlog(PROG, LOG_PID | (debug & 1) ? LOG_PERROR : 0, log_facility);
+	openlog(PROG, LOG_PID | __test_bit(LOG_CONSOLE_BIT, &debug) ? LOG_PERROR : 0, log_facility);
 	syslog(LOG_INFO, "Starting " VERSION_STRING "\n");
 
 	if (getenv("GTP_GUARD_PID_FILE"))
@@ -261,7 +261,7 @@ main(int argc, char **argv)
 	prog_type = PROG_TYPE_PARENT;
 
 	/* daemonize process */
-	if (!(debug & 2))
+	if (!__test_bit(DONT_FORK_BIT, &debug))
 		xdaemon(0, 0, 0);
 
 	/* write the pidfile */

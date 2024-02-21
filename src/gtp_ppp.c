@@ -301,7 +301,7 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
-	if (debug & 8 && sp->state[cp->protoidx] != newstate)
+	if (__test_bit(LOG_DETAIL_BIT, &debug) && sp->state[cp->protoidx] != newstate)
 		printf("%s: %s %s->%s\n",
 		       pppoe->ifname, cp->name,
 		       sppp_state_name(sp->state[cp->protoidx]),
@@ -369,7 +369,7 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 		 sppp_proto_name(proto),
 		 sppp_cp_type_name(lh->type), lh->ident,
 		 ntohs(lh->len)));
-	if (debug & 8 && len)
+	if (__test_bit(LOG_DETAIL_BIT, &debug) && len)
 		sppp_print_bytes((uint8_t *) (lh+1), len);
 	PPPDEBUG((">\n"));
 
@@ -403,7 +403,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 	         pppoe->ifname, cp->name,
 	         sppp_state_name(sp->state[cp->protoidx]),
 	         sppp_cp_type_name(h->type), h->ident, ntohs(h->len)));
-	if (debug & 8 && len > 4)
+	if (__test_bit(LOG_DETAIL_BIT, &debug) && len > 4)
 		sppp_print_bytes((uint8_t *) (h+1), len-4);
 	PPPDEBUG((">\n"));
 
@@ -718,7 +718,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 				 pppoe->ifname, len));
 			break;
 		}
-		if (debug & 8)
+		if (__test_bit(LOG_DETAIL_BIT, &debug))
 			printf("%s: lcp got echo rep\n", pppoe->ifname);
 
 		nmagic = (uint32_t)p[0] << 24 |
@@ -1181,7 +1181,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 		PPPDEBUG((" send conf-rej\n"));
 		sppp_cp_send(sp, PPP_LCP, CONF_REJ, h->ident, rlen, buf);
 		goto end;
-	} else if (debug & 8)
+	} else if (__test_bit(LOG_DETAIL_BIT, &debug))
 		printf("\n");
 
 	/*
@@ -1406,7 +1406,7 @@ sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			break;
 		}
 	}
-	if (debug & 8)
+	if (__test_bit(LOG_DETAIL_BIT, &debug))
 		printf("\n");
 }
 
@@ -2347,7 +2347,7 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 		 pppoe->ifname, cp->name,
 		 sppp_auth_type_name(cp->proto, lh->type),
 		 lh->ident, ntohs(lh->len)));
-	if (debug & 8 && len)
+	if (__test_bit(LOG_DETAIL_BIT, &debug) && len)
 		sppp_print_bytes((uint8_t *) (lh + 1), len);
 	PPPDEBUG((">\n"));
 
@@ -2390,7 +2390,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 				 pppoe->ifname,
 				 sppp_auth_type_name(PPP_PAP, h->type),
 				 h->ident, ntohs(h->len)));
-			if (debug & 8 && len > 4)
+			if (__test_bit(LOG_DETAIL_BIT, &debug) && len > 4)
 				sppp_print_bytes((uint8_t *) (h + 1), len - 4);
 			PPPDEBUG((">\n"));
 			break;
@@ -2401,10 +2401,10 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		       sppp_state_name(sp->state[IDX_PAP]),
 		       sppp_auth_type_name(PPP_PAP, h->type),
 		       h->ident, ntohs(h->len)));
-		if (debug & 8)
+		if (__test_bit(LOG_DETAIL_BIT, &debug))
 			sppp_print_string((char*)name, name_len);
 		PPPDEBUG((" passwd="));
-		if (debug & 8)
+		if (__test_bit(LOG_DETAIL_BIT, &debug))
 			sppp_print_string((char*)passwd, passwd_len);
 		PPPDEBUG((">\n"));
 
@@ -2439,12 +2439,12 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 	/* ack and nak are his authproto */
 	case PAP_ACK:
 		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
-		if (debug & 8) {
+		if (__test_bit(LOG_DETAIL_BIT, &debug)) {
 			PPPDEBUG(("%s: pap success", pppoe->ifname));
 			name_len = *((char *)h);
 			if (len > 5 && name_len) {
 				PPPDEBUG((": "));
-				if (debug & 8)
+				if (__test_bit(LOG_DETAIL_BIT, &debug))
 					sppp_print_string((char *)(h + 1), name_len);
 			}
 			PPPDEBUG(("\n"));
@@ -2465,12 +2465,12 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 
 	case PAP_NAK:
 		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
-		if (debug & 8) {
+		if (__test_bit(LOG_DETAIL_BIT, &debug)) {
 			PPPDEBUG(("%s: pap failure", pppoe->ifname));
 			name_len = *((char *)h);
 			if (len > 5 && name_len) {
 				PPPDEBUG((": "));
-				if (debug & 8)
+				if (__test_bit(LOG_DETAIL_BIT, &debug))
 					sppp_print_string((char*)(h + 1), name_len);
 			}
 			PPPDEBUG(("\n"));
@@ -2483,7 +2483,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		/* Unknown PAP packet type -- ignore. */
 		PPPDEBUG(("%s: pap corrupted input <0x%x id=0x%x len=%d",
 			 pppoe->ifname, h->type, h->ident, ntohs(h->len)));
-		if (debug & 8 && len > 4)
+		if (__test_bit(LOG_DETAIL_BIT, &debug) && len > 4)
 			sppp_print_bytes((uint8_t *)(h + 1), len - 4);
 		PPPDEBUG((">\n"));
 		break;
