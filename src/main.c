@@ -246,7 +246,7 @@ main(int argc, char **argv)
 	 */
 	parse_cmdline(argc, argv);
 
-	openlog(PROG, LOG_PID | __test_bit(LOG_CONSOLE_BIT, &debug) ? LOG_PERROR : 0, log_facility);
+	openlog(PROG, LOG_PID | (__test_bit(LOG_CONSOLE_BIT, &debug) ? LOG_PERROR : 0), log_facility);
 	syslog(LOG_INFO, "Starting " VERSION_STRING "\n");
 
 	if (getenv("GTP_GUARD_PID_FILE"))
