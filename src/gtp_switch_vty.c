@@ -33,10 +33,12 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
+static int gtp_config_write(vty_t *vty);
 cmd_node_t gtp_switch_node = {
-        GTP_SWITCH_NODE,
-        "%s(gtp-switch)# ",
-        1,
+        .node = GTP_SWITCH_NODE,
+        .parent_node = CONFIG_NODE,
+        .prompt = "%s(gtp-switch)# ",
+        .config_write = gtp_config_write,
 };
 
 
@@ -213,7 +215,7 @@ DEFUN(gtpc_force_pgw_selection,
 
 DEFUN(gtpu_ipip,
       gtpu_ipip_cmd,
-      "gtpu-ipip traffic-selector (A.B.C.D|X:X:X:X) local (A.B.C.D|X:X:X:X) remote (A.B.C.D|X:X:X:X) vlan <1-4095>",
+      "gtpu-ipip traffic-selector (A.B.C.D|X:X:X:X) local (A.B.C.D|X:X:X:X) remote (A.B.C.D|X:X:X:X) [vlan <1-4095>]",
       "GTP Userplane IPIP tunnel\n"
       "GTP-U local L3 destination address\n"
       "IPv4 Address\n"
@@ -260,8 +262,8 @@ DEFUN(gtpu_ipip,
 		return CMD_WARNING;
 	}
 
-	if (argc == 4) {
-                VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[3], 1, 4095);
+	if (argc == 5) {
+                VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[4], 1, 4095);
                 if (vlan) {} ; /* dummy test */
 	}
 
@@ -513,12 +515,16 @@ gtp_config_write(vty_t *vty)
 			vty_out(vty, " pgw-force-selection %s%s"
 	                           , inet_sockaddrtos(&ctx->pgw_addr)
         			   , VTY_NEWLINE);
-		if (__test_bit(GTP_FL_IPTNL_BIT, &ctx->flags))
-			vty_out(vty, " gtpu-ipip traffic-selector %u.%u.%u.%u local %u.%u.%u.%u remote %u.%u.%u.%u%s"
+		if (__test_bit(GTP_FL_IPTNL_BIT, &ctx->flags)) {
+			vty_out(vty, " gtpu-ipip traffic-selector %u.%u.%u.%u local %u.%u.%u.%u remote %u.%u.%u.%u"
 	                           , NIPQUAD(ctx->iptnl.selector_addr)
 	                           , NIPQUAD(ctx->iptnl.local_addr)
-	                           , NIPQUAD(ctx->iptnl.remote_addr)
-        			   , VTY_NEWLINE);
+	                           , NIPQUAD(ctx->iptnl.remote_addr));
+	                if (ctx->iptnl.encap_vlan_id)
+			        vty_out(vty, " vlan %u"
+	                           , ctx->iptnl.encap_vlan_id);
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
 		if (ctx->iptnl.flags & IPTNL_FL_TRANSPARENT_INGRESS_ENCAP)
 			vty_out(vty, " gtpu-ipip transparent-ingress-encap%s", VTY_NEWLINE);
 		if (ctx->iptnl.flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
@@ -547,7 +553,7 @@ gtp_switch_vty_init(void)
 {
 
 	/* Install PDN commands. */
-	install_node(&gtp_switch_node, gtp_config_write);
+	install_node(&gtp_switch_node);
 	install_element(CONFIG_NODE, &gtp_switch_cmd);
 	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 

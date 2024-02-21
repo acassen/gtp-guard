@@ -46,29 +46,31 @@ host_t host;
 
 /* Standard command node structures. */
 static cmd_node_t auth_node = {
-	AUTH_NODE,
-	"Password: ",
+	.node = AUTH_NODE,
+	.prompt = "Password: ",
 };
 
 static cmd_node_t view_node = {
-	VIEW_NODE,
-	"%s> ",
+	.node = VIEW_NODE,
+	.prompt = "%s> ",
 };
 
 static cmd_node_t auth_enable_node = {
-	AUTH_ENABLE_NODE,
-	"Password: ",
+	.node = AUTH_ENABLE_NODE,
+	.prompt = "Password: ",
 };
 
 static cmd_node_t enable_node = {
-	ENABLE_NODE,
-	"%s# ",
+	.node = ENABLE_NODE,
+	.prompt = "%s# ",
 };
 
+static int config_write_host(vty_t *vty);
 static cmd_node_t config_node = {
-	CONFIG_NODE,
-	"%s(config)# ",
-	1
+	.node = CONFIG_NODE,
+	.parent_node = ENABLE_NODE,
+	.prompt = "%s(config)# ",
+	.config_write = config_write_host,
 };
 
 /* Default motd string. */
@@ -100,10 +102,9 @@ argv_concat(const char **argv, int argc, int shift)
 
 /* Install top node of command vector. */
 void
-install_node(cmd_node_t *node, int (*func) (vty_t *))
+install_node(cmd_node_t *node)
 {
 	vector_set_index(cmdvec, node->node, node);
-	node->func = func;
 	node->cmd_vector = vector_init(VECTOR_DEFAULT_SIZE);
 }
 
@@ -1912,6 +1913,8 @@ DEFUN(config_exit,
       "exit",
       "Exit current mode and down to previous mode\n")
 {
+	cmd_node_t *cnode = vector_lookup(cmdvec, vty->node);
+
 	switch (vty->node) {
 	case VIEW_NODE:
 	case ENABLE_NODE:
@@ -1920,19 +1923,16 @@ DEFUN(config_exit,
 		vty->status = VTY_CLOSE;
 		break;
 	case CONFIG_NODE:
+		/* special case: we need to unlock the vty */
 		vty->node = ENABLE_NODE;
 		vty_config_unlock(vty);
 		break;
-	case APN_NODE:
-	case PDN_NODE:
-	case IP_VRF_NODE:
-	case GTP_SWITCH_NODE:
-	case GTP_ROUTER_NODE:
-	case VTY_NODE:
 	case CFG_LOG_NODE:
 		vty->node = CONFIG_NODE;
 		break;
 	default:
+		if (cnode->parent_node)
+			vty->node = cnode->parent_node;
 		break;
 	}
 
@@ -1956,17 +1956,9 @@ DEFUN(config_end,
 	case ENABLE_NODE:
 		/* Nothing to do. */
 		break;
-	case CFG_LOG_NODE:
-	case CONFIG_NODE:
-	case IP_VRF_NODE:
-	case GTP_SWITCH_NODE:
-	case GTP_ROUTER_NODE:
-	case PDN_NODE:
-	case VTY_NODE:
+	default:
 		vty_config_unlock(vty);
 		vty->node = ENABLE_NODE;
-		break;
-	default:
 		break;
 	}
 
@@ -2083,8 +2075,8 @@ DEFUN(config_write_file,
 	vty_out(file_vty, "!\n");
 
 	for (i = 0; i < vector_active(cmdvec); i++) {
-		if ((node = vector_slot(cmdvec, i)) && node->func) {
-			if ((*node->func) (file_vty))
+		if ((node = vector_slot(cmdvec, i)) && node->config_write) {
+			if ((*node->config_write) (file_vty))
 				vty_out(file_vty, "!\n");
 		}
 	}
@@ -2167,8 +2159,8 @@ DEFUN(config_write_terminal,
 
 	if (vty->type == VTY_SHELL_SERV) {
 		for (i = 0; i < vector_active(cmdvec); i++) {
-			if ((node = vector_slot(cmdvec, i)) && node->func && node->vtysh) {
-				if ((*node->func) (vty))
+			if ((node = vector_slot(cmdvec, i)) && node->config_write) {
+				if ((*node->config_write) (vty))
 					vty_out(vty, "!%s", VTY_NEWLINE);
 			}
 		}
@@ -2177,8 +2169,8 @@ DEFUN(config_write_terminal,
 		vty_out(vty, "!%s", VTY_NEWLINE);
 
 		for (i = 0; i < vector_active(cmdvec); i++) {
-			if ((node = vector_slot(cmdvec, i)) && node->func) {
-				if ((*node->func) (vty))
+			if ((node = vector_slot(cmdvec, i)) && node->config_write) {
+				if ((*node->config_write) (vty))
 					vty_out(vty, "!%s", VTY_NEWLINE);
 			}
 		}
@@ -2582,11 +2574,11 @@ cmd_init(void)
 	host.motdfile = NULL;
 
 	/* Install top nodes. */
-	install_node(&view_node, NULL);
-	install_node(&enable_node, NULL);
-	install_node(&auth_node, NULL);
-	install_node(&auth_enable_node, NULL);
-	install_node(&config_node, config_write_host);
+	install_node(&view_node);
+	install_node(&enable_node);
+	install_node(&auth_node);
+	install_node(&auth_enable_node);
+	install_node(&config_node);
 
 	/* Each node's basic commands. */
 	install_element(VIEW_NODE, &show_version_cmd);

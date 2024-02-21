@@ -88,9 +88,9 @@ typedef enum _match_type {
  * function pointer . */
 typedef struct _cmd_node {
 	node_type_t		node;			/* Node index. */
+	node_type_t		parent_node;		/* Parent Node index. */
 	const char		*prompt;		/* Prompt character at vty interface. */
-	int			vtysh;			/* Is this node's configuration goes to vtysh ? */
-	int			(*func) (vty_t *);	/* Node's configuration write function */
+	int			(*config_write) (vty_t *);	/* Node's configuration write function */
 	vector_t		*cmd_vector;		/* Vector of this node's command list. */
 } cmd_node_t;
 
@@ -272,7 +272,7 @@ extern char *command_cr;
 /*
  *	Prototypes
  */
-extern void install_node(cmd_node_t *, int (*) (vty_t *));
+extern void install_node(cmd_node_t *);
 extern void install_default(node_type_t);
 extern void install_element(node_type_t, cmd_element_t *);
 extern void sort_node(void);
