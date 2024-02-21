@@ -51,15 +51,15 @@ gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 	list_head_t *l = &s->gtpu_teid;
 	gtp_teid_t *t;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(t, l, next) {
 		if (t->sqn == sqn) {
-			pthread_mutex_unlock(&c->gtp_session_mutex);
+			pthread_mutex_unlock(&c->session_mutex);
 			return t;
 		}
 	}
 
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 	return NULL;
 }
 
@@ -83,18 +83,18 @@ gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
 {
 	gtp_conn_t *c = s->conn;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	if (__test_and_set_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already linked to session:0x%.8x !!!"
 			    , __FUNCTION__, ntohl(teid->id), s->id);
-		pthread_mutex_unlock(&c->gtp_session_mutex);
+		pthread_mutex_unlock(&c->session_mutex);
 		return -1;
 	}
 
 	list_add_tail(&teid->next, l);
 	__sync_add_and_fetch(&teid->refcnt, 1);
 	__sync_add_and_fetch(&s->refcnt, 1);
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -145,15 +145,15 @@ gtp_session_gtpu_teid_xdp_add(gtp_session_t *s, int direction)
 	int ret;
 
 	/* Fast-Path setup */
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(teid, l, next) {
 		ret = gtp_session_gtu_teid_xdp_rule_add(teid, direction);
 		if (ret < 0) {
-			pthread_mutex_unlock(&c->gtp_session_mutex);
+			pthread_mutex_unlock(&c->session_mutex);
 			return -1;
 		}
 	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -189,10 +189,10 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 	__sync_add_and_fetch(&gtp_session_id, 1);
 	new->id = gtp_session_id;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_add_tail(&new->next, &c->gtp_sessions);
 	__sync_add_and_fetch(&c->refcnt, 1);
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 
 	gtp_session_add_timer(new);
 
@@ -219,9 +219,9 @@ gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
 	gtp_session_t *s = teid->session;
 	gtp_conn_t *c = s->conn;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	__gtp_session_gtpc_teid_destroy(teid);
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -250,9 +250,9 @@ gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 	gtp_session_t *s = teid->session;
 	gtp_conn_t *c = s->conn;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	__gtp_session_gtpu_teid_destroy(teid);
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -277,7 +277,7 @@ __gtp_session_destroy(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 
 	/* Release teid */
 	__gtp_session_teid_destroy(s);
@@ -286,7 +286,7 @@ __gtp_session_destroy(gtp_session_t *s)
 	list_head_del(&s->next);
 	FREE(s);
 
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 
 	/* Release connection if no more sessions */
 	if (__sync_sub_and_fetch(&c->refcnt, 1) == 0) {
@@ -313,13 +313,13 @@ gtp_session_set_delete_bearer(gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
 	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(t, &s->gtpu_teid, next) {
 		if ((ebi->h.instance == 0) ||
 		    (ebi->h.instance == 1 && t->bearer_id == ebi->id))
 			t->action = GTP_ACTION_DELETE_BEARER;
 	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
 }
@@ -331,7 +331,7 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 	gtp_teid_t *t, *_t;
 	bool destroy_session = false;
 
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
 		if (t->bearer_teid && t->bearer_teid->action == GTP_ACTION_DELETE_BEARER) {
 			__gtp_session_gtpc_teid_destroy(t);
@@ -346,7 +346,7 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 
 	if (list_empty(&s->gtpc_teid) && list_empty(&s->gtpu_teid))
 		destroy_session = true;
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 
 	if (destroy_session)
 		return gtp_session_destroy(s);
@@ -383,11 +383,11 @@ gtp_sessions_release(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	/* Release sessions */
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(s, _s, l, next) {
 		gtp_session_expire_now(s);
 	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
 }
@@ -487,7 +487,7 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 	struct tm *t;
 
 	/* Walk the line */
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(s, l, next) {
 		if (timerisset(&s->t_node.sands)) {
 			timeout = s->t_node.sands.tv_sec - time_now.tv_sec;
@@ -504,7 +504,7 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
 		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
 	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -517,7 +517,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 	gtp_apn_t *apn = NULL;
 
 	/* Walk the line */
-	pthread_mutex_lock(&c->gtp_session_mutex);
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(s, l, next) {
 		if (timerisset(&s->t_node.sands)) {
 			timeout = s->t_node.sands.tv_sec - time_now.tv_sec;
@@ -540,7 +540,7 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 			   , VTY_NEWLINE);
 		apn = s->apn;
 	}
-	pthread_mutex_unlock(&c->gtp_session_mutex);
+	pthread_mutex_unlock(&c->session_mutex);
 
 	/* Footer */
 	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"

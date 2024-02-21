@@ -204,7 +204,7 @@ gtp_conn_alloc(uint64_t imsi, void *ctx)
 	new->ctx = ctx;
 	new->ts = time(NULL);
 	INIT_LIST_HEAD(&new->gtp_sessions);
-	pthread_mutex_init(&new->gtp_session_mutex, NULL);
+	pthread_mutex_init(&new->session_mutex, NULL);
 
 	gtp_conn_hash(new);
 

@@ -41,7 +41,7 @@ typedef struct _gtp_conn {
 
 	/* FIXME: maybe use a global dlock here */
 	list_head_t		gtp_sessions;
-	pthread_mutex_t		gtp_session_mutex;
+	pthread_mutex_t		session_mutex;
 	time_t			ts;
 
 	/* hash stuff */
