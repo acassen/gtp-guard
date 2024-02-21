@@ -191,7 +191,7 @@ gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
 }
 
 /*
- *	New connection
+ *	Connection related
  */
 gtp_conn_t *
 gtp_conn_alloc(uint64_t imsi, void *ctx)
@@ -200,10 +200,10 @@ gtp_conn_alloc(uint64_t imsi, void *ctx)
 
 	PMALLOC(new);
 	new->imsi = imsi;
-	gtp_imsi_ether_addr_build(imsi, &new->veth_addr);
 	new->ctx = ctx;
 	new->ts = time(NULL);
 	INIT_LIST_HEAD(&new->gtp_sessions);
+	INIT_LIST_HEAD(&new->pppoe_sessions);
 	pthread_mutex_init(&new->session_mutex, NULL);
 
 	gtp_conn_hash(new);

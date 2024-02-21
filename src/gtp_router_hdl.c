@@ -895,7 +895,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	/* IP VRF is in use and PPPoE session forwarding is configured */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
-		s_pppoe = spppoe_init(apn->vrf->pppoe, &c->veth_addr,
+		s_pppoe = spppoe_init(apn->vrf->pppoe, c,
 				      gtpc_pppoe_tls, gtpc_pppoe_tlf,
 				      gtpc_pppoe_create_session_response, gtpc_pppoe_chg,
 				      imsi, s->mei, apn_str);

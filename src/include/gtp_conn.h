@@ -35,12 +35,12 @@ enum conn_flags {
 
 typedef struct _gtp_conn {
         uint64_t                imsi;
-	struct ether_addr	veth_addr;
 	struct sockaddr_in	sgw_addr;
 	void			*ctx;
 
 	/* FIXME: maybe use a global dlock here */
 	list_head_t		gtp_sessions;
+	list_head_t		pppoe_sessions;
 	pthread_mutex_t		session_mutex;
 	time_t			ts;
 

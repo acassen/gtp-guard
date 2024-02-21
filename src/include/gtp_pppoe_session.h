@@ -55,8 +55,9 @@ typedef struct _spppoe {
 	struct tm		creation_time;
 	timer_node_t		t_node;
 
-	struct hlist_node	h_session;
-	struct hlist_node	h_unique;
+	struct hlist_node	h_session;	/* h by {MAC,session_id}*/
+	struct hlist_node	h_unique;	/* h by unique*/
+	list_head_t		next;		/* member of gtp_conn_t->pppoe_sessions */
 
 	unsigned long		flags;
 	int			refcnt;
@@ -67,7 +68,7 @@ typedef struct _spppoe {
 extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
 extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
 extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
-extern spppoe_t *spppoe_init(gtp_pppoe_t *, struct ether_addr *,
+extern spppoe_t *spppoe_init(gtp_pppoe_t *, gtp_conn_t *,
 			     void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
 			     void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
 			     const uint64_t, const uint64_t, const char *);

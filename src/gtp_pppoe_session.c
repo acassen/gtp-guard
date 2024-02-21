@@ -221,6 +221,16 @@ spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
 /*
  *	PPPoE Sessions related
  */
+static int
+spppoe_add(gtp_conn_t *c, spppoe_t *s)
+{
+	pthread_mutex_lock(&c->session_mutex);
+	list_add_tail(&s->next, &c->pppoe_sessions);
+	pthread_mutex_unlock(&c->session_mutex);
+
+	return 0;
+}
+
 int
 spppoe_destroy(spppoe_t *s)
 {
@@ -235,7 +245,7 @@ spppoe_destroy(spppoe_t *s)
 }
 
 spppoe_t *
-spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth,
+spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	    void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *),
 	    void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int),
 	    const uint64_t imsi, const uint64_t mei, const char *apn_str)
@@ -247,8 +257,9 @@ spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth,
 		return NULL;
 
 	PMALLOC(s);
+	INIT_LIST_HEAD(&s->next);
 	s->session_time = time(NULL);
-	s->hw_src = *s_eth;
+	gtp_imsi_ether_addr_build(imsi, &s->hw_src);
 	s->pppoe = pppoe;
 	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
 		snprintf(s->gtp_username, PPPOE_NAMELEN
@@ -257,6 +268,7 @@ spppoe_init(gtp_pppoe_t *pppoe, struct ether_addr *s_eth,
 	s->s_ppp = sppp_init(s, pp_tls, pp_tlf, pp_con, pp_chg);
 	timer_node_init(&s->t_node, NULL, s);
 	spppoe_unique_hash(&pppoe->unique_tab, s, imsi, &pppoe->seed);
+	spppoe_add(c, s);
 
 	err = pppoe_connect(s);
 	if (err < 0) {

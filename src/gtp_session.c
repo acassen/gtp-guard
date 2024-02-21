@@ -169,6 +169,17 @@ gtp_session_add_timer(gtp_session_t *s)
 	timer_node_add(&gtp_session_timer, &s->t_node, apn->session_lifetime);
 }
 
+static int
+gtp_session_add(gtp_conn_t *c, gtp_session_t *s)
+{
+	pthread_mutex_lock(&c->session_mutex);
+	list_add_tail(&s->next, &c->gtp_sessions);
+	__sync_add_and_fetch(&c->refcnt, 1);
+	pthread_mutex_unlock(&c->session_mutex);
+
+	return 0;
+}
+
 gtp_session_t *
 gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 		  int (*gtpc_destroy) (gtp_teid_t *), int (*gtpu_destroy) (gtp_teid_t *))
@@ -189,11 +200,7 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 	__sync_add_and_fetch(&gtp_session_id, 1);
 	new->id = gtp_session_id;
 
-	pthread_mutex_lock(&c->session_mutex);
-	list_add_tail(&new->next, &c->gtp_sessions);
-	__sync_add_and_fetch(&c->refcnt, 1);
-	pthread_mutex_unlock(&c->session_mutex);
-
+	gtp_session_add(c, new);
 	gtp_session_add_timer(new);
 
 	return new;
@@ -398,11 +405,13 @@ gtp_sessions_free(gtp_conn_t *c)
 	list_head_t *l = &c->gtp_sessions;
 	gtp_session_t *s, *_s;
 
+	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(s, _s, l, next) {
 		__gtp_session_teid_destroy(s);
 		list_head_del(&s->next);
 		FREE(s);
 	}
+	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
 }
