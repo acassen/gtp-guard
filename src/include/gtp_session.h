@@ -26,7 +26,8 @@
 /* Tunnel Actions */
 enum {
 	GTP_ACTION_DELETE_SESSION = 1,
-	GTP_ACTION_DELETE_BEARER
+	GTP_ACTION_DELETE_BEARER,
+	GTP_ACTION_SEND_DELETE_BEARER_REQUEST,
 };
 
 /* GTP session */
@@ -36,7 +37,7 @@ typedef struct _gtp_session {
 	uint32_t		ipv4;
 	uint64_t		mei;
 	uint64_t		msisdn;
-	uint8_t			pdn_type;
+	uint8_t			ptype;
 
 	gtp_apn_t		*apn;
 	list_head_t		gtpc_teid;
@@ -48,6 +49,7 @@ typedef struct _gtp_session {
 
 	gtp_conn_t		*conn;		/* backpointer */
 	spppoe_t		*s_pppoe;	/* PPPoE session peer */
+	gtp_server_worker_t	*w;		/* Server worker used */
 
 	uint8_t			action;
 
@@ -64,6 +66,7 @@ typedef struct _gtp_session {
 
 /* Prototypes */
 extern void gtp_session_dump(gtp_session_t *s);
+extern gtp_session_t *gtp_session_get_by_ptype(gtp_conn_t *, uint8_t);
 extern gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
 extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
 extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *, int);
@@ -76,7 +79,7 @@ extern int gtp_session_gtpc_teid_destroy(gtp_teid_t *);
 extern int gtp_session_destroy(gtp_session_t *);
 extern int gtp_session_set_delete_bearer(gtp_session_t *, gtp_ie_eps_bearer_id_t *);
 extern int gtp_session_destroy_bearer(gtp_session_t *);
-extern int gtp_session_destroy_bearer_teid(gtp_teid_t *);
+extern int gtp_session_destroy_teid(gtp_teid_t *);
 extern int gtp_session_expire_now(gtp_session_t *);
 extern int gtp_sessions_free(gtp_conn_t *);
 extern int gtp_sessions_init(void);

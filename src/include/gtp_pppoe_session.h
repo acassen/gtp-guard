@@ -28,6 +28,7 @@ enum gtp_pppoe_session_flags {
 	GTP_PPPOE_FL_UNIQUE_HASHED,
 	GTP_PPPOE_FL_SESSION_HASHED,
 	GTP_PPPOE_FL_DELETE,
+	GTP_PPPOE_FL_DELETE_IGNORE,
 };
 
 typedef struct _spppoe {
@@ -51,7 +52,6 @@ typedef struct _spppoe {
 	struct _sppp		*s_ppp;		/* PPP session */
 	gtp_pppoe_t		*pppoe;		/* back-pointer */
 	gtp_teid_t		*teid;		/* TEID we are linked to */
-	gtp_server_worker_t	*w;		/* Server worker used */
 	struct sockaddr_storage gtpc_peer_addr;	/* Remote GTP-C peer */
 
 	/* Expiration handling */
@@ -79,5 +79,6 @@ extern spppoe_t *spppoe_init(gtp_pppoe_t *, gtp_conn_t *,
 			     void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
 			     const uint64_t, const uint64_t, const char *);
 extern int spppoe_close(spppoe_t *);
+extern int spppoe_disconnect(spppoe_t *);
 
 #endif

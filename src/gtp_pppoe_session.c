@@ -358,6 +358,19 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 int
 spppoe_close(spppoe_t *s)
 {
+	if (!s)
+		return -1;
+
 	__set_bit(GTP_PPPOE_FL_DELETE, &s->flags);
+	return pppoe_disconnect(s);
+}
+
+int
+spppoe_disconnect(spppoe_t *s)
+{
+	if (!s)
+		return -1;
+
+	__set_bit(GTP_PPPOE_FL_DELETE_IGNORE, &s->flags);
 	return pppoe_disconnect(s);
 }

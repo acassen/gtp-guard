@@ -707,6 +707,27 @@ gtpc_build_delete_bearer_request(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t 
 	return 0;
 }
 
+int
+gtpc_send_delete_bearer_request(gtp_teid_t *teid)
+{
+	gtp_session_t *s = teid->session;
+	gtp_server_worker_t *w = s->w;
+	struct sockaddr_in addr;
+	pkt_buffer_t *pbuff;
+	int ret;
+
+	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
+	ret = gtpc_build_delete_bearer_request(pbuff, teid, 0);
+	if (ret < 0)
+		return -1;
+
+	addr = teid->sgw_addr;
+	addr.sin_port = htons(GTP_C_PORT);
+	pkt_buffer_send(w->fd, pbuff, (struct sockaddr_storage *) &addr);
+	pkt_buffer_free(pbuff);
+	return 0;
+}
+
 /*
  *	GTP-C PPP Callback
  */
@@ -720,11 +741,11 @@ void
 gtpc_pppoe_tlf(sppp_t *sp)
 {
 	spppoe_t *s = sp->s_pppoe;
-	gtp_server_worker_t *w = s->w;
 	gtp_teid_t *teid = s->teid;
-	struct sockaddr_in addr;
-	pkt_buffer_t *pbuff;
-	int ret;
+
+	/* Session has been already released */
+	if (__test_bit(GTP_PPPOE_FL_DELETE_IGNORE, &s->flags))
+		return;
 
 	/* Session is released from GTP-C */
 	if (__test_bit(GTP_PPPOE_FL_DELETE, &s->flags)) {
@@ -734,21 +755,12 @@ gtpc_pppoe_tlf(sppp_t *sp)
 
 	/* Session is released from remote BNG.
 	 * Send delete-bearer-request */
-	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
-	ret = gtpc_build_delete_bearer_request(pbuff, teid, 0);
-	if (ret < 0)
-		goto next;
-
-	addr = teid->sgw_addr;
-	addr.sin_port = htons(GTP_C_PORT);
-	pkt_buffer_send(w->fd, pbuff, (struct sockaddr_storage *) &addr);
-  next:
-	pkt_buffer_free(pbuff);
+	gtpc_send_delete_bearer_request(teid);
 
 	/* Finally release teid and related. We are
 	 * not waiting for remote response to trig deleting
 	 * since remote can already have released */
-	gtp_session_destroy_bearer_teid(teid);
+	gtp_session_destroy_teid(teid);
 }
 
 void
@@ -756,7 +768,7 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 {
 	gtp_session_t *s = sp->s_pppoe->s_gtp;
 	gtp_teid_t *teid = sp->s_pppoe->teid;
-	gtp_server_worker_t *w = sp->s_pppoe->w;
+	gtp_server_worker_t *w = s->w;
 	pkt_buffer_t *pbuff;
 	int ret;
 
@@ -830,6 +842,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_apn_t *apn;
 	char apn_str[64];
 	uint64_t imsi;
+	uint8_t *ptype;
 	int ret, rc = -1;
 	bool retransmit = false;
 
@@ -895,6 +908,25 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_PDN_TYPE);
+	if (!msg_ie) {
+		log_message(LOG_INFO, "%s(): no PDN-TYPE IE present. ignoring..."
+				    , __FUNCTION__);
+		rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						     , GTP_CAUSE_REQUEST_REJECTED);
+		goto end;
+	}
+
+	ptype = (uint8_t *) msg_ie->data;
+	if (__test_bit(GTP_APN_FL_SESSION_UNIQ_PTYPE, &apn->flags)) {
+		s = gtp_session_get_by_ptype(c, *ptype);
+		if (s) {
+			spppoe_disconnect(s->s_pppoe);
+			s->action = GTP_ACTION_SEND_DELETE_BEARER_REQUEST;
+			gtp_session_destroy(s);
+		}
+	}
+
 	/* Session Handling */
 	if (retransmit) {
 		log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
@@ -905,6 +937,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
 				    , gtp_router_gtpu_teid_destroy);
+	s->ptype = *ptype;
+	s->w = w;
 
 	/* Allocate IP Address from APN pool if configured */
 	s->ipv4 = gtp_ip_pool_get(apn);
@@ -961,7 +995,6 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		}
 		s_pppoe->s_gtp = s;
 		s_pppoe->teid = teid;
-		s_pppoe->w = w;
 		s_pppoe->gtpc_peer_addr = *addr;
 		s->s_pppoe = s_pppoe;
 		rc = GTP_ROUTER_DELAYED;

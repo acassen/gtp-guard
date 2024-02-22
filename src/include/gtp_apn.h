@@ -31,6 +31,10 @@
 #define GTP_MATCH_MAX_LEN	256
 
 /* flags */
+enum gtp_apn_flags {
+	GTP_APN_FL_SESSION_UNIQ_PTYPE,
+};
+
 enum gtp_resolv_flags {
 	GTP_RESOLV_FL_SERVICE_SELECTION,
 	GTP_RESOLV_FL_CACHE_UPDATE,

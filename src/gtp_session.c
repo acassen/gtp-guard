@@ -44,6 +44,23 @@ static timer_thread_t gtp_session_timer;
 /*
  *	Session handling
  */
+gtp_session_t *
+gtp_session_get_by_ptype(gtp_conn_t *c, uint8_t ptype)
+{
+	gtp_session_t *s;
+
+	pthread_mutex_lock(&c->session_mutex);
+	list_for_each_entry(s, &c->gtp_sessions, next) {
+		if (s->ptype == ptype) {
+			pthread_mutex_unlock(&c->session_mutex);
+			return s;
+		}
+	}
+	pthread_mutex_unlock(&c->session_mutex);
+
+	return NULL;
+}
+
 gtp_teid_t *
 gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 {
@@ -290,11 +307,26 @@ __gtp_session_teid_destroy(gtp_session_t *s)
 }
 
 static int
+__gtp_session_send_delete_bearer(gtp_session_t *s)
+{
+	gtp_teid_t *t;
+
+	list_for_each_entry(t, &s->gtpc_teid, next)
+		gtpc_send_delete_bearer_request(t);
+
+	return 0;
+}
+
+static int
 __gtp_session_destroy(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 
 	pthread_mutex_lock(&c->session_mutex);
+
+	/* Send Delete-Bearer-Request if needed */
+	if (s->action == GTP_ACTION_SEND_DELETE_BEARER_REQUEST)
+		__gtp_session_send_delete_bearer(s);
 
 	/* Release teid */
 	__gtp_session_teid_destroy(s);
@@ -311,7 +343,8 @@ __gtp_session_destroy(gtp_session_t *s)
 	/* Release connection if no more sessions */
 	if (__sync_sub_and_fetch(&c->refcnt, 1) == 0) {
 		gtp_conn_unhash(c);
-		log_message(LOG_INFO, "IMSI:%ld - no more sessions - Releasing tracking", c->imsi);
+		log_message(LOG_INFO, "IMSI:%ld - no more sessions - Releasing tracking"
+				    , c->imsi);
 		FREE(c);
 	}
 
@@ -349,7 +382,6 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t, *_t;
-	bool destroy_session = false;
 
 	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
@@ -363,19 +395,16 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 			__gtp_session_gtpu_teid_destroy(t);
 		}
 	}
-
-	if (list_empty(&s->gtpc_teid) && list_empty(&s->gtpu_teid))
-		destroy_session = true;
 	pthread_mutex_unlock(&c->session_mutex);
 
-	if (destroy_session)
+	if (__sync_sub_and_fetch(&s->refcnt, 0) == 0)
 		return gtp_session_destroy(s);
 
 	return 0;
 }
 
 int
-gtp_session_destroy_bearer_teid(gtp_teid_t *teid)
+gtp_session_destroy_teid(gtp_teid_t *teid)
 {
 	gtp_teid_t *bteid;
 	gtp_session_t *s;
@@ -397,6 +426,7 @@ gtp_session_destroy_bearer_teid(gtp_teid_t *teid)
 
 	return 0;
 }
+
 
 /*
  *	Session expiration handling

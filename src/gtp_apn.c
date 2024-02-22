@@ -1121,6 +1121,16 @@ DEFUN(apn_ip_vrf_forwarding,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_gtp_session_uniq_ptype,
+      apn_gtp_session_uniq_ptype_cmd,
+      "gtp-session-uniq-pdn-type-per-imsi",
+      "GTP Session unicity per pdn type and per imsi\n")
+{
+	gtp_apn_t *apn = vty->index;
+
+	__set_bit(GTP_APN_FL_SESSION_UNIQ_PTYPE, &apn->flags);
+	return CMD_SUCCESS;
+}
 
 /* Show */
 DEFUN(show_apn,
@@ -1233,6 +1243,9 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " ip vrf forwarding %s%s"
 				   , apn->vrf->name
 				   , VTY_NEWLINE);
+		if (__test_bit(GTP_APN_FL_SESSION_UNIQ_PTYPE, &apn->flags))
+			vty_out(vty, " gtp-session-uniq-pdn-type-per-imsi%s"
+				   , VTY_NEWLINE);
 
         	vty_out(vty, "!%s", VTY_NEWLINE);
         }
@@ -1270,6 +1283,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_pco_selected_bearer_control_mode_cmd);
 	install_element(APN_NODE, &apn_pdn_address_allocation_pool_cmd);
 	install_element(APN_NODE, &apn_ip_vrf_forwarding_cmd);
+	install_element(APN_NODE, &apn_gtp_session_uniq_ptype_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);
