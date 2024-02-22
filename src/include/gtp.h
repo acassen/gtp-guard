@@ -104,6 +104,10 @@ enum gtp_flags {
 #define GTP1_CAUSE_REQUEST_ACCEPTED			128
 #define GTP1_CAUSE_NON_EXISTENT				192
 
+/* GTP-C PDN Type */
+#define GTP_FL_PDN_IPV4					(1 << 0)
+#define GTP_FL_PDN_IPV6					(1 << 1)
+
 /* GTP-U Message Type */
 #define GTPU_ECHO_REQ_TYPE				1
 #define GTPU_ECHO_RSP_TYPE				2
@@ -331,6 +335,12 @@ typedef struct _gtp_ie_charging_id {
 	gtp_ie_t	h;
 	uint32_t	id;
 } __attribute__((packed)) gtp_ie_charging_id_t;
+
+#define GTP_IE_PDN_TYPE					99
+typedef struct _gtp_ie_pdn_type {
+	gtp_ie_t	h;
+	uint8_t		pdn_type;
+} __attribute__((packed)) gtp_ie_pdn_type_t;
 
 #define GTP_IE_APN_RESTRICTION_TYPE			127
 typedef struct _gtp_ie_apn_restriction {

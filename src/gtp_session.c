@@ -223,9 +223,14 @@ __gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
 int
 gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
 {
-	gtp_session_t *s = teid->session;
-	gtp_conn_t *c = s->conn;
+	gtp_session_t *s;
+	gtp_conn_t *c;
 
+	if (!teid)
+		return -1;
+
+	s = teid->session;
+	c = s->conn;
 	pthread_mutex_lock(&c->session_mutex);
 	__gtp_session_gtpc_teid_destroy(teid);
 	pthread_mutex_unlock(&c->session_mutex);
@@ -254,9 +259,14 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 int
 gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 {
-	gtp_session_t *s = teid->session;
-	gtp_conn_t *c = s->conn;
+	gtp_session_t *s;
+	gtp_conn_t *c;
 
+	if (!teid)
+		return -1;
+
+	s = teid->session;
+	c = s->conn;
 	pthread_mutex_lock(&c->session_mutex);
 	__gtp_session_gtpu_teid_destroy(teid);
 	pthread_mutex_unlock(&c->session_mutex);
@@ -364,6 +374,29 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 	return 0;
 }
 
+int
+gtp_session_destroy_bearer_teid(gtp_teid_t *teid)
+{
+	gtp_teid_t *bteid;
+	gtp_session_t *s;
+
+	if (!teid)
+		return -1;
+
+	s = teid->session;
+	gtp_session_gtpc_teid_destroy(teid);
+	gtp_session_gtpc_teid_destroy(teid->peer_teid);
+	bteid = teid->bearer_teid;
+	if (bteid) {
+		gtp_session_gtpu_teid_destroy(bteid);
+		gtp_session_gtpu_teid_destroy(bteid->peer_teid);
+	}
+
+	if (__sync_sub_and_fetch(&s->refcnt, 0) == 0)
+		gtp_session_destroy(s);
+
+	return 0;
+}
 
 /*
  *	Session expiration handling

@@ -36,6 +36,7 @@ typedef struct _gtp_session {
 	uint32_t		ipv4;
 	uint64_t		mei;
 	uint64_t		msisdn;
+	uint8_t			pdn_type;
 
 	gtp_apn_t		*apn;
 	list_head_t		gtpc_teid;
@@ -75,6 +76,7 @@ extern int gtp_session_gtpc_teid_destroy(gtp_teid_t *);
 extern int gtp_session_destroy(gtp_session_t *);
 extern int gtp_session_set_delete_bearer(gtp_session_t *, gtp_ie_eps_bearer_id_t *);
 extern int gtp_session_destroy_bearer(gtp_session_t *);
+extern int gtp_session_destroy_bearer_teid(gtp_teid_t *);
 extern int gtp_session_expire_now(gtp_session_t *);
 extern int gtp_sessions_free(gtp_conn_t *);
 extern int gtp_sessions_init(void);

@@ -182,7 +182,8 @@ gtpc_teid_create(gtp_server_worker_t *w, gtp_session_t *s, gtp_msg_t *msg, bool 
 		teid = gtp_teid_create(w, s, GTP_TEID_C, GTP_INGRESS, &ctx->gtpc_teid_tab, &f_teid, NULL);
 		if (create_peer) {
 			pteid = gtp_teid_alloc_peer(&ctx->gtpc_teid_tab, teid,
-						inet_sockaddrip4(&w->srv->addr), NULL, &w->seed);
+						    inet_sockaddrip4(&w->srv->addr),
+						    NULL, &w->seed);
 			gtp_teid_set(w, s, pteid, GTP_TEID_C, GTP_EGRESS);
 		}
 	}
@@ -680,6 +681,31 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
 	return 0;
 }
 
+static int
+gtpc_build_delete_bearer_request(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t cause)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	gtp_teid_t *bearer_teid = (teid) ? teid->bearer_teid : NULL;
+	uint8_t bearer_id = (bearer_teid) ? bearer_teid->bearer_id : 0;
+	int err = 0;
+
+	if (!bearer_id)
+		return -1;
+
+	/* Header update */
+	gtpc_build_header(pbuff, teid, GTP_DELETE_BEARER_REQUEST);
+
+	/* Put IE */
+	err = err ? : gtpc_pkt_put_eps_bearer_id(pbuff, bearer_id);
+	if (cause)
+		err = err ? : gtpc_pkt_put_cause(pbuff, cause);
+	if (err)
+		return -1;
+
+	/* 3GPP TS 129.274 Section 5.5.1 */
+	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	return 0;
+}
 
 /*
  *	GTP-C PPP Callback
@@ -694,15 +720,35 @@ void
 gtpc_pppoe_tlf(sppp_t *sp)
 {
 	spppoe_t *s = sp->s_pppoe;
+	gtp_server_worker_t *w = s->w;
+	gtp_teid_t *teid = s->teid;
+	struct sockaddr_in addr;
+	pkt_buffer_t *pbuff;
+	int ret;
 
-	/* Session is released via GTP-C */
-	if (__test_bit(GTP_PPPOE_DELETE_FL_HASHED, &s->flags)) {
+	/* Session is released from GTP-C */
+	if (__test_bit(GTP_PPPOE_FL_DELETE, &s->flags)) {
 		gtp_session_destroy(s->s_gtp);
 		return;
 	}
 
-	/* TODO: Session is released via remote BNG */
-	/* TODO: Send delete-bearer-request */
+	/* Session is released from remote BNG.
+	 * Send delete-bearer-request */
+	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
+	ret = gtpc_build_delete_bearer_request(pbuff, teid, 0);
+	if (ret < 0)
+		goto next;
+
+	addr = teid->sgw_addr;
+	addr.sin_port = htons(GTP_C_PORT);
+	pkt_buffer_send(w->fd, pbuff, (struct sockaddr_storage *) &addr);
+  next:
+	pkt_buffer_free(pbuff);
+
+	/* Finally release teid and related. We are
+	 * not waiting for remote response to trig deleting
+	 * since remote can already have released */
+	gtp_session_destroy_bearer_teid(teid);
 }
 
 void
@@ -849,13 +895,14 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
+	/* Session Handling */
 	if (retransmit) {
 		log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
 				    , imsi, apn_str, ntohl(teid->id)
 				    , " (retransmit)");
 		goto end;
 	}
-	
+
 	s = gtp_session_alloc(c, apn, gtp_router_gtpc_teid_destroy
 				    , gtp_router_gtpu_teid_destroy);
 
@@ -1091,6 +1138,7 @@ gtpc_change_notification_request_hdl(gtp_server_worker_t *w, struct sockaddr_sto
 	gtp_msg_destroy(msg);
 	return rc;
 }
+
 
 /*
  *	GTP-C Message handle
