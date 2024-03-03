@@ -39,6 +39,13 @@ typedef struct _pkt {
 	list_head_t		next;
 } pkt_t;
 
+typedef struct _mpkt {
+	unsigned int		vlen;
+	struct mmsghdr		*msgs;
+	struct iovec		*iovecs;
+	pkt_t			**pkt;
+} mpkt_t;
+
 typedef struct _pkt_queue {
 	pthread_mutex_t		mutex;
 	list_head_t		queue;
@@ -92,9 +99,15 @@ static inline void pkt_buffer_put_data(pkt_buffer_t *b, unsigned int offset)
 /* Prototypes */
 extern ssize_t pkt_send(int fd, pkt_queue_t *, pkt_t *);
 extern ssize_t pkt_recv(int fd, pkt_t *);
+extern int mpkt_recv(int, mpkt_t *);
 extern void pkt_queue_run(pkt_queue_t *, int (*run) (pkt_t *, void *), void *);
 extern pkt_t *pkt_queue_get(pkt_queue_t *);
 extern int pkt_queue_put(pkt_queue_t *, pkt_t *);
+extern int mpkt_init(mpkt_t *, unsigned int);
+extern void mpkt_release(mpkt_t *);
+extern void mpkt_unref(mpkt_t *, unsigned int);
+extern int pkt_queue_mget(pkt_queue_t *, mpkt_t *);
+extern int pkt_queue_mput(pkt_queue_t *, mpkt_t *);
 extern int pkt_queue_init(pkt_queue_t *);
 extern int pkt_queue_destroy(pkt_queue_t *);
 extern ssize_t pkt_buffer_send(int, pkt_buffer_t *, struct sockaddr_storage *);

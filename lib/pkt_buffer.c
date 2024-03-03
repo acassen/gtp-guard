@@ -61,6 +61,21 @@ pkt_recv(int fd, pkt_t *pkt)
 	return nbytes;
 }
 
+int
+mpkt_mrecv(int fd, mpkt_t *mpkt)
+{
+	int ret, i;
+
+	ret = recvmmsg(fd, mpkt->msgs, mpkt->vlen, 0, NULL);
+	if (ret < 0)
+		return -1;
+
+	for (i = 0; i < ret; i++)
+		pkt_buffer_set_end_pointer(mpkt->pkt[i]->pbuff, mpkt->msgs[i].msg_len);
+
+	return ret;
+}
+
 
 /*
  *	Pkt queue helpers
@@ -81,6 +96,31 @@ pkt_queue_run(pkt_queue_t *q, int (*run) (pkt_t *, void *), void *arg)
 	pthread_mutex_unlock(&q->mutex);
 }
 
+static pkt_t *
+pkt_alloc(unsigned int size)
+{
+	pkt_t *pkt;
+
+	PMALLOC(pkt);
+	if (!pkt)
+		return NULL;
+
+	INIT_LIST_HEAD(&pkt->next);
+	pkt->pbuff = pkt_buffer_alloc(size);
+	if (!pkt->pbuff) {
+		FREE(pkt);
+		pkt = NULL;
+	}
+	return pkt;
+}
+
+static void
+pkt_free(pkt_t *pkt)
+{
+	FREE(pkt->pbuff);
+	FREE(pkt);
+}
+
 pkt_t *
 pkt_queue_get(pkt_queue_t *q)
 {
@@ -89,10 +129,7 @@ pkt_queue_get(pkt_queue_t *q)
 	pthread_mutex_lock(&q->mutex);
 	if (list_empty(&q->queue)) {
 		pthread_mutex_unlock(&q->mutex);
-		PMALLOC(pkt);
-		INIT_LIST_HEAD(&pkt->next);
-		pkt->pbuff = pkt_buffer_alloc(DEFAULT_PKT_BUFFER_SIZE);
-		return pkt;
+		return pkt_alloc(DEFAULT_PKT_BUFFER_SIZE);
 	}
 
 	pkt = list_first_entry(&q->queue, pkt_t, next);
@@ -111,6 +148,149 @@ pkt_queue_put(pkt_queue_t *q, pkt_t *pkt)
 	pthread_mutex_lock(&q->mutex);
 	list_add_tail(&pkt->next, &q->queue);
 	pthread_mutex_unlock(&q->mutex);
+	return 0;
+}
+
+int
+mpkt_init(mpkt_t *mpkt, unsigned int vlen)
+{
+	mpkt->vlen = vlen;
+	mpkt->pkt = MALLOC(sizeof(pkt_t) * vlen);
+	if (!mpkt->pkt)
+		return -1;
+	mpkt->msgs = MALLOC(sizeof(struct mmsghdr) * vlen);
+	if (!mpkt->msgs) {
+		FREE(mpkt->pkt);
+		return -1;
+	}
+	mpkt->iovecs = MALLOC(sizeof(struct iovec) * vlen);
+	if (!mpkt->iovecs) {
+		FREE(mpkt->pkt);
+		FREE(mpkt->msgs);
+		return -1;
+	}
+
+	return 0;
+}
+
+void
+mpkt_release(mpkt_t *mpkt)
+{
+	int i;
+
+	for (i=0; i < mpkt->vlen; i++) {
+		if (mpkt->pkt[i]) {
+			pkt_free(mpkt->pkt[i]);
+		}
+	}
+	FREE(mpkt->pkt);
+}
+
+void
+mpkt_unref(mpkt_t *mpkt, unsigned int count)
+{
+	int i;
+
+	for (i=0; i < mpkt->vlen && i < count; i++) {
+		if (mpkt->pkt[i]) {
+			mpkt->pkt[i] = NULL;
+		}
+	}
+}
+
+static int
+mpkt_alloc(mpkt_t *mpkt, unsigned int size)
+{
+	pkt_t *pkt;
+	int i;
+
+	for (i=0; i < mpkt->vlen; i++) {
+		pkt = pkt_alloc(size);
+		if (!pkt)
+			return -1;
+		mpkt->pkt[i] = pkt;
+	}
+
+	return 0;
+}
+
+static void
+mpkt_prepare(mpkt_t *mpkt)
+{
+	int i;
+
+	for (i = 0; i < mpkt->vlen; i++) {
+		mpkt->iovecs[i].iov_base = mpkt->pkt[i]->pbuff->head;
+		mpkt->iovecs[i].iov_len = pkt_buffer_size(mpkt->pkt[i]->pbuff);
+		mpkt->msgs[i].msg_hdr.msg_iov = &mpkt->iovecs[i];
+		mpkt->msgs[i].msg_hdr.msg_iovlen = 1;
+	}
+}
+
+int
+pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
+{
+	pkt_t *pkt, *_pkt;
+	int ret, i, idx = 0;
+
+	pthread_mutex_lock(&q->mutex);
+	if (list_empty(&q->queue)) {
+		pthread_mutex_unlock(&q->mutex);
+		ret = mpkt_alloc(mpkt, DEFAULT_PKT_BUFFER_SIZE);
+		if (ret < 0) {
+			mpkt_release(mpkt);
+			return -1;
+		}
+
+		return 0;
+	}
+
+	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
+		if (idx >= mpkt->vlen) {
+			pthread_mutex_unlock(&q->mutex);
+			return 0;
+		}
+
+		list_del_init(&pkt->next);
+		pkt_buffer_reset(pkt->pbuff);
+		mpkt->pkt[idx++] = pkt;
+
+	}
+	pthread_mutex_unlock(&q->mutex);
+
+	/* Not fully filled */
+	for (i=idx; i < mpkt->vlen; i++) {
+		pkt = pkt_alloc(DEFAULT_PKT_BUFFER_SIZE);
+		if (!pkt) {
+			mpkt_release(mpkt);
+			return -1;
+		}
+
+		mpkt->pkt[i] = pkt;
+	}
+
+	/* Prepare mpkt */
+	mpkt_prepare(mpkt);
+
+	return 0;
+}
+
+int
+pkt_queue_mput(pkt_queue_t *q, mpkt_t *mpkt)
+{
+	pkt_t *pkt;
+	int i;
+
+	pthread_mutex_lock(&q->mutex);
+	for (i=0; i < mpkt->vlen; i++) {
+		pkt = mpkt->pkt[i];
+		if (pkt) {
+			list_add_tail(&pkt->next, &q->queue);
+			mpkt->pkt[i] = NULL;
+		}
+	}
+	pthread_mutex_unlock(&q->mutex);
+
 	return 0;
 }
 

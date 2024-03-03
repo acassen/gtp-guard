@@ -52,6 +52,8 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t p
 
 	/* allocate a buffer */
 	pkt = pkt_queue_get(&pppoe->pkt_q);
+	if (!pkt)
+		return NULL;
 
 	/* fill in ethernet header */
 	eh = (struct ether_header *) pkt->pbuff->head;
@@ -95,6 +97,8 @@ pppoe_send_padi(spppoe_t *s)
 
 	/* get ethernet pkt buffer */
 	pkt = pppoe_eth_pkt_get(s, &hw_brd, ETH_P_PPP_DISC);
+	if (!pkt)
+		return -1;
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -148,6 +152,8 @@ pppoe_send_padr(spppoe_t *s)
 
 	/* get ethernet pkt buffer */
 	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_DISC);
+	if (!pkt)
+		return -1;
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
@@ -193,6 +199,8 @@ pppoe_send_padt(spppoe_t *s)
 
 	/* get ethernet pkt buffer */
 	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_DISC);
+	if (!pkt)
+		return -1;
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
