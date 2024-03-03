@@ -36,10 +36,53 @@
 
 
 /*
+ *	Pkt helpers
+ */
+ssize_t
+pkt_send(int fd, pkt_queue_t *q, pkt_t *pkt)
+{
+	ssize_t ret;
+
+	ret = send(fd, pkt->pbuff->head, pkt_buffer_len(pkt->pbuff), 0);
+	pkt_queue_put(q, pkt);
+	return ret;
+}
+
+ssize_t
+pkt_recv(int fd, pkt_t *pkt)
+{
+	ssize_t nbytes;
+
+	nbytes = recv(fd, pkt->pbuff->head, pkt_buffer_size(pkt->pbuff), 0);
+	if (nbytes < 0)
+		return -1;
+
+	pkt_buffer_set_end_pointer(pkt->pbuff, nbytes);
+	return nbytes;
+}
+
+
+/*
  *	Pkt queue helpers
  */
+void
+pkt_queue_run(pkt_queue_t *q, int (*run) (pkt_t *, void *), void *arg)
+{
+	pkt_t *pkt, *_pkt;
+
+	pthread_mutex_lock(&q->mutex);
+	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
+		list_del_init(&pkt->next);
+
+		pthread_mutex_unlock(&q->mutex);
+		(*run) (pkt, arg);
+		pthread_mutex_lock(&q->mutex);
+	}
+	pthread_mutex_unlock(&q->mutex);
+}
+
 pkt_t *
-pkt_get(pkt_queue_t *q)
+pkt_queue_get(pkt_queue_t *q)
 {
 	pkt_t *pkt;
 
@@ -60,7 +103,7 @@ pkt_get(pkt_queue_t *q)
 }
 
 int
-pkt_put(pkt_queue_t *q, pkt_t *pkt)
+pkt_queue_put(pkt_queue_t *q, pkt_t *pkt)
 {
 	if (!pkt)
 		return -1;
@@ -69,29 +112,6 @@ pkt_put(pkt_queue_t *q, pkt_t *pkt)
 	list_add_tail(&pkt->next, &q->queue);
 	pthread_mutex_unlock(&q->mutex);
 	return 0;
-}
-
-ssize_t
-pkt_send(int fd, pkt_queue_t *q, pkt_t *pkt)
-{
-	ssize_t ret;
-
-	ret = send(fd, pkt->pbuff->head, pkt_buffer_len(pkt->pbuff), 0);
-	pkt_put(q, pkt);
-	return ret;
-}
-
-ssize_t
-pkt_recv(int fd, pkt_t *pkt)
-{
-	ssize_t nbytes;
-
-	nbytes = recv(fd, pkt->pbuff->head, pkt_buffer_size(pkt->pbuff), 0);
-	if (nbytes < 0)
-		return -1;
-
-	pkt_buffer_set_end_pointer(pkt->pbuff, nbytes);
-	return nbytes;
 }
 
 int
@@ -119,7 +139,7 @@ pkt_queue_destroy(pkt_queue_t *q)
 
 
 /*
- *	Pkt helpers
+ *	Pkt buffer helpers
  */
 ssize_t
 pkt_buffer_send(int fd, pkt_buffer_t *b, struct sockaddr_storage *addr)

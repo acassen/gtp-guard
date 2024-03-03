@@ -90,16 +90,17 @@ static inline void pkt_buffer_put_data(pkt_buffer_t *b, unsigned int offset)
 }
 
 /* Prototypes */
+extern ssize_t pkt_send(int fd, pkt_queue_t *, pkt_t *);
+extern ssize_t pkt_recv(int fd, pkt_t *);
+extern void pkt_queue_run(pkt_queue_t *, int (*run) (pkt_t *, void *), void *);
+extern pkt_t *pkt_queue_get(pkt_queue_t *);
+extern int pkt_queue_put(pkt_queue_t *, pkt_t *);
+extern int pkt_queue_init(pkt_queue_t *);
+extern int pkt_queue_destroy(pkt_queue_t *);
 extern ssize_t pkt_buffer_send(int, pkt_buffer_t *, struct sockaddr_storage *);
 extern int pkt_buffer_put_zero(pkt_buffer_t *, unsigned int);
 extern int pkt_buffer_pad(pkt_buffer_t *, unsigned int);
 extern pkt_buffer_t *pkt_buffer_alloc(unsigned int);
 extern void pkt_buffer_free(pkt_buffer_t *);
-extern pkt_t *pkt_get(pkt_queue_t *);
-extern int pkt_put(pkt_queue_t *, pkt_t *);
-extern ssize_t pkt_send(int fd, pkt_queue_t *, pkt_t *);
-extern ssize_t pkt_recv(int fd, pkt_t *);
-extern int pkt_queue_init(pkt_queue_t *);
-extern int pkt_queue_destroy(pkt_queue_t *);
 
 #endif

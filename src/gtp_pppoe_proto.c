@@ -51,7 +51,7 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t p
 	pkt_t *pkt;
 
 	/* allocate a buffer */
-	pkt = pkt_get(&pppoe->pkt_q);
+	pkt = pkt_queue_get(&pppoe->pkt_q);
 
 	/* fill in ethernet header */
 	eh = (struct ether_header *) pkt->pbuff->head;

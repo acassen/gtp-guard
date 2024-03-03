@@ -83,9 +83,10 @@ gtp_pppoe_add(gtp_pppoe_t *pppoe)
  *	PPPoE Workers
  */
 static int
-gtp_pppoe_ingress(gtp_pppoe_t *pppoe, pkt_t *pkt)
+gtp_pppoe_ingress(pkt_t *pkt, void *arg)
 {
 	struct ether_header *eh = (struct ether_header *) pkt->pbuff->head;
+	gtp_pppoe_t *pppoe = arg;
 
 	switch (ntohs(eh->ether_type)) {
 	case ETH_P_PPP_DISC:
@@ -98,7 +99,7 @@ gtp_pppoe_ingress(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		break;
 	}
 
-	pkt_put(&pppoe->pkt_q, pkt);
+	pkt_queue_put(&pppoe->pkt_q, pkt);
 	return 0;
 }
 
@@ -108,7 +109,6 @@ gtp_pppoe_worker_task(void *arg)
 	gtp_pppoe_worker_t *w = arg;
 	gtp_pppoe_t *pppoe = w->pppoe;
 	pkt_queue_t *q = &w->pkt_q;
-	pkt_t *pkt, *_pkt;
 	struct timeval tval;
 	struct timespec timeout;
 	char pname[128];
@@ -130,15 +130,7 @@ gtp_pppoe_worker_task(void *arg)
 		goto end;
 
 	/* Queue processing */
-        pthread_mutex_lock(&w->mutex);
-	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
-		list_del_init(&pkt->next);
-
-		pthread_mutex_unlock(&w->mutex);
-		gtp_pppoe_ingress(pppoe, pkt);
-		pthread_mutex_lock(&w->mutex);
-	}
-        pthread_mutex_unlock(&w->mutex);
+	pkt_queue_run(q, gtp_pppoe_ingress, pppoe);
 
 	goto shoot_again;
 
@@ -206,7 +198,7 @@ gtp_pppoe_rps(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	struct ether_header *eth = (struct ether_header *) pkt->pbuff->head;
 	uint32_t hkey = gtp_pppoe_rps_hash(eth, pppoe->thread_cnt - 1);
 
-	pkt_put(&pppoe->worker[hkey].pkt_q, pkt);
+	pkt_queue_put(&pppoe->worker[hkey].pkt_q, pkt);
 	gtp_pppoe_worker_signal(&pppoe->worker[hkey]);
 }
 
@@ -231,7 +223,7 @@ gtp_pppoe_read(thread_ref_t thread)
 	if (thread->type == THREAD_READ_TIMEOUT)
 		goto next_read;
 
-	pkt = pkt_get(&pppoe->pkt_q);
+	pkt = pkt_queue_get(&pppoe->pkt_q);
 
 	nbytes = pkt_recv(fd, pkt);
 	if (nbytes < 0) {
@@ -249,7 +241,7 @@ gtp_pppoe_read(thread_ref_t thread)
 	goto next_read;
 
   next_pkt:
-	pkt_put(&pppoe->pkt_q, pkt);
+	pkt_queue_put(&pppoe->pkt_q, pkt);
   next_read:
 	t = thread_add_read(thread->master, gtp_pppoe_read, pppoe,
 			    fd, GTP_PPPOE_RECV_TIMER, 0);
