@@ -62,7 +62,7 @@ pkt_recv(int fd, pkt_t *pkt)
 }
 
 int
-mpkt_mrecv(int fd, mpkt_t *mpkt)
+mpkt_recv(int fd, mpkt_t *mpkt)
 {
 	int ret, i;
 
@@ -173,7 +173,7 @@ mpkt_init(mpkt_t *mpkt, unsigned int vlen)
 	return 0;
 }
 
-void
+static void
 mpkt_release(mpkt_t *mpkt)
 {
 	int i;
@@ -183,19 +183,16 @@ mpkt_release(mpkt_t *mpkt)
 			pkt_free(mpkt->pkt[i]);
 		}
 	}
+
 	FREE(mpkt->pkt);
 }
 
 void
-mpkt_unref(mpkt_t *mpkt, unsigned int count)
+mpkt_destroy(mpkt_t *mpkt)
 {
-	int i;
-
-	for (i=0; i < mpkt->vlen && i < count; i++) {
-		if (mpkt->pkt[i]) {
-			mpkt->pkt[i] = NULL;
-		}
-	}
+	mpkt_release(mpkt);
+	FREE(mpkt->msgs);
+	FREE(mpkt->iovecs);
 }
 
 static int
@@ -248,7 +245,7 @@ pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
 		if (idx >= mpkt->vlen) {
 			pthread_mutex_unlock(&q->mutex);
-			return 0;
+			goto end;
 		}
 
 		list_del_init(&pkt->next);
@@ -269,9 +266,9 @@ pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 		mpkt->pkt[i] = pkt;
 	}
 
+  end:
 	/* Prepare mpkt */
 	mpkt_prepare(mpkt);
-
 	return 0;
 }
 

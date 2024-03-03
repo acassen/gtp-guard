@@ -78,6 +78,7 @@
 #define	PPPOE_DISC_MAXPADR	2	/* retry PADR twice */
 
 #define PPPOE_BUFSIZE		64
+#define PPPOE_MPKT		10
 
 typedef struct _pppoe_hdr {
 	uint8_t		vertype;
@@ -158,6 +159,7 @@ typedef struct _gtp_pppoe {
 	thread_ref_t		r_ses_thread;
 
 	pkt_queue_t		pkt_q;
+	mpkt_t			mpkt;
 
 	gtp_pppoe_worker_t	*worker;
 

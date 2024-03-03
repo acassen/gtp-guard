@@ -207,9 +207,7 @@ gtp_pppoe_read(thread_ref_t thread)
 {
 	gtp_pppoe_t *pppoe;
 	thread_ref_t t;
-	pkt_t *pkt = NULL;
-	ssize_t nbytes;
-	int fd;
+	int fd, ret, i;
 
 	/* Fetch thread elements */
 	pppoe = THREAD_ARG(thread);
@@ -223,10 +221,12 @@ gtp_pppoe_read(thread_ref_t thread)
 	if (thread->type == THREAD_READ_TIMEOUT)
 		goto next_read;
 
-	pkt = pkt_queue_get(&pppoe->pkt_q);
+	ret = pkt_queue_mget(&pppoe->pkt_q, &pppoe->mpkt);
+	if (ret < 0)
+		goto next_read;
 
-	nbytes = pkt_recv(fd, pkt);
-	if (nbytes < 0) {
+	ret = mpkt_recv(fd, &pppoe->mpkt);
+	if (ret < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto next_pkt;
 
@@ -237,11 +237,13 @@ gtp_pppoe_read(thread_ref_t thread)
 	}
 
 	/* Receivce Packet Steering based upon ethernet header */
-	gtp_pppoe_rps(pppoe, pkt);
-	goto next_read;
+	for (i = 0; i < ret; i++) {
+		gtp_pppoe_rps(pppoe, pppoe->mpkt.pkt[i]);
+		pppoe->mpkt.pkt[i] = NULL;
+	}
 
   next_pkt:
-	pkt_queue_put(&pppoe->pkt_q, pkt);
+	pkt_queue_mput(&pppoe->pkt_q, &pppoe->mpkt);
   next_read:
 	t = thread_add_read(thread->master, gtp_pppoe_read, pppoe,
 			    fd, GTP_PPPOE_RECV_TIMER, 0);
@@ -393,6 +395,7 @@ gtp_pppoe_init(const char *ifname)
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
 	pppoe->ifindex = ifindex;
 	pkt_queue_init(&pppoe->pkt_q);
+	mpkt_init(&pppoe->mpkt, PPPOE_MPKT);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
 	gtp_htab_init(&pppoe->unique_tab, CONN_HASHTAB_SIZE);
 	gtp_pppoe_timer_init(pppoe);
@@ -415,6 +418,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	list_head_del(&pppoe->next);
 	gtp_htab_destroy(&pppoe->session_tab);
 	gtp_htab_destroy(&pppoe->unique_tab);
+	mpkt_destroy(&pppoe->mpkt);
 	pkt_queue_destroy(&pppoe->pkt_q);
 	FREE(pppoe);
 	return 0;
