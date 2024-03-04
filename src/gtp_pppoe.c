@@ -193,8 +193,9 @@ gtp_pppoe_rps_hash(struct ether_header *eth, uint32_t mask)
 }
 
 static void
-gtp_pppoe_rps(gtp_pppoe_t *pppoe, pkt_t *pkt)
+gtp_pppoe_rps(pkt_t *pkt, void *arg)
 {
+	gtp_pppoe_t *pppoe = arg;
 	struct ether_header *eth = (struct ether_header *) pkt->pbuff->head;
 	uint32_t hkey = gtp_pppoe_rps_hash(eth, pppoe->thread_cnt - 1);
 
@@ -207,7 +208,7 @@ gtp_pppoe_read(thread_ref_t thread)
 {
 	gtp_pppoe_t *pppoe;
 	thread_ref_t t;
-	int fd, ret, i;
+	int fd, ret;
 
 	/* Fetch thread elements */
 	pppoe = THREAD_ARG(thread);
@@ -237,10 +238,7 @@ gtp_pppoe_read(thread_ref_t thread)
 	}
 
 	/* Receivce Packet Steering based upon ethernet header */
-	for (i = 0; i < ret; i++) {
-		gtp_pppoe_rps(pppoe, pppoe->mpkt.pkt[i]);
-		pppoe->mpkt.pkt[i] = NULL;
-	}
+	mpkt_process(&pppoe->mpkt, ret, gtp_pppoe_rps, pppoe);
 
   next_pkt:
 	pkt_queue_mput(&pppoe->pkt_q, &pppoe->mpkt);

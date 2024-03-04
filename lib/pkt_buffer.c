@@ -173,6 +173,17 @@ mpkt_init(mpkt_t *mpkt, unsigned int vlen)
 	return 0;
 }
 
+void
+mpkt_process(mpkt_t *mpkt, unsigned int vlen, void (*process) (pkt_t *, void *), void *arg)
+{
+	int i;
+
+	for (i = 0; i < vlen; i++) {
+		(*process) (mpkt->pkt[i], arg);
+		mpkt->pkt[i] = NULL;
+	}
+}
+
 static void
 mpkt_release(mpkt_t *mpkt)
 {
