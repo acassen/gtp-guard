@@ -334,13 +334,20 @@ pkt_buffer_send(int fd, pkt_buffer_t *b, struct sockaddr_storage *addr)
 {
 	struct iovec iov = { .iov_base = b->head, .iov_len = pkt_buffer_len(b) };
 	struct msghdr msg = {
-		.msg_name = addr,
-		.msg_namelen = sizeof(*addr),
 		.msg_iov = &iov,
 		.msg_iovlen = 1,
 		.msg_control = NULL,
 		.msg_controllen = 0
 	};
+
+	if (addr->ss_family == AF_INET) {
+		msg.msg_name = (struct sockaddr_in *) addr;
+		msg.msg_namelen = sizeof(struct sockaddr_in);
+	} else if (addr->ss_family == AF_INET6) {
+		msg.msg_name = (struct sockaddr_in6 *) addr;
+		msg.msg_namelen = sizeof(struct sockaddr_in6);
+	} else
+		return -1;
 
 	return sendmsg(fd, &msg, 0);
 }

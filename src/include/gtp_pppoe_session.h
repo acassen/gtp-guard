@@ -72,6 +72,8 @@ typedef struct _spppoe {
 extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
 extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
 extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
+extern int spppoe_sessions_destroy(gtp_htab_t *);
+extern void spppoe_free(spppoe_t *);
 extern int spppoe_destroy(spppoe_t *);
 extern int __spppoe_destroy(spppoe_t *);
 extern spppoe_t *spppoe_init(gtp_pppoe_t *, gtp_conn_t *,

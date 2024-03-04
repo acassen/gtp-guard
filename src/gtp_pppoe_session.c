@@ -217,6 +217,23 @@ spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
 	return 0;
 }
 
+int
+spppoe_sessions_destroy(gtp_htab_t *h)
+{
+	struct hlist_node *n, *_n;
+	spppoe_t *s;
+	int i;
+
+	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
+		dlock_lock_id(h->dlock, i, 0);
+		hlist_for_each_entry_safe(s, n, _n, &h->htab[i], h_session) {
+			spppoe_free(s);
+		}
+		dlock_unlock_id(h->dlock, i, 0);
+	}
+
+	return 0;
+}
 
 /*
  *	PPPoE Sessions related
@@ -277,14 +294,23 @@ spppoe_del(gtp_conn_t *c, spppoe_t *s)
 	return 0;
 }
 
+void
+spppoe_free(spppoe_t *s)
+{
+	sppp_destroy(s->s_ppp);
+	if (s->ac_cookie)
+		FREE(s->ac_cookie);
+	if (s->relay_sid)
+		FREE(s->relay_sid);
+	FREE(s);
+}
+
 static int
 spppoe_release(spppoe_t *s)
 {
 	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
 	spppoe_session_unhash(&s->pppoe->session_tab, s);
-	sppp_destroy(s->s_ppp);
-	FREE(s);
-
+	spppoe_free(s);
 	return 0;
 }
 

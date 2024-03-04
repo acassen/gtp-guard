@@ -279,6 +279,7 @@ gtp_pppoe_pkt_task(void *arg)
 
 	/* Release Master stuff */
 	log_message(LOG_INFO, "%s(): Stopping PPPoE on interface %s", __FUNCTION__, pppoe->ifname);
+	thread_destroy_master(pppoe->master);
 	return NULL;
 }
 
@@ -289,6 +290,7 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto)
 	int fd, ret;
 
 	/* PPPoE Discovery channel init */
+	memset(&sll, 0, sizeof(struct sockaddr_ll));
 	sll.sll_family = PF_PACKET;
 	sll.sll_protocol = htons(proto);
 	sll.sll_ifindex = if_nametoindex(pppoe->ifname);
@@ -414,6 +416,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	close(pppoe->fd_disc);
 	close(pppoe->fd_session);
 	list_head_del(&pppoe->next);
+	spppoe_sessions_destroy(&pppoe->session_tab);
 	gtp_htab_destroy(&pppoe->session_tab);
 	gtp_htab_destroy(&pppoe->unique_tab);
 	mpkt_destroy(&pppoe->mpkt);

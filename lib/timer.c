@@ -304,10 +304,10 @@ timer_thread_fired(timer_thread_t *t, timeval_t *now)
 
 		pthread_mutex_unlock(&t->timer_mutex);
 		/* Cascade handlers */
-		if (t->fired)
-			(*t->fired) (node->to_arg);
 		if (node->to_func)
 			(*node->to_func) (node->to_arg);
+		if (t->fired)
+			(*t->fired) (node->to_arg);
 		pthread_mutex_lock(&t->timer_mutex);
 	}
 	pthread_mutex_unlock(&t->timer_mutex);
