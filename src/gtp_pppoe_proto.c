@@ -402,10 +402,6 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 			log_message(LOG_INFO, "%s(): %s: tag 0x%.4x len 0x%.4x is too long\n"
 					    , __FUNCTION__, pppoe->ifname
 					    , tag, len);
-			if (ac_cookie)
-				FREE(ac_cookie);
-			if (relay_sid)
-				FREE(relay_sid);
 			return;
 		}
 		switch (tag) {
@@ -425,10 +421,6 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 				log_message(LOG_INFO, "%s(): %s: hunique len 0x%.4x is too long\n"
 						, __FUNCTION__, pppoe->ifname
 						, len);
-				if (ac_cookie)
-					FREE(ac_cookie);
-				if (relay_sid)
-					FREE(relay_sid);
 				return;
 			}
 
@@ -438,15 +430,13 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		case PPPOE_TAG_ACCOOKIE:
 			if (ac_cookie == NULL) {
 				ac_cookie_len = len;
-				ac_cookie = (uint8_t *) MALLOC(len);
-				memcpy(ac_cookie, pkt->pbuff->head + off, len);
+				ac_cookie = (uint8_t *) (pkt->pbuff->head + off);
 			}
 			break;
 		case PPPOE_TAG_RELAYSID:
 			if (relay_sid == NULL) {
 				relay_sid_len = len;
-				relay_sid = (uint8_t *) MALLOC(len);
-				memcpy(relay_sid, pkt->pbuff->head + off, len);
+				relay_sid = (uint8_t *) (pkt->pbuff->head + off);
 			}
 			break;
 		case PPPOE_TAG_MAX_PAYLOAD:
@@ -478,10 +468,6 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 						, __FUNCTION__, pppoe->ifname
 						, err_msg, tmp);
 			}
-			if (ac_cookie)
-				FREE(ac_cookie);
-			if (relay_sid)
-				FREE(relay_sid);
 			return;
 		}
 		off += len;
@@ -496,19 +482,11 @@ breakbreak:
 		if (s == NULL) {
 			log_message(LOG_INFO, "%s(): %s: received PADO but could not find request for it"
 					    , __FUNCTION__, pppoe->ifname);
-			if (ac_cookie)
-				FREE(ac_cookie);
-			if (relay_sid)
-				FREE(relay_sid);
 			return;
 		}
 		if (s->state != PPPOE_STATE_PADI_SENT) {
 			log_message(LOG_INFO, "%s(): %s: received unexpected PADO"
 					    , __FUNCTION__, pppoe->ifname);
-			if (ac_cookie)
-				FREE(ac_cookie);
-			if (relay_sid)
-				FREE(relay_sid);
 			return;
 		}
 		if (ac_cookie) {
@@ -517,14 +495,10 @@ breakbreak:
 			s->ac_cookie = MALLOC(ac_cookie_len);
 			if (s->ac_cookie == NULL) {
 				s->ac_cookie_len = 0;
-				FREE(ac_cookie);
-				if (relay_sid)
-					FREE(relay_sid);
 				return;
 			}
 			s->ac_cookie_len = ac_cookie_len;
 			memcpy(s->ac_cookie, ac_cookie, ac_cookie_len);
-			FREE(ac_cookie);
 		} else if (s->ac_cookie) {
 			FREE(s->ac_cookie);
 			s->ac_cookie = NULL;
@@ -536,12 +510,10 @@ breakbreak:
 			s->relay_sid = MALLOC(relay_sid_len);
 			if (s->relay_sid == NULL) {
 				s->relay_sid_len = 0;
-				FREE(relay_sid);
 				return;
 			}
 			s->relay_sid_len = relay_sid_len;
 			memcpy(s->relay_sid, relay_sid, relay_sid_len);
-			FREE(relay_sid);
 		} else if (s->relay_sid) {
 			FREE(s->relay_sid);
 			s->relay_sid = NULL;
@@ -562,10 +534,6 @@ breakbreak:
 	case PPPOE_CODE_PADS:
 		if (s == NULL)
 			return;
-		if (ac_cookie)
-			FREE(ac_cookie);
-		if (relay_sid)
-			FREE(relay_sid);
 
 		s->session_id = session;
 		spppoe_session_hash(&pppoe->session_tab, s, &s->hw_src, s->session_id);
@@ -579,11 +547,6 @@ breakbreak:
 		sppp_up(s);
 		break;
 	case PPPOE_CODE_PADT:
-		if (ac_cookie)
-			FREE(ac_cookie);
-		if (relay_sid)
-			FREE(relay_sid);
-
 		if (s == NULL) {
 			/* Some AC implementation doesnt tag PADT with Host-Uniq...
 			 * At least that's the way it is with Cisco implementation.
@@ -601,11 +564,6 @@ breakbreak:
 		sppp_down(s);
 		break;
 	default:
-		if (ac_cookie)
-			FREE(ac_cookie);
-		if (relay_sid)
-			FREE(relay_sid);
-
 		log_message(LOG_INFO, "%s(): %s: unknown code (0x%04x) session = 0x%.4x"
 				    , __FUNCTION__, pppoe->ifname
 				    , code, session);
