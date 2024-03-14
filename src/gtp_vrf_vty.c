@@ -263,7 +263,7 @@ DEFUN(ip_vrf_pppoe,
 {
 	ip_vrf_t *vrf = vty->index;
 	gtp_pppoe_t *pppoe;
-	int ret;
+	int ret, rps_bits, rps_size = 1;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -275,15 +275,22 @@ DEFUN(ip_vrf_pppoe,
 		return CMD_WARNING;
 	}
 
+	/* PPPoE ingress thread count built from rps-bits */
+	if (__test_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags)) {
+		rps_size = GTP_PPPOE_RPS_SIZE;
+		if (argc == 3) {
+			VTY_GET_INTEGER_RANGE("rps-bits", rps_bits, argv[2], 1, 7);
+			rps_size = 1 << rps_bits;
+		}
+	}
+
 	pppoe = gtp_pppoe_init(argv[0]);
 	if (!pppoe) {
 		vty_out(vty, "%% unknown interface %s!%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	/* argv[3] is listnener-count */
-	pppoe->thread_cnt = (argc == 3) ? (1 << strtoul(argv[2], NULL, 10)) : GTP_PPPOE_RPS_SIZE;
-	pppoe->thread_cnt = (pppoe->thread_cnt < 1) ? 1 : pppoe->thread_cnt; /* XXX useless */
+	pppoe->thread_cnt = rps_size;
 	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
 	vrf->pppoe = pppoe;
 	ret = gtp_pppoe_start(pppoe);
