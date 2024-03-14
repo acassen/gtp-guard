@@ -172,4 +172,11 @@ struct rt_percpu_ctx {
 	__u16 dst_port;
 };
 
+/* Receive Packet Steering related */
+struct rps_opts {
+	__u16 id;
+	__u16 max_id;
+	__u32 alg;
+} __attribute__ ((__aligned__(8)));
+
 #endif

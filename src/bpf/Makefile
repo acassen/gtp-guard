@@ -20,7 +20,7 @@
 #
 
 # XDP program to build
-TARGETS := gtp_fwd.bpf gtp_route.bpf gtp_mirror.bpf
+TARGETS := gtp_fwd.bpf gtp_route.bpf gtp_mirror.bpf sock_rps.bpf
 
 # Allows pointing LLC/CLANG to a LLVM backend with bpf support, redefine on cmdline:
 #  make samples/bpf/ LLC=~/git/llvm/build/bin/llc CLANG=~/git/llvm/build/bin/clang
