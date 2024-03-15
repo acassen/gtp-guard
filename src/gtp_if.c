@@ -344,6 +344,22 @@ if_setsockopt_promisc(int sd, int ifindex, bool enable)
 	return sd;
 }
 
+/* Attach BPF program fd */
+int
+if_setsockopt_attach_bpf(int sd, int prog_fd)
+{
+	int ret;
+
+	ret = setsockopt(sd, SOL_SOCKET, SO_ATTACH_BPF, &prog_fd, sizeof(prog_fd));
+	if (ret < 0) {
+		log_message(LOG_INFO, "%s(): Error attaching eBPF program to socket (%m)\n"
+				    , __FUNCTION__);
+		close(sd);
+		return -1;
+	}
+
+	return sd;
+}
 
 /*
  *	BPF L3 filtering code. Only work on SOCK_RAW !!!

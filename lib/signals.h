@@ -58,6 +58,7 @@ extern void add_signal_read_thread(thread_master_t *);
 extern void cancel_signal_read_thread(void);
 extern void set_sigxcpu_handler(void);
 extern void signal_noignore_sigchld(void);
+extern void signal_noignore_sig(int);
 
 #ifdef THREAD_DUMP
 extern void register_signal_thread_addresses(void);

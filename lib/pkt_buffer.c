@@ -140,13 +140,20 @@ pkt_queue_get(pkt_queue_t *q)
 }
 
 int
-pkt_queue_put(pkt_queue_t *q, pkt_t *pkt)
+__pkt_queue_put(pkt_queue_t *q, pkt_t *pkt)
 {
 	if (!pkt)
 		return -1;
 
-	pthread_mutex_lock(&q->mutex);
 	list_add_tail(&pkt->next, &q->queue);
+	return 0;
+}
+
+int
+pkt_queue_put(pkt_queue_t *q, pkt_t *pkt)
+{
+	pthread_mutex_lock(&q->mutex);
+	__pkt_queue_put(q, pkt);
 	pthread_mutex_unlock(&q->mutex);
 	return 0;
 }
@@ -236,14 +243,12 @@ mpkt_prepare(mpkt_t *mpkt)
 }
 
 int
-pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
+__pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 {
 	pkt_t *pkt, *_pkt;
 	int ret, i, idx = 0;
 
-	pthread_mutex_lock(&q->mutex);
 	if (list_empty(&q->queue)) {
-		pthread_mutex_unlock(&q->mutex);
 		ret = mpkt_alloc(mpkt, DEFAULT_PKT_BUFFER_SIZE);
 		if (ret < 0) {
 			mpkt_release(mpkt);
@@ -255,7 +260,6 @@ pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 
 	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
 		if (idx >= mpkt->vlen) {
-			pthread_mutex_unlock(&q->mutex);
 			goto end;
 		}
 
@@ -264,7 +268,6 @@ pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 		mpkt->pkt[idx++] = pkt;
 
 	}
-	pthread_mutex_unlock(&q->mutex);
 
 	/* Not fully filled */
 	for (i=idx; i < mpkt->vlen; i++) {
@@ -284,12 +287,20 @@ pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 }
 
 int
-pkt_queue_mput(pkt_queue_t *q, mpkt_t *mpkt)
+pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
+{
+	pthread_mutex_lock(&q->mutex);
+	__pkt_queue_mget(q, mpkt);
+	pthread_mutex_unlock(&q->mutex);
+	return 0;
+}
+
+int
+__pkt_queue_mput(pkt_queue_t *q, mpkt_t *mpkt)
 {
 	pkt_t *pkt;
 	int i;
 
-	pthread_mutex_lock(&q->mutex);
 	for (i=0; i < mpkt->vlen; i++) {
 		pkt = mpkt->pkt[i];
 		if (pkt) {
@@ -297,6 +308,15 @@ pkt_queue_mput(pkt_queue_t *q, mpkt_t *mpkt)
 			mpkt->pkt[i] = NULL;
 		}
 	}
+
+	return 0;
+}
+
+int
+pkt_queue_mput(pkt_queue_t *q, mpkt_t *mpkt)
+{
+	pthread_mutex_lock(&q->mutex);
+	__pkt_queue_mput(q, mpkt);
 	pthread_mutex_unlock(&q->mutex);
 
 	return 0;

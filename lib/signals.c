@@ -458,6 +458,20 @@ signal_noignore_sigchld(void)
         sigprocmask(SIG_BLOCK, &mask, NULL);
 }
 
+void
+signal_noignore_sig(int sig)
+{
+	struct sigaction sa;
+	sigset_t mask;
+
+	sigemptyset(&mask);
+	sa.sa_handler = dummy_handler;
+	sa.sa_mask = mask;
+	sa.sa_flags = 0;
+
+	sigaction(sig, &sa, NULL);
+}
+
 #ifdef THREAD_DUMP
 void
 register_signal_thread_addresses(void)

@@ -115,8 +115,15 @@ enum pppoe_flags {
 	PPPOE_FL_LCP_MAX_FAILURE_BIT,
 };
 
+struct rps_opts {
+	__u16	id;
+	__u16	max_id;
+} __attribute__ ((__aligned__(8)));
+
 typedef struct _gtp_pppoe_worker {
 	char			pname[GTP_PNAME];
+	uint16_t		proto;
+	int			fd;
 	int			id;
 	pthread_t		task;
 	struct _gtp_pppoe	*pppoe;		/* backpointer */
@@ -124,7 +131,14 @@ typedef struct _gtp_pppoe_worker {
 	pthread_cond_t		cond;
 	pthread_mutex_t		mutex;
 
+	mpkt_t			mpkt;
 	pkt_queue_t		pkt_q;
+
+	/* Stats */
+	uint64_t		rx_packets;
+	uint64_t		rx_bytes;
+	uint64_t		tx_packets;
+	uint64_t		tx_bytes;
 } gtp_pppoe_worker_t;
 
 typedef struct _gtp_pppoe {
@@ -143,8 +157,6 @@ typedef struct _gtp_pppoe {
 	int			lcp_max_failure;
 	int			thread_cnt;
 	int			refcnt;
-	int			fd_disc;
-	int			fd_session;
 	unsigned int		seed;
 	pthread_t		task;
 
@@ -153,15 +165,9 @@ typedef struct _gtp_pppoe {
 	timer_thread_t		session_timer;	/* Sesion timer */
 	timer_thread_t		ppp_timer;	/* PPP sesion timer */
 
-	/* I/O MUX related */
-	thread_master_t		*master;
-	thread_ref_t		r_disc_thread;
-	thread_ref_t		r_ses_thread;
-
+	gtp_pppoe_worker_t	*worker_disc;
+	gtp_pppoe_worker_t	*worker_ses;
 	pkt_queue_t		pkt_q;
-	mpkt_t			mpkt;
-
-	gtp_pppoe_worker_t	*worker;
 
 	list_head_t		next;
 
@@ -169,6 +175,8 @@ typedef struct _gtp_pppoe {
 } gtp_pppoe_t;
 
 /* Prototypes */
+extern int gtp_pppoe_disc_send(gtp_pppoe_t *, pkt_t *);
+extern int gtp_pppoe_ses_send(gtp_pppoe_t *, pkt_t *);
 extern int gtp_pppoe_put(gtp_pppoe_t *);
 extern int gtp_pppoe_start(gtp_pppoe_t *);
 extern int gtp_pppoe_release(gtp_pppoe_t *);

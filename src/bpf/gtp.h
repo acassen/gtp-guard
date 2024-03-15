@@ -176,7 +176,6 @@ struct rt_percpu_ctx {
 struct rps_opts {
 	__u16 id;
 	__u16 max_id;
-	__u32 alg;
 } __attribute__ ((__aligned__(8)));
 
 #endif

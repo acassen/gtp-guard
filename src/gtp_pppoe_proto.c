@@ -125,7 +125,7 @@ pppoe_send_padi(spppoe_t *s)
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* send pkt */
-	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
+	return gtp_pppoe_disc_send(pppoe, pkt);
 }
 
 static int
@@ -187,7 +187,7 @@ pppoe_send_padr(spppoe_t *s)
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* send pkt */
-	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
+	return gtp_pppoe_disc_send(pppoe, pkt);
 }
 
 static int
@@ -208,7 +208,7 @@ pppoe_send_padt(spppoe_t *s)
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* send pkt */
-	return pkt_send(pppoe->fd_disc, &pppoe->pkt_q, pkt);
+	return gtp_pppoe_disc_send(pppoe, pkt);
 }
 
 int
