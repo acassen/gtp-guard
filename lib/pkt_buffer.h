@@ -107,6 +107,7 @@ extern int pkt_queue_put(pkt_queue_t *, pkt_t *);
 extern int mpkt_init(mpkt_t *, unsigned int);
 extern void mpkt_process(mpkt_t *, unsigned int, void (*process) (pkt_t *, void *), void *);
 extern void mpkt_destroy(mpkt_t *);
+extern void mpkt_reset(mpkt_t *);
 extern int __pkt_queue_mget(pkt_queue_t *, mpkt_t *);
 extern int pkt_queue_mget(pkt_queue_t *, mpkt_t *);
 extern int __pkt_queue_mput(pkt_queue_t *, mpkt_t *);

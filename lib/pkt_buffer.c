@@ -61,21 +61,6 @@ pkt_recv(int fd, pkt_t *pkt)
 	return nbytes;
 }
 
-int
-mpkt_recv(int fd, mpkt_t *mpkt)
-{
-	int ret, i;
-
-	ret = recvmmsg(fd, mpkt->msgs, mpkt->vlen, 0, NULL);
-	if (ret < 0)
-		return -1;
-
-	for (i = 0; i < ret; i++)
-		pkt_buffer_set_end_pointer(mpkt->pkt[i]->pbuff, mpkt->msgs[i].msg_len);
-
-	return ret;
-}
-
 
 /*
  *	Pkt queue helpers
@@ -159,6 +144,48 @@ pkt_queue_put(pkt_queue_t *q, pkt_t *pkt)
 }
 
 int
+pkt_queue_init(pkt_queue_t *q)
+{
+	INIT_LIST_HEAD(&q->queue);
+	pthread_mutex_init(&q->mutex, NULL);
+	return 0;
+}
+
+int
+pkt_queue_destroy(pkt_queue_t *q)
+{
+	pkt_t *pkt, *_pkt;
+
+	pthread_mutex_lock(&q->mutex);
+	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
+		list_head_del(&pkt->next);
+		pkt_buffer_free(pkt->pbuff);
+		FREE(pkt);
+	}
+	pthread_mutex_unlock(&q->mutex);
+	return 0;
+}
+
+
+/*
+ *	mpkt helpers
+ */
+int
+mpkt_recv(int fd, mpkt_t *mpkt)
+{
+	int ret, i;
+
+	ret = recvmmsg(fd, mpkt->msgs, mpkt->vlen, 0, NULL);
+	if (ret < 0)
+		return -1;
+
+	for (i = 0; i < ret; i++)
+		pkt_buffer_set_end_pointer(mpkt->pkt[i]->pbuff, mpkt->msgs[i].msg_len);
+
+	return ret;
+}
+
+int
 mpkt_init(mpkt_t *mpkt, unsigned int vlen)
 {
 	mpkt->vlen = vlen;
@@ -185,10 +212,8 @@ mpkt_process(mpkt_t *mpkt, unsigned int vlen, void (*process) (pkt_t *, void *),
 {
 	int i;
 
-	for (i = 0; i < vlen; i++) {
+	for (i = 0; i < vlen; i++)
 		(*process) (mpkt->pkt[i], arg);
-		mpkt->pkt[i] = NULL;
-	}
 }
 
 static void
@@ -240,6 +265,15 @@ mpkt_prepare(mpkt_t *mpkt)
 		mpkt->msgs[i].msg_hdr.msg_iov = &mpkt->iovecs[i];
 		mpkt->msgs[i].msg_hdr.msg_iovlen = 1;
 	}
+}
+
+void
+mpkt_reset(mpkt_t *mpkt)
+{
+	int i;
+
+	for (i = 0; i < mpkt->vlen; i++)
+		pkt_buffer_reset(mpkt->pkt[i]->pbuff);
 }
 
 int
@@ -319,29 +353,6 @@ pkt_queue_mput(pkt_queue_t *q, mpkt_t *mpkt)
 	__pkt_queue_mput(q, mpkt);
 	pthread_mutex_unlock(&q->mutex);
 
-	return 0;
-}
-
-int
-pkt_queue_init(pkt_queue_t *q)
-{
-	INIT_LIST_HEAD(&q->queue);
-	pthread_mutex_init(&q->mutex, NULL);
-	return 0;
-}
-
-int
-pkt_queue_destroy(pkt_queue_t *q)
-{
-	pkt_t *pkt, *_pkt;
-
-	pthread_mutex_lock(&q->mutex);
-	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
-		list_head_del(&pkt->next);
-		pkt_buffer_free(pkt->pbuff);
-		FREE(pkt);
-	}
-	pthread_mutex_unlock(&q->mutex);
 	return 0;
 }
 

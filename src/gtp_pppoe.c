@@ -217,7 +217,6 @@ gtp_pppoe_ingress(pkt_t *pkt, void *arg)
 	}
 
 	gtp_pppoe_update_rx_stats(w, pkt);
-	__pkt_queue_put(&w->pkt_q, pkt);
 }
 
 static int
@@ -283,16 +282,17 @@ gtp_pppoe_worker_task(void *arg)
 			goto end;
 	}
 
+	/* mpkt Init */
+	ret = __pkt_queue_mget(&w->pkt_q, &w->mpkt);
+	if (ret < 0)
+		goto end;
+
 	signal_noignore_sig(SIGUSR1);
 	log_message(LOG_INFO, "%s(): Starting PPPoE Worker %s"
 			    , __FUNCTION__, pname);
 
   shoot_again:
 	if (__test_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags))
-		goto end;
-
-	ret = __pkt_queue_mget(&w->pkt_q, &w->mpkt);
-	if (ret < 0)
 		goto end;
 
 	ret = mpkt_recv(w->fd, &w->mpkt);
@@ -305,14 +305,14 @@ gtp_pppoe_worker_task(void *arg)
 		log_message(LOG_INFO, "%s(): Error recv on pppoe socket for interface %s (%m)"
 				    , __FUNCTION__
 				    , pppoe->ifname);
-		__pkt_queue_mput(&w->pkt_q, &w->mpkt);
+		mpkt_reset(&w->mpkt);
 		goto end;
 	}
 
 	/* Queue processing */
 	mpkt_process(&w->mpkt, ret, gtp_pppoe_ingress, w);
 
-	__pkt_queue_mput(&w->pkt_q, &w->mpkt);
+	mpkt_reset(&w->mpkt);
 	goto shoot_again;
 
   end:
