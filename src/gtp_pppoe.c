@@ -298,20 +298,18 @@ gtp_pppoe_worker_task(void *arg)
 	ret = mpkt_recv(w->fd, &w->mpkt);
 	if (ret < 0) {
 		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
-			__pkt_queue_mput(&w->pkt_q, &w->mpkt);
+			mpkt_reset(&w->mpkt);
 			goto shoot_again;
 		}
 
 		log_message(LOG_INFO, "%s(): Error recv on pppoe socket for interface %s (%m)"
 				    , __FUNCTION__
 				    , pppoe->ifname);
-		mpkt_reset(&w->mpkt);
 		goto end;
 	}
 
-	/* Queue processing */
+	/* mpkt processing */
 	mpkt_process(&w->mpkt, ret, gtp_pppoe_ingress, w);
-
 	mpkt_reset(&w->mpkt);
 	goto shoot_again;
 
