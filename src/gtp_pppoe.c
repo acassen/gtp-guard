@@ -118,7 +118,7 @@ bpf_rps_filter_init(gtp_pppoe_worker_t *w, int fd, const char *filename)
 		return NULL;
 	}
 
-	bpf_map = bpf_object__find_map_by_name(bpf_obj, "socket_filter_ops");
+	bpf_map = bpf_object__find_map_by_name(bpf_obj, "socket_filter_opts");
 	if (!bpf_map) {
 		log_message(LOG_INFO, "eBPF: error mapping:%s\n"
 				    , "socket_filter_ops");

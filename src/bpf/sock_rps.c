@@ -84,7 +84,7 @@ int sock_rps(struct __sk_buff *skb)
 	bpf_skb_load_bytes(skb, 0, &hw_dst, ETH_ALEN);
 	hkey = eth_hash(hw_dst, ETH_ALEN) & (opts->max_id - 1);
 
-	return (hkey == opts->id) ? 1 : 0;
+	return (hkey == opts->id) ? skb->len : 0;
 }
 
 char _license[] SEC("license") = "GPL";
