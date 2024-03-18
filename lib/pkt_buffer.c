@@ -102,7 +102,7 @@ pkt_alloc(unsigned int size)
 static void
 pkt_free(pkt_t *pkt)
 {
-	FREE(pkt->pbuff);
+	pkt_buffer_free(pkt->pbuff);
 	FREE(pkt);
 }
 
@@ -175,7 +175,7 @@ mpkt_recv(int fd, mpkt_t *mpkt)
 {
 	int ret, i;
 
-	ret = recvmmsg(fd, mpkt->msgs, mpkt->vlen, 0, NULL);
+	ret = recvmmsg(fd, mpkt->msgs, mpkt->vlen, MSG_WAITFORONE, NULL);
 	if (ret < 0)
 		return -1;
 
@@ -220,7 +220,6 @@ static void
 mpkt_release(mpkt_t *mpkt)
 {
 	int i;
-
 	for (i=0; i < mpkt->vlen; i++) {
 		if (mpkt->pkt[i]) {
 			pkt_free(mpkt->pkt[i]);
@@ -289,7 +288,7 @@ __pkt_queue_mget(pkt_queue_t *q, mpkt_t *mpkt)
 			return -1;
 		}
 
-		return 0;
+		goto end;
 	}
 
 	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
