@@ -269,19 +269,25 @@ spppoe_generate_id(gtp_conn_t *c)
 static int
 spppoe_add(gtp_conn_t *c, spppoe_t *s)
 {
+	gtp_pppoe_t *pppoe = s->pppoe;
+
 	pthread_mutex_lock(&c->session_mutex);
 	list_add_tail(&s->next, &c->pppoe_sessions);
 	__sync_add_and_fetch(&c->pppoe_cnt, 1);
 	pthread_mutex_unlock(&c->session_mutex);
 
+	__sync_add_and_fetch(&pppoe->session_count, 1);
 	return 0;
 }
 
 static int
 __spppoe_del(gtp_conn_t *c, spppoe_t *s)
 {
+	gtp_pppoe_t *pppoe = s->pppoe;
+
 	list_head_del(&s->next);
 	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
+	__sync_sub_and_fetch(&pppoe->session_count, 1);
 	return 0;
 }
 

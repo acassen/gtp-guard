@@ -162,6 +162,7 @@ typedef struct _gtp_pppoe {
 
 	gtp_htab_t		session_tab;	/* Session Tracking by sesion-id */
 	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
+	int			session_count;	/* Number of session tracked */
 	timer_thread_t		session_timer;	/* Sesion timer */
 	timer_thread_t		ppp_timer;	/* PPP sesion timer */
 
@@ -178,6 +179,7 @@ typedef struct _gtp_pppoe {
 extern int gtp_pppoe_disc_send(gtp_pppoe_t *, pkt_t *);
 extern int gtp_pppoe_ses_send(gtp_pppoe_t *, pkt_t *);
 extern int gtp_pppoe_put(gtp_pppoe_t *);
+extern int gtp_pppoe_vty(vty_t *, gtp_pppoe_t *);
 extern int gtp_pppoe_start(gtp_pppoe_t *);
 extern int gtp_pppoe_release(gtp_pppoe_t *);
 extern gtp_pppoe_t *gtp_pppoe_init(const char *);

@@ -387,6 +387,48 @@ gtp_pppoe_timer_destroy(gtp_pppoe_t *pppoe)
 	return 0;
 }
 
+
+/*
+ *	VTY display
+ */
+static int
+gtp_pppoe_worker_vty(vty_t *vty, gtp_pppoe_worker_t *w)
+{
+	vty_out(vty, "   #%.2d: rx_packets:%ld rx_bytes:%ld tx_packets:%ld tx_bytes:%ld%s"
+		   , w->id, w->rx_packets, w->rx_bytes, w->tx_packets, w->tx_bytes
+		   , VTY_NEWLINE);
+	return 0;
+}
+
+static int
+gtp_pppoe_workers_vty(vty_t *vty, const char *desc, gtp_pppoe_worker_t *w, int count)
+{
+	int i;
+
+	vty_out(vty, "  %s:%s", desc, VTY_NEWLINE);
+	for (i = 0; i < count; i++)
+		gtp_pppoe_worker_vty(vty, &w[i]);
+
+	return 0;
+}
+
+int
+gtp_pppoe_vty(vty_t *vty, gtp_pppoe_t *pppoe)
+{
+	if (!pppoe)
+		return -1;
+
+	vty_out(vty, " PPPoE: interface %s (ifindex:%d) sessions:%d%s"
+		   , pppoe->ifname, pppoe->ifindex, pppoe->session_count
+		   , VTY_NEWLINE);
+	gtp_pppoe_workers_vty(vty, "Discovery channel:"
+				 , pppoe->worker_disc, pppoe->thread_cnt);
+	gtp_pppoe_workers_vty(vty, "Session channel:"
+				 , pppoe->worker_ses, pppoe->thread_cnt);
+	return 0;
+}
+
+
 /*
  *	PPPoE service init
  */

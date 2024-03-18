@@ -645,6 +645,39 @@ DEFUN(ip_vrf_pppoe_lcp_max_failure,
 	return CMD_SUCCESS;
 }
 
+/*
+ *	Show commands
+ */
+DEFUN(show_ip_vrf,
+      show_ip_vrf_cmd,
+      "show ip vrf [STRING]",
+      SHOW_STR
+      "IP VRF\n"
+      "VRF")
+{
+	ip_vrf_t *vrf;
+	const char *vrf_name = NULL;
+
+	if (list_empty(&daemon_data->ip_vrf)) {
+		vty_out(vty, "%% No VRF configured...");
+		return CMD_SUCCESS;
+	}
+
+	if (argc == 1)
+		vrf_name = argv[0];
+
+	list_for_each_entry(vrf, &daemon_data->ip_vrf, next) {
+		if (vrf_name && strncmp(vrf->name, vrf_name, GTP_NAME_MAX_LEN))
+			continue;
+
+		vty_out(vty, "vrf(%d): %s (%s)%s"
+			   , vrf->id, vrf->name, vrf->description, VTY_NEWLINE);
+		gtp_pppoe_vty(vty, vrf->pppoe);
+	}
+
+	return CMD_SUCCESS;
+}
+
 
 /* Configuration writer */
 static int
@@ -769,6 +802,11 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_terminate_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_configure_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_failure_cmd);
+
+	/* Install show commands. */
+	install_element(VIEW_NODE, &show_ip_vrf_cmd);
+	install_element(ENABLE_NODE, &show_ip_vrf_cmd);
+
 
 	return 0;
 }
