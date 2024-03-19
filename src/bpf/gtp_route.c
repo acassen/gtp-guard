@@ -19,7 +19,7 @@
  * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#define KBUILD_MODNAME "gtp_fwd"
+#define KBUILD_MODNAME "gtp_route"
 #include <stddef.h>
 #include <stdbool.h>
 #include <string.h>

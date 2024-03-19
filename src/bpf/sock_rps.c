@@ -64,7 +64,7 @@ eth_hash(const __u8 *hw, const int size)
 	return hash;
 }
 
-SEC("socket_filter")
+SEC("socket")
 int sock_rps(struct __sk_buff *skb)
 {
 	struct rps_opts *opts;

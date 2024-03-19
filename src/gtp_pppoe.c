@@ -107,7 +107,6 @@ bpf_rps_filter_init(gtp_pppoe_worker_t *w, int fd, const char *filename)
 		bpf_object__close(bpf_obj);
 		return NULL;
 	}
-	bpf_program__set_type(bpf_prog, BPF_PROG_TYPE_SOCKET_FILTER);
 
 	err = bpf_object__load(bpf_obj);
 	if (err) {
@@ -421,9 +420,9 @@ gtp_pppoe_vty(vty_t *vty, gtp_pppoe_t *pppoe)
 	vty_out(vty, " PPPoE: interface %s (ifindex:%d) sessions:%d%s"
 		   , pppoe->ifname, pppoe->ifindex, pppoe->session_count
 		   , VTY_NEWLINE);
-	gtp_pppoe_workers_vty(vty, "Discovery channel:"
+	gtp_pppoe_workers_vty(vty, "Discovery channel"
 				 , pppoe->worker_disc, pppoe->thread_cnt);
-	gtp_pppoe_workers_vty(vty, "Session channel:"
+	gtp_pppoe_workers_vty(vty, "Session channel"
 				 , pppoe->worker_ses, pppoe->thread_cnt);
 	return 0;
 }
