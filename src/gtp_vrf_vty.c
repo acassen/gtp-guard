@@ -349,6 +349,25 @@ DEFUN(ip_vrf_pppoe_service_name,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ip_vrf_pppoe_vendor_specific_bbf,
+      ip_vrf_pppoe_vendor_specific_bbf_cmd,
+      "pppoe vendor-specific-bbf",
+      "PPP Over Ethernet\n"
+      "Vendor Specific BroadBandForum\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
+
 DEFUN(ip_vrf_pppoe_mru,
       ip_vrf_pppoe_mru_cmd,
       "pppoe maximum-receive-unit INTEGER",
@@ -399,9 +418,9 @@ DEFUN(ip_vrf_pppoe_vmac_hbits,
 	return CMD_SUCCESS;
 }
 
-DEFUN(ip_vrf_pppoe_auth_pap_gtp_username,
-      ip_vrf_pppoe_auth_pap_gtp_username_cmd,
-      "pppoe authentication pap gtp-username",
+DEFUN(ip_vrf_pppoe_auth_pap_gtp_username_tpl0,
+      ip_vrf_pppoe_auth_pap_gtp_username_tpl0_cmd,
+      "pppoe authentication pap gtp-username imsi+mei@apn",
       "PPP Over Ethernet\n"
       "Authentication method\n"
       "Password Authentication Protocol\n"
@@ -420,7 +439,32 @@ DEFUN(ip_vrf_pppoe_auth_pap_gtp_username,
 		return CMD_WARNING;
 	}
 
-	__set_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_auth_pap_gtp_username_tpl1,
+      ip_vrf_pppoe_auth_pap_gtp_username_tpl1_cmd,
+      "pppoe authentication pap gtp-username imsi@apn",
+      "PPP Over Ethernet\n"
+      "Authentication method\n"
+      "Password Authentication Protocol\n"
+      "Username built from GTP imsi@apn\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_t *pppoe = vrf->pppoe;
+
+	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
+		vty_out(vty, "%% Static username already configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!pppoe) {
+		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -441,7 +485,7 @@ DEFUN(ip_vrf_pppoe_auth_pap_username,
 		return CMD_WARNING;
 	}
 
-	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags)) {
+	if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags)) {
 		vty_out(vty, "%% GTP username already configured%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -724,8 +768,14 @@ gtp_config_write(vty_t *vty)
 				vty_out(vty, " pppoe vmac-hbits %d%s"
 					   , pppoe->vmac_hbits
 					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe authentication pap gtp-username%s"
+			if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe authentication pap gtp-username imsi+mei@apn%s"
+					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe authentication pap gtp-username imsi@apn%s"
+					   , VTY_NEWLINE);
+			if (__test_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags))
+				vty_out(vty, " pppoe vendor-specific-bbf%s"
 					   , VTY_NEWLINE);
 			if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags))
 				vty_out(vty, " pppoe authentication pap username %s%s"
@@ -790,9 +840,11 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_vendor_specific_bbf_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_mru_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_vmac_hbits_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_tpl0_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_tpl1_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ipv6cp_disable_cmd);

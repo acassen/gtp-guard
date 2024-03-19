@@ -328,7 +328,7 @@ gtp_pppoe_worker_init(gtp_pppoe_t *pppoe, gtp_pppoe_worker_t *w, int id, uint16_
 	/* Packet queue Init */
 	pkt_queue_init(&w->pkt_q);
 	ret = mpkt_init(&w->mpkt, PPPOE_MPKT);
-	ret = (ret < 0) ? ret : __pkt_queue_mget(&w->pkt_q, &w->mpkt);
+	ret = (ret) ? : __pkt_queue_mget(&w->pkt_q, &w->mpkt);
 	if (ret < 0) {
 		log_message(LOG_INFO, "%s(): Error creating mpkt for Worker %d/%d"
 				    , __FUNCTION__, proto, id);
