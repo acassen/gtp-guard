@@ -2763,7 +2763,9 @@ sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
 		__set_bit(LCP_OPT_MRU, &sp->lcp.opts);
 		sp->lcp.mru = pppoe->mru;
 	}
-	if (__test_bit(PPPOE_FL_GTP_USERNAME_BIT, &pppoe->flags)) {
+	if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags) ||
+	    __test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT, &pppoe->flags)) {
+		sp->myauth.proto = PPP_PAP;
 		sp->myauth.name = s->gtp_username;
 	}
 	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
