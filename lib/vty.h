@@ -180,6 +180,7 @@ extern void vty_reset(void);
 extern vty_t *vty_new(void);
 extern int vty_out(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
 extern ssize_t vty_send_out(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
+extern ssize_t vty_debug(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
 extern void vty_prompt_hold(vty_t *);
 extern void vty_prompt_restore(vty_t *);
 extern int vty_read_config(char *, char *);

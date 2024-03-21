@@ -112,6 +112,7 @@ enum global_bits {
 #endif
 #endif
 	CONFIG_TEST_BIT,
+	BPF_DEBUG_BIT,
 };
 
 #endif

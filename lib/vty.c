@@ -134,19 +134,43 @@ vty_out(vty_t *vty, const char *format, ...)
 	return len;
 }
 
-ssize_t
-vty_send_out(vty_t *vty, const char *format, ...)
+static ssize_t
+vvty_send_out(vty_t *vty, const char *format, va_list args)
 {
-	va_list args;
 	int len = 0;
 	char buf[1024];
 
 	/* Try to write to initial buffer.  */
-	va_start(args, format);
 	len = vsnprintf(buf, sizeof(buf), format, args);
-	va_end(args);
 
 	return write(vty->fd, buf, len);
+}
+
+ssize_t
+vty_send_out(vty_t *vty, const char *format, ...)
+{
+	va_list args;
+	ssize_t s;
+
+	va_start(args, format);
+	s = vvty_send_out(vty, format, args);
+	va_end(args);
+
+	return s;
+}
+
+ssize_t
+vty_debug(vty_t *vty, const char *format, ...)
+{
+	va_list args;
+	ssize_t s = 0;
+
+	va_start(args, format);
+	if (vty->monitor)
+		s = vvty_send_out(vty, format, args);
+	va_end(args);
+
+	return s;
 }
 
 /* Output current time to vty. */
