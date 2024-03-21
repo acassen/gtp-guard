@@ -31,7 +31,7 @@
 #define	PPPOE_STATE_SESSION	3
 #define	PPPOE_STATE_CLOSING	4
 
-#define PPPOE_NAMELEN		512		/* should be enough */
+#define PPPOE_NAMELEN		128		/* should be enough */
 
 #define	PPPOE_HEADERLEN		sizeof(pppoe_hdr_t)
 #define	PPPOE_OVERHEAD		(PPPOE_HEADERLEN + 2)
@@ -48,6 +48,13 @@
 #define	PPPOE_TAG_SNAME_ERR	0x0201		/* service name error */
 #define	PPPOE_TAG_ACSYS_ERR	0x0202		/* AC system error */
 #define	PPPOE_TAG_GENERIC_ERR	0x0203		/* generic error */
+
+/* Vendor Specific TAGs */
+#define PPPOE_VENDOR_ID_BBF		0x00000de9	/* BroadBandForum Vendor-ID*/
+#define PPPOE_VENDOR_TAG_CIRCUIT_ID	0x01
+#define PPPOE_VENDOR_TAG_REMOTE_ID	0x02
+#define PPPOE_VENDOR_TAG_UPSTREAM	0x81
+#define PPPOE_VENDOR_TAG_DOWNSTREAM	0x82
 
 #define	PPPOE_CODE_SESSION	0x00		/* Session */
 #define	PPPOE_CODE_PADI		0x09		/* Active Discovery Initiation */
@@ -92,6 +99,10 @@ typedef struct _pppoe_tag {
 	uint16_t	len;
 } __attribute__((packed)) pppoe_tag_t;
 
+typedef struct _pppoe_vendor_tag {
+	uint8_t		tag;
+	uint8_t		len;
+} __attribute__((packed)) pppoe_vendor_tag_t;
 
 /* Receive channel */
 #define GTP_PPPOE_RECV_TIMER	(3 * TIMER_HZ)

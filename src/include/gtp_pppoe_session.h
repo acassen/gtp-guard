@@ -37,6 +37,10 @@ typedef struct _spppoe {
 	struct ether_addr	hw_src;		/* [K] our hardware address */
 	struct ether_addr	hw_dst;		/* [K] hardware address of concentrator */
 	char			gtp_username[PPPOE_NAMELEN];
+	char			remote_id[PPPOE_NAMELEN];
+	char			circuit_id[PPPOE_NAMELEN];
+	uint32_t		ambr_uplink;
+	uint32_t		ambr_downlink;
 	uint16_t		session_id;	/* [K] PPPoE session id */
 	uint8_t			*ac_cookie;	/* [K] content of AC cookie we must echo back */
 	size_t			ac_cookie_len;	/* [K] length of cookie data */
@@ -79,7 +83,8 @@ extern int __spppoe_destroy(spppoe_t *);
 extern spppoe_t *spppoe_init(gtp_pppoe_t *, gtp_conn_t *,
 			     void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
 			     void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
-			     const uint64_t, const uint64_t, const char *);
+			     const uint64_t, const uint64_t, const char *,
+			     gtp_id_ecgi_t *, gtp_ie_ambr_t *);
 extern int spppoe_close(spppoe_t *);
 extern int spppoe_disconnect(spppoe_t *);
 

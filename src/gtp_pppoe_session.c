@@ -346,7 +346,8 @@ spppoe_t *
 spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	    void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *),
 	    void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int),
-	    const uint64_t imsi, const uint64_t mei, const char *apn_str)
+	    const uint64_t imsi, const uint64_t mei, const char *apn_str,
+	    gtp_id_ecgi_t *ecgi, gtp_ie_ambr_t *ambr)
 {
 	spppoe_t *s;
 	int err, id;
@@ -379,6 +380,16 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 		snprintf(s->gtp_username, PPPOE_NAMELEN
 					, "%lu@%s"
 					, imsi, apn_str);
+
+	/* Vendor Specific tags */
+	if (__test_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags)) {
+		snprintf(s->remote_id, PPPOE_NAMELEN, "%lu", mei);
+		gtp_id_ecgi_str(ecgi, s->circuit_id, PPPOE_NAMELEN);
+		if (ambr) {
+			s->ambr_downlink = ambr->downlink;
+			s->ambr_uplink = ambr->uplink;
+		}
+	}
 
 	s->s_ppp = sppp_init(s, pp_tls, pp_tlf, pp_con, pp_chg);
 	timer_node_init(&s->t_node, NULL, s);

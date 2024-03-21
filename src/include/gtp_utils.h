@@ -47,6 +47,8 @@ extern int gtp_ie_apn_extract_ni(gtp_ie_apn_t *, char *, size_t);
 extern int gtp_ie_apn_extract_oi(gtp_ie_apn_t *, char *, size_t);
 extern int gtp_ie_apn_rewrite_oi(gtp_ie_apn_t *, size_t, char *);
 extern int gtp_ie_apn_rewrite(gtp_apn_t *, gtp_ie_apn_t *, size_t);
+extern gtp_id_ecgi_t *gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *);
+extern int gtp_id_ecgi_str(gtp_id_ecgi_t *, char *, size_t);
 extern int gtp_ie_f_teid_dump(gtp_ie_f_teid_t *);
 extern int gtp_dump_ie(uint8_t *, size_t);
 extern uint8_t *gtp_get_ie_offset(uint8_t, uint8_t *, size_t, size_t);

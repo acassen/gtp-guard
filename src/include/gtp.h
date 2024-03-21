@@ -310,6 +310,13 @@ typedef struct _gtp_ie_f_teid {
 #define GTP_TEID_INTERFACE_TYPE_SGW_GTPU	5
 #define GTP_TEID_INTERFACE_TYPE_SGW_GTPC	7
 
+#define GTP_IE_AMBR_TYPE				72
+typedef struct _gtp_ie_ambr {
+	gtp_ie_t	h;
+	uint32_t	uplink;
+	uint32_t	downlink;
+} __attribute__((packed)) gtp_ie_ambr_t;
+
 #define GTP_IE_EPS_BEARER_ID_TYPE			73
 typedef struct _gtp_ie_eps_bearer_id {
 	gtp_ie_t	h;
@@ -323,6 +330,58 @@ typedef struct _gtp_ie_paa {
 	uint32_t	addr;
 } __attribute__((packed)) gtp_ie_paa_t;
 #define GTP_PAA_IPV4_TYPE	1
+
+#define GTP_IE_ULI_TYPE			86
+typedef struct _gtp_ie_uli {
+	gtp_ie_t	h;
+	uint8_t		extended_macro_enbid:1;
+	uint8_t		macro_enbid:1;
+	uint8_t		lai:1;
+	uint8_t		ecgi:1;
+	uint8_t		tai:1;
+	uint8_t		rai:1;
+	uint8_t		sai:1;
+	uint8_t		cgi:1;
+	/* Grouped identities in following order according
+	 * to presence in previous bitfield:
+	 CGI / SAI / RAI / TAI / ECGI / LAI / MacroeNBID / extMacroeNBID */
+} __attribute__((packed)) gtp_ie_uli_t;
+
+typedef struct _gtp_id_cgi {
+	uint8_t		mcc_mnc[3];
+	uint16_t	lac;
+	uint16_t	ci;
+} __attribute__((packed)) gtp_id_cgi_t;
+
+typedef struct _gtp_id_sai {
+	uint8_t		mcc_mnc[3];
+	uint16_t	lac;
+	uint16_t	sac;
+} __attribute__((packed)) gtp_id_sai_t;
+
+typedef struct _gtp_id_rai {
+	uint8_t		mcc_mnc[3];
+	uint16_t	lac;
+	uint16_t	rac;
+} __attribute__((packed)) gtp_id_rai_t;
+
+typedef struct _gtp_id_tai {
+	uint8_t		mcc_mnc[3];
+	uint16_t	tac;
+} __attribute__((packed)) gtp_id_tai_t;
+
+typedef struct _gtp_id_ecgi {
+	uint8_t		mcc_mnc[3];
+	uint8_t		spare;
+	uint16_t	enbid;
+	uint8_t		cellid;
+} __attribute__((packed)) gtp_id_ecgi_t;
+
+typedef struct _gtp_id_lai {
+	uint8_t		mcc_mnc[3];
+	uint16_t	lac;
+} __attribute__((packed)) gtp_id_lai_t;
+
 
 #define GTP_IE_BEARER_CONTEXT_TYPE			93
 typedef struct _gtp_ie_bearer_context {

@@ -839,6 +839,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_session_t *s = NULL;
 	spppoe_t *s_pppoe;
 	gtp_teid_t *teid;
+	gtp_id_ecgi_t *ecgi = NULL;
+	gtp_ie_ambr_t *ambr = NULL;
 	gtp_apn_t *apn;
 	char apn_str[64];
 	uint64_t imsi;
@@ -975,6 +977,16 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (msg_ie)
 		s->msisdn = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
 
+	/* ULI */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_ULI_TYPE);
+	if (msg_ie)
+		ecgi = gtp_ie_uli_extract_ecgi((gtp_ie_uli_t *) msg_ie->h);
+
+	/* AMBR */
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_AMBR_TYPE);
+	if (msg_ie)
+		ambr = (gtp_ie_ambr_t *) msg_ie->h;
+
 	/* Update last sGW visited */
 	gtp_teid_update_sgw(teid, addr);
 
@@ -986,7 +998,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		s_pppoe = spppoe_init(apn->vrf->pppoe, c,
 				      gtpc_pppoe_tls, gtpc_pppoe_tlf,
 				      gtpc_pppoe_create_session_response, gtpc_pppoe_chg,
-				      imsi, s->mei, apn_str);
+				      imsi, s->mei, apn_str, ecgi, ambr);
 		if (!s_pppoe) {
 			rc = gtpc_build_errmsg(w->pbuff, teid
 						       , GTP_CREATE_SESSION_RESPONSE_TYPE

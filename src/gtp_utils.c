@@ -417,6 +417,42 @@ gtp_ie_apn_rewrite(gtp_apn_t *apn, gtp_ie_apn_t *ie_apn, size_t offset_ni)
 	return -1;
 }
 
+gtp_id_ecgi_t *
+gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *uli)
+{
+	size_t offset = 0;
+
+	if (!uli->ecgi)
+		return NULL;
+
+	offset += (uli->cgi) ? sizeof(gtp_id_cgi_t) : 0;
+	offset += (uli->sai) ? sizeof(gtp_id_sai_t) : 0;
+	offset += (uli->rai) ? sizeof(gtp_id_rai_t) : 0;
+	offset += (uli->tai) ? sizeof(gtp_id_tai_t) : 0;
+
+	/* overflow protection */
+	if (offset > ntohs(uli->h.length))
+		return NULL;
+
+	offset += sizeof(gtp_ie_uli_t);
+	return (gtp_id_ecgi_t *) ((uint8_t *)uli + offset);
+}
+
+int
+gtp_id_ecgi_str(gtp_id_ecgi_t *ecgi, char *buffer, size_t size)
+{
+	int mcc, mnc;
+
+	if (!ecgi)
+		strlcpy(buffer, "0+0+0+0", size);
+
+	mcc = bcd_to_int64(ecgi->mcc_mnc, 2);
+	mnc = bcd_to_int64(ecgi->mcc_mnc+2, 1);
+
+	return snprintf(buffer, size, "%d+%d+%d+%d"
+			      , mcc, mnc, ntohs(ecgi->enbid), ecgi->cellid);
+}
+
 int
 gtp_ie_f_teid_dump(gtp_ie_f_teid_t *ie)
 {

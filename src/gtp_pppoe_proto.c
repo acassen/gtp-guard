@@ -66,6 +66,83 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t p
 }
 
 static int
+pppoe_vendor_specific_rate_append(uint8_t *p, uint8_t type, uint32_t rate)
+{
+	pppoe_vendor_tag_t *vendor_tag;
+	uint32_t *value;
+	int offset = 0;
+
+	vendor_tag = (pppoe_vendor_tag_t *) p;
+	vendor_tag->tag = type;
+	vendor_tag->len = sizeof(uint32_t);
+	offset += sizeof(pppoe_vendor_tag_t);
+	value = (uint32_t *) (p + offset);
+	*value = rate;
+	offset += sizeof(uint32_t);
+
+	return offset;
+}
+
+static int
+pppoe_vendor_specific_tag_append(uint8_t *p, uint8_t type, uint8_t *value, uint8_t len)
+{
+	pppoe_vendor_tag_t *vendor_tag;
+	int offset = 0;
+
+	vendor_tag = (pppoe_vendor_tag_t *) p ;
+	vendor_tag->tag = type;
+	vendor_tag->len = len;
+	offset += sizeof(pppoe_vendor_tag_t);
+	memcpy(p + offset, value, len);
+	offset += len;
+
+	return offset;
+}
+
+static int
+pppoe_vendor_specific_append(spppoe_t *s, uint8_t *p, bool rate_append)
+{
+	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_tag_t *vendor_spec_tag;
+	uint32_t *value;
+	int offset = 0;
+
+	if (!__test_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags))
+		return 0;
+
+	vendor_spec_tag = (pppoe_tag_t *) p;
+	vendor_spec_tag->tag = htons(PPPOE_TAG_VENDOR);
+	offset += sizeof(pppoe_tag_t);
+
+	value = (uint32_t *) (p + offset);
+	*value = htonl(PPPOE_VENDOR_ID_BBF);
+	offset += sizeof(uint32_t);
+
+	if (s->circuit_id[0])
+		offset += pppoe_vendor_specific_tag_append(p + offset,
+							   PPPOE_VENDOR_TAG_CIRCUIT_ID,
+							   (uint8_t *) s->circuit_id,
+							   strlen(s->circuit_id));
+	if (s->remote_id[0])
+		offset += pppoe_vendor_specific_tag_append(p + offset,
+							   PPPOE_VENDOR_TAG_REMOTE_ID,
+							   (uint8_t *) s->remote_id,
+							   strlen(s->remote_id));
+	if (rate_append) {
+		offset += pppoe_vendor_specific_rate_append(p + offset,
+							    PPPOE_VENDOR_TAG_UPSTREAM,
+							    s->ambr_uplink);
+		offset += pppoe_vendor_specific_rate_append(p + offset,
+							    PPPOE_VENDOR_TAG_DOWNSTREAM,
+							    s->ambr_downlink);
+	}
+
+	/* Update vendor tag header len */
+	vendor_spec_tag->len = htons(offset - sizeof(pppoe_tag_t));
+	return offset;
+}
+
+static int
 pppoe_eth_pkt_pad(pkt_buffer_t *b, uint8_t *p)
 {
 	pkt_buffer_put_data(b, p - b->data);
@@ -78,9 +155,10 @@ int
 pppoe_send_padi(spppoe_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_hdr_t *pppoeh;
 	pkt_t *pkt;
 	uint32_t *hunique;
-	int len, l1 = 0, l2 = 0;
+	int len, l1 = 0, l2 = 0, vendor_spec_len = 0;
 	uint8_t *p;
 
 	/* service name tag is required, host unique is sent too */
@@ -102,7 +180,9 @@ pppoe_send_padi(spppoe_t *s)
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
+	pppoeh = (pppoe_hdr_t *) p;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADI, 0, len);
+
 	PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
 	if (pppoe->service_name[0]) {
 		PPPOE_ADD_16(p, l1);
@@ -122,6 +202,9 @@ pppoe_send_padi(spppoe_t *s)
 	hunique = (uint32_t *) p;
 	*hunique = htonl(s->unique);
 	p += sizeof(s->unique);
+	vendor_spec_len = pppoe_vendor_specific_append(s, p, false);
+	pppoeh->plen = htons(len + vendor_spec_len);
+	p += vendor_spec_len;
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* send pkt */
@@ -132,10 +215,11 @@ static int
 pppoe_send_padr(spppoe_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_hdr_t *pppoeh;
 	pkt_t *pkt;
 	uint8_t *p;
 	uint32_t *hunique;
-	size_t len, l1 = 0;
+	size_t len, l1 = 0, vendor_spec_len = 0;
 
 	if (s->state != PPPOE_STATE_PADR_SENT)
 		return -1;
@@ -157,9 +241,10 @@ pppoe_send_padr(spppoe_t *s)
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
+	pppoeh = (pppoe_hdr_t *) p;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADR, 0, len);
-	PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
 
+	PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
 	if (pppoe->service_name[0]) {
 		PPPOE_ADD_16(p, l1);
 		memcpy(p, pppoe->service_name, l1);
@@ -184,6 +269,9 @@ pppoe_send_padr(spppoe_t *s)
 	hunique = (uint32_t *) p;
 	*hunique = htonl(s->unique);
 	p += sizeof(s->unique);
+	vendor_spec_len = pppoe_vendor_specific_append(s, p, true);
+	pppoeh->plen = htons(len + vendor_spec_len);
+	p += vendor_spec_len;
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* send pkt */
