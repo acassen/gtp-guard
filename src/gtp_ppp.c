@@ -276,6 +276,15 @@ sppp_print_string(const char *p, uint8_t len)
 	}
 }
 
+static void
+sppp_log_error(sppp_t *sp, const char *errmsg)
+{
+	spppoe_t *s = sp->s_pppoe;
+	log_message(LOG_INFO, "PPP-Error:={Host-Uniq:0x%.8x errmsg:%s}"
+			    , s->unique
+			    , errmsg);
+}
+
 /*
  *	PPP protocol implementation.
  */
@@ -691,7 +700,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 
 		if (nmagic == sp->lcp.magic) {
 			/* Line loopback mode detected. */
-			log_message(LOG_INFO, "%s: loopback\n", pppoe->ifname);
+			sppp_log_error(sp, "loopback_detected");
 			/* Shut down the PPP link. */
 			lcp.Close(sp);
 			break;
@@ -2474,8 +2483,9 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 					sppp_print_string((char*)(h + 1), name_len);
 			}
 			PPPDEBUG(("\n"));
-		} else
-			log_message(LOG_INFO, "%s: pap failure\n", pppoe->ifname);
+		}
+
+		sppp_log_error(sp, "pap_failure");
 		/* await LCP shutdown by authenticator */
 		break;
 
@@ -2663,8 +2673,7 @@ sppp_keepalive(void *arg)
 
 	if (sp->pp_alivecnt++ >= MAXALIVECNT) {
 		/* LCP Keepalive timeout */
-		log_message(LOG_INFO, "%s: PPP session:0x%.8x LCP keepalive timeout\n"
-				, pppoe->ifname, sp->s_pppoe->session_id);
+		sppp_log_error(sp, "lcp_keepalive_timeout");
 		sp->pp_alivecnt = 0;
 
 		/* we are down, close all open protocols */

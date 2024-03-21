@@ -71,6 +71,7 @@
 #error "Please fix <bits/endian.h>"
 #endif
 
+#define ETHER_FMT "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x"
 #define ETHER_BYTES(__eth_addr)			\
 	(unsigned char)__eth_addr[0],		\
 	(unsigned char)__eth_addr[1],		\

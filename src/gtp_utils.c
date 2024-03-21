@@ -443,8 +443,10 @@ gtp_id_ecgi_str(gtp_id_ecgi_t *ecgi, char *buffer, size_t size)
 {
 	int mcc, mnc;
 
-	if (!ecgi)
+	if (!ecgi) {
 		strlcpy(buffer, "0+0+0+0", size);
+		return -1;
+	}
 
 	mcc = bcd_to_int64(ecgi->mcc_mnc, 2);
 	mnc = bcd_to_int64(ecgi->mcc_mnc+2, 1);

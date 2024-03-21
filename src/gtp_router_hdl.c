@@ -734,14 +734,35 @@ gtpc_send_delete_bearer_request(gtp_teid_t *teid)
 void
 gtpc_pppoe_tls(sppp_t *sp)
 {
+	spppoe_t *s = sp->s_pppoe;
+	gtp_session_t *s_gtp = s->s_gtp;
+	gtp_conn_t *c = s_gtp->conn;
+
 	/* Session is starting */
+	log_message(LOG_INFO, "PPPoE-Starting:={IMSI:%ld"
+			      " Host-Uniq:0x%.8x"
+			      " hw_src:" ETHER_FMT
+			      " hw_dst:" ETHER_FMT
+			      " username:%s}"
+			    ,  c->imsi
+			    , s->unique
+			    , ETHER_BYTES(s->hw_src.ether_addr_octet)
+			    , ETHER_BYTES(s->hw_dst.ether_addr_octet)
+			    , s->gtp_username);
 }
 
 void
 gtpc_pppoe_tlf(sppp_t *sp)
 {
 	spppoe_t *s = sp->s_pppoe;
+	gtp_session_t *s_gtp = s->s_gtp;
+	gtp_conn_t *c = s_gtp->conn;
 	gtp_teid_t *teid = s->teid;
+
+	log_message(LOG_INFO, "PPPoE-Stopping:={IMSI:%ld"
+			      " Host-Uniq:0x%.8x}"
+			    ,  c->imsi
+			    , s->unique);
 
 	/* Session has been already released */
 	if (__test_bit(GTP_PPPOE_FL_DELETE_IGNORE, &s->flags))
@@ -758,7 +779,7 @@ gtpc_pppoe_tlf(sppp_t *sp)
 	gtpc_send_delete_bearer_request(teid);
 
 	/* Finally release teid and related. We are
-	 * not waiting for remote response to trig deleting
+	 * not waiting for remote response to trig deletion
 	 * since remote can already have released */
 	gtp_session_destroy_teid(teid);
 }
@@ -766,9 +787,11 @@ gtpc_pppoe_tlf(sppp_t *sp)
 void
 gtpc_pppoe_create_session_response(sppp_t *sp)
 {
-	gtp_session_t *s = sp->s_pppoe->s_gtp;
-	gtp_teid_t *teid = sp->s_pppoe->teid;
-	gtp_server_worker_t *w = s->w;
+	spppoe_t *s = sp->s_pppoe;
+	gtp_session_t *s_gtp = s->s_gtp;
+	gtp_conn_t *c = s_gtp->conn;
+	gtp_teid_t *teid = s->teid;
+	gtp_server_worker_t *w = s_gtp->w;
 	pkt_buffer_t *pbuff;
 	int ret;
 
@@ -780,8 +803,8 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 	/* Build and send response */
 	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 
-	s->ipv4 = htonl(sp->ipcp.req_myaddr);
-	ret = gtpc_build_create_session_response(pbuff, s, teid, &sp->ipcp);
+	s_gtp->ipv4 = htonl(sp->ipcp.req_myaddr);
+	ret = gtpc_build_create_session_response(pbuff, s_gtp, teid, &sp->ipcp);
 	if (ret < 0) {
 		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
 					     , GTP_CAUSE_REQUEST_REJECTED);
@@ -789,14 +812,21 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 	}
 
 	/* Setup GTP-U Fast-Path */
-	ret = gtp_session_gtpu_teid_xdp_add(s, 0);
+	ret = gtp_session_gtpu_teid_xdp_add(s_gtp, 0);
 	if (ret < 0) {
 		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
 					     , GTP_CAUSE_REQUEST_REJECTED);
 	}
 
+	log_message(LOG_INFO, "PPPoE-Started:={IMSI:%ld"
+			      " Host-Uniq:0x%.8x"
+			      " IPv4:%u.%u.%u.%u}"
+			    , c->imsi
+			    , s->unique
+			    , NIPQUAD(s_gtp->ipv4));
+
   end:
-	pkt_buffer_send(w->fd, pbuff, &sp->s_pppoe->gtpc_peer_addr);
+	pkt_buffer_send(w->fd, pbuff, &s->gtpc_peer_addr);
 	pkt_buffer_free(pbuff);
 }
 
