@@ -1385,30 +1385,29 @@ vty_flush(thread_ref_t thread)
 		buffer_reset(vty->obuf);
 		thread_del_write(thread);
 		vty_close(vty);
-		return;
+		break;
 	case BUFFER_EMPTY:
 		thread_del_write(thread);
 		if (vty->status == VTY_CLOSE) {
 			vty_close(vty);
-		} else {
-			vty->status = VTY_NORMAL;
-			if (vty->lines == 0) {
-				vty_event(thread->master, VTY_READ, vty_sock, vty);
-			}
+			break;
 		}
+
+		vty->status = VTY_NORMAL;
+		if (vty->lines == 0)
+			vty_event(thread->master, VTY_READ, vty_sock, vty);
 		break;
 	case BUFFER_PENDING:
 		/* There is more data waiting to be written. */
 		vty->status = VTY_MORE;
 		if (vty->lines == 0) {
 			vty_event(thread->master, VTY_WRITE, vty_sock, vty);
-		} else {
-			thread_del_write(thread);
+			break;
 		}
+
+		thread_del_write(thread);
 		break;
 	}
-
-	return;
 }
 
 /* Create new vty structure. */
@@ -1483,7 +1482,7 @@ vty_accept(thread_ref_t thread)
 {
 	struct sockaddr_storage sock;
 	socklen_t len;
-	int vty_sock, ret, val;
+	int vty_sock, ret;
 	unsigned int on = 1;
 	int accept_sock = THREAD_FD(thread);
 
@@ -1499,16 +1498,12 @@ vty_accept(thread_ref_t thread)
 	/* We can handle IPv4 or IPv6 socket. */
 	memset(&sock, 0, sizeof(struct sockaddr_storage));
 	len = sizeof(struct sockaddr_storage);
-	vty_sock = accept(accept_sock, (struct sockaddr *) &sock, &len);
+	vty_sock = accept4(accept_sock, (struct sockaddr *) &sock, &len, SOCK_NONBLOCK);
 	if (vty_sock < 0) {
 		log_message(LOG_WARNING, "can't accept vty socket : %s"
 				       , strerror(errno));
 		return;
 	}
-
-	/* Make socket non-block. */
-	val = fcntl(vty_sock, F_GETFL, 0);
-	fcntl(vty_sock, F_SETFL, val | O_NONBLOCK);
 
 	/* Set NODELAY */
 	ret = setsockopt(vty_sock, IPPROTO_TCP, TCP_NODELAY, 
