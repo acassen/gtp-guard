@@ -29,6 +29,7 @@ enum gtp_pppoe_session_flags {
 	GTP_PPPOE_FL_SESSION_HASHED,
 	GTP_PPPOE_FL_DELETE,
 	GTP_PPPOE_FL_DELETE_IGNORE,
+	GTP_PPPOE_FL_AUTH_FAILED,
 };
 
 typedef struct _spppoe {

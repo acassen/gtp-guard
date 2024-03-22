@@ -431,7 +431,7 @@ gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *uli)
 	offset += (uli->tai) ? sizeof(gtp_id_tai_t) : 0;
 
 	/* overflow protection */
-	if (offset > ntohs(uli->h.length))
+	if (offset + sizeof(gtp_id_ecgi_t) > ntohs(uli->h.length))
 		return NULL;
 
 	offset += sizeof(gtp_ie_uli_t);

@@ -2485,12 +2485,14 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 			PPPDEBUG(("\n"));
 		}
 
+		__set_bit(GTP_PPPOE_FL_AUTH_FAILED, &sp->s_pppoe->flags);
 		sppp_log_error(sp, "pap_failure");
 		/* await LCP shutdown by authenticator */
 		break;
 
 	default:
 		/* Unknown PAP packet type -- ignore. */
+		__set_bit(GTP_PPPOE_FL_AUTH_FAILED, &sp->s_pppoe->flags);
 		PPPDEBUG(("%s: pap corrupted input <0x%x id=0x%x len=%d",
 			 pppoe->ifname, h->type, h->ident, ntohs(h->len)));
 		if (debug & 8 && len > 4)

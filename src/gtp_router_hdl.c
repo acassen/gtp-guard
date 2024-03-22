@@ -757,12 +757,25 @@ gtpc_pppoe_tlf(sppp_t *sp)
 	spppoe_t *s = sp->s_pppoe;
 	gtp_session_t *s_gtp = s->s_gtp;
 	gtp_conn_t *c = s_gtp->conn;
+	gtp_server_worker_t *w = s_gtp->w;
 	gtp_teid_t *teid = s->teid;
+	pkt_buffer_t *pbuff;
 
 	log_message(LOG_INFO, "PPPoE-Stopping:={IMSI:%ld"
 			      " Host-Uniq:0x%.8x}"
 			    ,  c->imsi
 			    , s->unique);
+
+	if (__test_bit(GTP_PPPOE_FL_AUTH_FAILED, &s->flags)) {
+		pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
+		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+					     , GTP_CAUSE_USER_AUTH_FAILED);
+		pkt_buffer_send(w->fd, pbuff, &s->gtpc_peer_addr);
+		pkt_buffer_free(pbuff);
+
+		gtp_session_destroy(s->s_gtp);
+		return;
+	}
 
 	/* Session has been already released */
 	if (__test_bit(GTP_PPPOE_FL_DELETE_IGNORE, &s->flags))
@@ -820,9 +833,13 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 
 	log_message(LOG_INFO, "PPPoE-Started:={IMSI:%ld"
 			      " Host-Uniq:0x%.8x"
+			      " Circuit-ID:\"%s\""
+			      " Remote-ID:\"%s\""
 			      " IPv4:%u.%u.%u.%u}"
 			    , c->imsi
 			    , s->unique
+			    , s->circuit_id
+			    , s->remote_id
 			    , NIPQUAD(s_gtp->ipv4));
 
   end:
