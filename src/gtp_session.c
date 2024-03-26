@@ -304,8 +304,12 @@ __gtp_session_send_delete_bearer(gtp_session_t *s)
 {
 	gtp_teid_t *t;
 
-	list_for_each_entry(t, &s->gtpc_teid, next)
+	list_for_each_entry(t, &s->gtpc_teid, next) {
+		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
+			continue;
+
 		gtpc_send_delete_bearer_request(t);
+	}
 
 	return 0;
 }
