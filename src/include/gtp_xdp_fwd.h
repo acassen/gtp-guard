@@ -43,7 +43,7 @@ struct gtp_teid_rule {
 /* Prototypes */
 extern int gtp_xdp_fwd_load(gtp_bpf_opts_t *);
 extern void gtp_xdp_fwd_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_fwd_teid_action(int, gtp_teid_t *, int);
+extern int gtp_xdp_fwd_teid_action(int, gtp_teid_t *);
 extern int gtp_xdp_fwd_teid_vty(vty_t *, __be32);
 extern int gtp_xdp_fwd_vty(vty_t *);
 extern int gtp_xdp_fwd_iptnl_action(int, gtp_iptnl_t *);

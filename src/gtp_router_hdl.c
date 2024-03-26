@@ -65,6 +65,9 @@ gtpc_msg_retransmit(gtp_router_t *ctx, gtp_hdr_t *h, uint8_t *ie_buffer)
 static gtp_teid_t *
 gtp_teid_set(gtp_server_worker_t *w, gtp_session_t *s, gtp_teid_t *teid, uint8_t type, int direction)
 {
+	gtp_apn_t *apn = s->apn;
+	ip_vrf_t *vrf = apn->vrf;
+
 	if (!teid)
 		return NULL;
 
@@ -77,8 +80,16 @@ gtp_teid_set(gtp_server_worker_t *w, gtp_session_t *s, gtp_teid_t *teid, uint8_t
 	/* Add to list */
 	if (type == GTP_TEID_C)
 		gtp_session_gtpc_teid_add(s, teid);
-	else if (type == GTP_TEID_U)
-		gtp_session_gtpu_teid_add(s, teid, direction);
+	else if (type == GTP_TEID_U) {
+		/* If vrf forwarding is in use with PPPoE we need to
+		 * delay GTP-U rules settings since part of configuration
+		 * will be part of PPP negociation. Setting rules when
+		 * IPCP negociation is completed */
+		if (vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
+			__set_bit(GTP_TEID_FL_XDP_DELAYED, &teid->flags);
+
+		gtp_session_gtpu_teid_add(s, teid);
+	}
 
 	return teid;
 }
@@ -825,7 +836,7 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 	}
 
 	/* Setup GTP-U Fast-Path */
-	ret = gtp_session_gtpu_teid_xdp_add(s_gtp, 0);
+	ret = gtp_session_gtpu_teid_xdp_add(s_gtp);
 	if (ret < 0) {
 		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
 					     , GTP_CAUSE_REQUEST_REJECTED);
@@ -1144,6 +1155,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	gtp_router_t *ctx = srv->ctx;
 	gtp_teid_t *teid, *pteid = NULL, *t, *t_u;
 	gtp_session_t *s;
+	ip_vrf_t *vrf;
 	gtp_msg_t *msg;
 	int rc = -1;
 
@@ -1170,6 +1182,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	gtp_sqn_update(w, teid);
 	gtp_sqn_update(w, teid->peer_teid);
 
+	/* Create TEID */
 	t = gtpc_teid_create(w, s, msg, false);
 	if (!t)
 		goto accept;
@@ -1188,6 +1201,11 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 		gtp_teid_bind(teid->bearer_teid, t_u);
 		gtp_session_gtpu_teid_destroy(t_u->old_teid);
 	}
+
+	/* Add delayed XDP entries */
+	vrf = (s->apn) ? s->apn->vrf : NULL;
+	if (vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
+		gtp_session_gtpu_teid_xdp_add(s);
 
   accept:
 	rc = gtpc_build_errmsg(w->pbuff, teid->peer_teid, GTP_MODIFY_BEARER_RESPONSE_TYPE

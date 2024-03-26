@@ -67,6 +67,7 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t
 	/* Allocate and bind this new teid */
 	teid = gtp_teid_alloc(h, f_teid, NULL);
 	teid->type = type;
+	__set_bit(direction ? GTP_TEID_FL_EGRESS : GTP_TEID_FL_INGRESS, &teid->flags);
 	teid->session = s;
 	gtp_vteid_alloc(vh, teid, &w->seed);
 
@@ -74,7 +75,7 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t
 	if (type == GTP_TEID_C)
 		gtp_session_gtpc_teid_add(s, teid);
 	else if (type == GTP_TEID_U)
-		gtp_session_gtpu_teid_add(s, teid, direction);
+		gtp_session_gtpu_teid_add(s, teid);
 
   masq:
 	/* Keep sqn track */

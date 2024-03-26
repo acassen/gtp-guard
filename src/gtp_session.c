@@ -121,54 +121,47 @@ gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 	return gtp_session_teid_add(s, teid, &s->gtpc_teid);
 }
 
-static int
-gtp_session_gtu_teid_xdp_rule_add(gtp_teid_t *teid, int direction)
+static void
+gtp_session_gtu_teid_xdp_rule_add(gtp_teid_t *teid)
 {
-	/* TODO : remove direction, flag it in teid->flags */
+	int err = -1;
+
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
-		return gtp_xdp_fwd_teid_action(RULE_ADD, teid, direction);
-	if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
-		return gtp_xdp_rt_teid_action(RULE_ADD, teid);
-	return 0;
+		err = gtp_xdp_fwd_teid_action(RULE_ADD, teid);
+	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
+		err = gtp_xdp_rt_teid_action(RULE_ADD, teid);
+
+	if (!err)
+		__set_bit(GTP_TEID_FL_XDP_SET, &teid->flags);
 }
 
 int
-gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid, int direction)
+gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 {
-	gtp_apn_t *apn = s->apn;
-	ip_vrf_t *vrf = apn->vrf;
-
-	/* If vrf forwarding is in use with PPPoE we need to
-	 * delay GTP-U rules settings since part of configuration
-	 * will be part of PPP negociation. Setting rules when
-	 * IPCP negociation is completed */
-	if (vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
+	if (__test_and_clear_bit(GTP_TEID_FL_XDP_DELAYED, &teid->flags))
 		goto end;
 
 	/* Fast-Path setup */
-	/* TODO : add support to return value */
-	gtp_session_gtu_teid_xdp_rule_add(teid, direction);
+	gtp_session_gtu_teid_xdp_rule_add(teid);
 
   end:
 	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
 }
 
 int
-gtp_session_gtpu_teid_xdp_add(gtp_session_t *s, int direction)
+gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 	list_head_t *l = &s->gtpu_teid;
 	gtp_teid_t *teid;
-	int ret;
 
 	/* Fast-Path setup */
 	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(teid, l, next) {
-		ret = gtp_session_gtu_teid_xdp_rule_add(teid, direction);
-		if (ret < 0) {
-			pthread_mutex_unlock(&c->session_mutex);
-			return -1;
-		}
+		if (__test_bit(GTP_TEID_FL_XDP_SET, &teid->flags))
+			continue;
+
+		gtp_session_gtu_teid_xdp_rule_add(teid);
 	}
 	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
@@ -265,7 +258,7 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 
 	/* Fast-Path cleanup */
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
-		gtp_xdp_fwd_teid_action(RULE_DEL, teid, 0);
+		gtp_xdp_fwd_teid_action(RULE_DEL, teid);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
 		gtp_xdp_rt_teid_action(RULE_DEL, teid);
 

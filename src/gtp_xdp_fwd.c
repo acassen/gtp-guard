@@ -117,11 +117,11 @@ gtp_xdp_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t, int direction)
 }
 
 static int
-gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int direction)
+gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
 {
 	struct gtp_teid_rule *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err = 0;
+	int err = 0, direction;
 	uint32_t key;
 	size_t sz;
 
@@ -135,6 +135,7 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t, int directio
 		return -1;
 
 	key = htonl(t->vid);
+	direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
 
 	/* Set rule */
 	if (action == RULE_ADD) {
@@ -244,12 +245,12 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 }
 
 int
-gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t, int direction)
+gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 {
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_teid_action(xdp_fwd_maps[XDPFWD_MAP_TEID].map, action, t, direction);
+	return gtp_xdp_teid_action(xdp_fwd_maps[XDPFWD_MAP_TEID].map, action, t);
 }
 
 int

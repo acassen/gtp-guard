@@ -38,6 +38,8 @@ enum gtp_teid_flags {
 	GTP_TEID_FL_EGRESS,
 	GTP_TEID_FL_FWD,
 	GTP_TEID_FL_RT,
+	GTP_TEID_FL_XDP_DELAYED,
+	GTP_TEID_FL_XDP_SET,
 };
 
 /* GTP Connection tracking */
