@@ -257,11 +257,15 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 		return -1;
 
 	/* Fast-Path cleanup */
+	if (!__test_bit(GTP_TEID_FL_XDP_SET, &teid->flags))
+		goto end;
+
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
 		gtp_xdp_fwd_teid_action(RULE_DEL, teid);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
 		gtp_xdp_rt_teid_action(RULE_DEL, teid);
 
+  end:
 	gtp_teid_free(teid);
 	return 0;
 }
