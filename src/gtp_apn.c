@@ -29,6 +29,7 @@
 #include <ctype.h>
 #include <netdb.h>
 #include <resolv.h>
+#include <fnmatch.h>
 #include <errno.h>
 
 /* local includes */
@@ -347,7 +348,7 @@ gtp_apn_alloc(const char *name)
 	INIT_LIST_HEAD(&new->oi_match);
 	INIT_LIST_HEAD(&new->next);
         pthread_mutex_init(&new->mutex, NULL);
-	strncpy(new->name, name, GTP_APN_MAX_LEN - 1);
+	strlcpy(new->name, name, GTP_APN_MAX_LEN - 1);
 
 	/* FIXME: lookup before insert */
 	pthread_mutex_lock(&gtp_apn_mutex);
@@ -398,7 +399,7 @@ gtp_apn_get(const char *name)
 
 	pthread_mutex_lock(&gtp_apn_mutex);
 	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
-		if (!strncmp(name, apn->name, strlen(name))) {
+		if (!fnmatch(apn->name, name, 0)) {
 			pthread_mutex_unlock(&gtp_apn_mutex);
 			return apn;
 		}

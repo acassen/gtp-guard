@@ -32,12 +32,9 @@
 
 /* flags */
 enum gtp_apn_flags {
-	GTP_APN_FL_SESSION_UNIQ_PTYPE,
-};
-
-enum gtp_resolv_flags {
 	GTP_RESOLV_FL_SERVICE_SELECTION,
 	GTP_RESOLV_FL_CACHE_UPDATE,
+	GTP_APN_FL_SESSION_UNIQ_PTYPE,
 };
 
 enum gtp_pco_flags {
