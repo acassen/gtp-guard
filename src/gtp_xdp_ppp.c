@@ -41,38 +41,6 @@
 /* Extern data */
 extern data_t *daemon_data;
 
-/* Local data */
-static xdp_exported_maps_t xdp_ppp_maps[XDP_RT_MAP_CNT] = { 0 };
-
-
-/*
- *	XDP PPP BPF related
- */
-int
-gtp_xdp_ppp_load(gtp_bpf_opts_t *opts)
-{
-	struct bpf_map *map;
-	int err;
-
-	err = gtp_xdp_load(opts);
-	if (err < 0)
-		return -1;
-
-	map = gtp_bpf_load_map(opts->bpf_obj, "ppp_ingress");
-	if (!map) {
-		gtp_xdp_unload(opts);
-		return -1;
-	}
-	xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
-	return 0;
-}
-
-void
-gtp_xdp_ppp_unload(gtp_bpf_opts_t *opts)
-{
-	gtp_xdp_unload(opts);
-}
-
 
 /*
  *	PPP Handling
@@ -296,13 +264,8 @@ int
 gtp_xdp_ppp_action(int action, gtp_teid_t *t,
 		   struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
-	struct bpf_map *map_ppp_ingress = xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map;
-
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 		return gtp_xdp_ppp_map_action(map_egress, action, t);
-
-	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
-		return gtp_xdp_ppp_map_action(map_ppp_ingress, action, t);
 
 	return gtp_xdp_ppp_map_action(map_ingress, action, t);
 }
@@ -311,24 +274,8 @@ int
 gtp_xdp_ppp_teid_vty(vty_t *vty, gtp_teid_t *t,
 		     struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
-	struct bpf_map *map_ppp_ingress = xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map;
-
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 		return gtp_xdp_teid_vty(map_egress, vty, t);
 
-	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
-		return gtp_xdp_teid_vty(map_ppp_ingress, vty, t);
-
 	return gtp_xdp_teid_vty(map_ingress, vty, t);
-}
-
-int
-gtp_xdp_ppp_vty(vty_t *vty, struct bpf_map *map_ingress)
-{
-	struct bpf_map *map_ppp_ingress = xdp_ppp_maps[XDP_RT_MAP_PPP_INGRESS].map;
-
-	if (__test_bit(GTP_FL_PPP_INGRESS_LOADED_BIT, &daemon_data->flags))
-		return gtp_xdp_teid_vty(map_ppp_ingress, vty, NULL);
-
-	return gtp_xdp_teid_vty(map_ingress, vty, NULL);
 }

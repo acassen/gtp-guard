@@ -37,7 +37,6 @@ enum daemon_flags {
 	GTP_FL_GTP_ROUTE_LOADED_BIT,
 	GTP_FL_GTPU_LOADED_BIT,
 	GTP_FL_MIRROR_LOADED_BIT,
-	GTP_FL_PPP_INGRESS_LOADED_BIT,
 	GTP_FL_PPP_RPS_LOADED_BIT,
 	GTP_FL_RESTART_COUNTER_LOADED_BIT,
 };
@@ -74,7 +73,6 @@ typedef struct _data {
 	gtp_bpf_opts_t		xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtpu;
 	gtp_bpf_opts_t		xdp_mirror;
-	gtp_bpf_opts_t		xdp_ppp_ingress;
 	gtp_bpf_opts_t		bpf_ppp_rps;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;

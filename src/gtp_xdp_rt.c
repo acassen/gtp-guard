@@ -360,7 +360,7 @@ gtp_xdp_rt_vty(vty_t *vty)
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, NULL);
 	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, NULL);
-	gtp_xdp_ppp_vty(vty, bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map);
+	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map, vty, NULL);
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
