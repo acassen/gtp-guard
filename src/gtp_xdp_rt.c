@@ -41,10 +41,6 @@
 /* Extern data */
 extern data_t *daemon_data;
 
-/* Local data */
-static xdp_exported_maps_t xdp_rt_maps[XDP_RT_MAP_CNT];
-
-
 /*
  *	XDP RT BPF related
  */
@@ -59,33 +55,34 @@ gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
 		return -1;
 
 	/* MAP ref for faster access */
+	opts->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_RT_MAP_CNT);
 	map = gtp_bpf_load_map(opts->bpf_obj, "teid_ingress");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map = map;
+	opts->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "teid_egress");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
+	opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "ppp_ingress");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
+	opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	xdp_rt_maps[XDP_RT_MAP_IPTNL].map = map;
+	opts->bpf_maps[XDP_RT_MAP_IPTNL].map = map;
 
 	return 0;
 }
@@ -229,6 +226,7 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t)
 static int
 gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_route;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key key = { 0 }, next_key = { 0 };
 	const char *direction_str = "ingress";
@@ -285,7 +283,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 			bytes += r[i].bytes;
 		}
 
-		if (xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map == map)
+		if (bpf_opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map == map)
 			direction_str = "egress";
 		vty_out(vty, "| 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
 			   , ntohl(r[0].teid)
@@ -303,6 +301,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 int
 gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_route;
 	gtp_session_t *s;
 	gtp_apn_t *apn;
 	int direction;
@@ -317,15 +316,16 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 	/* PPPoE vrf ? */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
 		return gtp_xdp_ppp_action(action, t,
-					  xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
-					  xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map);
+					  bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map,
+					  bpf_opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
 
-	return gtp_xdp_rt_action(xdp_rt_maps[direction].map, action, t);
+	return gtp_xdp_rt_action(bpf_opts->bpf_maps[direction].map, action, t);
 }
 
 int
 gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_route;
 	gtp_session_t *s;
 	gtp_apn_t *apn;
 	int direction;
@@ -340,15 +340,17 @@ gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 	/* PPPoE vrf ? */
 	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
 		return gtp_xdp_ppp_teid_vty(vty, t,
-					    xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map,
-					    xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map);
+					    bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map,
+					    bpf_opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
 
-	return gtp_xdp_teid_vty(xdp_rt_maps[direction].map, vty, t);
+	return gtp_xdp_teid_vty(bpf_opts->bpf_maps[direction].map, vty, t);
 }
 
 int
 gtp_xdp_rt_vty(vty_t *vty)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_route;
+
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
@@ -356,9 +358,9 @@ gtp_xdp_rt_vty(vty_t *vty)
 		     "|    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, NULL);
-	gtp_xdp_teid_vty(xdp_rt_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, NULL);
-	gtp_xdp_ppp_vty(vty, xdp_rt_maps[XDP_RT_MAP_PPP_INGRESS].map);
+	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, NULL);
+	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, NULL);
+	gtp_xdp_ppp_vty(vty, bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map);
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -370,17 +372,21 @@ gtp_xdp_rt_vty(vty_t *vty)
 int
 gtp_xdp_rt_iptnl_action(int action, gtp_iptnl_t *t)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_route;
+
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_iptnl_action(action, t, xdp_rt_maps[XDP_RT_MAP_IPTNL].map);
+	return gtp_xdp_iptnl_action(action, t, bpf_opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }
 
 int
 gtp_xdp_rt_iptnl_vty(vty_t *vty)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_route;
+
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_iptnl_vty(vty, xdp_rt_maps[XDP_RT_MAP_IPTNL].map);
+	return gtp_xdp_iptnl_vty(vty, bpf_opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }

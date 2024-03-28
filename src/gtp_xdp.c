@@ -260,6 +260,8 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 void
 gtp_xdp_unload(gtp_bpf_opts_t *opts)
 {
+	if (opts->bpf_maps)
+		FREE(opts->bpf_maps);
 	bpf_link__destroy(opts->bpf_lnk);
 	bpf_object__close(opts->bpf_obj);
 }

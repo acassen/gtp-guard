@@ -43,6 +43,10 @@ enum daemon_flags {
 };
 
 /* Main control block */
+typedef struct _gtp_bpf_maps {
+	struct bpf_map		*map;
+} gtp_bpf_maps_t;
+
 typedef struct _gtp_bpf_opts {
 	char			filename[GTP_STR_MAX_LEN];
 	char			progname[GTP_STR_MAX_LEN];
@@ -50,6 +54,7 @@ typedef struct _gtp_bpf_opts {
 	char			pin_root_path[GTP_STR_MAX_LEN];
 	struct bpf_object	*bpf_obj;
 	struct bpf_link		*bpf_lnk;
+	gtp_bpf_maps_t		*bpf_maps;
 	vty_t			*vty;
 } gtp_bpf_opts_t;
 
