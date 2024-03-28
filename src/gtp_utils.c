@@ -253,6 +253,25 @@ gtp_imsi_ether_addr_build(const uint64_t imsi, struct ether_addr *eth, uint8_t i
 }
 
 int
+gtp_ifid_from_ether_build(struct ether_addr *eth, struct in6_addr *ifid)
+{
+	int i, j;
+
+	/* RFC5072.4.1 section 1) : Add 0xFF & 0xFE in the middle of EUI-48 */
+	for (i = 0, j = 0; i < 8; i++) {
+		if (i == 3) {
+			ifid->s6_addr[i+++8] = 0xFF;
+			ifid->s6_addr[i+8] = 0xFE;
+			continue;
+		}
+
+		ifid->s6_addr[i+8] = eth->ether_addr_octet[j++];
+	}
+
+	return 0;
+}
+
+int
 gtp_imsi_rewrite(gtp_apn_t *apn, uint8_t *imsi)
 {
 	list_head_t *l = &apn->imsi_match;

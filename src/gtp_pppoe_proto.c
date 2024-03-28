@@ -573,8 +573,8 @@ breakbreak:
 			return;
 		}
 		if (s->state != PPPOE_STATE_PADI_SENT) {
-			log_message(LOG_INFO, "%s(): %s: received unexpected PADO"
-					    , __FUNCTION__, pppoe->ifname);
+			log_message(LOG_INFO, "%s(): %s: received unexpected PADO (state:%d)"
+					    , __FUNCTION__, pppoe->ifname, s->state);
 			return;
 		}
 		if (ac_cookie) {

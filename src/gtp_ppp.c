@@ -1972,10 +1972,15 @@ sppp_ipcp_scr(sppp_t *sp)
 void
 sppp_ipv6cp_init(sppp_t *sp)
 {
+	spppoe_t *s = sp->s_pppoe;
+
 	sp->ipv6cp.opts = 0;
-	sp->ipv6cp.flags = 0;
+	sp->ipv6cp.flags = IPV6CP_MYIFID_DYN;
 	sp->state[IDX_IPV6CP] = STATE_INITIAL;
 	sp->fail_counter[IDX_IPV6CP] = 0;
+
+	/* Build Interface ID from Ethernet Address */
+	gtp_ifid_from_ether_build(&s->hw_src, &sp->ipv6cp.req_ifid);
 }
 
 void
@@ -2006,7 +2011,6 @@ sppp_ipv6cp_open(sppp_t *sp)
 
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
 		return;
-	sp->ipv6cp.flags &= ~(IPV6CP_MYIFID_SEEN|IPV6CP_MYIFID_DYN);
 	sp->ipv6cp.opts |= (1 << IPV6CP_OPT_IFID);
 	sppp_open_event(&ipv6cp, sp);
 }
