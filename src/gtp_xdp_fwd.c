@@ -41,9 +41,6 @@
 /* Extern data */
 extern data_t *daemon_data;
 
-/* Local data */
-static xdp_exported_maps_t xdp_fwd_maps[XDPFWD_MAP_CNT];
-
 
 /*
  *	XDP FWD BPF related
@@ -59,19 +56,20 @@ gtp_xdp_fwd_load(gtp_bpf_opts_t *opts)
 		return -1;
 
 	/* MAP ref for faster access */
+	opts->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDPFWD_MAP_CNT);
 	map = gtp_bpf_load_map(opts->bpf_obj, "teid_xlat");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	xdp_fwd_maps[XDPFWD_MAP_TEID].map = map;
+	opts->bpf_maps[XDPFWD_MAP_TEID].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	xdp_fwd_maps[XDPFWD_MAP_IPTNL].map = map;
+	opts->bpf_maps[XDPFWD_MAP_IPTNL].map = map;
 
 	return 0;
 }
@@ -247,29 +245,35 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 int
 gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_teid_action(xdp_fwd_maps[XDPFWD_MAP_TEID].map, action, t);
+	return gtp_xdp_teid_action(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, action, t);
 }
 
 int
 gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, id);
+	return gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, vty, id);
 }
 
 int
 gtp_xdp_fwd_vty(vty_t *vty)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(xdp_fwd_maps[XDPFWD_MAP_TEID].map, vty, 0);
+	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -281,17 +285,21 @@ gtp_xdp_fwd_vty(vty_t *vty)
 int
 gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_iptnl_action(action, t, xdp_fwd_maps[XDPFWD_MAP_IPTNL].map);
+	return gtp_xdp_iptnl_action(action, t, bpf_opts->bpf_maps[XDPFWD_MAP_IPTNL].map);
 }
 
 int
 gtp_xdp_fwd_iptnl_vty(vty_t *vty)
 {
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_iptnl_vty(vty, xdp_fwd_maps[XDPFWD_MAP_IPTNL].map);
+	return gtp_xdp_iptnl_vty(vty, bpf_opts->bpf_maps[XDPFWD_MAP_IPTNL].map);
 }
