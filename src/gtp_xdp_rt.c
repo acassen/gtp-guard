@@ -116,8 +116,8 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	gtp_session_t *s = t->session;
-	gtp_conn_t *c = s->conn;
-	gtp_router_t *rtr = c->ctx;
+	gtp_server_t *w_srv = s->w->srv;
+	gtp_router_t *rtr = w_srv->ctx;
 	gtp_server_t *srv = &rtr->gtpu;
 	ip_vrf_t *vrf = s->apn->vrf;
 	__be32 dst_key = (vrf) ? vrf->id : 0;
@@ -148,9 +148,9 @@ int
 gtp_xdp_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 {
 	gtp_session_t *s = t->session;
-	gtp_conn_t *c = s->conn;
-	gtp_router_t *r = c->ctx;
-	gtp_server_t *srv = &r->gtpu;
+	gtp_server_t *w_srv = s->w->srv;
+	gtp_router_t *rtr = w_srv->ctx;
+	gtp_server_t *srv = &rtr->gtpu;
 
 	/* egress (upstream) : GTP TEID + pGW GTP Tunnel endpoint */
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {

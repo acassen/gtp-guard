@@ -38,6 +38,8 @@
 static list_head_t gtp_teid_unuse;
 pthread_mutex_t gtp_teid_unuse_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int gtp_teid_unuse_count;
+static gtp_htab_t gtpc_teid_tab;
+static gtp_htab_t gtpu_teid_tab;
 
 static int
 gtp_teid_unuse_destroy(void)
@@ -145,6 +147,18 @@ gtp_teid_get(gtp_htab_t *h, gtp_f_teid_t *f_teid)
 	return t;
 }
 
+gtp_teid_t *
+gtpc_teid_get(gtp_f_teid_t *f_teid)
+{
+	return gtp_teid_get(&gtpc_teid_tab, f_teid);
+}
+
+gtp_teid_t *
+gtpu_teid_get(gtp_f_teid_t *f_teid)
+{
+	return gtp_teid_get(&gtpu_teid_tab, f_teid);
+}
+
 int
 gtp_teid_put(gtp_teid_t *t)
 {
@@ -201,6 +215,18 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 	return 0;
 }
 
+int
+gtpc_teid_unhash(gtp_teid_t *teid)
+{
+	return gtp_teid_unhash(&gtpc_teid_tab, teid);
+}
+
+int
+gtpu_teid_unhash(gtp_teid_t *teid)
+{
+	return gtp_teid_unhash(&gtpu_teid_tab, teid);
+}
+
 gtp_teid_t *
 gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
 		    gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
@@ -252,6 +278,20 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
 }
 
 gtp_teid_t *
+gtpc_teid_alloc_peer(gtp_teid_t *teid, uint32_t ipv4,
+		     gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
+{
+	return gtp_teid_alloc_peer(&gtpc_teid_tab, teid, ipv4, bid, seed);
+}
+
+gtp_teid_t *
+gtpu_teid_alloc_peer(gtp_teid_t *teid, uint32_t ipv4,
+		     gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
+{
+	return gtp_teid_alloc_peer(&gtpu_teid_tab, teid, ipv4, bid, seed);
+}
+
+gtp_teid_t *
 gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
 {
 	gtp_teid_t *new;
@@ -267,6 +307,18 @@ gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
 	gtp_teid_hash(h, new);
 
 	return new;
+}
+
+gtp_teid_t *
+gtpc_teid_alloc(gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
+{
+	return gtp_teid_alloc(&gtpc_teid_tab, f_teid, bid);
+}
+
+gtp_teid_t *
+gtpu_teid_alloc(gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
+{
+	return gtp_teid_alloc(&gtpu_teid_tab, f_teid, bid);
 }
 
 void
@@ -427,12 +479,18 @@ int
 gtp_teid_init(void)
 {
 	INIT_LIST_HEAD(&gtp_teid_unuse);
+
+	/* Init hashtab */
+	gtp_htab_init(&gtpc_teid_tab, CONN_HASHTAB_SIZE);
+	gtp_htab_init(&gtpu_teid_tab, CONN_HASHTAB_SIZE);
 	return 0;
 }
 
 int
 gtp_teid_destroy(void)
 {
+	gtp_htab_destroy(&gtpc_teid_tab);
+	gtp_htab_destroy(&gtpu_teid_tab);
 	gtp_teid_unuse_destroy();
 	return 0;
 }

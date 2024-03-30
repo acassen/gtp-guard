@@ -44,8 +44,8 @@ int
 gtp_switch_gtpc_teid_destroy(gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
-	gtp_conn_t *conn = s->conn;
-	gtp_switch_t *ctx = conn->ctx;
+	gtp_server_t *w_srv = s->w->srv;
+	gtp_switch_t *ctx = w_srv->ctx;
 
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
@@ -57,8 +57,8 @@ int
 gtp_switch_gtpu_teid_destroy(gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
-	gtp_conn_t *conn = s->conn;
-	gtp_switch_t *ctx = conn->ctx;
+	gtp_server_t *w_srv = s->w->srv;
+	gtp_switch_t *ctx = w_srv->ctx;
 
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);

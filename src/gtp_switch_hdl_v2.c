@@ -277,7 +277,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	imsi = bcd_to_int64(ie_imsi->imsi, ntohs(ie_imsi->h.length));
 	c = gtp_conn_get_by_imsi(imsi);
 	if (!c) {
-		c = gtp_conn_alloc(imsi, ctx);
+		c = gtp_conn_alloc(imsi);
 	}
 
 	/* Rewrite IMSI if needed */

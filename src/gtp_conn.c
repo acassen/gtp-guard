@@ -194,13 +194,12 @@ gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
  *	Connection related
  */
 gtp_conn_t *
-gtp_conn_alloc(uint64_t imsi, void *ctx)
+gtp_conn_alloc(uint64_t imsi)
 {
 	gtp_conn_t *new;
 
 	PMALLOC(new);
 	new->imsi = imsi;
-	new->ctx = ctx;
 	new->ts = time(NULL);
 	INIT_LIST_HEAD(&new->gtp_sessions);
 	INIT_LIST_HEAD(&new->pppoe_sessions);

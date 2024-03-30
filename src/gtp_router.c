@@ -41,28 +41,6 @@ extern thread_master_t *master;
  *	Helpers
  */
 int
-gtp_router_gtpc_teid_destroy(gtp_teid_t *teid)
-{
-	gtp_session_t *s = teid->session;
-	gtp_conn_t *conn = s->conn;
-	gtp_router_t *ctx = conn->ctx;
-
-	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
-	return 0;
-}
-
-int
-gtp_router_gtpu_teid_destroy(gtp_teid_t *teid)
-{
-	gtp_session_t *s = teid->session;
-	gtp_conn_t *conn = s->conn;
-	gtp_router_t *ctx = conn->ctx;
-
-	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
-	return 0;
-}
-
-int
 gtp_router_ingress_init(gtp_server_worker_t *w)
 {
 	gtp_server_t *srv = w->srv;
@@ -125,10 +103,6 @@ gtp_router_init(const char *name)
         strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
         list_add_tail(&new->next, &daemon_data->gtp_router_ctx);
 
-	/* Init hashtab */
-	gtp_htab_init(&new->gtpc_teid_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&new->gtpu_teid_tab, CONN_HASHTAB_SIZE);
-
 	return new;
 }
 
@@ -143,8 +117,7 @@ gtp_router_ctx_server_destroy(gtp_router_t *ctx)
 int
 gtp_router_ctx_destroy(gtp_router_t *ctx)
 {
-	gtp_htab_destroy(&ctx->gtpc_teid_tab);
-	gtp_htab_destroy(&ctx->gtpu_teid_tab);
+
 	list_head_del(&ctx->next);
 	return 0;
 }

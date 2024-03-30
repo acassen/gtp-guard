@@ -64,8 +64,8 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	gtp_session_t *s = t->session;
-	gtp_conn_t *c = s->conn;
-	gtp_router_t *rtr = c->ctx;
+	gtp_server_t *w_srv = s->w->srv;
+	gtp_router_t *rtr = w_srv->ctx;
 	gtp_server_t *srv = &rtr->gtpu;
 	ip_vrf_t *vrf = s->apn->vrf;
 	__u16 vlan_id = 0;

@@ -29,10 +29,6 @@ typedef struct _gtp_router {
 	gtp_server_t		gtpc;
 	gtp_server_t		gtpu;
 
-	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
-	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
-	uint32_t		seqnum;		/* Global context Seqnum */
-
 	unsigned long		flags;
 	uint32_t		refcnt;
 
@@ -41,8 +37,6 @@ typedef struct _gtp_router {
 
 
 /* Prototypes */
-extern int gtp_router_gtpc_teid_destroy(gtp_teid_t *);
-extern int gtp_router_gtpu_teid_destroy(gtp_teid_t *);
 extern int gtp_router_ingress_init(gtp_server_worker_t *);
 extern int gtp_router_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
 extern gtp_router_t *gtp_router_get(const char *);
