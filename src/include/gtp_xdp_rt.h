@@ -32,7 +32,8 @@ enum {
 
 #define GTP_RT_FL_IPIP		(1 << 0)
 #define GTP_RT_FL_PPPOE		(1 << 1)
-#define GTP_RT_FL_UDP_LEARNING	(1 << 2)
+#define GTP_RT_FL_DIRECT_TX	(1 << 2)
+#define GTP_RT_FL_UDP_LEARNING	(1 << 3)
 
 struct ip_rt_key {
 	__u32	id;

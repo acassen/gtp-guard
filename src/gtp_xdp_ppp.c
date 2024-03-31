@@ -76,6 +76,8 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 		flags |= GTP_RT_FL_IPIP;
 	if (__test_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags))
 		flags |= GTP_RT_FL_UDP_LEARNING;
+	if (__test_bit(IP_VRF_FL_DIRECT_TX_BIT, &vrf->flags))
+		flags |= GTP_RT_FL_DIRECT_TX;
 
 	vlan_id = (vrf) ? vrf->encap_vlan_id : 0;
 	if (__test_bit(GTP_TEID_FL_INGRESS, &t->flags))

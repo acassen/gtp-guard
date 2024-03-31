@@ -96,7 +96,8 @@ static __always_inline void ipv4_csum(void *data_start, int data_size, __u32 *cs
  *	FIB Lookup
  */
 static __always_inline int
-gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph, struct bpf_fib_lookup *fib_params)
+gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
+		     struct bpf_fib_lookup *fib_params, bool direct_tx)
 {
 	int ret;
 
@@ -114,6 +115,9 @@ gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
 	/* Ethernet playground */
 	__builtin_memcpy(ethh->h_dest, fib_params->dmac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_source, fib_params->smac, ETH_ALEN);
+
+	if (direct_tx)
+		return XDP_TX;
 
 	if (ctx->ingress_ifindex != fib_params->ifindex)
 		return bpf_redirect(fib_params->ifindex, 0);
@@ -214,7 +218,7 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
+	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params, false);
 }
 
 static __always_inline int
@@ -337,7 +341,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
+	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params, false);
 }
 
 
@@ -427,6 +431,9 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	pppoeh->plen = bpf_htons(payload_len);
 	gtp_route_stats_update(rt_rule, length);
+
+	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX)
+		return XDP_TX;
 
 	if (ctx->ingress_ifindex != rt_rule->ifindex)
 		return bpf_redirect(rt_rule->ifindex, 0);
@@ -563,7 +570,8 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, ethh, iph, &fib_params);
+	return gtp_route_fib_lookup(ctx, ethh, iph, &fib_params,
+				    rt_rule->flags & GTP_RT_FL_DIRECT_TX);
 }
 
 /*
