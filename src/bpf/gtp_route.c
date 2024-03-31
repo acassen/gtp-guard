@@ -345,20 +345,23 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
  *	PPPoE
  */
 static __always_inline int
-gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
+gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 length)
 {
 	struct xdp_md *ctx = pkt->ctx;
 	void *data, *data_end;
 	struct ethhdr *ethh;
-	int offset = sizeof(struct ethhdr);
 	struct _vlan_hdr *vlanh = NULL;
 	struct pppoehdr *pppoeh;
 	struct iphdr *iph;
 	struct ipv6hdr *ipv6h;
+	int offset = sizeof(struct ethhdr);
 	__u16 *ppph;
 	int headroom, payload_len;
 
-	/* Phase 0 : shrink headroom */
+	/* Phase 0 : Build payload len */
+	payload_len = length + 2;
+
+	/* Phase 1 : shrink headroom */
 	headroom = sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(struct gtphdr);
 
 	if (pkt->vlan_id == 0 && rt_rule->vlan_id != 0)
@@ -367,14 +370,14 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 		headroom += sizeof(struct _vlan_hdr);
 	headroom -= sizeof(struct pppoehdr) + 2;
 
-	/* Phase 1 : GTP-U decap */
+	/* Phase 2 : GTP-U decap */
 	if (bpf_xdp_adjust_head(ctx, headroom))
 		return XDP_DROP;
 
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 
-	/* Phase 2 : Layer2 */
+	/* Phase 3 : Layer2 */
 	ethh = data;
 	if (ethh + 1 > data_end)
 		return XDP_DROP;
@@ -392,7 +395,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 		offset += sizeof(struct _vlan_hdr);
 	}
 
-	/* Phase 3 : PPPoE */
+	/* Phase 4 : PPPoE */
 	pppoeh = data + offset;
 	if (pppoeh + 1 > data_end)
 		return XDP_DROP;
@@ -401,31 +404,29 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	pppoeh->session = bpf_htons(rt_rule->session_id);
 	offset += sizeof(struct pppoehdr);
 
-	/* Phase 4 : PPP */
+	/* Phase 5 : PPP */
 	ppph = data + offset;
 	if (ppph + 1 > data_end)
 		return XDP_DROP;
 	offset += 2;
 
-	/* Phase 5 : Complete PPPoE & PPP header according to L3 */
+	/* Phase 6 : Complete PPPoE & PPP header according to L3 */
 	iph = data + offset;
 	if (iph + 1 > data_end)
 		return XDP_DROP;
 
 	if (iph->version == 4) {
 		*ppph = bpf_htons(PPP_IP);
-		payload_len = bpf_ntohs(iph->tot_len);
 	} else if (iph->version == 6) {
 		*ppph = bpf_htons(PPP_IPV6);
 		ipv6h = data + offset;
 		if (ipv6h + 1 > data_end)
 			return XDP_DROP;
-		payload_len = bpf_ntohs(ipv6h->payload_len);
 	} else
 		return XDP_DROP; /* only IPv4 & IPv6 */
 
-	pppoeh->plen = bpf_htons(payload_len + 2);
-	gtp_route_stats_update(rt_rule, payload_len);
+	pppoeh->plen = bpf_htons(payload_len);
+	gtp_route_stats_update(rt_rule, length);
 
 	if (ctx->ingress_ifindex != rt_rule->ifindex)
 		return bpf_redirect(rt_rule->ifindex, 0);
@@ -679,7 +680,7 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 		gtp_rt_rule_dst_port_update(rule, udph->source);
 
 	if (rule->flags & GTP_RT_FL_PPPOE)
-		return gtp_route_ppp_encap(pkt, rule);
+		return gtp_route_ppp_encap(pkt, rule, bpf_ntohs(gtph->length));
 
 	if (rule->flags & GTP_RT_FL_IPIP)
 		return gtp_route_ipip_encap(pkt, rule);
