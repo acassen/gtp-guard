@@ -234,8 +234,8 @@ DEFUN(gtpu_ipip,
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -298,8 +298,8 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int credit, ifindex, plen, ret;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -359,8 +359,8 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -389,8 +389,8 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -419,8 +419,8 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -449,8 +449,8 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret, vlan;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-U program not loaded!%s", VTY_NEWLINE);
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 

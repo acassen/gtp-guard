@@ -239,7 +239,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 int
 gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
@@ -247,7 +247,7 @@ gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
 	return gtp_xdp_teid_action(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, action, t);
@@ -256,9 +256,9 @@ gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 int
 gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
 	return gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, vty, id);
@@ -267,7 +267,7 @@ gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
 int
 gtp_xdp_fwd_vty(vty_t *vty)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
 
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
@@ -285,7 +285,7 @@ gtp_xdp_fwd_vty(vty_t *vty)
 int
 gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
@@ -293,7 +293,7 @@ gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
 	return gtp_xdp_iptnl_action(action, t, bpf_opts->bpf_maps[XDPFWD_MAP_IPTNL].map);
@@ -302,9 +302,9 @@ gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 int
 gtp_xdp_fwd_iptnl_vty(vty_t *vty)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
 	return gtp_xdp_iptnl_vty(vty, bpf_opts->bpf_maps[XDPFWD_MAP_IPTNL].map);

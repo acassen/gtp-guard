@@ -191,10 +191,10 @@ DEFUN(no_pdn_xdp_gtp_route,
 	return CMD_SUCCESS;
 }
 
-DEFUN(pdn_xdp_gtpu,
-      pdn_xdp_gtpu_cmd,
-      "xdp-gtpu STRING interface STRING [xdp-prog STRING]",
-      "GTP Userplane channel XDP program\n"
+DEFUN(pdn_xdp_gtp_forward,
+      pdn_xdp_gtp_forward_cmd,
+      "xdp-gtp-forward STRING interface STRING [xdp-prog STRING]",
+      "GTP Forwarding channel XDP program\n"
       "path to BPF file\n"
       "Interface name\n"
       "Name"
@@ -203,30 +203,30 @@ DEFUN(pdn_xdp_gtpu,
 {
 	int ret;
 
-	if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% GTP-U XDP program already loaded.%s"
+	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% GTP-FORWARD XDP program already loaded.%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_load(&daemon_data->xdp_gtpu, vty, argc, argv,
+	ret = gtp_bpf_opts_load(&daemon_data->xdp_gtp_forward, vty, argc, argv,
 				gtp_xdp_fwd_load);
 	if (ret < 0)
 		return CMD_WARNING;
 
-	__set_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags);
+	__set_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
 
-DEFUN(no_pdn_xdp_gtpu,
-      no_pdn_xdp_gtpu_cmd,
-      "no xdp-gtpu",
-      "GTP Userplane channel XDP program\n")
+DEFUN(no_pdn_xdp_gtp_forward,
+      no_pdn_xdp_gtp_forward_cmd,
+      "no xdp-gtp-forward",
+      "GTP Forwarding channel XDP program\n")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtpu;
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_forward;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% No GTP-U XDP program is currently configured. Ignoring%s"
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% No GTP-FORWARD XDP program is currently configured. Ignoring%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -239,7 +239,7 @@ DEFUN(no_pdn_xdp_gtpu,
         vty_out(vty, "Success unloading eBPF program:%s%s"
                    , opts->filename
                    , VTY_NEWLINE);
-	__clear_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags);
+	__clear_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
 
@@ -556,7 +556,7 @@ DEFUN(show_xdp_forwarding,
 {
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -580,7 +580,7 @@ DEFUN(show_xdp_forwarding_iptnl,
 {
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -830,16 +830,16 @@ pdn_config_write(vty_t *vty)
 				   , if_indextoname(opts->ifindex, ifname)
 				   , VTY_NEWLINE);
         }
-	opts = &daemon_data->xdp_gtpu;
-	if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags)) {
+	opts = &daemon_data->xdp_gtp_forward;
+	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		if (opts->progname[0])
-			vty_out(vty, " xdp-gtpu %s interface %s progname %s%s"
+			vty_out(vty, " xdp-gtp-forward %s interface %s progname %s%s"
 				   , opts->filename
 				   , if_indextoname(opts->ifindex, ifname)
 				   , opts->progname
 				   , VTY_NEWLINE);
 		else
-			vty_out(vty, " xdp-gtpu %s interface %s%s"
+			vty_out(vty, " xdp-gtp-forward %s interface %s%s"
 				   , opts->filename
 				   , if_indextoname(opts->ifindex, ifname)
 				   , VTY_NEWLINE);
@@ -879,8 +879,8 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &pdn_realm_cmd);
 	install_element(PDN_NODE, &pdn_xdp_gtp_route_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_gtp_route_cmd);
-	install_element(PDN_NODE, &pdn_xdp_gtpu_cmd);
-	install_element(PDN_NODE, &no_pdn_xdp_gtpu_cmd);
+	install_element(PDN_NODE, &pdn_xdp_gtp_forward_cmd);
+	install_element(PDN_NODE, &no_pdn_xdp_gtp_forward_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &pdn_bpf_ppp_rps_cmd);

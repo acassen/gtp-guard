@@ -149,8 +149,8 @@ alloc_daemon_data(void)
 void
 free_daemon_data(void)
 {
-	if (__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
-		gtp_xdp_fwd_unload(&daemon_data->xdp_gtpu);
+	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+		gtp_xdp_fwd_unload(&daemon_data->xdp_gtp_forward);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_mirror_unload(&daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
