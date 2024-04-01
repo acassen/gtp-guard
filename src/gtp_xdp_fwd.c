@@ -123,12 +123,6 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
 	uint32_t key;
 	size_t sz;
 
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
 	if (!t)
 		return -1;
 
@@ -247,6 +241,12 @@ gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 {
 	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
 
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
@@ -286,6 +286,12 @@ int
 gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 {
 	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtpu;
+
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
 
 	if (!__test_bit(GTP_FL_GTPU_LOADED_BIT, &daemon_data->flags))
 		return -1;

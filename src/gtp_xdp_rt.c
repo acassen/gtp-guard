@@ -176,12 +176,6 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t)
 	struct ip_rt_key rt_key;
 	size_t sz;
 
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
 	gtp_xdp_rt_key_set(t, &rt_key);
 
 	/* Set rule */
@@ -306,6 +300,12 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 	gtp_apn_t *apn;
 	int direction;
 
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
 		return -1;
 
@@ -360,7 +360,7 @@ gtp_xdp_rt_vty(vty_t *vty)
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map, vty, NULL);
 	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map, vty, NULL);
-	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map, vty, NULL);
+	gtp_xdp_ppp_teid_vty(vty, NULL, bpf_opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map, NULL);
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;

@@ -124,12 +124,6 @@ gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 	struct ppp_key ppp_k;
 	size_t sz;
 
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 		gtp_xdp_rt_key_set(t, &rt_k);
 	else
@@ -249,10 +243,9 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 			bytes += r[i].bytes;
 		}
 
-		vty_out(vty, "| 0x%.8x | %.2x:%.2x:%.2x:%.2x:%.2x:%.2x| %9s | %12ld | %19ld |%s"
+		vty_out(vty, "| 0x%.8x | " ETHER_FMT "| %9s | %12ld | %19ld |%s"
 			   , ntohl(r[0].teid)
-			   , r[0].h_dst[0], r[0].h_dst[1], r[0].h_dst[2]
-			   , r[0].h_dst[3], r[0].h_dst[4], r[0].h_dst[5]
+			   , ETHER_BYTES(r[0].h_dst)
 			   , "ingress"
 			   , packets, bytes
 			   , VTY_NEWLINE);
@@ -266,6 +259,12 @@ int
 gtp_xdp_ppp_action(int action, gtp_teid_t *t,
 		   struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
+	/* If daemon is currently stopping, we simply skip action on ruleset.
+	 * This reduce daemon exit time and entries are properly released during
+	 * kernel BPF map release. */
+	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
+		return 0;
+
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 		return gtp_xdp_ppp_map_action(map_egress, action, t);
 
@@ -276,6 +275,14 @@ int
 gtp_xdp_ppp_teid_vty(vty_t *vty, gtp_teid_t *t,
 		     struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
+	int err = 0;
+
+	if (!t) {
+		err = (map_ingress) ? gtp_xdp_teid_vty(map_ingress, vty, NULL) : 0;
+		err = (err) ? : (map_egress) ? gtp_xdp_teid_vty(map_egress, vty, NULL) : 0;
+		return err;
+	}
+
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 		return gtp_xdp_teid_vty(map_egress, vty, t);
 
