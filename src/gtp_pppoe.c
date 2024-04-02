@@ -46,8 +46,25 @@ pthread_mutex_t gtp_pppoe_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*
  *	PPPoE utilities
  */
+gtp_pppoe_t *
+gtp_pppoe_get_by_name(const char *name)
+{
+	gtp_pppoe_t *pppoe;
+
+	pthread_mutex_lock(&gtp_pppoe_mutex);
+	list_for_each_entry(pppoe, &daemon_data->pppoe, next) {
+		if (!strncmp(pppoe->name, name, GTP_NAME_MAX_LEN)) {
+			pppoe->refcnt++;
+			pthread_mutex_unlock(&gtp_pppoe_mutex);
+			return pppoe;
+		}
+	}
+	pthread_mutex_unlock(&gtp_pppoe_mutex);
+	return NULL;
+}
+
 static gtp_pppoe_t *
-gtp_pppoe_get(const unsigned int ifindex)
+gtp_pppoe_get_by_ifindex(const unsigned int ifindex)
 {
 	gtp_pppoe_t *pppoe;
 
@@ -388,47 +405,6 @@ gtp_pppoe_timer_destroy(gtp_pppoe_t *pppoe)
 
 
 /*
- *	VTY display
- */
-static int
-gtp_pppoe_worker_vty(vty_t *vty, gtp_pppoe_worker_t *w)
-{
-	vty_out(vty, "   #%.2d: rx_packets:%ld rx_bytes:%ld tx_packets:%ld tx_bytes:%ld%s"
-		   , w->id, w->rx_packets, w->rx_bytes, w->tx_packets, w->tx_bytes
-		   , VTY_NEWLINE);
-	return 0;
-}
-
-static int
-gtp_pppoe_workers_vty(vty_t *vty, const char *desc, gtp_pppoe_worker_t *w, int count)
-{
-	int i;
-
-	vty_out(vty, "  %s:%s", desc, VTY_NEWLINE);
-	for (i = 0; i < count; i++)
-		gtp_pppoe_worker_vty(vty, &w[i]);
-
-	return 0;
-}
-
-int
-gtp_pppoe_vty(vty_t *vty, gtp_pppoe_t *pppoe)
-{
-	if (!pppoe)
-		return -1;
-
-	vty_out(vty, " PPPoE: interface %s (ifindex:%d) sessions:%d%s"
-		   , pppoe->ifname, pppoe->ifindex, pppoe->session_count
-		   , VTY_NEWLINE);
-	gtp_pppoe_workers_vty(vty, "Discovery channel"
-				 , pppoe->worker_disc, pppoe->thread_cnt);
-	gtp_pppoe_workers_vty(vty, "Session channel"
-				 , pppoe->worker_ses, pppoe->thread_cnt);
-	return 0;
-}
-
-
-/*
  *	PPPoE service init
  */
 int
@@ -455,24 +431,43 @@ gtp_pppoe_start(gtp_pppoe_t *pppoe)
 	return 0;
 }
 
-gtp_pppoe_t *
-gtp_pppoe_init(const char *ifname)
+int
+gtp_pppoe_interface_init(gtp_pppoe_t *pppoe, const char *ifname)
 {
-	gtp_pppoe_t *pppoe = NULL;
 	unsigned int ifindex = if_nametoindex(ifname);
 
-	if (!ifindex)
-		return NULL;
+	if (!ifindex) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	pppoe = gtp_pppoe_get(ifindex);
-	if (pppoe)
-		return pppoe;
+	if (gtp_pppoe_get_by_ifindex(ifindex)) {
+		errno = EEXIST;
+		return -1;
+	}
 
-	PMALLOC(pppoe);
-	pppoe->seed = time(NULL);
-	srand(pppoe->seed);
 	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
 	pppoe->ifindex = ifindex;
+	return 0;
+}
+
+gtp_pppoe_t *
+gtp_pppoe_init(const char *name)
+{
+	gtp_pppoe_t *pppoe = NULL;
+
+	pppoe = gtp_pppoe_get_by_name(name);
+	if (pppoe) {
+		errno = EEXIST;
+		return NULL;
+	}
+
+	PMALLOC(pppoe);
+	if (!pppoe)
+		return NULL;
+	strlcpy(pppoe->name, name, GTP_NAME_MAX_LEN);
+	pppoe->seed = time(NULL);
+	srand(pppoe->seed);
 	pkt_queue_init(&pppoe->pkt_q);
 	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
 	gtp_htab_init(&pppoe->unique_tab, CONN_HASHTAB_SIZE);

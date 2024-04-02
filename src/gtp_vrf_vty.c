@@ -37,10 +37,10 @@ static uint32_t gtp_vrf_id;
 
 static int gtp_config_write(vty_t *vty);
 cmd_node_t ip_vrf_node = {
-        .node = IP_VRF_NODE,
-        .parent_node = CONFIG_NODE,
-        .prompt ="%s(ip-vrf)# ",
-        .config_write = gtp_config_write,
+	.node = IP_VRF_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(ip-vrf)# ",
+	.config_write = gtp_config_write,
 };
 
 
@@ -276,16 +276,13 @@ DEFUN(ip_vrf_encapsulation_ipip,
 
 DEFUN(ip_vrf_pppoe,
       ip_vrf_pppoe_cmd,
-      "pppoe interface STRING [rps-bits [INTEGER]]",
+      "pppoe instance STRING",
       "PPP Over Ethernet support\n"
-      "Interface\n"
-      "IFNAME\n"
-      "RPS bits for pthread workers\n"
-      "max bits of pthread workers (default = "STR(GTP_PPPOE_RPS_BITS)" bits)\n")
+      "Instance\n"
+      "NAME\n")
 {
 	ip_vrf_t *vrf = vty->index;
 	gtp_pppoe_t *pppoe;
-	int ret, rps_bits, rps_size = 1;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -297,419 +294,17 @@ DEFUN(ip_vrf_pppoe,
 		return CMD_WARNING;
 	}
 
-	/* PPPoE ingress thread count built from rps-bits */
-	if (__test_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags)) {
-		rps_size = GTP_PPPOE_RPS_SIZE;
-		if (argc == 3) {
-			VTY_GET_INTEGER_RANGE("rps-bits", rps_bits, argv[2], 1, 7);
-			rps_size = 1 << rps_bits;
-		}
-	}
-
-	pppoe = gtp_pppoe_init(argv[0]);
+	pppoe = gtp_pppoe_get_by_name(argv[0]);
 	if (!pppoe) {
-		vty_out(vty, "%% unknown interface %s!%s", argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% unknown PPPoE instance %s!%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	pppoe->thread_cnt = rps_size;
-	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
 	vrf->pppoe = pppoe;
-	ret = gtp_pppoe_start(pppoe);
-	if (ret < 0) {
-		vty_out(vty, "%% Error starting PPPoE on interface %s!%s", argv[0], VTY_NEWLINE);
-		gtp_pppoe_release(pppoe);
-		return CMD_WARNING;
-	}
-
+	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
 	return CMD_SUCCESS;
 }
 
-DEFUN(ip_vrf_pppoe_ac_name,
-      ip_vrf_pppoe_ac_name_cmd,
-      "pppoe access-concentrator-name STRING",
-      "PPP Over Ethernet\n"
-      "Access Concentrator Name\n"
-      "String\n")
-{
-	ip_vrf_t *vrf = vty->index;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!vrf->pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	strlcpy(vrf->pppoe->ac_name, argv[0], PPPOE_NAMELEN);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_service_name,
-      ip_vrf_pppoe_service_name_cmd,
-      "pppoe service-name STRING",
-      "PPP Over Ethernet\n"
-      "Service Name\n"
-      "String\n")
-{
-	ip_vrf_t *vrf = vty->index;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!vrf->pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	strlcpy(vrf->pppoe->service_name, argv[0], PPPOE_NAMELEN);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_vendor_specific_bbf,
-      ip_vrf_pppoe_vendor_specific_bbf_cmd,
-      "pppoe vendor-specific-bbf",
-      "PPP Over Ethernet\n"
-      "Vendor Specific BroadBandForum\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-
-DEFUN(ip_vrf_pppoe_mru,
-      ip_vrf_pppoe_mru_cmd,
-      "pppoe maximum-receive-unit INTEGER",
-      "PPP Over Ethernet\n"
-      "Maximum Receive Unit\n"
-      "Integer\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	pppoe->mru = strtoul(argv[0], NULL, 10);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_vmac_hbits,
-      ip_vrf_pppoe_vmac_hbits_cmd,
-      "pppoe vmac-hbits INTEGER",
-      "PPP Over Ethernet\n"
-      "Virtual MAC Address first 4bits\n"
-      "hbits\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-	uint8_t hbits;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	VTY_GET_INTEGER_RANGE("hbits", hbits, argv[0], 0, 15);
-	pppoe->vmac_hbits = hbits << 4;
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_auth_pap_gtp_username_tpl0,
-      ip_vrf_pppoe_auth_pap_gtp_username_tpl0_cmd,
-      "pppoe authentication pap gtp-username imsi+mei@apn",
-      "PPP Over Ethernet\n"
-      "Authentication method\n"
-      "Password Authentication Protocol\n"
-      "Username built from GTP imsi+mei@apn\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
-		vty_out(vty, "%% Static username already configured%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_auth_pap_gtp_username_tpl1,
-      ip_vrf_pppoe_auth_pap_gtp_username_tpl1_cmd,
-      "pppoe authentication pap gtp-username imsi@apn",
-      "PPP Over Ethernet\n"
-      "Authentication method\n"
-      "Password Authentication Protocol\n"
-      "Username built from GTP imsi@apn\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
-		vty_out(vty, "%% Static username already configured%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_auth_pap_username,
-      ip_vrf_pppoe_auth_pap_username_cmd,
-      "pppoe authentication pap username STRING",
-      "PPP Over Ethernet\n"
-      "Authentication method\n"
-      "Password Authentication Protocol\n"
-      "Username\n"
-      "String\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags)) {
-		vty_out(vty, "%% GTP username already configured%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	strlcpy(pppoe->pap_username, argv[0], PPPOE_NAMELEN);
-	__set_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_auth_pap_passwd,
-      ip_vrf_pppoe_auth_pap_passwd_cmd,
-      "pppoe authentication pap password STRING",
-      "PPP Over Ethernet\n"
-      "Authentication method\n"
-      "Password Authentication Protocol\n"
-      "Password\n"
-      "String\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	strlcpy(pppoe->pap_passwd, argv[0], PPPOE_NAMELEN);
-	__set_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_ipv6cp_disable,
-      ip_vrf_pppoe_ipv6cp_disable_cmd,
-      "pppoe ipv6cp disable",
-      "PPP Over Ethernet\n"
-      "IPv6 Control Protocol\n"
-      "Disable\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_keepalive,
-      ip_vrf_pppoe_keepalive_cmd,
-      "pppoe keepalive INTEGER",
-      "PPP Over Ethernet\n"
-      "PPP Keepalive interval\n"
-      "Number of seconds\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags);
-	pppoe->keepalive = strtoul(argv[0], NULL, 10);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_padi_fast_retry,
-      ip_vrf_pppoe_padi_fast_retry_cmd,
-      "pppoe padi-fast-retry",
-      "PPP Over Ethernet\n"
-      "PADI Fast Retry (1s)\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_lcp_timeout,
-      ip_vrf_pppoe_lcp_timeout_cmd,
-      "pppoe lcp-timeout INTEGER",
-      "PPP Over Ethernet\n"
-      "PPP lcp-timeout\n"
-      "Number of seconds\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_LCP_TIMEOUT_BIT, &pppoe->flags);
-	pppoe->lcp_timeout = strtoul(argv[0], NULL, 10);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_lcp_max_terminate,
-      ip_vrf_pppoe_lcp_max_terminate_cmd,
-      "pppoe lcp-max-terminate INTEGER",
-      "PPP Over Ethernet\n"
-      "PPP lcp-max-terminate request\n"
-      "Number\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_LCP_MAX_TERMINATE_BIT, &pppoe->flags);
-	pppoe->lcp_max_terminate = strtoul(argv[0], NULL, 10);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_lcp_max_configure,
-      ip_vrf_pppoe_lcp_max_configure_cmd,
-      "pppoe lcp-max-configure INTEGER",
-      "PPP Over Ethernet\n"
-      "PPP lcp-max-configure request\n"
-      "Number\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_LCP_MAX_CONFIGURE_BIT, &pppoe->flags);
-	pppoe->lcp_max_configure = strtoul(argv[0], NULL, 10);
-	return CMD_SUCCESS;
-}
-
-DEFUN(ip_vrf_pppoe_lcp_max_failure,
-      ip_vrf_pppoe_lcp_max_failure_cmd,
-      "pppoe lcp-max-failure INTEGER",
-      "PPP Over Ethernet\n"
-      "PPP lcp-max-failure\n"
-      "Number\n")
-{
-	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe = vrf->pppoe;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!pppoe) {
-		vty_out(vty, "%% You MUST configure pppoe interface first%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(PPPOE_FL_LCP_MAX_FAILURE_BIT, &pppoe->flags);
-	pppoe->lcp_max_failure = strtoul(argv[0], NULL, 10);
-	return CMD_SUCCESS;
-}
 
 /*
  *	Show commands
@@ -738,7 +333,6 @@ DEFUN(show_ip_vrf,
 
 		vty_out(vty, "vrf(%d): %s (%s)%s"
 			   , vrf->id, vrf->name, vrf->description, VTY_NEWLINE);
-		gtp_pppoe_vty(vty, vrf->pppoe);
 	}
 
 	return CMD_SUCCESS;
@@ -749,12 +343,12 @@ DEFUN(show_ip_vrf,
 static int
 gtp_config_write(vty_t *vty)
 {
-        list_head_t *l = &daemon_data->ip_vrf;
+	list_head_t *l = &daemon_data->ip_vrf;
 	gtp_pppoe_t *pppoe;
-        ip_vrf_t *vrf;
+	ip_vrf_t *vrf;
 
         list_for_each_entry(vrf, l, next) {
-        	vty_out(vty, "ip vrf %s%s", vrf->name, VTY_NEWLINE);
+		vty_out(vty, "ip vrf %s%s", vrf->name, VTY_NEWLINE);
 		if (vrf->description[0])
 			vty_out(vty, " description %s%s", vrf->description, VTY_NEWLINE);
 		if (__test_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags))
@@ -772,69 +366,7 @@ gtp_config_write(vty_t *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags)) {
 			pppoe = vrf->pppoe;
-			vty_out(vty, " pppoe interface %s", pppoe->ifname);
-			if (pppoe->thread_cnt != GTP_PPPOE_RPS_SIZE)
-				vty_out(vty, " rps-bits %d", __builtin_ctz(pppoe->thread_cnt));
-			vty_out(vty, "%s", VTY_NEWLINE);
-			if (pppoe->ac_name[0])
-				vty_out(vty, " pppoe access-concentrator-name %s%s"
-					   , pppoe->ac_name
-					   , VTY_NEWLINE);
-			if (pppoe->service_name[0])
-				vty_out(vty, " pppoe service-name %s%s"
-					   , pppoe->service_name
-					   , VTY_NEWLINE);
-			if (pppoe->mru)
-				vty_out(vty, " pppoe maximum-receive-unit %d%s"
-					   , pppoe->mru
-					   , VTY_NEWLINE);
-			if (pppoe->vmac_hbits)
-				vty_out(vty, " pppoe vmac-hbits %d%s"
-					   , pppoe->vmac_hbits
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe authentication pap gtp-username imsi+mei@apn%s"
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe authentication pap gtp-username imsi@apn%s"
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe vendor-specific-bbf%s"
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe authentication pap username %s%s"
-					   , pppoe->pap_username
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe authentication pap password %s%s"
-					   , pppoe->pap_passwd
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe ipv6cp disable%s"
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe keepalive %d%s"
-					   , pppoe->keepalive
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe padi-fast-retry%s"
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_LCP_TIMEOUT_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe lcp-timeout %d%s"
-					   , pppoe->lcp_timeout
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_LCP_MAX_TERMINATE_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe lcp-max-terminate %d%s"
-					   , pppoe->lcp_max_terminate
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_LCP_MAX_CONFIGURE_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe lcp-max-configure %d%s"
-					   , pppoe->lcp_max_configure
-					   , VTY_NEWLINE);
-			if (__test_bit(PPPOE_FL_LCP_MAX_FAILURE_BIT, &pppoe->flags))
-				vty_out(vty, " pppoe lcp-max-failture %d%s"
-					   , pppoe->lcp_max_failure
-					   , VTY_NEWLINE);
+			vty_out(vty, " pppoe instance %s%s", pppoe->name, VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -864,27 +396,10 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_decapsulation_dot1q_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_encapsulation_ipip_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ac_name_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_service_name_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_vendor_specific_bbf_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_mru_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_vmac_hbits_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_tpl0_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_gtp_username_tpl1_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_username_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_auth_pap_passwd_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_ipv6cp_disable_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_keepalive_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_padi_fast_retry_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_timeout_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_terminate_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_configure_cmd);
-	install_element(IP_VRF_NODE, &ip_vrf_pppoe_lcp_max_failure_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_ip_vrf_cmd);
 	install_element(ENABLE_NODE, &show_ip_vrf_cmd);
-
 
 	return 0;
 }

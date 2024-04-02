@@ -155,6 +155,7 @@ typedef struct _gtp_pppoe_worker {
 } gtp_pppoe_worker_t;
 
 typedef struct _gtp_pppoe {
+	char			name[GTP_NAME_MAX_LEN];
 	char			ifname[GTP_NAME_MAX_LEN];
 	unsigned int		ifindex;
 	uint8_t			vmac_hbits;
@@ -189,12 +190,13 @@ typedef struct _gtp_pppoe {
 } gtp_pppoe_t;
 
 /* Prototypes */
+extern gtp_pppoe_t *gtp_pppoe_get_by_name(const char *);
 extern int gtp_pppoe_disc_send(gtp_pppoe_t *, pkt_t *);
 extern int gtp_pppoe_ses_send(gtp_pppoe_t *, pkt_t *);
 extern int gtp_pppoe_put(gtp_pppoe_t *);
-extern int gtp_pppoe_vty(vty_t *, gtp_pppoe_t *);
 extern int gtp_pppoe_start(gtp_pppoe_t *);
 extern int gtp_pppoe_release(gtp_pppoe_t *);
+extern int gtp_pppoe_interface_init(gtp_pppoe_t *, const char *);
 extern gtp_pppoe_t *gtp_pppoe_init(const char *);
 extern int gtp_pppoe_destroy(void);
 
