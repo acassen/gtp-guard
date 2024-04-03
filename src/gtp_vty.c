@@ -97,48 +97,6 @@ DEFUN(pdn_nameserver,
         return CMD_SUCCESS;
 }
 
-static int
-gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
-		     int (*bpf_load) (gtp_bpf_opts_t *))
-{
-	int ret, ifindex;
-
-	if (argc < 2) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return -1;
-	}
-
-	strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
-	ifindex = if_nametoindex(argv[1]);
-	if (argc == 3)
-		strlcpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
-	if (!ifindex) {
-		vty_out(vty, "%% Error resolving interface %s (%m)%s"
-			   , argv[1]
-			   , VTY_NEWLINE);
-		return -1;
-	}
-	opts->ifindex = ifindex;
-	opts->vty = vty;
-
-	ret = (*bpf_load) (opts);
-	if (ret < 0) {
-		vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
-			   , opts->filename
-			   , opts->ifindex
-			   , VTY_NEWLINE);
-		/* Reset data */
-		memset(opts, 0, sizeof(gtp_bpf_opts_t));
-		return -1;
-	}
-
-        vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
-                   , opts->filename
-		   , opts->ifindex
-                   , VTY_NEWLINE);
-	return 0;
-}
-
 DEFUN(pdn_xdp_gtp_route,
       pdn_xdp_gtp_route_cmd,
       "xdp-gtp-route STRING interface STRING [xdp-prog STRING]",
@@ -149,19 +107,24 @@ DEFUN(pdn_xdp_gtp_route,
       "XDP Program Name"
       "Name")
 {
-        int ret;
+	list_head_t *l = &daemon_data->xdp_gtp_route;
+	gtp_bpf_opts_t *opts;
+	int err;
 
-	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% GTP-ROUTE XDP program already loaded.%s"
+	if (gtp_bpf_opts_exist(l, argc, argv)) {
+		vty_out(vty, "%% GTP-ROUTE XDP program already loaded !!!%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_load(&daemon_data->xdp_gtp_route, vty, argc, argv,
-				gtp_xdp_rt_load);
-	if (ret < 0)
+	opts = gtp_bpf_opts_alloc();
+	err = gtp_bpf_opts_load(opts, vty, argc, argv, gtp_xdp_rt_load);
+	if (err) {
+		FREE(opts);
 		return CMD_WARNING;
+	}
 
+	gtp_bpf_opts_add(opts, l);
 	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
@@ -171,7 +134,7 @@ DEFUN(no_pdn_xdp_gtp_route,
       "no xdp-gtp-route",
       "GTP Routing channel XDP program\n")
 {
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_route;
+	list_head_t *l = &daemon_data->xdp_gtp_route;
 
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% No GTP-ROUTE XDP program is currently configured. Ignoring%s"
@@ -179,13 +142,9 @@ DEFUN(no_pdn_xdp_gtp_route,
 		return CMD_WARNING;
 	}
 
-        gtp_xdp_rt_unload(opts);
+	gtp_bpf_opts_destroy(l, gtp_xdp_rt_unload);
 
-        /* Reset data */
-	memset(opts, 0, sizeof(gtp_bpf_opts_t));
-
-        vty_out(vty, "Success unloading eBPF program:%s%s"
-                   , opts->filename
+        vty_out(vty, "Success unloading eBPF xdp-gtp-route programs%s"
                    , VTY_NEWLINE);
 	__clear_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
@@ -201,7 +160,7 @@ DEFUN(pdn_xdp_gtp_forward,
       "XDP Program Name"
       "Name")
 {
-	int ret;
+	int err;
 
 	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% GTP-FORWARD XDP program already loaded.%s"
@@ -209,9 +168,9 @@ DEFUN(pdn_xdp_gtp_forward,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_load(&daemon_data->xdp_gtp_forward, vty, argc, argv,
+	err = gtp_bpf_opts_load(&daemon_data->xdp_gtp_forward, vty, argc, argv,
 				gtp_xdp_fwd_load);
-	if (ret < 0)
+	if (err)
 		return CMD_WARNING;
 
 	__set_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
@@ -253,7 +212,7 @@ DEFUN(pdn_xdp_mirror,
       "XDP Program Name"
       "Name")
 {
-	int ret;
+	int err;
 
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% Mirroring XDP program already loaded.%s"
@@ -261,9 +220,9 @@ DEFUN(pdn_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_bpf_opts_load(&daemon_data->xdp_mirror, vty, argc, argv,
+	err = gtp_bpf_opts_load(&daemon_data->xdp_mirror, vty, argc, argv,
 				gtp_xdp_mirror_load);
-	if (ret < 0)
+	if (err)
 		return CMD_WARNING;
 
 	__set_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags);
@@ -347,7 +306,7 @@ static int
 pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 		   struct sockaddr_storage *addr, uint8_t *protocol, int *ifindex)
 {
-	int ret, port;
+	int err, port;
 
 	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% No Mirroring XDP program is currently configured. Ignoring%s"
@@ -362,8 +321,8 @@ pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 
         VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
 
-        ret = inet_stosockaddr(argv[0], port, addr);
-	if (ret < 0) {
+        err = inet_stosockaddr(argv[0], port, addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -411,11 +370,11 @@ DEFUN(pdn_mirror,
 	gtp_mirror_rule_t *r;
 	struct sockaddr_storage addr;
 	uint8_t protocol;
-	int ifindex, ret;
+	int ifindex, err;
 
-	ret = pdn_mirror_prepare(argc, argv, vty, &addr, &protocol, &ifindex);
-	if (ret != CMD_SUCCESS)
-		return ret;
+	err = pdn_mirror_prepare(argc, argv, vty, &addr, &protocol, &ifindex);
+	if (err != CMD_SUCCESS)
+		return err;
 
 	r = gtp_mirror_rule_get(&addr, protocol, ifindex);
 	if (r) {
@@ -426,8 +385,8 @@ DEFUN(pdn_mirror,
 
 	r = gtp_mirror_rule_add(&addr, protocol, ifindex);
 
-	ret = gtp_xdp_mirror_action(RULE_ADD, r);
-	if (ret < 0) {
+	err = gtp_xdp_mirror_action(RULE_ADD, r);
+	if (err) {
 		vty_out(vty, "%% Error while setting XDP mirroring rule%s"
 			   , VTY_NEWLINE);
 		gtp_mirror_rule_del(r);
@@ -456,11 +415,11 @@ DEFUN(no_pdn_mirror,
 	gtp_mirror_rule_t *r;
 	struct sockaddr_storage addr;
 	uint8_t protocol;
-	int ifindex, ret;
+	int ifindex, err;
 
-	ret = pdn_mirror_prepare(argc, argv, vty, &addr, &protocol, &ifindex);
-	if (ret != CMD_SUCCESS)
-		return ret;
+	err = pdn_mirror_prepare(argc, argv, vty, &addr, &protocol, &ifindex);
+	if (err != CMD_SUCCESS)
+		return err;
 
 	r = gtp_mirror_rule_get(&addr, protocol, ifindex);
 	if (!r) {
@@ -469,8 +428,8 @@ DEFUN(no_pdn_mirror,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_mirror_action(RULE_DEL, r);
-	if (ret < 0) {
+	err = gtp_xdp_mirror_action(RULE_DEL, r);
+	if (err) {
 		vty_out(vty, "%% Error while removing XDP mirroring rule%s"
 			   , VTY_NEWLINE);
 	}
@@ -522,7 +481,7 @@ DEFUN(request_channel,
 {
 	gtp_req_channel_t *srv = &daemon_data->request_channel;
 	struct sockaddr_storage *addr = &srv->addr;
-	int port = 0, ret = 0;
+	int port = 0, err = 0;
 
 	if (argc < 2) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -531,8 +490,8 @@ DEFUN(request_channel,
 
         VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
 
-        ret = inet_stosockaddr(argv[0], port, addr);
-	if (ret < 0) {
+        err = inet_stosockaddr(argv[0], port, addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
@@ -554,7 +513,7 @@ DEFUN(show_xdp_forwarding,
       SHOW_STR
       "XDP GTP Fowarding Dataplane ruleset\n")
 {
-	int ret;
+	int err;
 
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
@@ -562,8 +521,8 @@ DEFUN(show_xdp_forwarding,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_fwd_vty(vty);
-	if (ret < 0) {
+	err = gtp_xdp_fwd_vty(vty);
+	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -578,7 +537,7 @@ DEFUN(show_xdp_forwarding_iptnl,
       SHOW_STR
       "GTP XDP Forwarding IPIP Tunnel ruleset\n")
 {
-	int ret;
+	int err;
 
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
@@ -586,8 +545,8 @@ DEFUN(show_xdp_forwarding_iptnl,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_fwd_iptnl_vty(vty);
-	if (ret < 0) {
+	err = gtp_xdp_fwd_iptnl_vty(vty);
+	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -602,7 +561,7 @@ DEFUN(show_xdp_routing,
       SHOW_STR
       "GTP XDP Routing Dataplane ruleset\n")
 {
-	int ret;
+	int err;
 
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
@@ -610,8 +569,8 @@ DEFUN(show_xdp_routing,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_rt_vty(vty);
-	if (ret < 0) {
+	err = gtp_xdp_rt_vty(vty);
+	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -626,7 +585,7 @@ DEFUN(show_xdp_routing_iptnl,
       SHOW_STR
       "GTP XDP Routing IPIP Tunnel ruleset\n")
 {
-	int ret;
+	int err;
 
 	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
@@ -634,8 +593,8 @@ DEFUN(show_xdp_routing_iptnl,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_rt_iptnl_vty(vty);
-	if (ret < 0) {
+	err = gtp_xdp_rt_iptnl_vty(vty);
+	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -650,7 +609,7 @@ DEFUN(show_xdp_mirror,
       SHOW_STR
       "GTP XDP Mirroring ruleset\n")
 {
-	int ret;
+	int err;
 
 	if (!__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% XDP Mirror is not configured. Ignoring%s"
@@ -658,8 +617,8 @@ DEFUN(show_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-	ret = gtp_xdp_mirror_vty(vty);
-	if (ret < 0) {
+	err = gtp_xdp_mirror_vty(vty);
+	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
@@ -690,7 +649,7 @@ DEFUN(gtp_send_echo_request_standard,
       "Number between 1 and 20\n")
 {
 	gtp_cmd_args_t *gtp_cmd_args;
-	int version, port, ret = 0, count = 3;
+	int version, port, err = 0, count = 3;
 
 	if (argc < 3) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -704,8 +663,8 @@ DEFUN(gtp_send_echo_request_standard,
 
 	VTY_GET_INTEGER_RANGE("remote-port", port, argv[2], 1024, 65535);
 
-	ret = inet_stosockaddr(argv[1], port, &gtp_cmd_args->dst_addr);
-	if (ret < 0) {
+	err = inet_stosockaddr(argv[1], port, &gtp_cmd_args->dst_addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
 		FREE(gtp_cmd_args);
 		return CMD_WARNING;
@@ -749,7 +708,7 @@ DEFUN(gtp_send_echo_request_extended,
       "Number between 1 and 20\n")
 {
 	gtp_cmd_args_t *gtp_cmd_args;
-	int version, port, ret = 0, count = 3, ifindex;
+	int version, port, err = 0, count = 3, ifindex;
 
 	if (argc < 5) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -763,8 +722,8 @@ DEFUN(gtp_send_echo_request_extended,
 
 	VTY_GET_INTEGER_RANGE("port-src", port, argv[2], 1024, 65535);
 
-	ret = inet_stosockaddr(argv[1], port, &gtp_cmd_args->src_addr);
-	if (ret < 0) {
+	err = inet_stosockaddr(argv[1], port, &gtp_cmd_args->src_addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
 		FREE(gtp_cmd_args);
 		return CMD_WARNING;
@@ -772,8 +731,8 @@ DEFUN(gtp_send_echo_request_extended,
 
 	VTY_GET_INTEGER_RANGE("port-dst", port, argv[4], 1024, 65535);
 
-	ret = inet_stosockaddr(argv[3], port, &gtp_cmd_args->dst_addr);
-	if (ret < 0) {
+	err = inet_stosockaddr(argv[3], port, &gtp_cmd_args->dst_addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
 		FREE(gtp_cmd_args);
 		return CMD_WARNING;
@@ -807,51 +766,17 @@ DEFUN(gtp_send_echo_request_extended,
 static int
 pdn_config_write(vty_t *vty)
 {
-	gtp_bpf_opts_t *opts;
-	char ifname[IF_NAMESIZE];
-
 	vty_out(vty, "pdn%s", VTY_NEWLINE);
 	if (daemon_data->nameserver.ss_family)
 		vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
 	if (daemon_data->realm[0])
 		vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
-	
-	opts = &daemon_data->xdp_gtp_route;
-	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		if (opts->progname[0])
-			vty_out(vty, " xdp-gtp-route %s interface %s progname %s%s"
-				   , opts->filename
-				   , if_indextoname(opts->ifindex, ifname)
-				   , opts->progname
-				   , VTY_NEWLINE);
-		else
-			vty_out(vty, " xdp-gtp-route %s interface %s%s"
-				   , opts->filename
-				   , if_indextoname(opts->ifindex, ifname)
-				   , VTY_NEWLINE);
-        }
-	opts = &daemon_data->xdp_gtp_forward;
-	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		if (opts->progname[0])
-			vty_out(vty, " xdp-gtp-forward %s interface %s progname %s%s"
-				   , opts->filename
-				   , if_indextoname(opts->ifindex, ifname)
-				   , opts->progname
-				   , VTY_NEWLINE);
-		else
-			vty_out(vty, " xdp-gtp-forward %s interface %s%s"
-				   , opts->filename
-				   , if_indextoname(opts->ifindex, ifname)
-				   , VTY_NEWLINE);
-        }
-	opts = &daemon_data->xdp_mirror;
-	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, " xdp-mirror %s interface %s%s"
-			   , opts->filename
-			   , if_indextoname(opts->ifindex, ifname)
-			   , VTY_NEWLINE);
-		gtp_mirror_vty(vty);
-	}
+	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+		gtp_bpf_opts_list_config_write(vty, " xdp-gtp-route", &daemon_data->xdp_gtp_route);
+	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+		gtp_bpf_opts_config_write(vty, " xdp-gtp-forward", &daemon_data->xdp_gtp_forward);
+	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
+		gtp_bpf_opts_config_write(vty, " xdp-mirror", &daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_RESTART_COUNTER_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, " restart-counter-file %s%s"
 			   , daemon_data->restart_counter_filename

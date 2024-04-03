@@ -55,6 +55,8 @@ typedef struct _gtp_bpf_opts {
 	struct bpf_link		*bpf_lnk;
 	gtp_bpf_maps_t		*bpf_maps;
 	vty_t			*vty;
+
+	list_head_t		next;
 } gtp_bpf_opts_t;
 
 typedef struct _gtp_mirror_rule {
@@ -70,7 +72,7 @@ typedef struct _data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
 	gtp_req_channel_t	request_channel;
-	gtp_bpf_opts_t		xdp_gtp_route;
+	list_head_t		xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtp_forward;
 	gtp_bpf_opts_t		xdp_mirror;
 	gtp_bpf_opts_t		bpf_ppp_rps;
@@ -93,6 +95,14 @@ extern gtp_mirror_rule_t *gtp_mirror_rule_add(const struct sockaddr_storage *, u
 extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
 extern void gtp_mirror_action(int, int);
 extern int gtp_mirror_vty(vty_t *);
+extern gtp_bpf_opts_t *gtp_bpf_opts_alloc(void);
+extern int gtp_bpf_opts_add(gtp_bpf_opts_t *, list_head_t *);
+extern int gtp_bpf_opts_exist(list_head_t *, int, const char **);
+extern void gtp_bpf_opts_destroy(list_head_t *, void (*bpf_unload) (gtp_bpf_opts_t *));
+extern int gtp_bpf_opts_load(gtp_bpf_opts_t *, vty_t *, int, const char **,
+			     int (*bpf_load) (gtp_bpf_opts_t *));
+extern int gtp_bpf_opts_config_write(vty_t *, const char *, gtp_bpf_opts_t *);
+extern int gtp_bpf_opts_list_config_write(vty_t *, const char *, list_head_t *);
 extern data_t *alloc_daemon_data(void);
 extern void free_daemon_data(void);
 

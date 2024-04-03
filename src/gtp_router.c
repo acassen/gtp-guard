@@ -86,7 +86,7 @@ gtp_router_get(const char *name)
 	size_t len = strlen(name);
 
 	list_for_each_entry(ctx, &daemon_data->gtp_router_ctx, next) {
-		if (!memcmp(ctx->name, name, len))
+		if (!strncmp(ctx->name, name, len))
 			return ctx;
 	}
 
@@ -117,7 +117,6 @@ gtp_router_ctx_server_destroy(gtp_router_t *ctx)
 int
 gtp_router_ctx_destroy(gtp_router_t *ctx)
 {
-
 	list_head_del(&ctx->next);
 	return 0;
 }

@@ -128,6 +128,141 @@ gtp_mirror_vty(vty_t *vty)
 
 
 /*
+ *	BPF opts related
+ */
+gtp_bpf_opts_t *
+gtp_bpf_opts_alloc(void)
+{
+	gtp_bpf_opts_t *new;
+
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->next);
+
+	return new;
+}
+
+int
+gtp_bpf_opts_add(gtp_bpf_opts_t *opts, list_head_t *l)
+{
+	list_add_tail(&opts->next, l);
+	return 0;
+}
+
+int
+gtp_bpf_opts_exist(list_head_t *l, int argc, const char **argv)
+{
+	gtp_bpf_opts_t *opts;
+	int ifindex;
+
+	if (argc < 2)
+		return 0;
+
+	ifindex = if_nametoindex(argv[1]);
+	if (!ifindex)
+		return 0;
+
+	list_for_each_entry(opts, l, next) {
+		if (opts->ifindex == ifindex &&
+		    !strncmp(opts->filename, argv[0], GTP_STR_MAX_LEN))
+			return 1;
+	}
+
+	return 0;
+}
+
+
+void
+gtp_bpf_opts_destroy(list_head_t *l, void (*bpf_unload) (gtp_bpf_opts_t *))
+{
+	gtp_bpf_opts_t *opts, *_opts;
+
+	list_for_each_entry_safe(opts, _opts, l, next) {
+		(*bpf_unload) (opts);
+		list_head_del(&opts->next);
+		FREE(opts);
+	}
+
+	INIT_LIST_HEAD(l);
+}
+
+int
+gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
+		     int (*bpf_load) (gtp_bpf_opts_t *))
+{
+	int ret, ifindex;
+
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return -1;
+	}
+
+	strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
+	ifindex = if_nametoindex(argv[1]);
+	if (argc == 3)
+		strlcpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
+	if (!ifindex) {
+		vty_out(vty, "%% Error resolving interface %s (%m)%s"
+			   , argv[1]
+			   , VTY_NEWLINE);
+		return -1;
+	}
+	opts->ifindex = ifindex;
+	opts->vty = vty;
+
+	ret = (*bpf_load) (opts);
+	if (ret < 0) {
+		vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
+			   , opts->filename
+			   , opts->ifindex
+			   , VTY_NEWLINE);
+		/* Reset data */
+		memset(opts, 0, sizeof(gtp_bpf_opts_t));
+		return -1;
+	}
+
+	vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
+		   , opts->filename
+		   , opts->ifindex
+		   , VTY_NEWLINE);
+	return 0;
+}
+
+int
+gtp_bpf_opts_config_write(vty_t *vty, const char *cmd, gtp_bpf_opts_t *opts)
+{
+	char ifname[IF_NAMESIZE];
+
+	if (opts->progname[0]) {
+		vty_out(vty, "%s %s interface %s progname %s%s"
+			   , cmd
+			   , opts->filename
+			   , if_indextoname(opts->ifindex, ifname)
+			   , opts->progname
+			   , VTY_NEWLINE);
+		return 0;
+	}
+
+	vty_out(vty, "%s %s interface %s%s"
+		   , cmd
+		   , opts->filename
+		   , if_indextoname(opts->ifindex, ifname)
+		   , VTY_NEWLINE);
+	return 0;
+}
+
+int
+gtp_bpf_opts_list_config_write(vty_t *vty, const char *cmd, list_head_t *l)
+{
+	gtp_bpf_opts_t *opts;
+
+	list_for_each_entry(opts, l, next)
+		gtp_bpf_opts_config_write(vty, cmd, opts);
+
+	return 0;
+}
+
+
+/*
  *	Daemon Control Block helpers
  */
 data_t *
@@ -136,6 +271,7 @@ alloc_daemon_data(void)
 	data_t *new;
 
 	PMALLOC(new);
+	INIT_LIST_HEAD(&new->xdp_gtp_route);
 	INIT_LIST_HEAD(&new->mirror_rules);
 	INIT_LIST_HEAD(&new->ip_vrf);
 	INIT_LIST_HEAD(&new->pppoe);
@@ -154,7 +290,7 @@ free_daemon_data(void)
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_xdp_mirror_unload(&daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
-		gtp_xdp_rt_unload(&daemon_data->xdp_gtp_route);
+		gtp_bpf_opts_destroy(&daemon_data->xdp_gtp_route, gtp_xdp_rt_unload);
 	gtp_switch_server_destroy();
 	gtp_router_server_destroy();
 	gtp_request_destroy();
