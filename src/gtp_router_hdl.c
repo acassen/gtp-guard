@@ -889,6 +889,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
 	spppoe_t *s_pppoe;
+	gtp_pppoe_t *pppoe;
 	gtp_teid_t *teid;
 	gtp_id_ecgi_t *ecgi = NULL;
 	gtp_ie_ambr_t *ambr = NULL;
@@ -1045,8 +1046,22 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
 	/* IP VRF is in use and PPPoE session forwarding is configured */
-	if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
-		s_pppoe = spppoe_init(apn->vrf->pppoe, c,
+	if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
+			 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
+		if (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
+			pppoe = apn->vrf->pppoe;
+		else
+			pppoe = gtp_pppoe_bundle_get_active_instance(apn->vrf->pppoe_bundle);
+
+		if (!pppoe || (pppoe && !__test_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags))) {
+			log_message(LOG_INFO, "No active PPPoE Instance available to handle request");
+			rc = gtpc_build_errmsg(w->pbuff, teid
+						       , GTP_CREATE_SESSION_RESPONSE_TYPE
+						       , GTP_CAUSE_REQUEST_REJECTED);
+			goto end;
+		}
+
+		s_pppoe = spppoe_init(pppoe, c,
 				      gtpc_pppoe_tls, gtpc_pppoe_tlf,
 				      gtpc_pppoe_create_session_response, gtpc_pppoe_chg,
 				      imsi, s->mei, apn_str, ecgi, ambr);

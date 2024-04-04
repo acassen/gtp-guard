@@ -314,8 +314,12 @@ spppoe_free(spppoe_t *s)
 static int
 spppoe_release(spppoe_t *s)
 {
-	spppoe_unique_unhash(&s->pppoe->unique_tab, s);
-	spppoe_session_unhash(&s->pppoe->session_tab, s);
+	gtp_pppoe_t *pppoe = s->pppoe;
+
+	spppoe_unique_unhash((pppoe->bundle) ? &pppoe->bundle->unique_tab :
+					       &pppoe->unique_tab, s);
+	spppoe_session_unhash((pppoe->bundle) ? &pppoe->bundle->session_tab :
+						&pppoe->session_tab, s);
 	spppoe_free(s);
 	return 0;
 }
@@ -393,7 +397,9 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 
 	s->s_ppp = sppp_init(s, pp_tls, pp_tlf, pp_con, pp_chg);
 	timer_node_init(&s->t_node, NULL, s);
-	spppoe_unique_hash(&pppoe->unique_tab, s, imsi, &pppoe->seed);
+	spppoe_unique_hash((pppoe->bundle) ? &pppoe->bundle->unique_tab :
+					     &pppoe->unique_tab,
+			   s, imsi, &pppoe->seed);
 	spppoe_add(c, s);
 
 	err = pppoe_connect(s);

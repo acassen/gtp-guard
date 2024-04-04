@@ -115,6 +115,7 @@ typedef struct _pppoe_vendor_tag {
 enum pppoe_flags {
 	PPPOE_FL_STOPPING_BIT,
 	PPPOE_FL_RUNNING_BIT,
+	PPPOE_FL_ACTIVE_BIT,
 	PPPOE_FL_BUNDLE_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT,
@@ -218,6 +219,7 @@ extern int gtp_pppoe_destroy(void);
 
 extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_get_by_name(const char *);
 extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_init(const char *);
+extern gtp_pppoe_t *gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *);
 extern int gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *);
 extern int gtp_pppoe_bundle_destroy(void);
 

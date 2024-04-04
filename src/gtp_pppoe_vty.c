@@ -46,7 +46,6 @@ cmd_node_t pppoe_node = {
 	.prompt ="%s(pppoe)# ",
 	.config_write = gtp_config_pppoe_write,
 };
-
 cmd_node_t pppoe_bundle_node = {
 	.node = PPPOE_BUNDLE_NODE,
 	.parent_node = CONFIG_NODE,
@@ -152,6 +151,7 @@ DEFUN(pppoe_interface,
 		return CMD_WARNING;
 	}
 
+	__set_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 

@@ -513,7 +513,9 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 			}
 
 			hunique = (uint32_t *) (pkt->pbuff->head + off);
-			s = spppoe_get_by_unique(&pppoe->unique_tab, ntohl(*hunique));
+			s = spppoe_get_by_unique((pppoe->bundle) ? &pppoe->bundle->unique_tab :
+								   &pppoe->unique_tab,
+						 ntohl(*hunique));
 			break;
 		case PPPOE_TAG_ACCOOKIE:
 			if (ac_cookie == NULL) {
@@ -624,7 +626,9 @@ breakbreak:
 			return;
 
 		s->session_id = session;
-		spppoe_session_hash(&pppoe->session_tab, s, &s->hw_src, s->session_id);
+		spppoe_session_hash((pppoe->bundle) ? &pppoe->bundle->session_tab :
+						      &pppoe->session_tab,
+				    s, &s->hw_src, s->session_id);
 		timer_node_del(&pppoe->session_timer, &s->t_node);
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x connected\n",
 			 pppoe->ifname, s->unique, session));
@@ -639,7 +643,8 @@ breakbreak:
 			/* Some AC implementation doesnt tag PADT with Host-Uniq...
 			 * At least that's the way it is with Cisco implementation.
 			 * So try to find PPPoE session by session-id */
-			s = spppoe_get_by_session(&pppoe->session_tab,
+			s = spppoe_get_by_session((pppoe->bundle) ? &pppoe->bundle->session_tab :
+								    &pppoe->session_tab,
 						  (struct ether_addr *) eh->ether_dhost, session);
 			if (s == NULL)
 				return;
@@ -673,8 +678,9 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		return;
 	eh = (struct ether_header *) pkt->pbuff->head;
 
-	sp = spppoe_get_by_session(&pppoe->session_tab, (struct ether_addr *) eh->ether_dhost,
-				   session);
+	sp = spppoe_get_by_session((pppoe->bundle) ? &pppoe->bundle->session_tab :
+						     &pppoe->session_tab,
+				   (struct ether_addr *) eh->ether_dhost, session);
 	if (!sp) {
 		log_message(LOG_INFO, "%s(): %s: unknown pppoe session for "
 				      "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x"

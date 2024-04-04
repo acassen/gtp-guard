@@ -577,10 +577,26 @@ gtp_pppoe_bundle_init(const char *name)
 	return bundle;
 }
 
+gtp_pppoe_t *
+gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *bundle)
+{
+	int i;
+
+	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
+		if (__test_bit(PPPOE_FL_ACTIVE_BIT, &bundle->pppoe[i]->flags))
+			return bundle->pppoe[i];
+	}
+
+	return NULL;
+}
+
 int
 __gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *bundle)
 {
 	list_head_del(&bundle->next);
+	spppoe_sessions_destroy(&bundle->session_tab);
+	gtp_htab_destroy(&bundle->session_tab);
+	gtp_htab_destroy(&bundle->unique_tab);
 	FREE(bundle->pppoe);
 	return 0;
 }
