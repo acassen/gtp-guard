@@ -516,7 +516,15 @@ DEFUN(pppoe_bundle_instance,
 		return CMD_WARNING;
 	}
 
+	if (pppoe->bundle) {
+		vty_out(vty, "%% PPPoe Instance:%s already part of pppoe-bundle:%s%s"
+			   , pppoe->name, pppoe->bundle->name
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	bundle->pppoe[bundle->instance_idx++] = pppoe;
+	pppoe->bundle = bundle;
 	return CMD_SUCCESS;
 }
 
