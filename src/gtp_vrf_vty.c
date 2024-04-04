@@ -294,6 +294,11 @@ DEFUN(ip_vrf_pppoe,
 		return CMD_WARNING;
 	}
 
+	if (__test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &vrf->flags)) {
+		vty_out(vty, "%% PPPoE Bundle already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	pppoe = gtp_pppoe_get_by_name(argv[0]);
 	if (!pppoe) {
 		vty_out(vty, "%% unknown PPPoE instance %s!%s", argv[0], VTY_NEWLINE);
@@ -302,6 +307,42 @@ DEFUN(ip_vrf_pppoe,
 
 	vrf->pppoe = pppoe;
 	__set_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(ip_vrf_pppoe_bundle,
+      ip_vrf_pppoe_bundle_cmd,
+      "pppoe bundle STRING",
+      "PPP Over Ethernet support\n"
+      "Bundle\n"
+      "NAME\n")
+{
+	ip_vrf_t *vrf = vty->index;
+	gtp_pppoe_bundle_t *bundle;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags)) {
+		vty_out(vty, "%% PPPoE Instance already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (__test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &vrf->flags)) {
+		vty_out(vty, "%% PPPoE Bundle already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	bundle = gtp_pppoe_bundle_get_by_name(argv[0]);
+	if (!bundle) {
+		vty_out(vty, "%% unknown PPPoE bundle %s!%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vrf->pppoe_bundle = bundle;
+	__set_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &vrf->flags);
 	return CMD_SUCCESS;
 }
 
@@ -345,6 +386,7 @@ gtp_config_write(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->ip_vrf;
 	gtp_pppoe_t *pppoe;
+	gtp_pppoe_bundle_t *bundle;
 	ip_vrf_t *vrf;
 
         list_for_each_entry(vrf, l, next) {
@@ -367,6 +409,10 @@ gtp_config_write(vty_t *vty)
 		if (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags)) {
 			pppoe = vrf->pppoe;
 			vty_out(vty, " pppoe instance %s%s", pppoe->name, VTY_NEWLINE);
+		}
+		if (__test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &vrf->flags)) {
+			bundle = vrf->pppoe_bundle;
+			vty_out(vty, " pppoe bundle %s%s", bundle->name, VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -396,6 +442,7 @@ gtp_vrf_vty_init(void)
 	install_element(IP_VRF_NODE, &ip_vrf_decapsulation_dot1q_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_encapsulation_ipip_cmd);
 	install_element(IP_VRF_NODE, &ip_vrf_pppoe_cmd);
+	install_element(IP_VRF_NODE, &ip_vrf_pppoe_bundle_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_ip_vrf_cmd);
