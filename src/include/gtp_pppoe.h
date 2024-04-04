@@ -86,6 +86,7 @@
 
 #define PPPOE_BUFSIZE		64
 #define PPPOE_MPKT		10
+#define PPPOE_BUNDLE_MAXSIZE	5
 
 typedef struct _pppoe_hdr {
 	uint8_t		vertype;
@@ -114,6 +115,7 @@ typedef struct _pppoe_vendor_tag {
 enum pppoe_flags {
 	PPPOE_FL_STOPPING_BIT,
 	PPPOE_FL_RUNNING_BIT,
+	PPPOE_FL_BUNDLE_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT,
 	PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT,
@@ -154,6 +156,19 @@ typedef struct _gtp_pppoe_worker {
 	uint64_t		tx_bytes;
 } gtp_pppoe_worker_t;
 
+typedef struct _gtp_pppoe_bundle {
+	char			name[GTP_NAME_MAX_LEN];
+
+	gtp_htab_t		session_tab;	/* Session Tracking by sesion-id */
+	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
+
+	struct _gtp_pppoe	**pppoe;
+	int			instance_idx;
+	list_head_t		next;
+
+	unsigned long		flags;
+} gtp_pppoe_bundle_t;
+
 typedef struct _gtp_pppoe {
 	char			name[GTP_NAME_MAX_LEN];
 	char			ifname[GTP_NAME_MAX_LEN];
@@ -174,6 +189,7 @@ typedef struct _gtp_pppoe {
 	unsigned int		seed;
 	pthread_t		task;
 
+	gtp_pppoe_bundle_t	*bundle;	/* Part of a pppoe-bundle */
 	gtp_htab_t		session_tab;	/* Session Tracking by sesion-id */
 	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
 	int			session_count;	/* Number of session tracked */
@@ -199,5 +215,10 @@ extern int gtp_pppoe_release(gtp_pppoe_t *);
 extern int gtp_pppoe_interface_init(gtp_pppoe_t *, const char *);
 extern gtp_pppoe_t *gtp_pppoe_init(const char *);
 extern int gtp_pppoe_destroy(void);
+
+extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_get_by_name(const char *);
+extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_init(const char *);
+extern int gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *);
+extern int gtp_pppoe_bundle_destroy(void);
 
 #endif

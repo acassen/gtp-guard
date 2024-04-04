@@ -38,16 +38,24 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 
-static int gtp_config_write(vty_t *vty);
+static int gtp_config_pppoe_write(vty_t *vty);
+static int gtp_config_pppoe_bundle_write(vty_t *vty);
 cmd_node_t pppoe_node = {
 	.node = PPPOE_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt ="%s(pppoe)# ",
-	.config_write = gtp_config_write,
+	.config_write = gtp_config_pppoe_write,
+};
+
+cmd_node_t pppoe_bundle_node = {
+	.node = PPPOE_BUNDLE_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(pppoe-bundle)# ",
+	.config_write = gtp_config_pppoe_bundle_write,
 };
 
 /*
- *	Command
+ *	PPPoE Commands
  */
 DEFUN(pppoe,
       pppoe_cmd,
@@ -424,6 +432,96 @@ DEFUN(pppoe_lcp_max_failure,
 }
 
 /*
+ *	PPPoE Bundle Commands
+ */
+DEFUN(pppoe_bundle,
+      pppoe_bundle_cmd,
+      "pppoe-bundle STRING",
+      "Configure PPPoE Bundle\n"
+      "PPPoE Bundle Name")
+{
+	gtp_pppoe_bundle_t *new;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	new = gtp_pppoe_bundle_init(argv[0]);
+	if (!new) {
+		if (errno == EEXIST)
+			vty_out(vty, "%% PPPoE bundle %s already exist !!!%s"
+				   , argv[0], VTY_NEWLINE);
+		else
+			vty_out(vty, "%% PPPoE Error allocating bundle %s !!!%s"
+				   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+
+	vty->node = PPPOE_BUNDLE_NODE;
+	vty->index = new;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pppoe_bundle,
+      no_pppoe_bundle_cmd,
+      "no pppoe-bundle STRING",
+      "Destroy PPPoe Bundle\n"
+      "PPPoE Bundle Name")
+{
+	gtp_pppoe_bundle_t *bundle;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* Already existing ? */
+	bundle = gtp_pppoe_bundle_get_by_name(argv[0]);
+	if (!bundle) {
+		vty_out(vty, "%% unknown PPPoE bundle %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_pppoe_bundle_release(bundle);
+	return CMD_SUCCESS;
+}
+
+DEFUN(pppoe_bundle_instance,
+      pppoe_bundle_instance_cmd,
+      "instance STRING",
+      "PPPoE Instance\n"
+      "Name\n")
+{
+	gtp_pppoe_bundle_t *bundle = vty->index;
+	gtp_pppoe_t *pppoe;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pppoe = gtp_pppoe_get_by_name(argv[0]);
+	if (!pppoe) {
+		vty_out(vty, "%% Unknown PPPoe Instance %s%s"
+			   , argv[0]
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (bundle->instance_idx >= PPPOE_BUNDLE_MAXSIZE) {
+		vty_out(vty, "%% PPPoe Bundle no more Instance available%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	bundle->pppoe[bundle->instance_idx++] = pppoe;
+	return CMD_SUCCESS;
+}
+
+
+/*
  *	Show commands
  */
 static int
@@ -493,9 +591,9 @@ DEFUN(show_pppoe,
 
 /* Configuration writer */
 static int
-gtp_config_write(vty_t *vty)
+gtp_config_pppoe_write(vty_t *vty)
 {
-        list_head_t *l = &daemon_data->pppoe;
+	list_head_t *l = &daemon_data->pppoe;
 	gtp_pppoe_t *pppoe;
 
 	list_for_each_entry(pppoe, l, next) {
@@ -561,6 +659,23 @@ gtp_config_write(vty_t *vty)
 	return CMD_SUCCESS;
 }
 
+static int
+gtp_config_pppoe_bundle_write(vty_t *vty)
+{
+	list_head_t *l = &daemon_data->pppoe_bundle;
+	gtp_pppoe_bundle_t *bundle;
+	int i;
+
+	list_for_each_entry(bundle, l, next) {
+		vty_out(vty, "pppoe-bundle %s%s", bundle->name, VTY_NEWLINE);
+		for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++)
+			vty_out(vty, " instance %s%s", bundle->pppoe[i]->name, VTY_NEWLINE);
+		vty_out(vty, "!%s", VTY_NEWLINE);
+	}
+
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	VTY init
@@ -591,6 +706,13 @@ gtp_pppoe_vty_init(void)
 	install_element(PPPOE_NODE, &pppoe_lcp_max_terminate_cmd);
 	install_element(PPPOE_NODE, &pppoe_lcp_max_configure_cmd);
 	install_element(PPPOE_NODE, &pppoe_lcp_max_failure_cmd);
+
+	/* Install PPPoE Bundle commands. */
+	install_node(&pppoe_bundle_node);
+	install_element(CONFIG_NODE, &pppoe_bundle_cmd);
+	install_element(CONFIG_NODE, &no_pppoe_bundle_cmd);
+
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pppoe_cmd);

@@ -189,7 +189,7 @@ int
 gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
 		     int (*bpf_load) (gtp_bpf_opts_t *))
 {
-	int ret, ifindex;
+	int err, ifindex;
 
 	if (argc < 2) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -209,8 +209,8 @@ gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
 	opts->ifindex = ifindex;
 	opts->vty = vty;
 
-	ret = (*bpf_load) (opts);
-	if (ret < 0) {
+	err = (*bpf_load) (opts);
+	if (err) {
 		vty_out(vty, "%% Error loading eBPF program:%s on ifindex:%d%s"
 			   , opts->filename
 			   , opts->ifindex
@@ -275,6 +275,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->mirror_rules);
 	INIT_LIST_HEAD(&new->ip_vrf);
 	INIT_LIST_HEAD(&new->pppoe);
+	INIT_LIST_HEAD(&new->pppoe_bundle);
 	INIT_LIST_HEAD(&new->gtp_apn);
 	INIT_LIST_HEAD(&new->gtp_switch_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
@@ -294,6 +295,7 @@ free_daemon_data(void)
 	gtp_switch_server_destroy();
 	gtp_router_server_destroy();
 	gtp_request_destroy();
+	gtp_pppoe_bundle_destroy();
 	gtp_pppoe_destroy();
 	gtp_sessions_destroy();
 	gtp_conn_destroy();

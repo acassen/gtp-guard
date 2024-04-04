@@ -63,6 +63,22 @@ gtp_pppoe_get_by_name(const char *name)
 	return NULL;
 }
 
+gtp_pppoe_bundle_t *
+gtp_pppoe_bundle_get_by_name(const char *name)
+{
+	gtp_pppoe_bundle_t *bundle;
+
+	pthread_mutex_lock(&gtp_pppoe_mutex);
+	list_for_each_entry(bundle, &daemon_data->pppoe_bundle, next) {
+		if (!strncmp(bundle->name, name, GTP_NAME_MAX_LEN)) {
+			pthread_mutex_unlock(&gtp_pppoe_mutex);
+			return bundle;
+		}
+	}
+	pthread_mutex_unlock(&gtp_pppoe_mutex);
+	return NULL;
+}
+
 static gtp_pppoe_t *
 gtp_pppoe_get_by_ifindex(const unsigned int ifindex)
 {
@@ -95,6 +111,16 @@ gtp_pppoe_add(gtp_pppoe_t *pppoe)
 	pthread_mutex_unlock(&gtp_pppoe_mutex);
 	return 0;
 }
+
+static int
+gtp_pppoe_bundle_add(gtp_pppoe_bundle_t *bundle)
+{
+	pthread_mutex_lock(&gtp_pppoe_mutex);
+	list_add_tail(&bundle->next, &daemon_data->pppoe_bundle);
+	pthread_mutex_unlock(&gtp_pppoe_mutex);
+	return 0;
+}
+
 
 /*
  *	Receive Packet Steering eBPF related
@@ -463,9 +489,12 @@ gtp_pppoe_init(const char *name)
 	}
 
 	PMALLOC(pppoe);
-	if (!pppoe)
+	if (!pppoe) {
+		errno = ENOMEM;
 		return NULL;
+	}
 	strlcpy(pppoe->name, name, GTP_NAME_MAX_LEN);
+	INIT_LIST_HEAD(&pppoe->next);
 	pppoe->seed = time(NULL);
 	srand(pppoe->seed);
 	pkt_queue_init(&pppoe->pkt_q);
@@ -512,6 +541,67 @@ gtp_pppoe_destroy(void)
 	pthread_mutex_lock(&gtp_pppoe_mutex);
 	list_for_each_entry_safe(pppoe, _pppoe, &daemon_data->pppoe, next)
 		__gtp_pppoe_release(pppoe);
+	pthread_mutex_unlock(&gtp_pppoe_mutex);
+
+	return 0;
+}
+
+
+/*
+ *	PPPoE Bundle init
+ */
+gtp_pppoe_bundle_t *
+gtp_pppoe_bundle_init(const char *name)
+{
+	gtp_pppoe_bundle_t *bundle = NULL;
+
+	bundle = gtp_pppoe_bundle_get_by_name(name);
+	if (bundle) {
+		errno = EEXIST;
+		return NULL;
+	}
+
+	PMALLOC(bundle);
+	if (!bundle) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	strlcpy(bundle->name, name, GTP_NAME_MAX_LEN);
+	INIT_LIST_HEAD(&bundle->next);
+	gtp_htab_init(&bundle->session_tab, CONN_HASHTAB_SIZE);
+	gtp_htab_init(&bundle->unique_tab, CONN_HASHTAB_SIZE);
+	bundle->pppoe = MALLOC(sizeof(gtp_pppoe_t) * PPPOE_BUNDLE_MAXSIZE);
+
+	gtp_pppoe_bundle_add(bundle);
+
+	return bundle;
+}
+
+int
+__gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *bundle)
+{
+	list_head_del(&bundle->next);
+	FREE(bundle->pppoe);
+	return 0;
+}
+
+int
+gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *bundle)
+{
+	pthread_mutex_lock(&gtp_pppoe_mutex);
+	__gtp_pppoe_bundle_release(bundle);
+	pthread_mutex_unlock(&gtp_pppoe_mutex);
+	return 0;
+}
+
+int
+gtp_pppoe_bundle_destroy(void)
+{
+	gtp_pppoe_bundle_t *bundle, *_bundle;
+
+	pthread_mutex_lock(&gtp_pppoe_mutex);
+	list_for_each_entry_safe(bundle, _bundle, &daemon_data->pppoe_bundle, next)
+		__gtp_pppoe_bundle_release(bundle);
 	pthread_mutex_unlock(&gtp_pppoe_mutex);
 
 	return 0;
