@@ -634,30 +634,21 @@ DEFUN(show_gtp_session,
 {
 	uint64_t imsi = 0;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing argument, IMSI needed%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	imsi = strtoull(argv[0], NULL, 10);
-	gtp_conn_vty(vty, gtp_session_vty, imsi);
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_gtp_session_summary,
-      show_gtp_session_summary_cmd,
-      "show gtp session-summary",
-      SHOW_STR
-      "GTP related informations\n"
-      "GTP Session summary\n")
-{
 	/* Header */
-	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"
-		     "|      IMSI       |    APN     |                GTP Session Informations                |%s"
-		     "+-----------------+------------+--------------------------------------------------------+%s"
-		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
+	if (!argc)
+		vty_out(vty, "+-----------------"
+			     "+------------"
+			     "+--------------------------------------------------------+%s"
+			     "|      IMSI       "
+			     "|    APN     "
+			     "|                GTP Session Informations                |%s"
+			     "+-----------------"
+			     "+------------"
+			     "+--------------------------------------------------------+%s"
+			   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 
-	gtp_conn_vty(vty, gtp_session_summary_vty, 0);
+	imsi = (argc) ? strtoull(argv[0], NULL, 10) : 0;
+	gtp_conn_vty(vty, (argc) ? gtp_session_summary_vty : gtp_session_vty, imsi);
 	return CMD_SUCCESS;
 }
 
@@ -698,9 +689,7 @@ gtp_sessions_vty_init(void)
 {
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_session_cmd);
-	install_element(VIEW_NODE, &show_gtp_session_summary_cmd);
 	install_element(ENABLE_NODE, &show_gtp_session_cmd);
-	install_element(ENABLE_NODE, &show_gtp_session_summary_cmd);
 	install_element(ENABLE_NODE, &clear_gtp_session_cmd);
 
 	return 0;
