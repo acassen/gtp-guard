@@ -342,7 +342,14 @@ gtp_pppoe_worker_task(void *arg)
 		log_message(LOG_INFO, "%s(): Error recv on pppoe socket for interface %s (%m)"
 				    , __FUNCTION__
 				    , pppoe->ifname);
-		goto end;
+		mpkt_reset(&w->mpkt);
+		usleep(100000); /* 100ms delay before retry */
+		goto shoot_again;
+	}
+
+	if (!__test_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags)) {
+		mpkt_reset(&w->mpkt);
+		goto shoot_again;
 	}
 
 	/* mpkt processing */
@@ -580,11 +587,29 @@ gtp_pppoe_bundle_init(const char *name)
 gtp_pppoe_t *
 gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *bundle)
 {
+	gtp_pppoe_t *pppoe;
 	int i;
 
+	/* try match active !fault instance */
 	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
-		if (__test_bit(PPPOE_FL_ACTIVE_BIT, &bundle->pppoe[i]->flags))
-			return bundle->pppoe[i];
+		pppoe = bundle->pppoe[i];
+		if (__test_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags) &&
+		    !__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags)) {
+			if (!__test_and_set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags))
+				log_message(LOG_INFO, "PPPoE:%s now serving", pppoe->name);
+			return pppoe;
+		}
+	}
+
+	/* No match, fallback to the first standby !fault instance */
+	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
+		pppoe = bundle->pppoe[i];
+		if (__test_bit(PPPOE_FL_STANDBY_BIT, &pppoe->flags) &&
+		    !__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags)) {
+			if (!__test_and_set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags))
+				log_message(LOG_INFO, "PPPoE:%s now serving", pppoe->name);
+			return pppoe;
+		    }
 	}
 
 	return NULL;

@@ -316,7 +316,8 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 
 	list_for_each_entry(opts, l, next) {
 		/* PPPoE vrf ? */
-		if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
+		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
+				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
 			err = gtp_xdp_ppp_action(action, t, opts->ifindex,
 						 opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map,
 						 opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
@@ -339,7 +340,8 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 
 	list_for_each_entry(opts, l, next) {
 		/* PPPoE vrf ? */
-		if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
+		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
+				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
 			gtp_xdp_ppp_action(RULE_DEL, t, opts->ifindex,
 					   opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map,
 					   opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
@@ -370,7 +372,8 @@ gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 
 	list_for_each_entry(opts, l, next) {
 		/* PPPoE vrf ? */
-		if (apn->vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags)) {
+		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
+				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
 			gtp_xdp_ppp_teid_vty(vty, t, opts->ifindex
 						, opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map
 						, opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);

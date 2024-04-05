@@ -152,6 +152,7 @@ DEFUN(pppoe_interface,
 	}
 
 	__set_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -488,18 +489,14 @@ DEFUN(no_pppoe_bundle,
 	return CMD_SUCCESS;
 }
 
-DEFUN(pppoe_bundle_instance,
-      pppoe_bundle_instance_cmd,
-      "instance STRING",
-      "PPPoE Instance\n"
-      "Name\n")
+static gtp_pppoe_t *
+gtp_pppoe_bundle_instance_prepare(vty_t *vty, gtp_pppoe_bundle_t *bundle, int argc, const char **argv)
 {
-	gtp_pppoe_bundle_t *bundle = vty->index;
 	gtp_pppoe_t *pppoe;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
+		return NULL;
 	}
 
 	pppoe = gtp_pppoe_get_by_name(argv[0]);
@@ -507,27 +504,64 @@ DEFUN(pppoe_bundle_instance,
 		vty_out(vty, "%% Unknown PPPoe Instance %s%s"
 			   , argv[0]
 			   , VTY_NEWLINE);
-		return CMD_WARNING;
+		return NULL;
 	}
 
 	if (bundle->instance_idx >= PPPOE_BUNDLE_MAXSIZE) {
 		vty_out(vty, "%% PPPoe Bundle no more Instance available%s"
 			   , VTY_NEWLINE);
-		return CMD_WARNING;
+		return NULL;
 	}
 
 	if (pppoe->bundle) {
 		vty_out(vty, "%% PPPoe Instance:%s already part of pppoe-bundle:%s%s"
 			   , pppoe->name, pppoe->bundle->name
 			   , VTY_NEWLINE);
-		return CMD_WARNING;
+		return NULL;
 	}
 
+	__clear_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags);
 	bundle->pppoe[bundle->instance_idx++] = pppoe;
 	pppoe->bundle = bundle;
+	return pppoe;
+}
+
+DEFUN(pppoe_bundle_instance_active,
+      pppoe_bundle_instance_active_cmd,
+      "instance STRING active",
+      "PPPoE Instance\n"
+      "Name\n")
+{
+	gtp_pppoe_bundle_t *bundle = vty->index;
+	gtp_pppoe_t *pppoe;
+
+	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
+	if (!pppoe)
+		return CMD_WARNING;
+
+	log_message(LOG_INFO, "PPPoE:%s is active", pppoe->name);
+	__set_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
+DEFUN(pppoe_bundle_instance_standby,
+      pppoe_bundle_instance_standby_cmd,
+      "instance STRING standby",
+      "PPPoE Instance\n"
+      "Name\n")
+{
+	gtp_pppoe_bundle_t *bundle = vty->index;
+	gtp_pppoe_t *pppoe;
+
+	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
+	if (!pppoe)
+		return CMD_WARNING;
+
+	log_message(LOG_INFO, "PPPoE:%s is standby", pppoe->name);
+	__clear_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_STANDBY_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
 
 /*
  *	Show commands
@@ -720,7 +754,8 @@ gtp_pppoe_vty_init(void)
 	install_element(CONFIG_NODE, &pppoe_bundle_cmd);
 	install_element(CONFIG_NODE, &no_pppoe_bundle_cmd);
 
-	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_active_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_standby_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pppoe_cmd);

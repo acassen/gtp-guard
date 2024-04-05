@@ -85,7 +85,8 @@ gtp_teid_set(gtp_server_worker_t *w, gtp_session_t *s, gtp_teid_t *teid, uint8_t
 		 * delay GTP-U rules settings since part of configuration
 		 * will be part of PPP negociation. Setting rules when
 		 * IPCP negociation is completed */
-		if (vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
+		if (vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags) ||
+			    __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &vrf->flags)))
 			__set_bit(GTP_TEID_FL_XDP_DELAYED, &teid->flags);
 
 		gtp_session_gtpu_teid_add(s, teid);
@@ -889,7 +890,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
 	spppoe_t *s_pppoe;
-	gtp_pppoe_t *pppoe;
+	gtp_pppoe_t *pppoe = NULL;
 	gtp_teid_t *teid;
 	gtp_id_ecgi_t *ecgi = NULL;
 	gtp_ie_ambr_t *ambr = NULL;

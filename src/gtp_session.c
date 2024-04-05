@@ -632,23 +632,20 @@ DEFUN(show_gtp_session,
       "GTP Session tracking\n"
       "IMSI to look for\n")
 {
-	uint64_t imsi = 0;
+	uint64_t imsi;
+
+	if (argc) {
+		imsi = strtoull(argv[0], NULL, 10);
+		gtp_conn_vty(vty, gtp_session_vty, imsi);
+		return CMD_SUCCESS;
+	}
 
 	/* Header */
-	if (!argc)
-		vty_out(vty, "+-----------------"
-			     "+------------"
-			     "+--------------------------------------------------------+%s"
-			     "|      IMSI       "
-			     "|    APN     "
-			     "|                GTP Session Informations                |%s"
-			     "+-----------------"
-			     "+------------"
-			     "+--------------------------------------------------------+%s"
-			   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-
-	imsi = (argc) ? strtoull(argv[0], NULL, 10) : 0;
-	gtp_conn_vty(vty, (argc) ? gtp_session_summary_vty : gtp_session_vty, imsi);
+	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"
+		     "|      IMSI       |    APN     |                GTP Session Informations                |%s"
+		     "+-----------------+------------+--------------------------------------------------------+%s"
+		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
+	gtp_conn_vty(vty, gtp_session_summary_vty, 0);
 	return CMD_SUCCESS;
 }
 

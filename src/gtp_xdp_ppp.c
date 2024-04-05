@@ -204,6 +204,9 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
 			gtp_xdp_rt_key_set(t, &rt_k);
 			err = bpf_map__lookup_elem(map, &rt_k, sizeof(struct ip_rt_key), r, sz, 0);
 		} else {
+			if (!spppoe)
+				goto end;
+
 			gtp_xdp_ppp_key_set(t, &ppp_k, spppoe);
 			err = bpf_map__lookup_elem(map, &ppp_k, sizeof(struct ppp_key), r, sz, 0);
 		}
