@@ -73,6 +73,13 @@ struct {
 	__type(value, struct gtp_iptnl_rule);
 } iptnl_info SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__uint(max_entries, 8);
+	__type(key, __u32);
+	__type(value, struct port_mac_address);
+} mac_learning SEC(".maps");
+
 
 /*
  *	Checksum related
@@ -97,7 +104,7 @@ static __always_inline void ipv4_csum(void *data_start, int data_size, __u32 *cs
  */
 static __always_inline int
 gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
-		     struct bpf_fib_lookup *fib_params, bool direct_tx)
+		     struct bpf_fib_lookup *fib_params)
 {
 	int ret;
 
@@ -115,9 +122,6 @@ gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
 	/* Ethernet playground */
 	__builtin_memcpy(ethh->h_dest, fib_params->dmac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_source, fib_params->smac, ETH_ALEN);
-
-	if (direct_tx)
-		return XDP_TX;
 
 	if (ctx->ingress_ifindex != fib_params->ifindex)
 		return bpf_redirect(fib_params->ifindex, 0);
@@ -218,7 +222,7 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params, false);
+	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
 }
 
 static __always_inline int
@@ -341,7 +345,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params, false);
+	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
 }
 
 
@@ -349,10 +353,61 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
  *	PPPoE
  */
 static __always_inline int
+gtp_port_mac_set(struct eth_percpu_ctx *ctx, struct port_mac_address *pma)
+{
+	__builtin_memcpy(pma->local, ctx->dest, ETH_ALEN);
+	__builtin_memcpy(pma->remote, ctx->source, ETH_ALEN);
+	pma->state = 1;
+	return 0;
+}
+
+static int
+gtp_port_mac_update(__u32 index, struct eth_percpu_ctx *ctx)
+{
+	struct port_mac_address *pma;
+	__u32 key = 0;
+
+	pma = bpf_map_lookup_percpu_elem(&mac_learning, &key, index);
+	if (!pma) {
+		bpf_printk("Unable to lookup mac_learning idx:0, cpu_id:%d", index);
+		return 0;
+	}
+
+	return gtp_port_mac_set(ctx, pma);
+}
+
+static __always_inline int
+gtp_port_mac_learning(struct ethhdr *ethh)
+{
+	struct port_mac_address *pma;
+	struct eth_percpu_ctx ctx;
+	__u32 key = 0;
+
+	pma = bpf_map_lookup_elem(&mac_learning, &key);
+	if (!pma) {
+		bpf_printk("Unable to lookup mac_learning idx:0");
+		return -1;
+	}
+
+	if (pma->state)
+		return 0;
+
+	__builtin_memset(&ctx, 0, sizeof(struct eth_percpu_ctx));
+	__builtin_memcpy(ctx.dest, ethh->h_dest, ETH_ALEN);
+	__builtin_memcpy(ctx.source, ethh->h_source, ETH_ALEN);
+
+	/* Verifier prevent passing ethh as arg so we need to replicate
+	 * pieces of interest. */
+	bpf_loop(nr_cpus, gtp_port_mac_update, &ctx, 0);
+	return 0;
+}
+
+static __always_inline int
 gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 length)
 {
 	struct xdp_md *ctx = pkt->ctx;
-	void *data, *data_end;
+	void *data = (void *) (long) ctx->data;
+	void *data_end = (void *) (long) ctx->data_end;
 	struct ethhdr *ethh;
 	struct _vlan_hdr *vlanh = NULL;
 	struct pppoehdr *pppoeh;
@@ -361,6 +416,14 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	int offset = sizeof(struct ethhdr);
 	__u16 *ppph;
 	int headroom, payload_len;
+
+	ethh = data;
+	if (ethh + 1 > data_end)
+		return XDP_PASS;
+
+	/* In direct-tx mode we are enabling mac learning */
+	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX)
+		gtp_port_mac_learning(ethh);
 
 	/* Phase 0 : Build payload len */
 	payload_len = length + 2;
@@ -452,14 +515,16 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	struct ppp_key ppp_k;
 	int offset = pkt->l3_offset;
 	struct _vlan_hdr *vlanh = NULL;
-	struct pppoehdr *pppoeh;
 	struct ethhdr *ethh;
+	struct port_mac_address *pma;
+	struct pppoehdr *pppoeh;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph;
 	__u16 *ppph;
 	__u16 payload_len;
 	__u32 csum = 0;
+	__u32 key = 0;
 	int headroom;
 
 	ethh = data;
@@ -564,14 +629,22 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	gtph->teid = rt_rule->teid;
 	gtph->length = bpf_htons(payload_len);
 
+	/* In direct-tx mode we are using mac learning */
+	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX) {
+		pma = bpf_map_lookup_elem(&mac_learning, &key);
+		if (pma) {
+			__builtin_memcpy(ethh->h_dest, pma->remote, ETH_ALEN);
+			__builtin_memcpy(ethh->h_source, pma->local, ETH_ALEN);
+			return XDP_TX;
+		}
+	}
 
 	/* We need to perform a fib lookup to resolv {s,d}mac properly
 	 * and not re-invent the wheel by storing it locally in ruleset
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, ethh, iph, &fib_params,
-				    rt_rule->flags & GTP_RT_FL_DIRECT_TX);
+	return gtp_route_fib_lookup(ctx, ethh, iph, &fib_params);
 }
 
 /*

@@ -55,7 +55,7 @@ gtp_xdp_ppp_rule_alloc(size_t *sz)
 	if (!new)
 		return NULL;
 
-	*sz = nr_cpus * sizeof(struct gtp_rt_rule);
+	*sz = nr_cpus * sizeof(*new);
 	return new;
 }
 

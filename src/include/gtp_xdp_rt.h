@@ -27,6 +27,7 @@ enum {
 	XDP_RT_MAP_TEID_EGRESS,
 	XDP_RT_MAP_PPP_INGRESS,
 	XDP_RT_MAP_IPTNL,
+	XDP_RT_MAP_MAC_LEARNING,
 	XDP_RT_MAP_CNT
 };
 
@@ -59,6 +60,12 @@ struct gtp_rt_rule {
 	__u8	flags;
 } __attribute__ ((__aligned__(8)));
 
+struct port_mac_address {
+	__u8 local[6];
+	__u8 remote[6];
+	__u8 state;
+} __attribute__ ((__aligned__(8)));
+
 
 /* Prototypes */
 extern int gtp_xdp_rt_load(gtp_bpf_opts_t *);
@@ -69,5 +76,6 @@ extern int gtp_xdp_rt_teid_vty(vty_t *, gtp_teid_t *);
 extern int gtp_xdp_rt_vty(vty_t *);
 extern int gtp_xdp_rt_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_rt_iptnl_vty(vty_t *);
+extern int gtp_xdp_rt_mac_learning_vty(vty_t *);
 
 #endif

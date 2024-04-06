@@ -160,7 +160,7 @@ struct gtp_rt_rule {
 #define GTP_RT_FL_UDP_LEARNING	(1 << 3)
 
 /* FIXME: How can we fetch cpu_num in BPF context ? */
-const volatile int nr_cpus = 12;
+const volatile int nr_cpus = 32;
 
 struct rt_percpu_ctx {
 	/* ingress */
@@ -173,10 +173,23 @@ struct rt_percpu_ctx {
 	__u16 dst_port;
 };
 
+/* MAC Address learning */
+struct port_mac_address {
+	__u8 local[6];
+	__u8 remote[6];
+	__u8 state;
+} __attribute__ ((__aligned__(8)));
+
+struct eth_percpu_ctx {
+	__u8 source[6];
+	__u8 dest[6];
+};
+
 /* Receive Packet Steering related */
 struct rps_opts {
 	__u16 id;
 	__u16 max_id;
 } __attribute__ ((__aligned__(8)));
+
 
 #endif
