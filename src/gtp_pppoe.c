@@ -593,7 +593,7 @@ gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *bundle)
 	/* try match active !fault instance */
 	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
 		pppoe = bundle->pppoe[i];
-		if (__test_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags) &&
+		if (__test_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags) &&
 		    !__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags)) {
 			if (!__test_and_set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags))
 				log_message(LOG_INFO, "PPPoE:%s now serving", pppoe->name);
@@ -604,7 +604,7 @@ gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *bundle)
 	/* No match, fallback to the first standby !fault instance */
 	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
 		pppoe = bundle->pppoe[i];
-		if (__test_bit(PPPOE_FL_STANDBY_BIT, &pppoe->flags) &&
+		if (__test_bit(PPPOE_FL_BACKUP_BIT, &pppoe->flags) &&
 		    !__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags)) {
 			if (!__test_and_set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags))
 				log_message(LOG_INFO, "PPPoE:%s now serving", pppoe->name);

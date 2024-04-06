@@ -151,7 +151,7 @@ DEFUN(pppoe_interface,
 		return CMD_WARNING;
 	}
 
-	__set_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags);
 	__set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
@@ -526,9 +526,9 @@ gtp_pppoe_bundle_instance_prepare(vty_t *vty, gtp_pppoe_bundle_t *bundle, int ar
 	return pppoe;
 }
 
-DEFUN(pppoe_bundle_instance_active,
-      pppoe_bundle_instance_active_cmd,
-      "instance STRING active",
+DEFUN(pppoe_bundle_instance_master,
+      pppoe_bundle_instance_master_cmd,
+      "instance STRING master",
       "PPPoE Instance\n"
       "Name\n")
 {
@@ -539,14 +539,14 @@ DEFUN(pppoe_bundle_instance_active,
 	if (!pppoe)
 		return CMD_WARNING;
 
-	log_message(LOG_INFO, "PPPoE:%s is active", pppoe->name);
-	__set_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
+	log_message(LOG_INFO, "PPPoE:%s is master", pppoe->name);
+	__set_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
-DEFUN(pppoe_bundle_instance_standby,
-      pppoe_bundle_instance_standby_cmd,
-      "instance STRING standby",
+DEFUN(pppoe_bundle_instance_basckup,
+      pppoe_bundle_instance_backup_cmd,
+      "instance STRING backup",
       "PPPoE Instance\n"
       "Name\n")
 {
@@ -557,9 +557,9 @@ DEFUN(pppoe_bundle_instance_standby,
 	if (!pppoe)
 		return CMD_WARNING;
 
-	log_message(LOG_INFO, "PPPoE:%s is standby", pppoe->name);
-	__clear_bit(PPPOE_FL_ACTIVE_BIT, &pppoe->flags);
-	__set_bit(PPPOE_FL_STANDBY_BIT, &pppoe->flags);
+	log_message(LOG_INFO, "PPPoE:%s is backup", pppoe->name);
+	__clear_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags);
+	__set_bit(PPPOE_FL_BACKUP_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -706,12 +706,18 @@ gtp_config_pppoe_bundle_write(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->pppoe_bundle;
 	gtp_pppoe_bundle_t *bundle;
+	gtp_pppoe_t *pppoe;
 	int i;
 
 	list_for_each_entry(bundle, l, next) {
 		vty_out(vty, "pppoe-bundle %s%s", bundle->name, VTY_NEWLINE);
-		for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++)
-			vty_out(vty, " instance %s%s", bundle->pppoe[i]->name, VTY_NEWLINE);
+		for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
+			pppoe = bundle->pppoe[i];
+			vty_out(vty, " instance %s %s%s"
+				   , pppoe->name
+				   , __test_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags) ? "master" : "backup"
+				   , VTY_NEWLINE);
+		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -754,8 +760,8 @@ gtp_pppoe_vty_init(void)
 	install_element(CONFIG_NODE, &pppoe_bundle_cmd);
 	install_element(CONFIG_NODE, &no_pppoe_bundle_cmd);
 
-	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_active_cmd);
-	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_standby_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_master_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_backup_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pppoe_cmd);
