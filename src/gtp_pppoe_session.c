@@ -315,11 +315,14 @@ static int
 spppoe_release(spppoe_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
+	gtp_htab_t *session_tab, *unique_tab;
 
-	spppoe_unique_unhash((pppoe->bundle) ? &pppoe->bundle->unique_tab :
-					       &pppoe->unique_tab, s);
-	spppoe_session_unhash((pppoe->bundle) ? &pppoe->bundle->session_tab :
-						&pppoe->session_tab, s);
+	session_tab = gtp_pppoe_get_session_tab(pppoe);
+	spppoe_session_unhash(session_tab, s);
+
+	unique_tab = gtp_pppoe_get_unique_tab(pppoe);
+	spppoe_unique_unhash(unique_tab, s);
+
 	spppoe_free(s);
 	return 0;
 }
@@ -354,6 +357,7 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	    gtp_id_ecgi_t *ecgi, gtp_ie_ambr_t *ambr)
 {
 	spppoe_t *s;
+	gtp_htab_t *unique_tab;
 	int err, id;
 
 	if (!pppoe)
@@ -397,9 +401,8 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 
 	s->s_ppp = sppp_init(s, pp_tls, pp_tlf, pp_con, pp_chg);
 	timer_node_init(&s->t_node, NULL, s);
-	spppoe_unique_hash((pppoe->bundle) ? &pppoe->bundle->unique_tab :
-					     &pppoe->unique_tab,
-			   s, imsi, &pppoe->seed);
+	unique_tab = gtp_pppoe_get_unique_tab(pppoe);
+	spppoe_unique_hash(unique_tab, s, imsi, &pppoe->seed);
 	spppoe_add(c, s);
 
 	err = pppoe_connect(s);

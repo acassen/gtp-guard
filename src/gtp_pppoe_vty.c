@@ -151,8 +151,6 @@ DEFUN(pppoe_interface,
 		return CMD_WARNING;
 	}
 
-	__set_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags);
-	__set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -520,15 +518,20 @@ gtp_pppoe_bundle_instance_prepare(vty_t *vty, gtp_pppoe_bundle_t *bundle, int ar
 		return NULL;
 	}
 
-	__clear_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags);
+	/* First PPPoE instance in bundle is primary, followings are secondary */
+	if (!bundle->instance_idx)
+		__set_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags);
+	else
+		__set_bit(PPPOE_FL_SECONDARY_BIT, &pppoe->flags);
+
 	bundle->pppoe[bundle->instance_idx++] = pppoe;
 	pppoe->bundle = bundle;
 	return pppoe;
 }
 
-DEFUN(pppoe_bundle_instance_master,
-      pppoe_bundle_instance_master_cmd,
-      "instance STRING master",
+DEFUN(pppoe_bundle_instance,
+      pppoe_bundle_instance_cmd,
+      "instance STRING",
       "PPPoE Instance\n"
       "Name\n")
 {
@@ -539,29 +542,12 @@ DEFUN(pppoe_bundle_instance_master,
 	if (!pppoe)
 		return CMD_WARNING;
 
-	log_message(LOG_INFO, "PPPoE:%s is master", pppoe->name);
-	__set_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags);
+	log_message(LOG_INFO, "PPPoE:%s is %s"
+			    , pppoe->name
+			    , __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags) ? "primary" : "secondary");
 	return CMD_SUCCESS;
 }
 
-DEFUN(pppoe_bundle_instance_basckup,
-      pppoe_bundle_instance_backup_cmd,
-      "instance STRING backup",
-      "PPPoE Instance\n"
-      "Name\n")
-{
-	gtp_pppoe_bundle_t *bundle = vty->index;
-	gtp_pppoe_t *pppoe;
-
-	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
-	if (!pppoe)
-		return CMD_WARNING;
-
-	log_message(LOG_INFO, "PPPoE:%s is backup", pppoe->name);
-	__clear_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags);
-	__set_bit(PPPOE_FL_BACKUP_BIT, &pppoe->flags);
-	return CMD_SUCCESS;
-}
 
 /*
  *	Show commands
@@ -713,9 +699,8 @@ gtp_config_pppoe_bundle_write(vty_t *vty)
 		vty_out(vty, "pppoe-bundle %s%s", bundle->name, VTY_NEWLINE);
 		for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
 			pppoe = bundle->pppoe[i];
-			vty_out(vty, " instance %s %s%s"
+			vty_out(vty, " instance %s%s"
 				   , pppoe->name
-				   , __test_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags) ? "master" : "backup"
 				   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
@@ -760,8 +745,7 @@ gtp_pppoe_vty_init(void)
 	install_element(CONFIG_NODE, &pppoe_bundle_cmd);
 	install_element(CONFIG_NODE, &no_pppoe_bundle_cmd);
 
-	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_master_cmd);
-	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_backup_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pppoe_cmd);

@@ -115,10 +115,9 @@ typedef struct _pppoe_vendor_tag {
 enum pppoe_flags {
 	PPPOE_FL_STOPPING_BIT,
 	PPPOE_FL_RUNNING_BIT,
-	PPPOE_FL_MASTER_BIT,
-	PPPOE_FL_BACKUP_BIT,
+	PPPOE_FL_PRIMARY_BIT,
+	PPPOE_FL_SECONDARY_BIT,
 	PPPOE_FL_FAULT_BIT,
-	PPPOE_FL_SERVICE_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT,
 	PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT,
@@ -162,14 +161,9 @@ typedef struct _gtp_pppoe_worker {
 typedef struct _gtp_pppoe_bundle {
 	char			name[GTP_NAME_MAX_LEN];
 
-	gtp_htab_t		session_tab;	/* Session Tracking by sesion-id */
-	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
-
 	struct _gtp_pppoe	**pppoe;
 	int			instance_idx;
 	list_head_t		next;
-
-	unsigned long		flags;
 } gtp_pppoe_bundle_t;
 
 typedef struct _gtp_pppoe {
@@ -209,6 +203,10 @@ typedef struct _gtp_pppoe {
 } gtp_pppoe_t;
 
 /* Prototypes */
+extern gtp_htab_t *gtp_pppoe_get_session_tab(gtp_pppoe_t *);
+extern gtp_htab_t *gtp_pppoe_get_unique_tab(gtp_pppoe_t *);
+extern timer_thread_t *gtp_pppoe_get_session_timer(gtp_pppoe_t *);
+extern timer_thread_t *gtp_pppoe_get_ppp_timer(gtp_pppoe_t *);
 extern gtp_pppoe_t *gtp_pppoe_get_by_name(const char *);
 extern int gtp_pppoe_disc_send(gtp_pppoe_t *, pkt_t *);
 extern int gtp_pppoe_ses_send(gtp_pppoe_t *, pkt_t *);

@@ -293,12 +293,14 @@ void
 sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timer_thread_t *ppp_timer;
 	int timo;
 
 	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
 	if (timo < 1)
 		timo = 1;
-	timer_node_add(&pppoe->ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	timer_node_add(ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
 }
 
 /*
@@ -309,6 +311,7 @@ void
 sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timer_thread_t *ppp_timer;
 
 	if (debug & 8 && sp->state[cp->protoidx] != newstate)
 		printf("%s: %s %s->%s\n",
@@ -316,6 +319,7 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 		       sppp_state_name(sp->state[cp->protoidx]),
 		       sppp_state_name(newstate));
 	sp->state[cp->protoidx] = newstate;
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
 
 	switch (newstate) {
 	case STATE_INITIAL:
@@ -323,7 +327,7 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 	case STATE_CLOSED:
 	case STATE_STOPPED:
 	case STATE_OPENED:
-		timer_node_del(&pppoe->ppp_timer, &sp->ch[cp->protoidx]);
+		timer_node_del(ppp_timer, &sp->ch[cp->protoidx]);
 		break;
 	case STATE_CLOSING:
 	case STATE_STOPPING:
@@ -2378,6 +2382,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	pkt_buffer_t *pbuff = pkt->pbuff;
 	int len = pbuff->end - pbuff->data;
+	timer_thread_t *ppp_timer;
 	lcp_hdr_t *h;
 	uint8_t *name, *passwd, mlen;
 	int name_len, passwd_len;
@@ -2388,6 +2393,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		return;
 	}
 
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
 	h = (lcp_hdr_t *) pbuff->data;
 	if (len > ntohs(h->len))
 		len = ntohs(h->len);
@@ -2451,7 +2457,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 
 	/* ack and nak are his authproto */
 	case PAP_ACK:
-		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+		timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 		if (debug & 8) {
 			PPPDEBUG(("%s: pap success", pppoe->ifname));
 			name_len = *((char *)h);
@@ -2477,7 +2483,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		break;
 
 	case PAP_NAK:
-		timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+		timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 		if (debug & 8) {
 			PPPDEBUG(("%s: pap failure", pppoe->ifname));
 			name_len = *((char *)h);
@@ -2519,6 +2525,7 @@ void
 sppp_pap_open(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timer_thread_t *ppp_timer;
 
 	if (sp->hisauth.proto == PPP_PAP &&
 	    (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) != 0) {
@@ -2529,7 +2536,8 @@ sppp_pap_open(sppp_t *sp)
 	if (sp->myauth.proto == PPP_PAP) {
 		/* we are peer, send a request, and start a timer */
 		pap.scr(sp);
-		timer_node_add(&pppoe->ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
+		ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+		timer_node_add(ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
 	}
 }
 
@@ -2619,10 +2627,12 @@ void
 sppp_pap_tld(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timer_thread_t *ppp_timer;
 
 	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
-	timer_node_del(&pppoe->ppp_timer, &sp->ch[IDX_PAP]);
-	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	timer_node_del(ppp_timer, &sp->ch[IDX_PAP]);
+	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 	sp->lcp.protos &= ~(1 << IDX_PAP);
 
 	lcp.Close(sp);
@@ -2654,6 +2664,7 @@ sppp_keepalive(void *arg)
 {
 	sppp_t *sp = arg;
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timer_thread_t *ppp_timer;
 	timeval_t tv;
 
 	/* Keepalive mode disabled */
@@ -2703,7 +2714,8 @@ sppp_keepalive(void *arg)
 	}
 
   next_timer:
-	timer_node_add(&pppoe->ppp_timer, &sp->keepalive, pppoe->keepalive);
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
 	return 0;
 }
 
@@ -2716,6 +2728,7 @@ sppp_up(spppoe_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp = s->s_ppp;
+	timer_thread_t *ppp_timer;
 
 	/* LCP layer */
 	(sp->pp_up)(sp);
@@ -2723,7 +2736,8 @@ sppp_up(spppoe_t *s)
 	/* Register keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags |= PP_KEEPALIVE;
-		timer_node_add(&pppoe->ppp_timer, &sp->keepalive, pppoe->keepalive);
+		ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+		timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
 	}
 	return 0;
 }
@@ -2733,19 +2747,22 @@ sppp_down(spppoe_t *s)
 {
 	gtp_pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp = s->s_ppp;
+	timer_thread_t *ppp_timer;
 	int i;
+
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
 
 	/* LCP layer */
 	(sp->pp_down)(sp);
 
 	for (i = 0; i < IDX_COUNT; i++)
-		timer_node_del(&pppoe->ppp_timer, &sp->ch[i]);
-	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+		timer_node_del(ppp_timer, &sp->ch[i]);
+	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 
 	/* Release keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags &= ~PP_KEEPALIVE;
-		timer_node_del(&pppoe->ppp_timer, &sp->keepalive);
+		timer_node_del(ppp_timer, &sp->keepalive);
 	}
 	return 0;
 }
@@ -2811,17 +2828,19 @@ void
 sppp_destroy(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	timer_thread_t *ppp_timer;
 	int i;
 
+	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
 	sppp_ipcp_destroy(sp);
 	sppp_ipv6cp_destroy(sp);
 
 	/* Stop keepalive handler. */
-	timer_node_del(&pppoe->ppp_timer, &sp->keepalive);
+	timer_node_del(ppp_timer, &sp->keepalive);
 
 	for (i = 0; i < IDX_COUNT; i++)
-		timer_node_del(&pppoe->ppp_timer, &sp->ch[i]);
-	timer_node_del(&pppoe->ppp_timer, &sp->pap_my_to_ch);
+		timer_node_del(ppp_timer, &sp->ch[i]);
+	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 
 	/* release authentication data */
 	if (sp->hisauth.name != NULL)
@@ -2869,7 +2888,5 @@ int
 gtp_ppp_destroy(gtp_pppoe_t *pppoe)
 {
 	gtp_ppp_timer_destroy(pppoe);
-
-
 	return 0;
 }

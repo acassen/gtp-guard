@@ -46,6 +46,46 @@ pthread_mutex_t gtp_pppoe_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*
  *	PPPoE utilities
  */
+gtp_htab_t *
+gtp_pppoe_get_session_tab(gtp_pppoe_t *pppoe)
+{
+	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
+		return &pppoe->session_tab;
+
+	/* Secondary instance in bundle to primary tracking */
+	return &pppoe->bundle->pppoe[0]->session_tab;
+}
+
+gtp_htab_t *
+gtp_pppoe_get_unique_tab(gtp_pppoe_t *pppoe)
+{
+	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
+		return &pppoe->unique_tab;
+
+	/* Secondary instance in bundle to primary tracking */
+	return &pppoe->bundle->pppoe[0]->unique_tab;
+}
+
+timer_thread_t *
+gtp_pppoe_get_session_timer(gtp_pppoe_t *pppoe)
+{
+	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
+		return &pppoe->session_timer;
+
+	/* Secondary instance in bundle to primary tracking */
+	return &pppoe->bundle->pppoe[0]->session_timer;
+}
+
+timer_thread_t *
+gtp_pppoe_get_ppp_timer(gtp_pppoe_t *pppoe)
+{
+	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
+		return &pppoe->ppp_timer;
+
+	/* Secondary instance in bundle refer to primary tracking */
+	return &pppoe->bundle->pppoe[0]->ppp_timer;
+}
+
 gtp_pppoe_t *
 gtp_pppoe_get_by_name(const char *name)
 {
@@ -347,11 +387,6 @@ gtp_pppoe_worker_task(void *arg)
 		goto shoot_again;
 	}
 
-	if (!__test_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags)) {
-		mpkt_reset(&w->mpkt);
-		goto shoot_again;
-	}
-
 	/* mpkt processing */
 	mpkt_process(&w->mpkt, ret, gtp_pppoe_ingress, w);
 	mpkt_reset(&w->mpkt);
@@ -575,8 +610,6 @@ gtp_pppoe_bundle_init(const char *name)
 	}
 	strlcpy(bundle->name, name, GTP_NAME_MAX_LEN);
 	INIT_LIST_HEAD(&bundle->next);
-	gtp_htab_init(&bundle->session_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&bundle->unique_tab, CONN_HASHTAB_SIZE);
 	bundle->pppoe = MALLOC(sizeof(gtp_pppoe_t) * PPPOE_BUNDLE_MAXSIZE);
 
 	gtp_pppoe_bundle_add(bundle);
@@ -590,24 +623,20 @@ gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *bundle)
 	gtp_pppoe_t *pppoe;
 	int i;
 
-	/* try match active !fault instance */
+	/* try match primary !fault instance */
 	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
 		pppoe = bundle->pppoe[i];
-		if (__test_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags) &&
+		if (__test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags) &&
 		    !__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags)) {
-			if (!__test_and_set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags))
-				log_message(LOG_INFO, "PPPoE:%s now serving", pppoe->name);
 			return pppoe;
 		}
 	}
 
-	/* No match, fallback to the first standby !fault instance */
+	/* No match, fallback to the first secondary !fault instance */
 	for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
 		pppoe = bundle->pppoe[i];
-		if (__test_bit(PPPOE_FL_BACKUP_BIT, &pppoe->flags) &&
+		if (__test_bit(PPPOE_FL_SECONDARY_BIT, &pppoe->flags) &&
 		    !__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags)) {
-			if (!__test_and_set_bit(PPPOE_FL_SERVICE_BIT, &pppoe->flags))
-				log_message(LOG_INFO, "PPPoE:%s now serving", pppoe->name);
 			return pppoe;
 		    }
 	}
@@ -619,9 +648,6 @@ int
 __gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *bundle)
 {
 	list_head_del(&bundle->next);
-	spppoe_sessions_destroy(&bundle->session_tab);
-	gtp_htab_destroy(&bundle->session_tab);
-	gtp_htab_destroy(&bundle->unique_tab);
 	FREE(bundle->pppoe);
 	return 0;
 }

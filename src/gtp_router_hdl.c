@@ -1054,7 +1054,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		else
 			pppoe = gtp_pppoe_bundle_get_active_instance(apn->vrf->pppoe_bundle);
 
-		if (!pppoe || (pppoe && !__test_bit(PPPOE_FL_MASTER_BIT, &pppoe->flags))) {
+		if (!pppoe) {
 			log_message(LOG_INFO, "No active PPPoE Instance available to handle request");
 			rc = gtpc_build_errmsg(w->pbuff, teid
 						       , GTP_CREATE_SESSION_RESPONSE_TYPE
