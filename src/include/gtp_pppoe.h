@@ -118,6 +118,7 @@ enum pppoe_flags {
 	PPPOE_FL_PRIMARY_BIT,
 	PPPOE_FL_SECONDARY_BIT,
 	PPPOE_FL_FAULT_BIT,
+	PPPOE_FL_VRRP_MONITOR_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT,
 	PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT,
 	PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT,
@@ -196,6 +197,12 @@ typedef struct _gtp_pppoe {
 	gtp_pppoe_worker_t	*worker_disc;
 	gtp_pppoe_worker_t	*worker_ses;
 	pkt_queue_t		pkt_q;
+
+	int			monitor_fd;	/* Monitoring channel */
+	unsigned char		monitor_buffer[GTP_BUFFER_SIZE];
+	unsigned long		credit;
+	unsigned long		expire;
+	thread_ref_t		r_thread;
 
 	list_head_t		next;
 

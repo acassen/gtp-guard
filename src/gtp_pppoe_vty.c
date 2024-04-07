@@ -154,6 +154,39 @@ DEFUN(pppoe_interface,
 	return CMD_SUCCESS;
 }
 
+DEFUN(pppoe_monitor_vrrp,
+      pppoe_monitor_vrrp_cmd,
+      "monitor-vrrp <3-15>",
+      "VRRP Traffic monitoring\n"
+      "Timeout to transit into FAULT state\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+	int credit, err;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* Credit handling */
+	pppoe->credit = 3 * TIMER_HZ;
+	VTY_GET_INTEGER_RANGE("Timeout", credit, argv[0], 3, 15);
+	pppoe->credit = credit * TIMER_HZ;
+	pppoe->expire = timer_long(time_now) + pppoe->credit;
+
+	err = gtp_pppoe_monitor_vrrp_init(pppoe);
+	if (err) {
+		vty_out(vty, "%% Error VRRP Monitoring on interface:%s (%s)%s"
+			   , pppoe->ifname
+			   , strerror(errno)
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(pppoe_ac_name,
       pppoe_ac_name_cmd,
       "access-concentrator-name STRING",
@@ -630,6 +663,8 @@ gtp_config_pppoe_write(vty_t *vty)
 		if (pppoe->thread_cnt != GTP_PPPOE_RPS_SIZE)
 			vty_out(vty, " rps-bits %d", __builtin_ctz(pppoe->thread_cnt));
 		vty_out(vty, "%s", VTY_NEWLINE);
+		if (__test_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags))
+			vty_out(vty, " monitor-vrrp %ld%s", pppoe->credit / TIMER_HZ, VTY_NEWLINE);
 		if (pppoe->ac_name[0])
 			vty_out(vty, " access-concentrator-name %s%s", pppoe->ac_name, VTY_NEWLINE);
 		if (pppoe->service_name[0])
@@ -723,6 +758,7 @@ gtp_pppoe_vty_init(void)
 	install_element(CONFIG_NODE, &no_pppoe_cmd);
 
 	install_element(PPPOE_NODE, &pppoe_interface_cmd);
+	install_element(PPPOE_NODE, &pppoe_monitor_vrrp_cmd);
 	install_element(PPPOE_NODE, &pppoe_ac_name_cmd);
 	install_element(PPPOE_NODE, &pppoe_service_name_cmd);
 	install_element(PPPOE_NODE, &pppoe_vendor_specific_bbf_cmd);

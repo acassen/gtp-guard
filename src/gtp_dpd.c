@@ -316,7 +316,7 @@ gtp_dpd_read_thread(thread_ref_t thread)
 static int
 gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
 {
-	int fd, ret;
+	int fd, err;
 	struct sock_filter bpfcode[18] = {
 		{ 0x30, 0, 0, 0x00000000  },
 		{ 0x54, 0, 0, 0x000000f0  },
@@ -354,8 +354,8 @@ gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
 	if (fd < 0)
 		return -1;
 
-	ret = bind(fd, (struct sockaddr *) &sll, sizeof(struct sockaddr_ll));
-	if (ret < 0) {
+	err = bind(fd, (struct sockaddr *) &sll, sizeof(struct sockaddr_ll));
+	if (err) {
 		log_message(LOG_INFO, "%s(): failed binding to ifindex:%d. (%m)"
 				    , __FUNCTION__
 				    , t->ifindex);
@@ -368,8 +368,8 @@ gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
 	bpfcode[6].k = 0x8badf00d;
 
 	/* Attach filter */
-	ret = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));
+	if (err) {
 		log_message(LOG_INFO, "%s(): failed to attach filter. (%m)"
 				    , __FUNCTION__);
 		close(fd);

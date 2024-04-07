@@ -296,7 +296,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 {
 	gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
-	int credit, ifindex, plen, ret;
+	int credit, ifindex, plen, err;
 
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
@@ -335,8 +335,8 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	}
 	t->ifindex = ifindex;
 
-	ret = gtp_dpd_init(&ctx->iptnl);
-	if (ret < 0) {
+	err = gtp_dpd_init(&ctx->iptnl);
+	if (err) {
 		vty_out(vty, "%% Error starting Dead-Peer-Detection on interface %s (%s)%s"
 			   , argv[1]
 			   , strerror(errno)

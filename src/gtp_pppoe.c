@@ -562,6 +562,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	gtp_htab_destroy(&pppoe->session_tab);
 	gtp_htab_destroy(&pppoe->unique_tab);
 	pkt_queue_destroy(&pppoe->pkt_q);
+	gtp_pppoe_monitor_vrrp_destroy(pppoe);
 	FREE(pppoe);
 	return 0;
 }
