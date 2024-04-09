@@ -84,7 +84,7 @@ __spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
 	struct hlist_head *head;
 
 	if (__test_and_set_bit(GTP_PPPOE_FL_UNIQUE_HASHED, &s->flags)) {
-		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already hashed !!!"
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.4x already hashed !!!"
 				    , __FUNCTION__, s->unique, s->session_id);
 		return -1;
 	}
@@ -102,7 +102,7 @@ spppoe_unique_unhash(gtp_htab_t *h, spppoe_t *s)
 {
 	dlock_lock_id(h->dlock, s->unique, 0);
 	if (!__test_and_clear_bit(GTP_PPPOE_FL_UNIQUE_HASHED, &s->flags)) {
-		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already unhashed !!!"
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.4x already unhashed !!!"
 				    , __FUNCTION__, s->unique, s->session_id);
 		dlock_unlock_id(h->dlock, s->unique, 0);
 		return -1;
@@ -185,7 +185,7 @@ spppoe_session_hash(gtp_htab_t *h, spppoe_t *s, struct ether_addr *hw_addr, uint
 
 	dlock_lock_id(h->dlock, s->session_id, 0);
 	if (__test_and_set_bit(GTP_PPPOE_FL_SESSION_HASHED, &s->flags)) {
-		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already hashed !!!"
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.4x already hashed !!!"
 				    , __FUNCTION__, s->unique, s->session_id);
 		dlock_unlock_id(h->dlock, s->session_id, 0);
 		return -1;
@@ -204,7 +204,7 @@ spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
 {
 	dlock_lock_id(h->dlock, s->session_id, 0);
 	if (!__test_and_clear_bit(GTP_PPPOE_FL_SESSION_HASHED, &s->flags)) {
-		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.8x already unhashed !!!"
+		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.4x already unhashed !!!"
 				    , __FUNCTION__, s->unique, s->session_id);
 		dlock_unlock_id(h->dlock, s->session_id, 0);
 		return -1;

@@ -636,8 +636,9 @@ breakbreak:
 		s->session_id = session;
 		spppoe_session_hash(session_tab, s, &s->hw_src, s->session_id);
 		timer_node_del(session_timer, &s->t_node);
-		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x connected\n",
-			 pppoe->ifname, s->unique, session));
+		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x hw:" ETHER_FMT " connected\n",
+			 pppoe->ifname, s->unique, session,
+			 ETHER_BYTES(s->hw_src.ether_addr_octet)));
 		s->state = PPPOE_STATE_SESSION;
 		s->session_time = time(NULL);
 

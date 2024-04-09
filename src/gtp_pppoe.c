@@ -49,41 +49,29 @@ pthread_mutex_t gtp_pppoe_mutex = PTHREAD_MUTEX_INITIALIZER;
 gtp_htab_t *
 gtp_pppoe_get_session_tab(gtp_pppoe_t *pppoe)
 {
-	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
-		return &pppoe->session_tab;
-
-	/* Secondary instance in bundle to primary tracking */
-	return &pppoe->bundle->pppoe[0]->session_tab;
+	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->session_tab :
+				 &pppoe->session_tab;
 }
 
 gtp_htab_t *
 gtp_pppoe_get_unique_tab(gtp_pppoe_t *pppoe)
 {
-	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
-		return &pppoe->unique_tab;
-
-	/* Secondary instance in bundle to primary tracking */
-	return &pppoe->bundle->pppoe[0]->unique_tab;
+	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->unique_tab :
+				 &pppoe->unique_tab;
 }
 
 timer_thread_t *
 gtp_pppoe_get_session_timer(gtp_pppoe_t *pppoe)
 {
-	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
-		return &pppoe->session_timer;
-
-	/* Secondary instance in bundle to primary tracking */
-	return &pppoe->bundle->pppoe[0]->session_timer;
+	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->session_timer :
+				 &pppoe->session_timer;
 }
 
 timer_thread_t *
 gtp_pppoe_get_ppp_timer(gtp_pppoe_t *pppoe)
 {
-	if (!pppoe->bundle || __test_bit(PPPOE_FL_PRIMARY_BIT, &pppoe->flags))
-		return &pppoe->ppp_timer;
-
-	/* Secondary instance in bundle refer to primary tracking */
-	return &pppoe->bundle->pppoe[0]->ppp_timer;
+	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->ppp_timer :
+				 &pppoe->ppp_timer;
 }
 
 gtp_pppoe_t *
