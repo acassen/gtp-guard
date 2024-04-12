@@ -194,7 +194,7 @@ gtp_switch_server_destroy(void)
 	gtp_switch_t *c;
 
 	list_for_each_entry(c, &daemon_data->gtp_switch_ctx, next)
-		gtp_switch_ctx_destroy(c);
+		gtp_switch_ctx_server_destroy(c);
 
 	return 0;
 }
