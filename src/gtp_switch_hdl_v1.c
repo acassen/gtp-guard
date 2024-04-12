@@ -265,9 +265,11 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	gtp_imsi_rewrite(apn, ie_imsi->imsi);
 
 	/* Create a new session object */
-	if (!retransmit)
+	if (!retransmit) {
 		s = gtp_session_alloc(c, apn, gtp_switch_gtpc_teid_destroy
 					    , gtp_switch_gtpu_teid_destroy);
+		s->w = w;
+	}
 
 	/* Performing session translation */
 	teid = gtp1_session_xlat(w, s, GTP_INGRESS);

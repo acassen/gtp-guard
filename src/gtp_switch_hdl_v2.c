@@ -284,9 +284,11 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_ie_imsi_rewrite(apn, cp);
 
 	/* Create a new session object */
-	if (!retransmit)
+	if (!retransmit) {
 		s = gtp_session_alloc(c, apn, gtp_switch_gtpc_teid_destroy
 					    , gtp_switch_gtpu_teid_destroy);
+		s->w = w;
+	}
 
 	/* Performing session translation */
 	teid = gtpc_session_xlat(w, s, direction);
