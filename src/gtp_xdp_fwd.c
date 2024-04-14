@@ -56,20 +56,27 @@ gtp_xdp_fwd_load(gtp_bpf_opts_t *opts)
 		return -1;
 
 	/* MAP ref for faster access */
-	opts->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDPFWD_MAP_CNT);
+	opts->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_FWD_MAP_CNT);
 	map = gtp_bpf_load_map(opts->bpf_obj, "teid_xlat");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	opts->bpf_maps[XDPFWD_MAP_TEID].map = map;
+	opts->bpf_maps[XDP_FWD_MAP_TEID].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
 	if (!map) {
 		gtp_xdp_unload(opts);
 		return -1;
 	}
-	opts->bpf_maps[XDPFWD_MAP_IPTNL].map = map;
+	opts->bpf_maps[XDP_FWD_MAP_IPTNL].map = map;
+
+	map = gtp_bpf_load_map(opts->bpf_obj, "mac_learning");
+	if (!map) {
+		gtp_xdp_unload(opts);
+		return -1;
+	}
+	opts->bpf_maps[XDP_FWD_MAP_MAC_LEARNING].map = map;
 
 	return 0;
 }
@@ -99,16 +106,17 @@ gtp_xdp_teid_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_xdp_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t, int direction)
+gtp_xdp_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
+	__u8 flags = __test_bit(GTP_TEID_FL_INGRESS, &t->flags) ? GTP_FWD_FL_INGRESS : GTP_FWD_FL_EGRESS;
 	int i;
 
 	for (i = 0; i < nr_cpus; i++) {
 		r[i].vteid = t->vid;
 		r[i].teid = t->id;
 		r[i].dst_addr = t->ipv4;
-		r[i].direction = direction;
+		r[i].flags = flags;
 		r[i].packets = 0;
 		r[i].bytes = 0;
 	}
@@ -119,15 +127,14 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
 {
 	struct gtp_teid_rule *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err = 0, direction;
 	uint32_t key;
+	int err = 0;
 	size_t sz;
 
 	if (!t)
 		return -1;
 
 	key = htonl(t->vid);
-	direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
 
 	/* Set rule */
 	if (action == RULE_ADD) {
@@ -139,7 +146,7 @@ gtp_xdp_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
 			err = -1;
 			goto end;
 		}
-		gtp_xdp_teid_rule_set(new, t, direction);
+		gtp_xdp_teid_rule_set(new, t);
 		err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
 	} else if (action == RULE_DEL)
 		err = bpf_map__delete_elem(map, &key, sizeof(uint32_t), 0);
@@ -202,7 +209,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 		}
 
 		vty_out(vty, "       %.7s pkts:%ld bytes:%ld%s"
-			   , r[0].direction ? "egress" : "ingress"
+			   , (r[0].flags & GTP_FWD_FL_EGRESS) ? "egress" : "ingress"
 			   , packets, bytes, VTY_NEWLINE);
 		goto end;
 	}
@@ -227,7 +234,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 		vty_out(vty, "| 0x%.8x | 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
 			   , r[0].vteid, ntohl(r[0].teid)
 			   , inet_ntoa2(r[0].dst_addr, addr_ip)
-			   , r[0].direction ? "egress" : "ingress"
+			   , (r[0].flags & GTP_FWD_FL_EGRESS) ? "egress" : "ingress"
 			   , packets, bytes, VTY_NEWLINE);
 	}
 
@@ -250,7 +257,7 @@ gtp_xdp_fwd_teid_action(int action, gtp_teid_t *t)
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_teid_action(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, action, t);
+	return gtp_xdp_teid_action(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, action, t);
 }
 
 int
@@ -261,7 +268,7 @@ gtp_xdp_fwd_teid_vty(vty_t *vty, __be32 id)
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, vty, id);
+	return gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, vty, id);
 }
 
 int
@@ -273,7 +280,7 @@ gtp_xdp_fwd_vty(vty_t *vty)
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDPFWD_MAP_TEID].map, vty, 0);
+	gtp_xdp_teid_vty(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -296,7 +303,7 @@ gtp_xdp_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_iptnl_action(action, t, bpf_opts->bpf_maps[XDPFWD_MAP_IPTNL].map);
+	return gtp_xdp_iptnl_action(action, t, bpf_opts->bpf_maps[XDP_FWD_MAP_IPTNL].map);
 }
 
 int
@@ -307,5 +314,22 @@ gtp_xdp_fwd_iptnl_vty(vty_t *vty)
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		return -1;
 
-	return gtp_xdp_iptnl_vty(vty, bpf_opts->bpf_maps[XDPFWD_MAP_IPTNL].map);
+	return gtp_xdp_iptnl_vty(vty, bpf_opts->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+}
+
+/*
+ *	MAC learning related
+ */
+int
+gtp_xdp_fwd_mac_learning_vty(vty_t *vty)
+{
+	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_forward;
+
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+		return -1;
+
+	vty_out(vty, "XDP ruleset on ifindex:%d:%s", opts->ifindex, VTY_NEWLINE);
+	gtp_xdp_mac_learning_vty(vty, opts->bpf_maps[XDP_FWD_MAP_MAC_LEARNING].map);
+
+	return 0;
 }

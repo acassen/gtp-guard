@@ -23,11 +23,16 @@
 #define _GTP_XDP_FWD_H
 
 enum {
-	XDPFWD_MAP_TEID = 0,
-	XDPFWD_MAP_IPFRAG,
-	XDPFWD_MAP_IPTNL,
-	XDPFWD_MAP_CNT
+	XDP_FWD_MAP_TEID = 0,
+	XDP_FWD_MAP_IPFRAG,
+	XDP_FWD_MAP_IPTNL,
+	XDP_FWD_MAP_MAC_LEARNING,
+	XDP_FWD_MAP_CNT
 };
+
+#define GTP_FWD_FL_INGRESS	(1 << 0)
+#define GTP_FWD_FL_EGRESS	(1 << 1)
+#define GTP_FWD_FL_DIRECT_TX	(1 << 2)
 
 struct gtp_teid_rule {
 	__be32	vteid;
@@ -37,7 +42,7 @@ struct gtp_teid_rule {
 	/* Some stats */
 	__u64	packets;
 	__u64	bytes;
-	__u8	direction;
+	__u8	flags;
 } __attribute__ ((__aligned__(8)));
 
 /* Prototypes */

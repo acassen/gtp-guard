@@ -368,10 +368,8 @@ gtp_port_mac_update(__u32 index, struct eth_percpu_ctx *ctx)
 	__u32 key = 0;
 
 	pma = bpf_map_lookup_percpu_elem(&mac_learning, &key, index);
-	if (!pma) {
-		bpf_printk("Unable to lookup mac_learning idx:0, cpu_id:%d", index);
+	if (!pma)
 		return 0;
-	}
 
 	return gtp_port_mac_set(ctx, pma);
 }
@@ -384,10 +382,8 @@ gtp_port_mac_learning(struct ethhdr *ethh)
 	__u32 key = 0;
 
 	pma = bpf_map_lookup_elem(&mac_learning, &key);
-	if (!pma) {
-		bpf_printk("Unable to lookup mac_learning idx:0");
+	if (!pma)
 		return -1;
-	}
 
 	if (pma->state)
 		return 0;

@@ -74,11 +74,11 @@ struct gtp_teid_rule {
 	/* Some stats */
 	__u64   packets;
 	__u64   bytes;
-
-	__u8	direction;
+	__u8	flags;
 } __attribute__ ((__aligned__(8)));
-#define GTP_TEID_DIRECTION_INGRESS	0
-#define GTP_TEID_DIRECTION_EGRESS	1
+#define GTP_FWD_FL_INGRESS	(1 << 0)
+#define GTP_FWD_FL_EGRESS	(1 << 1)
+#define GTP_FWD_FL_DIRECT_TX	(1 << 2)
 
 /* IP Fragmentation handling */
 #define IP_CE           0x8000          /* Flag: "Congestion"           */

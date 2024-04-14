@@ -40,6 +40,7 @@ typedef struct _xdp_exported_maps {
 
 
 /* Prototypes */
+extern int gtp_xdp_mac_learning_vty(vty_t *, struct bpf_map *);
 extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
 extern struct bpf_program *gtp_xdp_load_prog(gtp_bpf_opts_t *);
 extern int gtp_xdp_load(gtp_bpf_opts_t *);

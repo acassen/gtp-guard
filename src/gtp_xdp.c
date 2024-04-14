@@ -46,6 +46,56 @@ static const char *pin_basedir = "/sys/fs/bpf";
 
 
 /*
+ *	XDP common helpers
+ */
+static struct port_mac_address *
+gtp_xdp_port_mac_address_alloc(size_t *sz)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct port_mac_address *new;
+
+	new = calloc(nr_cpus, sizeof(*new));
+	if (!new)
+		return NULL;
+
+	*sz = nr_cpus * sizeof(*new);
+	return new;
+}
+
+int
+gtp_xdp_mac_learning_vty(vty_t *vty, struct bpf_map *map)
+{
+	struct port_mac_address *pma;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	__u32 key = 0;
+	size_t sz;
+	int err;
+
+	pma = gtp_xdp_port_mac_address_alloc(&sz);
+	if (!pma) {
+		vty_out(vty, "%% Cant allocate temp port_mac_address%s", VTY_NEWLINE);
+		return -1;
+	}
+
+	err = bpf_map__lookup_elem(map, &key, sizeof(__u32), pma, sz, 0);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		vty_out(vty, "%% error fetching mac-learning for key:%d (%s)%s"
+			   , key, errmsg, VTY_NEWLINE);
+		free(pma);
+		return -1;
+	}
+
+	vty_out(vty, " local:" ETHER_FMT " remote:" ETHER_FMT "%s"
+		   , ETHER_BYTES(pma[0].local)
+		   , ETHER_BYTES(pma[0].remote)
+		   , VTY_NEWLINE);
+	free(pma);
+	return 0;
+}
+
+
+/*
  *	XDP related
  */
 static int

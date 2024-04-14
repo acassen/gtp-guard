@@ -64,6 +64,13 @@ struct {
 	__type(value, struct gtp_iptnl_rule);
 } iptnl_info SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__uint(max_entries, 8);
+	__type(key, __u32);
+	__type(value, struct port_mac_address);
+} mac_learning SEC(".maps");
+
 
 /* Packet rewrite */
 static __always_inline void swap_src_dst_mac(struct ethhdr *eth)
@@ -421,24 +428,13 @@ gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct 
 {
 	struct gtp_iptnl_rule *iptnl_rule;
 
-	/* That is a nice feature of XDP here:
-	 * punt to linux kernel stack path-management message.
-	 * We get it back into userland where things are easier
-	 */
-	if (gtph->type != 0xff)
-		return XDP_PASS;
-
-	/* Prevent GTP-U to flood stack */
-	if (!rule)
-		return XDP_DROP;
-
 	/* Phase 0 : IPIP tunneling if needed
 	 * Traffic selector is based on original IP header
 	 * destination address */
 	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph->daddr);
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD) &&
 	    iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP &&
-	    rule->direction == GTP_TEID_DIRECTION_INGRESS) 
+	    rule->flags & GTP_FWD_FL_INGRESS)
 		return gtpu_ipencap(pkt, iptnl_rule);
 
 	gtpu_xlat_header(rule, iph, gtph);
@@ -507,6 +503,56 @@ gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
 }
 
 /*
+ *	MAC Address learning
+ */
+static __always_inline int
+gtp_port_mac_set(struct eth_percpu_ctx *ctx, struct port_mac_address *pma)
+{
+	__builtin_memcpy(pma->local, ctx->dest, ETH_ALEN);
+	__builtin_memcpy(pma->remote, ctx->source, ETH_ALEN);
+	pma->state = 1;
+	return 0;
+}
+
+static int
+gtp_port_mac_update(__u32 index, struct eth_percpu_ctx *ctx)
+{
+	struct port_mac_address *pma;
+	__u32 key = 0;
+
+	pma = bpf_map_lookup_percpu_elem(&mac_learning, &key, index);
+	if (!pma)
+		return 0;
+
+	return gtp_port_mac_set(ctx, pma);
+}
+
+static __always_inline int
+gtp_port_mac_learning(struct ethhdr *ethh)
+{
+	struct port_mac_address *pma;
+	struct eth_percpu_ctx ctx;
+	__u32 key = 0;
+
+	pma = bpf_map_lookup_elem(&mac_learning, &key);
+	if (!pma)
+		return -1;
+
+	if (pma->state)
+		return 0;
+
+	__builtin_memset(&ctx, 0, sizeof(struct eth_percpu_ctx));
+	__builtin_memcpy(ctx.dest, ethh->h_dest, ETH_ALEN);
+	__builtin_memcpy(ctx.source, ethh->h_source, ETH_ALEN);
+
+	/* Verifier prevent passing ethh as arg so we need to replicate
+	 * pieces of interest. */
+	bpf_loop(nr_cpus, gtp_port_mac_update, &ctx, 0);
+	return 0;
+}
+
+
+/*
  *	GTP-U traffic selector
  */
 static __always_inline int
@@ -564,26 +610,39 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	gtph = data + offset + sizeof(struct udphdr);
 	if (gtph + 1 > data_end)
 		return XDP_DROP;
-		
+
+	/* That is a nice feature of XDP here:
+	 * punt to linux kernel stack path-management message.
+	 * We get it back into userland where things are easier
+	 */
+	if (gtph->type != 0xff)
+		return XDP_PASS;
+
 	rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
-	if (rule) {
-		/* First fragment detected and handled only if related
-		 * to an existing F-TEID */
-		if ((ipfl & IP_MF) && (frag_off == 0)) {
-			__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
-			frag_key.saddr = iph->saddr;
-			frag_key.daddr = iph->daddr;
-			frag_key.id = iph->id;
-			frag_key.protocol = iph->protocol;
+	/* Prevent from GTP-U netstack flooding */
+	if (!rule)
+		return XDP_DROP;
 
-			__builtin_memset(&frag, 0, sizeof(struct gtp_teid_frag));
-			frag.dst_addr = rule->dst_addr;
-			ret = bpf_map_update_elem(&ip_frag, &frag_key, &frag, BPF_NOEXIST);
-			if (ret < 0)
-				return XDP_DROP;
+	/* In direct-tx mode we are enabling mac learning */
+	if (rule->flags & GTP_FWD_FL_DIRECT_TX)
+		gtp_port_mac_learning(ethh);
 
-			gtpu_ip_frag_timer_set(&frag_key);
-		}
+	/* First fragment detected and handled only if related
+	 * to an existing F-TEID */
+	if ((ipfl & IP_MF) && (frag_off == 0)) {
+		__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
+		frag_key.saddr = iph->saddr;
+		frag_key.daddr = iph->daddr;
+		frag_key.id = iph->id;
+		frag_key.protocol = iph->protocol;
+
+		__builtin_memset(&frag, 0, sizeof(struct gtp_teid_frag));
+		frag.dst_addr = rule->dst_addr;
+		ret = bpf_map_update_elem(&ip_frag, &frag_key, &frag, BPF_NOEXIST);
+		if (ret < 0)
+			return XDP_DROP;
+
+		gtpu_ip_frag_timer_set(&frag_key);
 	}
 
 	return gtpu_xlat(pkt, ethh, iph, udph, gtph, rule);
