@@ -214,6 +214,18 @@ gtp_server_worker_destroy(gtp_server_worker_t *w)
  *	GTP Server related
  */
 int
+gtp_server_for_each_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *))
+{
+	gtp_server_worker_t *w;
+
+	pthread_mutex_lock(&srv->workers_mutex);
+	list_for_each_entry(w, &srv->workers, next)
+		(*hdl) (w);
+	pthread_mutex_unlock(&srv->workers_mutex);
+	return 0;
+}
+
+int
 gtp_server_start(gtp_server_t *srv)
 {
 	if (!__test_bit(GTP_FL_RUNNING_BIT, &srv->flags))

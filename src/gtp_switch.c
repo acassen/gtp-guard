@@ -103,8 +103,12 @@ int
 gtp_switch_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
 {
 	gtp_server_t *srv = w->srv;
+	gtp_switch_t *ctx = srv->ctx;
+	gtp_server_t *srv_egress = &ctx->gtpc_egress;
+	socket_pair_t *spair = ctx->gtpc_socket_pair;
 	struct sockaddr_in addr_to;
 	gtp_teid_t *teid;
+	int fd = w->fd;
 
 	/* GTP-U handling */
 	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
@@ -121,9 +125,19 @@ gtp_switch_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr
 	if (!teid)
 		return -1;
 
+	/* Select appropriate socket. If egress channel is configured
+	 * then split socket */
+	if (__test_bit(GTP_FL_CTL_BIT, &srv_egress->flags)) {
+		if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &srv->flags))
+			fd = *spair[w->id].fd_egress;
+		else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &srv->flags))
+			fd = *spair[w->id].fd_ingress;
+		fd = (fd) ? : w->fd;
+	}
+
 	/* Set destination address */
 	gtp_switch_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(w, w->fd
+	gtp_server_send(w, fd
 			 , (teid->type == 0xff) ? (struct sockaddr_in *) addr_from : &addr_to);
 	gtpc_switch_handle_post(w, teid);
 
@@ -167,10 +181,37 @@ gtp_switch_init(const char *name)
 	return new;
 }
 
+static int
+gtp_switch_socketpair_set(gtp_server_worker_t *w)
+{
+	gtp_server_t *srv = w->srv;
+	gtp_switch_t *ctx = srv->ctx;
+	socket_pair_t *spair = ctx->gtpc_socket_pair;
+
+	if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &srv->flags))
+		spair[w->id].fd_ingress = &w->fd;
+	else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &srv->flags))
+		spair[w->id].fd_egress = &w->fd;
+
+	return 0;
+}
+
+int
+gtp_switch_gtpc_socketpair_init(gtp_server_t *srv)
+{
+	gtp_switch_t *ctx = srv->ctx;
+
+	if (!ctx->gtpc_socket_pair)
+		ctx->gtpc_socket_pair = MALLOC(sizeof(socket_pair_t) * srv->thread_cnt);
+	gtp_server_for_each_worker(srv, gtp_switch_socketpair_set);
+	return 0;
+}
+
 int
 gtp_switch_ctx_server_destroy(gtp_switch_t *ctx)
 {
 	gtp_server_destroy(&ctx->gtpc);
+	gtp_server_destroy(&ctx->gtpc_egress);
 	gtp_server_destroy(&ctx->gtpu);
 	gtp_dpd_destroy(&ctx->iptnl);
 	return 0;
@@ -183,7 +224,8 @@ gtp_switch_ctx_destroy(gtp_switch_t *ctx)
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
 	gtp_htab_destroy(&ctx->vteid_tab);
 	gtp_htab_destroy(&ctx->vsqn_tab);
-
+	if (ctx->gtpc_socket_pair)
+		FREE(ctx->gtpc_socket_pair);
 	list_head_del(&ctx->next);
 	return 0;
 }

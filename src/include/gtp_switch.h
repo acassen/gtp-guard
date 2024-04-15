@@ -23,9 +23,16 @@
 #define _GTP_SWITCH_H
 
 /* GTP Switching context */
+typedef struct _socket_pair {
+	int	*fd_ingress;
+	int	*fd_egress;
+} socket_pair_t;
+
 typedef struct _gtp_switch {
 	char			name[GTP_NAME_MAX_LEN];
 	gtp_server_t		gtpc;
+	gtp_server_t		gtpc_egress;
+	socket_pair_t		*gtpc_socket_pair;
 	gtp_server_t		gtpu;
 
 	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
@@ -53,6 +60,8 @@ extern int gtp_switch_ingress_init(gtp_server_worker_t *);
 extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
 extern gtp_switch_t *gtp_switch_get(const char *);
 extern gtp_switch_t *gtp_switch_init(const char *);
+extern int gtp_switch_gtpc_socketpair_init(gtp_server_t *);
+extern int gtp_switch_ctx_server_destroy(gtp_switch_t *);
 extern int gtp_switch_ctx_destroy(gtp_switch_t *);
 extern int gtp_switch_server_destroy(void);
 extern int gtp_switch_destroy(void);

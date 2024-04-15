@@ -62,6 +62,7 @@ typedef struct _gtp_server {
 /* Prototypes */
 extern ssize_t gtp_server_send(gtp_server_worker_t *, int, struct sockaddr_in *);
 extern int gtp_server_start(gtp_server_t *);
+extern int gtp_server_for_each_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *));
 extern int gtp_server_init(gtp_server_t *, void *
 					 , int (*init) (gtp_server_worker_t *)
 					 , int (*process) (gtp_server_worker_t *, struct sockaddr_storage *));
