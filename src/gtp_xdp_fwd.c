@@ -109,8 +109,14 @@ static void
 gtp_xdp_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
+	gtp_session_t *s = t->session;
+	gtp_server_t *w_srv = s->w->srv;
+	gtp_switch_t *sw = w_srv->ctx;
 	__u8 flags = __test_bit(GTP_TEID_FL_INGRESS, &t->flags) ? GTP_FWD_FL_INGRESS : GTP_FWD_FL_EGRESS;
 	int i;
+
+	if (__test_bit(GTP_FL_DIRECT_TX_BIT, &sw->flags))
+		flags |= GTP_FWD_FL_DIRECT_TX;
 
 	for (i = 0; i < nr_cpus; i++) {
 		r[i].vteid = t->vid;

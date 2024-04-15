@@ -53,5 +53,6 @@ extern int gtp_xdp_fwd_teid_vty(vty_t *, __be32);
 extern int gtp_xdp_fwd_vty(vty_t *);
 extern int gtp_xdp_fwd_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_xdp_fwd_iptnl_vty(vty_t *);
+extern int gtp_xdp_fwd_mac_learning_vty(vty_t *);
 
 #endif

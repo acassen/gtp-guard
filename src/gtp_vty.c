@@ -555,6 +555,30 @@ DEFUN(show_xdp_forwarding_iptnl,
 	return CMD_SUCCESS;
 }
 
+DEFUN(show_xdp_forwarding_mac_learning,
+      show_xdp_forwarding_mac_learning_cmd,
+      "show xdp forwarding mac-learning",
+      SHOW_STR
+      "GTP XDP Forwarding MAC Address Learning\n")
+{
+	int err;
+
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	err = gtp_xdp_fwd_mac_learning_vty(vty);
+	if (err) {
+		vty_out(vty, "%% Error displaying XDP ruleset%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
 DEFUN(show_xdp_routing,
       show_xdp_routing_cmd,
       "show xdp routing",
@@ -607,7 +631,7 @@ DEFUN(show_xdp_routing_mac_learning,
       show_xdp_routing_mac_learning_cmd,
       "show xdp routing mac-learning",
       SHOW_STR
-      "GTP XDP Routing IPIP MAC Address Learning\n")
+      "GTP XDP Routing MAC Address Learning\n")
 {
 	int err;
 
@@ -842,6 +866,7 @@ gtp_vty_init(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_xdp_forwarding_cmd);
 	install_element(VIEW_NODE, &show_xdp_forwarding_iptnl_cmd);
+	install_element(VIEW_NODE, &show_xdp_forwarding_mac_learning_cmd);
 	install_element(VIEW_NODE, &show_xdp_routing_cmd);
 	install_element(VIEW_NODE, &show_xdp_routing_iptnl_cmd);
 	install_element(VIEW_NODE, &show_xdp_routing_mac_learning_cmd);
@@ -850,6 +875,7 @@ gtp_vty_init(void)
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
 	install_element(ENABLE_NODE, &show_xdp_forwarding_cmd);
 	install_element(ENABLE_NODE, &show_xdp_forwarding_iptnl_cmd);
+	install_element(ENABLE_NODE, &show_xdp_forwarding_mac_learning_cmd);
 	install_element(ENABLE_NODE, &show_xdp_routing_cmd);
 	install_element(ENABLE_NODE, &show_xdp_routing_iptnl_cmd);
 	install_element(ENABLE_NODE, &show_xdp_routing_mac_learning_cmd);

@@ -94,6 +94,17 @@ DEFUN(no_gtp_switch,
 	return CMD_SUCCESS;
 }
 
+DEFUN(gtp_switch_direct_tx,
+      gtp_switch_direct_tx_cmd,
+      "direct-tx",
+      "xmit packet to the same interface it was received on\n")
+{
+        gtp_switch_t *ctx = vty->index;
+
+	__set_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(gtpc_switch_tunnel_endpoint,
       gtpc_switch_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
@@ -492,6 +503,8 @@ gtp_config_write(vty_t *vty)
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);
 		srv = &ctx->gtpc;
+		if (__test_bit(GTP_FL_DIRECT_TX_BIT, &srv->flags))
+			vty_out(vty, " direct-tx");
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-tunnel-endpoint %s port %d"
 				   , inet_sockaddrtos(&srv->addr)
@@ -558,6 +571,7 @@ gtp_switch_vty_init(void)
 	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
 
 	install_default(GTP_SWITCH_NODE);
+	install_element(GTP_SWITCH_NODE, &gtp_switch_direct_tx_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_switch_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_switch_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_force_pgw_selection_cmd);

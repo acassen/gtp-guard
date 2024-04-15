@@ -32,6 +32,7 @@ enum gtp_flags {
 	GTP_FL_UPF_BIT,
 	GTP_FL_FORCE_PGW_BIT,
 	GTP_FL_IPTNL_BIT,
+	GTP_FL_DIRECT_TX_BIT,
 };
 
 /* default values */
