@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #ifndef _CONFIG_H
@@ -25,8 +25,8 @@
 #define LOG_FACILITY_MAX        7
 #define PROG                    "gtp-guard"
 #define PROG_PID_FILE		"/var/run/gtp-guard.pid"
-#define VERSION_STRING PROG	" v1.0.4-pre1 (2023/11/28)"
-#define COPYRIGHT_STRING	"Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>"
+#define VERSION_STRING PROG	" v1.0.4 (2024/04/15)"
+#define COPYRIGHT_STRING	"Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>"
 
 
 #endif

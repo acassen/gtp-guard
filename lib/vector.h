@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #ifndef _VECTOR_H
