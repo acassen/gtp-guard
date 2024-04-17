@@ -106,8 +106,8 @@ gtp_dpd_build_ip(gtp_iptnl_t *t, uint8_t *buffer)
         iph->frag_off = 0;
         iph->ttl = 64;
 	iph->protocol = IPPROTO_UDP;
-	iph->saddr = t->selector_addr;
-	iph->daddr = htonl(0x8badf00d);
+	iph->saddr = t->dpd_saddr;
+	iph->daddr = htonl(DEFAULT_DST_ADDR);
 	iph->check = 0;
 	iph->check = in_csum((uint16_t *) iph, sizeof(struct iphdr), 0);
 
@@ -194,7 +194,7 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 		log_message(LOG_INFO, "%s(): Peer back to life"
 				      " (s:%u.%u.%u.%u l:%u.%u.%u.%u r:%u.%u.%u.%u)"
 				    , __FUNCTION__
-				    , NIPQUAD(t->selector_addr)
+				    , NIPQUAD(t->dpd_saddr)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags &= ~IPTNL_FL_DEAD;
@@ -204,7 +204,7 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 		log_message(LOG_INFO, "%s(): Dead Peer Detected (bypassing)"
 				      " (s:%u.%u.%u.%u l:%u.%u.%u.%u r:%u.%u.%u.%u)"
 				    , __FUNCTION__
-				    , NIPQUAD(t->selector_addr)
+				    , NIPQUAD(t->dpd_saddr)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags |= IPTNL_FL_DEAD;
@@ -242,8 +242,8 @@ gtp_dpd_ingress_sanitize(gtp_iptnl_t *t)
 
 	/* IP Header sanitize */
 	if (iph->protocol != IPPROTO_UDP	||
-	    iph->saddr != t->selector_addr	||
-	    iph->daddr != htonl(0x8badf00d))
+	    iph->saddr != t->dpd_saddr		||
+	    iph->daddr != htonl(DEFAULT_DST_ADDR))
 		return -1;
 
 	/* UDP header sanitize */
@@ -364,8 +364,8 @@ gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
 	}
 
 	/* Prepare filter */
-	bpfcode[4].k = ntohl(t->selector_addr);
-	bpfcode[6].k = 0x8badf00d;
+	bpfcode[4].k = ntohl(t->dpd_saddr);
+	bpfcode[6].k = DEFAULT_DST_ADDR;
 
 	/* Attach filter */
 	err = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));

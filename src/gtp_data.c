@@ -220,10 +220,9 @@ gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
 		return -1;
 	}
 
-	vty_out(vty, "Success loading eBPF program:%s on ifindex:%d%s"
-		   , opts->filename
-		   , opts->ifindex
-		   , VTY_NEWLINE);
+	log_message(LOG_INFO, "Success loading eBPF program:%s on ifindex:%d"
+			    , opts->filename
+			    , opts->ifindex);
 	return 0;
 }
 

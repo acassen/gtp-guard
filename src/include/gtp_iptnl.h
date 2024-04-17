@@ -47,6 +47,7 @@ typedef struct _gtp_iptnl {
 	/* Tunnel declaration */
 	int			ifindex;
 	uint32_t		selector_addr;
+	uint32_t		dpd_saddr;
 	uint32_t		local_addr;
 	uint32_t		remote_addr;
 	uint16_t		encap_vlan_id;

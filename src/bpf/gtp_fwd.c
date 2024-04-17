@@ -502,6 +502,7 @@ gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
 	return 0;
 }
 
+#if 0
 /*
  *	MAC Address learning
  */
@@ -550,6 +551,7 @@ gtp_port_mac_learning(struct ethhdr *ethh)
 	bpf_loop(nr_cpus, gtp_port_mac_update, &ctx, 0);
 	return 0;
 }
+#endif
 
 
 /*
@@ -623,9 +625,11 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	if (!rule)
 		return XDP_DROP;
 
+#if 0
 	/* In direct-tx mode we are enabling mac learning */
 	if (rule->flags & GTP_FWD_FL_DIRECT_TX)
 		gtp_port_mac_learning(ethh);
+#endif
 
 	/* First fragment detected and handled only if related
 	 * to an existing F-TEID */

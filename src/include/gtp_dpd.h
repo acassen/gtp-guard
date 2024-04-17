@@ -22,6 +22,9 @@
 #ifndef _GTP_DPD_H
 #define _GTP_DPD_H
 
+#define DEFAULT_DPD_LENGTH	128
+#define DEFAULT_DST_ADDR	0x8badf00d
+
 /* prototypes */
 extern int gtp_dpd_init(gtp_iptnl_t *);
 extern int gtp_dpd_destroy(gtp_iptnl_t *);

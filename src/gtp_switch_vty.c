@@ -365,10 +365,13 @@ DEFUN(gtpu_ipip,
 
 DEFUN(gtpu_ipip_dead_peer_detection,
       gtpu_ipip_dead_peer_detection_cmd,
-      "gtpu-ipip dead-peer-detection <3-15> interface STRING payload-length <128-4096>",
+      "gtpu-ipip dead-peer-detection <3-15> src-addr (A.B.C.D|X:X:X:X) interface STRING payload-length <128-4096>",
       "GTP Userplane IPIP tunnel\n"
       "GTP-U IPIP tunnel Dead Peer Detection\n"
       "Dead Credit in seconds\n"
+      "IP Src to use for DPD packets\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
       "Interface running cBPF to catch DPD packet\n"
       "Name\n"
       "Payload attached to DPD GTP packet\n"
@@ -377,6 +380,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	gtp_switch_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int credit, ifindex, plen, err;
+	uint32_t saddr;
 
 	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
@@ -386,8 +390,8 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	if (t->flags & IPTNL_FL_DPD)
 		return CMD_SUCCESS;
 
-	if (argc < 2) {
-		vty_out(vty, "%% You MUST provide Dead Credit and interface%s"
+	if (argc < 3) {
+		vty_out(vty, "%% Invalid arguments%s"
 		           , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -398,14 +402,16 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	t->credit = credit * TIMER_HZ;
 	t->expire = timer_long(time_now) + t->credit;
 
-	/* Payload handling */
-	if (argc == 3) {
-		VTY_GET_INTEGER_RANGE("Payload Length", plen, argv[2], 128, 4096);
-		t->payload_len = plen;
+	/* Dead-Peer-Detection Src IP Address */
+	err = inet_ston(argv[1], &saddr);
+	if (!err) {
+		vty_out(vty, "%% malformed Local IP address %s%s", argv[1], VTY_NEWLINE);
+		return CMD_WARNING;
 	}
+	t->dpd_saddr = saddr;
 
 	/* Interface handling */
-	ifindex = if_nametoindex(argv[1]);
+	ifindex = if_nametoindex(argv[2]);
 	if (!ifindex) {
 		vty_out(vty, "%% Error with interface %s (%s)%s"
 			   , argv[1]
@@ -414,6 +420,13 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 		return CMD_WARNING;
 	}
 	t->ifindex = ifindex;
+
+	/* Payload handling */
+	t->payload_len = DEFAULT_DPD_LENGTH;
+	if (argc == 4) {
+		VTY_GET_INTEGER_RANGE("Payload Length", plen, argv[3], 128, 4096);
+		t->payload_len = plen;
+	}
 
 	err = gtp_dpd_init(&ctx->iptnl);
 	if (err) {
@@ -566,6 +579,7 @@ static int
 gtp_config_write(vty_t *vty)
 {
         list_head_t *l = &daemon_data->gtp_switch_ctx;
+	char ifname[IF_NAMESIZE];
         gtp_server_t *srv;
         gtp_switch_t *ctx;
 
@@ -627,8 +641,10 @@ gtp_config_write(vty_t *vty)
 			vty_out(vty, " gtpu-ipip decap-tag-vlan %d%s"
 				   , ctx->iptnl.decap_vlan_id, VTY_NEWLINE);
 		if (ctx->iptnl.flags & IPTNL_FL_DPD)
-			vty_out(vty, " gtpu-ipip dead-peer-detection %ld%s"
+			vty_out(vty, " gtpu-ipip dead-peer-detection %ld src-addr %u.%u.%u.%u interface %s%s"
 				   , ctx->iptnl.credit / TIMER_HZ
+				   , NIPQUAD(ctx->iptnl.dpd_saddr)
+				   , if_indextoname(ctx->iptnl.ifindex, ifname)
 				   , VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}

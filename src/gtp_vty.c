@@ -321,7 +321,7 @@ pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 
         VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
 
-        err = inet_stosockaddr(argv[0], port, addr);
+	err = inet_stosockaddr(argv[0], port, addr);
 	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
