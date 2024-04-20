@@ -635,6 +635,10 @@ gtp1_delete_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	gtp_vsqn_alloc(w, teid, false);
 	gtp_sqn_masq(w, teid);
 
+	/* Finally set expiration timeout if used */
+	if (__test_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags))
+		gtp_session_mod_timer(teid->session, ctx->session_delete_to);
+
 	return teid;
 }
 

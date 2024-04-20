@@ -167,6 +167,12 @@ gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
 	return 0;
 }
 
+void
+gtp_session_mod_timer(gtp_session_t *s, int timeout)
+{
+	timer_node_add(&gtp_session_timer, &s->t_node, timeout);
+}
+
 static void
 gtp_session_add_timer(gtp_session_t *s)
 {
@@ -176,7 +182,7 @@ gtp_session_add_timer(gtp_session_t *s)
 		return;
 
 	/* Sort it by timeval */
-	timer_node_add(&gtp_session_timer, &s->t_node, apn->session_lifetime);
+	gtp_session_mod_timer(s, apn->session_lifetime);
 }
 
 static int

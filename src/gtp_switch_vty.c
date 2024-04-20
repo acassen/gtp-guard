@@ -106,6 +106,27 @@ DEFUN(gtp_switch_direct_tx,
 	return CMD_SUCCESS;
 }
 
+DEFUN(gtp_switch_session_expiration_timeout_delete,
+      gtp_switch_session_expiration_timeout_delete_cmd,
+      "session-expiration-on-delete-timeout <5-300>",
+      "Force session expiration if delete response is timeout\n"
+      "number of seconds\n")
+{
+        gtp_switch_t *ctx = vty->index;
+	int timeout;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("Expiration Timeout", timeout, argv[1], 5, 300);
+	ctx->session_delete_to = timeout;
+
+	__set_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags);
+	return CMD_SUCCESS;
+}
+
 DEFUN(gtpc_switch_tunnel_endpoint,
       gtpc_switch_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
@@ -586,7 +607,10 @@ gtp_config_write(vty_t *vty)
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);
 		if (__test_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags))
-			vty_out(vty, " direct-tx");
+			vty_out(vty, " direct-tx%s", VTY_NEWLINE);
+		if (__test_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags))
+			vty_out(vty, " session-expiration-on-delete-timeout %d%s"
+				   , ctx->session_delete_to, VTY_NEWLINE);
 		srv = &ctx->gtpc;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-tunnel-endpoint %s port %d"
@@ -667,6 +691,7 @@ gtp_switch_vty_init(void)
 
 	install_default(GTP_SWITCH_NODE);
 	install_element(GTP_SWITCH_NODE, &gtp_switch_direct_tx_cmd);
+	install_element(GTP_SWITCH_NODE, &gtp_switch_session_expiration_timeout_delete_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_switch_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_switch_egress_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_switch_tunnel_endpoint_cmd);

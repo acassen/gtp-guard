@@ -34,6 +34,7 @@ typedef struct _gtp_switch {
 	gtp_server_t		gtpc_egress;
 	socket_pair_t		*gtpc_socket_pair;
 	gtp_server_t		gtpu;
+	int			session_delete_to;
 
 	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
 	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */

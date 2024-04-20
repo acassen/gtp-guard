@@ -483,6 +483,10 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	if (t)
 		gtp_teid_put(t);
 
+	/* Finally set expiration timeout if used */
+	if (__test_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags))
+		gtp_session_mod_timer(s, ctx->session_delete_to);
+
 	return teid;
 }
 
