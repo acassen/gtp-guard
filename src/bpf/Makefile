@@ -21,6 +21,7 @@
 
 # XDP program to build
 TARGETS := gtp_fwd.bpf gtp_route.bpf gtp_mirror.bpf sock_rps.bpf
+BIN = ../../bin
 
 # Allows pointing LLC/CLANG to a LLVM backend with bpf support, redefine on cmdline:
 #  make samples/bpf/ LLC=~/git/llvm/build/bin/llc CLANG=~/git/llvm/build/bin/clang
@@ -41,7 +42,7 @@ clean:
 		-o -name '*.ll'		\
 		-o -name '*.bc' \)	\
 		-exec rm -vf '{}'	\;
-	rm -f $(TARGETS)
+	@for i in $(TARGETS); do rm -vf $(BIN)/"$$i"; done
 
 dependencies: verify_cmds verify_target_bpf
 verify_cmds: $(CLANG) $(LLC)
@@ -76,4 +77,4 @@ $(TARGETS): %.bpf: %.c
 	    -Wno-unknown-warning-option \
 	    -Wno-address-of-packed-member \
 	    -O2 -emit-llvm -g -c $< -o ${@:.bpf=.ll}
-	@$(LLC) -march=bpf -filetype=obj -o $@ ${@:.bpf=.ll}
+	@$(LLC) -march=bpf -filetype=obj -o $(BIN)/$@ ${@:.bpf=.ll}
