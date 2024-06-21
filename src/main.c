@@ -177,6 +177,7 @@ parse_cmdline(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 			break;
 		case 'l':
+			enable_console_log();
 			debug |= 1;
 			break;
 		case 'n':
@@ -246,7 +247,7 @@ main(int argc, char **argv)
 	 */
 	parse_cmdline(argc, argv);
 
-	openlog(PROG, LOG_PID | (debug & 1) ? LOG_PERROR : 0, log_facility);
+	openlog(PROG, LOG_PID | ((debug & 1) ? LOG_PERROR : 0), log_facility);
 	syslog(LOG_INFO, "Starting " VERSION_STRING "\n");
 
 	if (getenv("GTP_GUARD_PID_FILE"))

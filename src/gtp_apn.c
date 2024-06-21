@@ -76,7 +76,7 @@ gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
 	INIT_LIST_HEAD(&new->next);
 	new->prio = prio;
 	if (str)
-		strncpy(new->str, str, GTP_APN_MAX_LEN - 1);
+		strlcpy(new->str, str, GTP_APN_MAX_LEN);
 
 	pthread_mutex_lock(&apn->mutex);
 	list_add_tail(&new->next, &apn->service_selection);
@@ -140,21 +140,30 @@ gtp_rewrite_rule_destroy(gtp_apn_t *apn, list_head_t *l)
 static int
 apn_resolv_cache_realloc(gtp_apn_t *apn)
 {
+	gtp_resolv_ctx_t *ctx;
 	list_head_t l, old_naptr;
-	int ret;
+	int err;
+
+	/* Context init */
+	ctx = gtp_resolv_ctx_alloc(apn, apn->name);
+	if (!ctx)
+		return -1;
 
 	/* Create temp resolv */
 	INIT_LIST_HEAD(&l);
-	ret = gtp_resolv_naptr(apn, &l);
-	if (ret < 0) {
+	err = gtp_resolv_naptr(ctx, &l);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to update resolv cache while resolving naptr... keeping previous..."
 				    , __FUNCTION__);
+		gtp_resolv_ctx_destroy(ctx);
 		return -1;
 	}
-	ret = gtp_resolv_pgw(apn, &l);
-	if (ret < 0) {
+
+	err = gtp_resolv_pgw(ctx, &l);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to update resolv cache while resolving pgw... keeping previous..."
 				    , __FUNCTION__);
+		gtp_resolv_ctx_destroy(ctx);
 		return -1;
 	}
 
@@ -173,6 +182,7 @@ apn_resolv_cache_realloc(gtp_apn_t *apn)
 	gtp_naptr_destroy(&old_naptr);
 	apn->last_update = time(NULL);
 
+	gtp_resolv_ctx_destroy(ctx);
 	return 0;
 }
 
@@ -467,15 +477,26 @@ DEFUN(apn_realm,
 {
         gtp_apn_t *apn = vty->index;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	strncpy(apn->realm, argv[0], GTP_REALM_LEN-1);
 	apn_resolv_cache_realloc(apn);
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_realm_dynamic,
+      apn_realm_dynamic_cmd,
+      "realm-dynamic",
+      "Enable dynamic resolution\n")
+{
+        gtp_apn_t *apn = vty->index;
+
+	__set_bit(GTP_APN_FL_REALM_DYNAMIC, &apn->flags);
+	return CMD_SUCCESS;
 }
 
 DEFUN(apn_nameserver,
@@ -1270,6 +1291,7 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_resolv_max_retry_cmd);
 	install_element(APN_NODE, &apn_resolv_cache_update_cmd);
 	install_element(APN_NODE, &apn_realm_cmd);
+	install_element(APN_NODE, &apn_realm_dynamic_cmd);
 	install_element(APN_NODE, &apn_service_selection_cmd);
 	install_element(APN_NODE, &apn_imsi_match_cmd);
 	install_element(APN_NODE, &apn_oi_match_cmd);

@@ -55,7 +55,6 @@ typedef struct _gtp_naptr {
 	char			service[GTP_APN_MAX_LEN];
 	char			regexp[GTP_APN_MAX_LEN];
 	char			server[GTP_APN_MAX_LEN];
-	struct _gtp_apn		*apn;	/* Back-pointer */
 
 	list_head_t		pgw;
 
@@ -71,13 +70,26 @@ typedef struct _gtp_service {
 	list_head_t		next;
 } gtp_service_t;
 
+typedef struct _gtp_resolv_ctx {
+	char			apn_ni[GTP_APN_MAX_LEN];
+	char			*realm;
+	struct __res_state	ns_rs;
+	ns_msg			msg;
+	ns_rr			rr;
+	int			max_retry;
+	u_char			nsbuffer[GTP_RESOLV_BUFFER_LEN];
+	char			nsdisp[GTP_DISPLAY_BUFFER_LEN];
+} gtp_resolv_ctx_t;
+
 
 /* Prototypes */
 extern int gtp_naptr_destroy(list_head_t *);
 extern int gtp_naptr_show(vty_t *vty, gtp_apn_t *);
 extern gtp_naptr_t *gtp_naptr_get(gtp_apn_t *, const char *);
-extern int gtp_resolv_pgw(gtp_apn_t *, list_head_t *);
-extern int gtp_resolv_naptr(gtp_apn_t *, list_head_t *);
+extern int gtp_resolv_pgw(gtp_resolv_ctx_t *, list_head_t *);
+extern int gtp_resolv_naptr(gtp_resolv_ctx_t *, list_head_t *);
+extern gtp_resolv_ctx_t *gtp_resolv_ctx_alloc(gtp_apn_t *, const char *);
+extern int gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *);
 extern int gtp_resolv_init(void);
 extern int gtp_resolv_destroy(void);
 

@@ -361,6 +361,7 @@ gtp_ie_apn_extract_ni(gtp_ie_apn_t *apn, char *buffer, size_t size)
 	for (cp = apn->apn; cp < end && labels_cnt-- > 3; cp+=*cp+1) {
 		if (offset + *cp > size)
 			return -1;
+
 		memcpy(buffer+offset, cp+1, *cp);
 		offset += *cp;
 		buffer[offset++] = '.';
@@ -371,8 +372,8 @@ gtp_ie_apn_extract_ni(gtp_ie_apn_t *apn, char *buffer, size_t size)
 	return 0;
 }
 
-int
-gtp_ie_apn_extract_oi(gtp_ie_apn_t *apn, char *buffer, size_t size)
+static int
+gtp_ie_apn_extract_labels(gtp_ie_apn_t *apn, int until_label, char *buffer, size_t size)
 {
 	uint8_t *cp, *end = apn->apn+ntohs(apn->h.length);
 	int labels_cnt = 0;
@@ -385,17 +386,29 @@ gtp_ie_apn_extract_oi(gtp_ie_apn_t *apn, char *buffer, size_t size)
 	for (cp = apn->apn; cp < end && labels_cnt-- > 3; cp+=*cp+1) ;
 
 	/* Phase 2 : copy labels */
-	for (; cp < end; cp+=*cp+1) {
+	for (; cp < end && labels_cnt-- > until_label; cp+=*cp+1) {
 		if (offset + *cp > size)
 			return -1;
+
 		memcpy(buffer+offset, cp+1, *cp);
 		offset += *cp;
 		buffer[offset++] = '.';
 	}
 
 	buffer[offset - 1] = 0;
-
 	return 0;
+}
+
+int
+gtp_ie_apn_extract_oi(gtp_ie_apn_t *apn, char *buffer, size_t size)
+{
+	return gtp_ie_apn_extract_labels(apn, -1, buffer, size);
+}
+
+int
+gtp_ie_apn_extract_plmn(gtp_ie_apn_t *apn, char *buffer, size_t size)
+{
+	return gtp_ie_apn_extract_labels(apn, 0, buffer, size);
 }
 
 int

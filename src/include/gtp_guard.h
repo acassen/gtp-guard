@@ -23,6 +23,7 @@
 #define _GTP_GUARD_H
 
 #include <net/ethernet.h>
+#include <resolv.h>
 
 #include "daemon.h"
 #include "memory.h"

@@ -46,6 +46,7 @@ extern  int gtp_ie_apn_labels_cnt(const char *, size_t);
 extern int gtp_apn_extract_ni(char *, size_t, char *, size_t);
 extern int gtp_ie_apn_extract_ni(gtp_ie_apn_t *, char *, size_t);
 extern int gtp_ie_apn_extract_oi(gtp_ie_apn_t *, char *, size_t);
+extern int gtp_ie_apn_extract_plmn(gtp_ie_apn_t *, char *, size_t);
 extern int gtp_ie_apn_rewrite_oi(gtp_ie_apn_t *, size_t, char *);
 extern int gtp_ie_apn_rewrite(gtp_apn_t *, gtp_ie_apn_t *, size_t);
 extern gtp_id_ecgi_t *gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *);

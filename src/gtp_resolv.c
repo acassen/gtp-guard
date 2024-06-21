@@ -28,7 +28,6 @@
 #include <sys/socket.h>
 #include <ctype.h>
 #include <netdb.h>
-#include <resolv.h>
 #include <errno.h>
 
 /* local includes */
@@ -104,18 +103,17 @@ ns_log_error(const char *dn, int error)
 }
 
 static int
-ns_res_nquery_retry(gtp_apn_t *apn, res_state statep, const char *dname, int class, int type,
-		    unsigned char *answer, int anslen)
+ns_res_nquery_retry(gtp_resolv_ctx_t *ctx, int class, int type)
 {
 	int retry_count = 0;
 	int ret;
 
 retry:
-	ret = res_nquery(statep, dname, class, type, answer, GTP_RESOLV_BUFFER_LEN);
+	ret = res_nquery(&ctx->ns_rs, ctx->nsdisp, class, type, ctx->nsbuffer, GTP_RESOLV_BUFFER_LEN);
 	if (ret < 0) {
-		ns_log_error(dname, h_errno);
-		if (h_errno == TRY_AGAIN && retry_count++ < apn->resolv_max_retry) {
-			log_message(LOG_INFO, "resolv[%s]: retry #%d", dname, retry_count);
+		ns_log_error(ctx->nsdisp, h_errno);
+		if (h_errno == TRY_AGAIN && retry_count++ < ctx->max_retry) {
+			log_message(LOG_INFO, "resolv[%s]: retry #%d", ctx->nsdisp, retry_count);
 			goto retry;
 		}
 	}
@@ -133,64 +131,42 @@ gtp_pgw_set(gtp_pgw_t *pgw, const u_char *rdata, size_t rdlen)
 }
 
 static int
-gtp_resolv_srv_a(gtp_pgw_t *pgw)
+gtp_resolv_srv_a(gtp_resolv_ctx_t *ctx, gtp_pgw_t *pgw)
 {
-	struct __res_state ns_rs;
-	gtp_naptr_t *naptr = pgw->naptr;
-	gtp_apn_t *apn = naptr->apn;
 	int ret, i, err;
-	ns_msg msg;
-	ns_rr rr;
-	struct sockaddr_storage *nsaddr;
-
-	/* Name Server selection */
-	nsaddr = (apn->nameserver.ss_family) ? &apn->nameserver : &daemon_data->nameserver;
-	if (!nsaddr->ss_family) {
-		log_message(LOG_INFO, "%s(): No nameserver configured... Ignoring..."
-				    , __FUNCTION__);
-		return -1;
-	}
-
-	/* Context init */
-	res_ninit(&ns_rs);
-	ns_rs.nsaddr_list[0] = *((struct sockaddr_in *) nsaddr);
-	ns_rs.nscount = 1;
 
 	/* Perform Query */
-	snprintf(apn->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s", pgw->srv_name);
-	ret = ns_res_nquery_retry(apn, &ns_rs, apn->nsdisp, ns_c_in, ns_t_a,
-				  apn->nsbuffer, GTP_RESOLV_BUFFER_LEN);
+	snprintf(ctx->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s", pgw->srv_name);
+	ret = ns_res_nquery_retry(ctx, ns_c_in, ns_t_a);
 	if (ret < 0) {
-		res_nclose(&ns_rs);
+		res_nclose(&ctx->ns_rs);
 		return -1;
 	}
 
-	ns_initparse(apn->nsbuffer, ret, &msg);
-	ret = ns_msg_count(msg, ns_s_an);
+	ns_initparse(ctx->nsbuffer, ret, &ctx->msg);
+	ret = ns_msg_count(ctx->msg, ns_s_an);
 	for (i = 0; i < ret; i++) {
-		err = ns_parserr(&msg, ns_s_an, i, &rr);
+		err = ns_parserr(&ctx->msg, ns_s_an, i, &ctx->rr);
 		if (err < 0)
 			continue;
 
 		/* Ensure only A are being used */
-		if (ns_rr_type(rr) != ns_t_a)
+		if (ns_rr_type(ctx->rr) != ns_t_a)
 			continue;
 
-		gtp_pgw_set(pgw, ns_rr_rdata(rr), ns_rr_rdlen(rr));
+		gtp_pgw_set(pgw, ns_rr_rdata(ctx->rr), ns_rr_rdlen(ctx->rr));
         }
 
-	/* Context release */
-	res_nclose(&ns_rs);
 	return 0;
 }
 
 static int
-gtp_resolv_pgw_srv(gtp_naptr_t *naptr)
+gtp_resolv_pgw_srv(gtp_resolv_ctx_t *ctx, gtp_naptr_t *naptr)
 {
 	gtp_pgw_t *pgw;
 
 	list_for_each_entry(pgw, &naptr->pgw, next) {
-		gtp_resolv_srv_a(pgw);
+		gtp_resolv_srv_a(ctx, pgw);
 	}
 
 	return 0;
@@ -257,69 +233,48 @@ gtp_pgw_alloc(gtp_naptr_t *naptr, const u_char *rdata, size_t rdlen)
 }
 
 static int
-gtp_resolv_naptr_srv(gtp_naptr_t *naptr)
+gtp_resolv_naptr_srv(gtp_resolv_ctx_t *ctx, gtp_naptr_t *naptr)
 {
-	struct __res_state ns_rs;
-	gtp_apn_t *apn = naptr->apn;
 	int ret, i, err;
-	ns_msg msg;
-	ns_rr rr;
-	struct sockaddr_storage *nsaddr;
-
-	/* Name Server selection */
-	nsaddr = (apn->nameserver.ss_family) ? &apn->nameserver : &daemon_data->nameserver;
-	if (!nsaddr->ss_family) {
-		log_message(LOG_INFO, "%s(): No nameserver configured... Ignoring..."
-				    , __FUNCTION__);
-		return -1;
-	}
-
-	/* Context init */
-	res_ninit(&ns_rs);
-	ns_rs.nsaddr_list[0] = *((struct sockaddr_in *) nsaddr);
-	ns_rs.nscount = 1;
 
 	/* Perform Query */
-	snprintf(apn->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s", naptr->server);
-	ret = ns_res_nquery_retry(apn, &ns_rs, apn->nsdisp, ns_c_in, ns_t_srv,
-				  apn->nsbuffer, GTP_RESOLV_BUFFER_LEN);
+	snprintf(ctx->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s", naptr->server);
+	ret = ns_res_nquery_retry(ctx, ns_c_in, ns_t_srv);
         if (ret < 0) {
-		res_nclose(&ns_rs);
+		res_nclose(&ctx->ns_rs);
 		return -1;
 	}
 
-        ns_initparse(apn->nsbuffer, ret, &msg);
-        ret = ns_msg_count(msg, ns_s_an);
+        ns_initparse(ctx->nsbuffer, ret, &ctx->msg);
+        ret = ns_msg_count(ctx->msg, ns_s_an);
         for (i = 0; i < ret; i++) {
-                err = ns_parserr(&msg, ns_s_an, i, &rr);
+                err = ns_parserr(&ctx->msg, ns_s_an, i, &ctx->rr);
 		if (err < 0)
 			continue;
 
 		/* Ensure only SRV are being used */
-		if (ns_rr_type(rr) != ns_t_srv)
+		if (ns_rr_type(ctx->rr) != ns_t_srv)
 			continue;
 
-		gtp_pgw_alloc(naptr, ns_rr_rdata(rr), ns_rr_rdlen(rr));
+		gtp_pgw_alloc(naptr, ns_rr_rdata(ctx->rr), ns_rr_rdlen(ctx->rr));
         }
 
-	/* Context release */
-	res_nclose(&ns_rs);
 	return 0;
 }
 
 int
-gtp_resolv_pgw(gtp_apn_t *apn, list_head_t *l)
+gtp_resolv_pgw(gtp_resolv_ctx_t *ctx, list_head_t *l)
 {
 	gtp_naptr_t *naptr;
 	int ret;
 
 	list_for_each_entry(naptr, l, next) {
 		if (naptr->server_type == ns_t_srv) {
-			ret = gtp_resolv_naptr_srv(naptr);
+			ret = gtp_resolv_naptr_srv(ctx, naptr);
 			if (ret < 0)
 				return -1;
 
-			ret = gtp_resolv_pgw_srv(naptr);
+			ret = gtp_resolv_pgw_srv(ctx, naptr);
 			if (ret < 0)
 				return -1;
 			continue;
@@ -327,7 +282,7 @@ gtp_resolv_pgw(gtp_apn_t *apn, list_head_t *l)
 
 		if (naptr->server_type == ns_t_a) {
 			gtp_pgw_append(naptr, naptr->server, strlen(naptr->server));
-			ret = gtp_resolv_pgw_srv(naptr);
+			ret = gtp_resolv_pgw_srv(ctx, naptr);
 			if (ret < 0)
 				return -1;
 		}
@@ -337,7 +292,7 @@ gtp_resolv_pgw(gtp_apn_t *apn, list_head_t *l)
 }
 
 static int
-gtp_naptr_alloc(gtp_apn_t *apn, list_head_t *l, const u_char *rdata, size_t rdlen)
+gtp_naptr_alloc(list_head_t *l, const u_char *rdata, size_t rdlen)
 {
 	gtp_naptr_t *new;
 	const u_char *edata = rdata + rdlen;
@@ -346,7 +301,6 @@ gtp_naptr_alloc(gtp_apn_t *apn, list_head_t *l, const u_char *rdata, size_t rdle
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->pgw);
 	INIT_LIST_HEAD(&new->next);
-	new->apn = apn;
 
 	/* Parse ns response according to IETF-RFC2915.8 */
 	new->order = ns_get16(rdata);
@@ -386,62 +340,77 @@ gtp_naptr_alloc(gtp_apn_t *apn, list_head_t *l, const u_char *rdata, size_t rdle
 	return 0;
 }
 
-
 int
-gtp_resolv_naptr(gtp_apn_t *apn, list_head_t *l)
+gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l)
 {
-	struct __res_state ns_rs;
 	int ret, i, err;
-	ns_msg msg;
-	ns_rr rr;
-	char *realm;
-	struct sockaddr_storage *nsaddr;
-
-	/* Name Server selection */
-	nsaddr = (apn->nameserver.ss_family) ? &apn->nameserver : &daemon_data->nameserver;
-	if (!nsaddr->ss_family) {
-		log_message(LOG_INFO, "%s(): No nameserver configured... Ignoring..."
-				    , __FUNCTION__);
-		return -1;
-	}
-
-	/* Context init */
-	res_ninit(&ns_rs);
-	ns_rs.nsaddr_list[0] = *((struct sockaddr_in *) nsaddr);
-	ns_rs.nscount = 1;
 
 	/* Perform Query */
-	realm = (strlen(apn->realm)) ? apn->realm : daemon_data->realm;
-	if (!strlen(realm)) {
-		log_message(LOG_INFO, "%s(): No Realm configured... Ignoring..."
-				    , __FUNCTION__);
-		return -1;
-	}
-
-	snprintf(apn->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s.%s", apn->name, realm);
-	ret = ns_res_nquery_retry(apn, &ns_rs, apn->nsdisp, ns_c_in, ns_t_naptr,
-				  apn->nsbuffer, GTP_RESOLV_BUFFER_LEN);
+	snprintf(ctx->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s.%s", ctx->apn_ni, ctx->realm);
+	ret = ns_res_nquery_retry(ctx, ns_c_in, ns_t_naptr);
 	if (ret < 0) {
-		res_nclose(&ns_rs);
+		res_nclose(&ctx->ns_rs);
 		return -1;
 	}
 
-	ns_initparse(apn->nsbuffer, ret, &msg);
-	ret = ns_msg_count(msg, ns_s_an);
+	ns_initparse(ctx->nsbuffer, ret, &ctx->msg);
+	ret = ns_msg_count(ctx->msg, ns_s_an);
 	for (i = 0; i < ret; i++) {
-		err = ns_parserr(&msg, ns_s_an, i, &rr);
+		err = ns_parserr(&ctx->msg, ns_s_an, i, &ctx->rr);
 		if (err < 0)
 			continue;
 
 		/* Ensure only NAPTR are being used */
-		if (ns_rr_type(rr) != ns_t_naptr)
+		if (ns_rr_type(ctx->rr) != ns_t_naptr)
 			continue;
 
-		gtp_naptr_alloc(apn, l, ns_rr_rdata(rr), ns_rr_rdlen(rr));
+		gtp_naptr_alloc(l, ns_rr_rdata(ctx->rr), ns_rr_rdlen(ctx->rr));
         }
 
-	/* Context release */
-	res_nclose(&ns_rs);
+	return 0;
+}
+
+gtp_resolv_ctx_t *
+gtp_resolv_ctx_alloc(gtp_apn_t *apn, const char *apn_name)
+{
+	gtp_resolv_ctx_t *ctx;
+	struct sockaddr_storage *addr;
+
+	PMALLOC(ctx);
+	if (!ctx)
+		return NULL;
+
+	ctx->max_retry = apn->resolv_max_retry;
+	addr = (apn->nameserver.ss_family) ? &apn->nameserver : &daemon_data->nameserver;
+	if (!addr->ss_family) {
+		log_message(LOG_INFO, "%s(): No nameserver configured... Ignoring..."
+				    , __FUNCTION__);
+		FREE(ctx);
+		return NULL;
+	}
+
+	ctx->realm = (strlen(apn->realm)) ? apn->realm : daemon_data->realm;
+	if (!strlen(ctx->realm)) {
+		log_message(LOG_INFO, "%s(): No Realm configured... Ignoring..."
+				    , __FUNCTION__);
+		FREE(ctx);
+		return NULL;
+	}
+
+	res_ninit(&ctx->ns_rs);
+	ctx->ns_rs.nsaddr_list[0] = *((struct sockaddr_in *) addr);
+	ctx->ns_rs.nscount = 1;
+
+	strlcpy(ctx->apn_ni, apn_name, GTP_APN_MAX_LEN);
+
+	return ctx;
+}
+
+int
+gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *ctx)
+{
+	res_nclose(&ctx->ns_rs);
+	FREE(ctx);
 	return 0;
 }
 

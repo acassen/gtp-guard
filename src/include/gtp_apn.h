@@ -35,6 +35,7 @@ enum gtp_apn_flags {
 	GTP_RESOLV_FL_SERVICE_SELECTION,
 	GTP_RESOLV_FL_CACHE_UPDATE,
 	GTP_APN_FL_SESSION_UNIQ_PTYPE,
+	GTP_APN_FL_REALM_DYNAMIC,
 };
 
 enum gtp_pco_flags {
@@ -81,8 +82,6 @@ typedef struct _gtp_rewrite_rule {
 /* Access-Point-Name */
 typedef struct _gtp_apn {
 	char			name[GTP_APN_MAX_LEN];
-	u_char			nsbuffer[GTP_RESOLV_BUFFER_LEN];
-	char			nsdisp[GTP_DISPLAY_BUFFER_LEN];
 	char			realm[GTP_REALM_LEN];
 	struct sockaddr_storage	nameserver;
 	uint8_t			resolv_max_retry;
