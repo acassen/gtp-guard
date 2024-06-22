@@ -636,7 +636,6 @@ DEFUN(apn_service_selection,
       "priority\n")
 {
 	gtp_apn_t *apn = vty->index;
-	gtp_naptr_t *naptr;
 	int prio = 0;
 
 	if (argc < 1) {
@@ -646,12 +645,6 @@ DEFUN(apn_service_selection,
 
 	if (argc >= 1)
 		prio = atoi(argv[1]);
-
-	naptr = gtp_naptr_get(apn, argv[0]);
-	if (!naptr) {
-		vty_out(vty, "%% unknown service %s. Preparing for futur use%s"
-			   , argv[0], VTY_NEWLINE);
-	}
 
 	gtp_service_alloc(apn, argv[0], prio);
 	__set_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags);

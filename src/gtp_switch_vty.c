@@ -120,7 +120,7 @@ DEFUN(gtp_switch_session_expiration_timeout_delete,
 		return CMD_WARNING;
 	}
 
-	VTY_GET_INTEGER_RANGE("Expiration Timeout", timeout, argv[1], 5, 300);
+	VTY_GET_INTEGER_RANGE("Expiration Timeout", timeout, argv[0], 5, 300);
 	ctx->session_delete_to = timeout;
 
 	__set_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags);
