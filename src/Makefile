@@ -45,4 +45,4 @@ HEADERS = $(OBJS:.o=.h)
 all:	$(OBJS)
 
 clean:
-	rm -f *.a *.o *~
+	@rm -vf *.a *.o *~

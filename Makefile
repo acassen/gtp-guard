@@ -54,11 +54,11 @@ $(OBJDIR)/libbpf.a:
 
 clean:
 	@$(MAKE) -C $(LIBBPF)/src clean
-	rm -f $(OBJDIR)/uapi
+	@rm -vf $(OBJDIR)/uapi
 	@set -e; \
 	for i in $(SUBDIRS); do \
 	$(MAKE) -C $$i clean; done
-	rm -f $(BIN)/$(EXEC)
+	@rm -vf $(BIN)/$(EXEC)
 	@echo ""
 	@echo "Make complete"
 
