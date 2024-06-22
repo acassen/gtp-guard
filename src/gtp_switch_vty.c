@@ -150,7 +150,7 @@ DEFUN(gtpc_switch_tunnel_endpoint,
 	}
 
 	if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
-		vty_out(vty, "%% GTPc already configured!%s", VTY_NEWLINE);
+		vty_out(vty, "%% GTP-C already configured!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -207,7 +207,7 @@ DEFUN(gtpc_switch_egress_tunnel_endpoint,
         }
 
         if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
-                vty_out(vty, "%% GTPc already configured!%s", VTY_NEWLINE);
+                vty_out(vty, "%% GTP-C egress already configured!%s", VTY_NEWLINE);
                 return CMD_WARNING;
         }
 
@@ -252,23 +252,23 @@ DEFUN(gtpu_switch_tunnel_endpoint,
       "max UDP listener pthreads\n"
       "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
-        gtp_switch_t *ctx = vty->index;
-        gtp_server_t *srv = &ctx->gtpu;
+	gtp_switch_t *ctx = vty->index;
+	gtp_server_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 2152, ret = 0;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
-                vty_out(vty, "%% GTPu already configured!%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (__test_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags)) {
+		vty_out(vty, "%% GTP-U already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (argc == 2)
-                VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+	if (argc == 2)
+		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	ret = inet_stosockaddr(argv[0], port, addr);
 	if (ret < 0) {
@@ -278,11 +278,59 @@ DEFUN(gtpu_switch_tunnel_endpoint,
 	}
 
 	/* argv[3] is listnener-count */
-        srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
-        srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
-        __set_bit(GTP_FL_UPF_BIT, &srv->flags);
-        gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
-        gtp_server_start(srv);
+	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
+	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
+	__set_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags);
+	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_start(srv);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(gtpu_switch_egress_tunnel_endpoint,
+      gtpu_switch_egress_tunnel_endpoint_cmd,
+      "gtpu-egress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
+      "GTP Userplane channel tunnel endpoint\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2152)\n"
+      "Number\n"
+      "max UDP listener pthreads\n"
+      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
+{
+	gtp_switch_t *ctx = vty->index;
+	gtp_server_t *srv = &ctx->gtpu_egress;
+	struct sockaddr_storage *addr = &srv->addr;
+	int port = 2152, ret = 0;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (__test_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags)) {
+		vty_out(vty, "%% GTPu already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (argc == 2)
+		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+
+	ret = inet_stosockaddr(argv[0], port, addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		memset(addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+
+	/* argv[3] is listnener-count */
+	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
+	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
+	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
+	__set_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags);
+	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_start(srv);
 
 	return CMD_SUCCESS;
 }
@@ -632,8 +680,18 @@ gtp_config_write(vty_t *vty)
 			vty_out(vty, "%s" , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpu;
-		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
+		if (__test_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags)) {
 			vty_out(vty, " gtpu-tunnel-endpoint %s port %d"
+				   , inet_sockaddrtos(&srv->addr)
+				   , ntohs(inet_sockaddrport(&srv->addr)));
+			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
+				vty_out(vty, " listener-count %d"
+					   , srv->thread_cnt);
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
+		srv = &ctx->gtpu_egress;
+		if (__test_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags)) {
+			vty_out(vty, " gtpu-egress-tunnel-endpoint %s port %d"
 				   , inet_sockaddrtos(&srv->addr)
 				   , ntohs(inet_sockaddrport(&srv->addr)));
 			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
@@ -695,6 +753,7 @@ gtp_switch_vty_init(void)
 	install_element(GTP_SWITCH_NODE, &gtpc_switch_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_switch_egress_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_switch_tunnel_endpoint_cmd);
+	install_element(GTP_SWITCH_NODE, &gtpu_switch_egress_tunnel_endpoint_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpc_force_pgw_selection_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_ipip_cmd);
 	install_element(GTP_SWITCH_NODE, &gtpu_ipip_dead_peer_detection_cmd);
