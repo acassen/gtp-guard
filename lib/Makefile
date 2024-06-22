@@ -39,10 +39,10 @@ HEADERS = $(OBJS:.o=.h)
 all:	$(OBJS)
 
 clean:
-	rm -f *.a *.o *~
+	@rm -vf *.a *.o *~
 
 distclean: clean
-	rm -f Makefile
+	@rm -vf Makefile
 
 memory.o: memory.c memory.h
 mpool.o: mpool.h memory.h

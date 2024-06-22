@@ -1,5 +1,10 @@
 # Download
 
+* June 22th, 2024 -
+[Release Notes](release-1.0.5) -
+[gtp-guard-1.0.5.tar.xz](/software/gtp-guard-1.0.5.tar.xz) -
+MD5SUM:={f5dd2bce6077d6bae4f8ce2f47461e9c}
+
 * November 20th, 2023 -
 [Release Notes](release-1.0.3) -
 [gtp-guard-1.0.3.tar.xz](/software/gtp-guard-1.0.3.tar.xz) -
