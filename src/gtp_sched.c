@@ -80,18 +80,18 @@ gtp_sched_pgw_wlc(gtp_naptr_t *naptr, struct sockaddr_in *addr_skip)
 }
 
 static gtp_pgw_t *
-gtp_sched_naptr(gtp_apn_t *apn, const char *service, struct sockaddr_in *addr_skip)
+gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_skip)
 {
 	gtp_naptr_t *naptr, *least = NULL;
 	gtp_pgw_t *pgw = NULL;
 
 	/* First stage: Reset previous scheduling flags */
-	list_for_each_entry(naptr, &apn->naptr, next)
+	list_for_each_entry(naptr, l, next)
 		naptr->fl = 0;
 
 	/* Second stage : Schedule by order until pgw election */
   shoot_again:
-	list_for_each_entry(naptr, &apn->naptr, next) {
+	list_for_each_entry(naptr, l, next) {
 		if (!strstr(naptr->service, service) ||
 		    __test_bit(GTP_SCHEDULE_FL_SKIP, &naptr->fl))
 			continue;
@@ -114,8 +114,8 @@ gtp_sched_naptr(gtp_apn_t *apn, const char *service, struct sockaddr_in *addr_sk
 	return pgw;
 }
 
-int
-gtp_sched(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+static int
+gtp_sched_generic(gtp_apn_t *apn, list_head_t *l, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
 {
 	gtp_service_t *service;
 	gtp_pgw_t *pgw = NULL;
@@ -123,15 +123,54 @@ gtp_sched(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_ski
 	/* Service selection list is already sorted by prio */
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry(service, &apn->service_selection, next) {
-		pgw = gtp_sched_naptr(apn, service->str, addr_skip);
+		pgw = gtp_sched_naptr(l, service->str, addr_skip);
 		if (pgw) {
 			*addr = *(struct sockaddr_in *) &pgw->addr;
 			pthread_mutex_unlock(&apn->mutex);
 			return 0;
 		}
-
 	}
 	pthread_mutex_unlock(&apn->mutex);
 
 	return -1;
+}
+
+int
+gtp_sched(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+{
+	return gtp_sched_generic(apn, &apn->naptr, addr, addr_skip);
+}
+
+int
+gtp_sched_dynamic(gtp_apn_t *apn, const char *apn_name, const char *plmn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+{
+	gtp_resolv_ctx_t *ctx;
+	list_head_t l;
+	int err = 0;
+
+	ctx = gtp_resolv_ctx_alloc(apn);
+	if (!ctx)
+		return -1;
+
+	INIT_LIST_HEAD(&l);
+	err = gtp_resolv_naptr(ctx, &l, "%s.apn.epc.%s.3gppnetwork.org.", apn_name, plmn);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Unable to resolv apn:'%s.apn.epc.%s.3gppnetwork.org.'"
+				    , __FUNCTION__, apn_name, plmn);
+		goto end;
+	}
+
+	err = gtp_resolv_pgw(ctx, &l);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Unable resolv pgw for apn:'%s.apn.epc.%s.3gppnetwork.org.'"
+				    , __FUNCTION__, apn_name, plmn);
+		goto end;
+	}
+
+	err = gtp_sched_generic(apn, &l, addr, addr_skip);
+
+  end:
+	gtp_resolv_ctx_destroy(ctx);
+	gtp_naptr_destroy(&l);
+	return err;
 }

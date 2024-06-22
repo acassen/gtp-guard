@@ -145,13 +145,20 @@ apn_resolv_cache_realloc(gtp_apn_t *apn)
 	int err;
 
 	/* Context init */
-	ctx = gtp_resolv_ctx_alloc(apn, apn->name);
+	ctx = gtp_resolv_ctx_alloc(apn);
 	if (!ctx)
 		return -1;
 
+	if (!ctx->realm) {
+		log_message(LOG_INFO, "%s(): no realm available to resolv naptr... keeping previous..."
+				    , __FUNCTION__);
+		gtp_resolv_ctx_destroy(ctx);
+		return -1;
+	}
+
 	/* Create temp resolv */
 	INIT_LIST_HEAD(&l);
-	err = gtp_resolv_naptr(ctx, &l);
+	err = gtp_resolv_naptr(ctx, &l, "%s.%s", apn->name, ctx->realm);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to update resolv cache while resolving naptr... keeping previous..."
 				    , __FUNCTION__);

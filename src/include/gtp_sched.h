@@ -24,5 +24,6 @@
 
 /* Prototypes */
 extern int gtp_sched(gtp_apn_t *, struct sockaddr_in *, struct sockaddr_in *);
+extern int gtp_sched_dynamic(gtp_apn_t *, const char *, const char *, struct sockaddr_in *, struct sockaddr_in *);
 
 #endif

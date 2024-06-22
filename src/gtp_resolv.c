@@ -26,6 +26,7 @@
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <netdb.h>
 #include <errno.h>
@@ -341,12 +342,16 @@ gtp_naptr_alloc(list_head_t *l, const u_char *rdata, size_t rdlen)
 }
 
 int
-gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l)
+gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l, const char *format, ...)
 {
+	va_list args;
 	int ret, i, err;
 
 	/* Perform Query */
-	snprintf(ctx->nsdisp, GTP_DISPLAY_BUFFER_LEN - 1, "%s.%s", ctx->apn_ni, ctx->realm);
+	va_start(args, format);
+	vsnprintf(ctx->nsdisp, GTP_DISPLAY_BUFFER_LEN, format, args);
+	va_end(args);
+
 	ret = ns_res_nquery_retry(ctx, ns_c_in, ns_t_naptr);
 	if (ret < 0) {
 		res_nclose(&ctx->ns_rs);
@@ -371,7 +376,7 @@ gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l)
 }
 
 gtp_resolv_ctx_t *
-gtp_resolv_ctx_alloc(gtp_apn_t *apn, const char *apn_name)
+gtp_resolv_ctx_alloc(gtp_apn_t *apn)
 {
 	gtp_resolv_ctx_t *ctx;
 	struct sockaddr_storage *addr;
@@ -390,18 +395,10 @@ gtp_resolv_ctx_alloc(gtp_apn_t *apn, const char *apn_name)
 	}
 
 	ctx->realm = (strlen(apn->realm)) ? apn->realm : daemon_data->realm;
-	if (!strlen(ctx->realm)) {
-		log_message(LOG_INFO, "%s(): No Realm configured... Ignoring..."
-				    , __FUNCTION__);
-		FREE(ctx);
-		return NULL;
-	}
 
 	res_ninit(&ctx->ns_rs);
 	ctx->ns_rs.nsaddr_list[0] = *((struct sockaddr_in *) addr);
 	ctx->ns_rs.nscount = 1;
-
-	strlcpy(ctx->apn_ni, apn_name, GTP_APN_MAX_LEN);
 
 	return ctx;
 }
@@ -448,6 +445,23 @@ gtp_pgw_show(vty_t *vty, list_head_t *l)
 	return 0;
 }
 
+static int
+gtp_pgw_dump(list_head_t *l)
+{
+	gtp_pgw_t *pgw;
+
+	list_for_each_entry(pgw, l, next) {
+		printf(" %s\t\t[%s]:%d\tPrio:%d Weight:%d\n",
+			pgw->srv_name,
+			inet_sockaddrtos(&pgw->addr),
+			ntohs(inet_sockaddrport(&pgw->addr)),
+			pgw->priority,
+			pgw->weight);
+	}
+
+	return 0;
+}
+
 int
 gtp_naptr_show(vty_t *vty, gtp_apn_t *apn)
 {
@@ -470,6 +484,22 @@ gtp_naptr_show(vty_t *vty, gtp_apn_t *apn)
 	return 0;
 }
 
+int
+gtp_naptr_dump(list_head_t *l)
+{
+	gtp_naptr_t *naptr;
+
+	list_for_each_entry(naptr, l, next) {
+		printf("%s\t(%s, %s, Order:%d, Pref:%d)\n",
+			naptr->server, (naptr->server_type == ns_t_srv) ? "SRV" : "A",
+			naptr->service,
+			naptr->order,
+			naptr->preference);
+		gtp_pgw_dump(&naptr->pgw);
+	}
+
+	return 0;
+}
 
 int
 gtp_naptr_destroy(list_head_t *l)

@@ -226,7 +226,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	uint64_t imsi;
 	uint8_t *cp;
 	char apn_str[64];
-	int ret;
+	char apn_plmn[64];
+	int err;
 
 	/* Retransmission detection: Operating in a tranparent
 	 * way in order to preserve transitivity of messages, so
@@ -258,8 +259,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	ie_apn = (gtp_ie_apn_t *) cp;
 	memset(apn_str, 0, 64);
-	ret = gtp_ie_apn_extract_ni(ie_apn, apn_str, 63);
-	if (ret < 0) {
+	err = gtp_ie_apn_extract_ni(ie_apn, apn_str, 63);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Error parsing Access-Point-Name IE. ignoring..."
 				    , __FUNCTION__);
 		return NULL;
@@ -333,8 +334,26 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
-	ret = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
-	if (ret < 0) {
+	if (__test_bit(GTP_APN_FL_REALM_DYNAMIC, &apn->flags)) {
+		err = gtp_ie_apn_extract_plmn(ie_apn, apn_plmn, 63);
+		if (err)
+			goto end;
+
+		err = gtp_sched_dynamic(apn, apn_str, apn_plmn, &teid->pgw_addr, &teid->sgw_addr);
+		if (err) {
+			log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:'%s.apn.epc.%s.3gppnetwork.org.'"
+					    , __FUNCTION__
+					    , apn_str, apn_plmn);
+			gtp_teid_put(teid);
+			gtp_session_destroy(s);
+			teid = NULL;
+		}
+
+		goto end;
+	}
+
+	err = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__
 				    , apn->name);
