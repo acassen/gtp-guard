@@ -42,6 +42,9 @@ enum gtp_teid_flags {
 	GTP_TEID_FL_XDP_SET,
 };
 
+/* Defines */
+#define TEID_IS_DUMMY(X)	((X)->type == 0xff)
+
 /* GTP Connection tracking */
 typedef struct _gtp_teid {
 	uint8_t			version;	/* GTPv1 or GTPv2 */

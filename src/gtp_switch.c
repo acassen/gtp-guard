@@ -137,8 +137,8 @@ gtp_switch_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr
 
 	/* Set destination address */
 	gtp_switch_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(w, fd
-			 , (teid->type == 0xff) ? (struct sockaddr_in *) addr_from : &addr_to);
+	gtp_server_send(w, TEID_IS_DUMMY(teid) ? w->fd : fd
+			 , TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
 	gtpc_switch_handle_post(w, teid);
 
 	return 0;
