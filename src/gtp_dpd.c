@@ -200,7 +200,10 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 		t->flags &= ~IPTNL_FL_DEAD;
 		gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
 		gtp_mirror_action(RULE_ADD, t->ifindex);
-	} else if (!(t->flags & IPTNL_FL_DEAD) && (t->expire < timer_long(time_now))) {
+		goto end;
+	}
+
+	if (!(t->flags & IPTNL_FL_DEAD) && (t->expire < timer_long(time_now))) {
 		log_message(LOG_INFO, "%s(): Dead Peer Detected (bypassing)"
 				      " (s:%u.%u.%u.%u l:%u.%u.%u.%u r:%u.%u.%u.%u)"
 				    , __FUNCTION__
@@ -212,6 +215,7 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 		gtp_mirror_action(RULE_DEL, t->ifindex);
 	}
 
+  end:
 	thread_add_timer(master, gtp_dpd_timer_thread, t, TIMER_HZ);
 }
 

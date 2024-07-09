@@ -314,9 +314,9 @@ gtp_naptr_alloc(list_head_t *l, const u_char *rdata, size_t rdlen)
 	if (len < 0)
 		goto end;
 	rdata += len;
-	if (*new->flags == 'A')
+	if (*new->flags == 'A' || *new->flags == 'a')
 		new->server_type = ns_t_a;
-	else if (*new->flags == 'S')
+	else if (*new->flags == 'S' || *new->flags == 's')
 		new->server_type = ns_t_srv;
 
 	/* Services */
