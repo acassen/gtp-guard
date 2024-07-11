@@ -440,7 +440,8 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 	gtp_sqn_restore(w, teid->peer_teid);
 
 	/* Set addr tunnel endpoint */
-	teid->pgw_addr = *((struct sockaddr_in *) addr);
+	inet_ip4tosockaddr(teid->ipv4, (struct sockaddr_storage *) &teid->pgw_addr);
+	teid->pgw_addr.sin_port = htons(GTP_C_PORT);
 	teid->sgw_addr = t->sgw_addr;
 
 	/* Test cause code, destroy if <> success.
