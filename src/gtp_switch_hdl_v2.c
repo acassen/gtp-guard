@@ -392,6 +392,9 @@ gtpc_create_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 			gtp_ie_imsi_rewrite(t->session->apn, cp);
 		}
 
+		/* Recovery xlat */
+		gtpc_session_xlat_recovery(w);
+
 		/* SQN masq */
 		gtp_sqn_restore(w, t);
 
@@ -538,6 +541,9 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 			gtp_ie_imsi_rewrite(teid->session->apn, cp);
 		}
 
+		/* Recovery xlat */
+		gtpc_session_xlat_recovery(w);
+
 		/* SQN masq */
 		gtp_sqn_restore(w, teid->peer_teid);
 
@@ -555,6 +561,9 @@ gtpc_delete_session_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage
 
 	/* Set sGW TEID */
 	h->teid = teid->id;
+
+	/* Recovery xlat */
+	gtpc_session_xlat_recovery(w);
 
 	/* SQN masq */
 	gtp_sqn_restore(w, teid->peer_teid);
@@ -682,6 +691,9 @@ gtpc_modify_bearer_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 			gtp_ie_imsi_rewrite(teid->session->apn, cp);
 		}
 
+		/* Recovery xlat */
+		gtpc_session_xlat_recovery(w);
+
 		/* SQN masq */
 		gtp_sqn_restore(w, teid->peer_teid);
 
@@ -766,6 +778,9 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	if (cp) {
 		gtp_ie_imsi_rewrite(teid->session->apn, cp);
 	}
+
+	/* Recovery xlat */
+	gtpc_session_xlat_recovery(w);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

@@ -355,6 +355,9 @@ gtp1_create_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 			return NULL;
 		}
 
+		/* Recovery xlat */
+		gtp1_session_xlat_recovery(w);
+
 		/* SQN masq */
 		gtp_sqn_restore(w, t);
 
@@ -548,6 +551,9 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 			return NULL;
 		}
 
+		/* Recovery xlat */
+		gtp1_session_xlat_recovery(w);
+
 		/* SQN masq */
 		gtp_sqn_restore(w, teid->peer_teid);
 
@@ -631,6 +637,9 @@ gtp1_delete_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* Set GGSN TEID */
 	h->teid = teid->id;
 
+	/* Recovery xlat */
+	gtp1_session_xlat_recovery(w);
+
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
 	gtp_vsqn_alloc(w, teid, false);
@@ -672,6 +681,9 @@ gtp1_delete_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 			return NULL;
 		}
 
+		/* Recovery xlat */
+		gtp1_session_xlat_recovery(w);
+
 		/* SQN masq */
 		gtp_sqn_restore(w, teid);
 
@@ -683,6 +695,9 @@ gtp1_delete_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 
 	/* Restore TEID at SGSN */
 	h->teid = teid->id;
+
+	/* Recovery xlat */
+	gtp1_session_xlat_recovery(w);
 
 	/* SQN masq */
 	gtp_sqn_restore(w, teid->peer_teid);
