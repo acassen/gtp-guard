@@ -99,7 +99,7 @@ jobs:
             -u bin/artifact-gtp-guard-gcc/test/gtpu-ping.py \
             -g bin/artifact-gtp-guard-gcc/bin/gtp-guard \
             -c etc/gtp-guard.conf \
-            -f bin/artifact-gtp-guard-gcc/src/bpf/gtp_fwd.bpf \
-            -r bin/artifact-gtp-guard-gcc/src/bpf/gtp_route.bpf \
-            -m bin/artifact-gtp-guard-gcc/src/bpf/gtp_mirror.bpf \
+            -f bin/artifact-gtp-guard-gcc/bin/gtp_fwd.bpf \
+            -r bin/artifact-gtp-guard-gcc/bin/gtp_route.bpf \
+            -m bin/artifact-gtp-guard-gcc/bin/gtp_mirror.bpf \
             -k no
