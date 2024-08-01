@@ -33,8 +33,8 @@ CFLAGS := -g -O2 -Wall -Werror
 LIBBPF = ../../libbpf
 LINUXINCLUDE := -I$(LIBBPF)/src
 
-all: dependencies $(TARGETS)
-.PHONY: dependencies clean $(CLANG) $(LLC)
+all: $(TARGETS)
+.PHONY: clean $(CLANG) $(LLC)
 
 clean:
 	@find . -type f			\
@@ -43,22 +43,6 @@ clean:
 		-o -name '*.bc' \)	\
 		-exec rm -vf '{}'	\;
 	@for i in $(TARGETS); do rm -vf $(BIN)/"$$i"; done
-
-dependencies: verify_cmds verify_target_bpf
-verify_cmds: $(CLANG) $(LLC)
-	@for TOOL in $^ ; do \
-		if ! (which -- "$${TOOL}" > /dev/null 2>&1); then \
-			echo "*** ERROR: Cannot find LLVM tool $${TOOL}" ;\
-			exit 1; \
-		else true; fi; \
-	done
-verify_target_bpf: verify_cmds
-	@if ! (${LLC} -march=bpf -mattr=help > /dev/null 2>&1); then \
-		echo "*** ERROR: LLVM (${LLC}) does not support 'bpf' target" ;\
-		echo "   NOTICE: LLVM version >= 3.7.1 required" ;\
-		exit 2; \
-	else true; fi
-
 
 # asm/sysreg.h - inline assembly used by it is incompatible with llvm.
 # But, there is no easy way to fix it, so just exclude it since it is
