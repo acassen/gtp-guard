@@ -178,14 +178,14 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	data_end = (void *) (long) ctx->data_end;
 
 	new_eth = data;
-	if (new_eth + 1 > data_end)
+	if (new_eth + 1 > (typeof(new_eth))data_end)
 		return XDP_DROP;
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
 
 	if (iptnl_rule->flags & IPTNL_FL_TAG_VLAN) {
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > (typeof(vlanh))data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->encap_vlan_id);
@@ -194,12 +194,12 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 
 	/* IPIP Encapsulation header */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 
 	offset += sizeof(struct iphdr);
 	iph_inner = data + offset;
-	if (iph_inner + 1 > data_end)
+	if (iph_inner + 1 > (typeof(iph_inner))data_end)
 		return XDP_DROP;
 	payload_len = bpf_ntohs(iph_inner->tot_len);
 	gtp_route_stats_update(rt_rule, bpf_ntohs(iph_inner->tot_len));
@@ -246,12 +246,12 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	__u32 csum = 0;
 
 	iph_outer = data + offset;
-	if (iph_outer + 1 > data_end)
+	if (iph_outer + 1 > (typeof(iph_outer))data_end)
 		return XDP_PASS;
 
 	offset += sizeof(struct iphdr);
 	iph_inner = data + offset;
-	if (iph_inner + 1 > data_end)
+	if (iph_inner + 1 > (typeof(iph_inner))data_end)
 		return XDP_PASS;
 	payload_len = bpf_ntohs(iph_inner->tot_len);
 
@@ -285,7 +285,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 	new_eth = data;
-	if (new_eth + 1 > data_end)
+	if (new_eth + 1 > (typeof(new_eth))data_end)
 		return XDP_DROP;
 
 	offset = sizeof(struct ethhdr);
@@ -294,7 +294,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + sizeof(*new_eth);
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > (typeof(vlanh))data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->decap_vlan_id);
@@ -303,7 +303,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 
 	/* Build GTP-U IP Header */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 	iph->version = 4;
 	iph->ihl = sizeof(*iph) >> 2;
@@ -322,7 +322,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 
 	/* Build GTP-U UDP Header */
 	udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return XDP_DROP;
 	udph->dest = bpf_htons(GTPU_PORT);
 	udph->source= bpf_htons(65000);
@@ -333,7 +333,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 
 	/* Build GTP-U GTP Header */
 	gtph = data + offset;
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > (typeof(gtph))data_end)
 		return XDP_DROP;
 	gtph->flags = GTPU_FLAGS;		/* GTP Release 99 + GTP */
 	gtph->type = GTPU_TPDU;
@@ -414,7 +414,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	int headroom, payload_len;
 
 	ethh = data;
-	if (ethh + 1 > data_end)
+	if (ethh + 1 > (typeof(ethh))data_end)
 		return XDP_PASS;
 
 	/* In direct-tx mode we are enabling mac learning */
@@ -442,7 +442,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	/* Phase 3 : Layer2 */
 	ethh = data;
-	if (ethh + 1 > data_end)
+	if (ethh + 1 > (typeof(ethh))data_end)
 		return XDP_DROP;
 	__builtin_memcpy(ethh->h_dest, rt_rule->h_dst, ETH_ALEN);
 	__builtin_memcpy(ethh->h_source, rt_rule->h_src, ETH_ALEN);
@@ -451,7 +451,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	if (rt_rule->vlan_id != 0) {
 		ethh->h_proto = bpf_htons(ETH_P_8021Q);
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > (typeof(vlanh))data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_PPP_SES);
 		vlanh->hvlan_TCI = bpf_htons(rt_rule->vlan_id);
@@ -460,7 +460,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	/* Phase 4 : PPPoE */
 	pppoeh = data + offset;
-	if (pppoeh + 1 > data_end)
+	if (pppoeh + 1 > (typeof(pppoeh))data_end)
 		return XDP_DROP;
 	pppoeh->vertype = PPPOE_VERTYPE;
 	pppoeh->code = PPPOE_CODE_SESSION;
@@ -469,13 +469,13 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	/* Phase 5 : PPP */
 	ppph = data + offset;
-	if (ppph + 1 > data_end)
+	if (ppph + 1 > (typeof(ppph))data_end)
 		return XDP_DROP;
 	offset += 2;
 
 	/* Phase 6 : Complete PPPoE & PPP header according to L3 */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 
 	if (iph->version == 4) {
@@ -483,7 +483,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	} else if (iph->version == 6) {
 		*ppph = bpf_htons(PPP_IPV6);
 		ipv6h = data + offset;
-		if (ipv6h + 1 > data_end)
+		if (ipv6h + 1 > (typeof(ipv6h))data_end)
 			return XDP_DROP;
 	} else
 		return XDP_DROP; /* only IPv4 & IPv6 */
@@ -524,17 +524,17 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	int headroom;
 
 	ethh = data;
-	if (ethh + 1 > data_end)
+	if (ethh + 1 > (typeof(ethh))data_end)
 		return XDP_PASS;
 
 	pppoeh = data + offset;
-	if (pppoeh + 1 > data_end)
+	if (pppoeh + 1 > (typeof(pppoeh))data_end)
 		return XDP_PASS;
 	payload_len = bpf_ntohs(pppoeh->plen) - 2;
 	offset += sizeof(*pppoeh);
 
 	ppph = data + offset;
-	if (ppph + 1 > data_end)
+	if (ppph + 1 > (typeof(ppph))data_end)
 		return XDP_PASS;
 
 	/* Only handle IPv4 and IPv6. Punt Control Protocol */
@@ -564,7 +564,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 	ethh = data;
-	if (ethh + 1 > data_end)
+	if (ethh + 1 > (typeof(ethh))data_end)
 		return XDP_DROP;
 	offset = sizeof(*ethh);
 	ethh->h_proto = bpf_htons(ETH_P_IP);
@@ -572,7 +572,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 		ethh->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > (typeof(vlanh))data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(rt_rule->vlan_id);
@@ -581,7 +581,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 
 	/* Phase 2 : Layer3 */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 	iph->version = 4;
 	iph->ihl = sizeof(*iph) >> 2;
@@ -600,7 +600,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 
 	/* Phase 3 : Layer4 */
 	udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return XDP_DROP;
 	udph->source = bpf_htons(GTPU_PORT);
 	udph->dest = bpf_htons(GTPU_PORT);
@@ -618,7 +618,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 
 	/* Phase 4 : GTP-U  */
 	gtph = data + offset;
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > (typeof(gtph))data_end)
 		return XDP_DROP;
 	gtph->flags = GTPU_FLAGS;		/* GTP Release 99 + GTP */
 	gtph->type = GTPU_TPDU;
@@ -721,7 +721,7 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 		return gtp_route_ppp_decap(pkt);
 
 	iph = data + pkt->l3_offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_PASS;
 
 	if (iph->protocol == IPPROTO_IPIP)
@@ -732,7 +732,7 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 		return XDP_PASS;
 
 	udph = data + offset + sizeof(struct iphdr);
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return XDP_DROP;
 
 	if (udph->dest != bpf_htons(GTPU_PORT))
@@ -740,7 +740,7 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 
 	offset += sizeof(struct iphdr);
 	gtph = data + offset + sizeof(struct udphdr);
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > (typeof(gtph))data_end)
 		return XDP_DROP;
 
 	/* UDP Traffic to GTP-U UDP port : Egress lookup */

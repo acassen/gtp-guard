@@ -63,7 +63,7 @@ int tc_gtp_mirror(struct __sk_buff *skb)
                 return TC_ACT_OK;
 
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return TC_ACT_OK;
 
 	/* First match destination address */
@@ -77,7 +77,7 @@ int tc_gtp_mirror(struct __sk_buff *skb)
 
         offset += sizeof(struct iphdr);
         udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return TC_ACT_OK;
 
         if (!(udph->dest == rule->port || udph->source == rule->port))

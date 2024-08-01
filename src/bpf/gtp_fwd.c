@@ -147,7 +147,7 @@ gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	int headroom, use_vlan = 0, offset = 0;
 
 	iph = data + pkt->l3_offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 	payload_len = bpf_ntohs(iph->tot_len);
 
@@ -165,7 +165,7 @@ gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 	new_eth = data;
-	if (new_eth + 1 > data_end)
+	if (new_eth + 1 > (typeof(new_eth))data_end)
 		return XDP_DROP;
 
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
@@ -173,7 +173,7 @@ gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + sizeof(*new_eth);
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > (typeof(vlanh))data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->encap_vlan_id);
@@ -181,7 +181,7 @@ gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	}
 
 	iph = data + sizeof(*new_eth) + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 
 	/* Fill Encap header */
@@ -293,7 +293,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	data_end = (void *) (long) ctx->data_end;
 
 	new_eth = data;
-	if (new_eth + 1 > data_end)
+	if (new_eth + 1 > (typeof(new_eth))data_end)
 		return XDP_DROP;
 
 	new_eth->h_proto = bpf_htons(ETH_P_8021Q);
@@ -303,7 +303,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	
 	if ((iptnl_rule->flags & IPTNL_FL_TAG_VLAN) && pkt->vlan_id != 0) {
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > (typeof(vlanh))data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->decap_vlan_id);
@@ -311,7 +311,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	}
 
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_DROP;
 
 	/* Fragmentation handling */
@@ -327,13 +327,13 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 
 	offset += sizeof(struct iphdr);
 	udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return XDP_DROP;
 
 	/* Perform xlat if needed */
 	offset += sizeof(struct udphdr);
 	gtph = data + offset;
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > (typeof(gtph))data_end)
 		return XDP_DROP;
 
 	if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
@@ -366,12 +366,12 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 	__u16 frag_off = 0, ipfl = 0;
 
 	iph_outer = data + offset;
-	if (iph_outer + 1 > data_end)
+	if (iph_outer + 1 > (typeof(iph_outer))data_end)
 		return XDP_PASS;
 
 	offset += sizeof(struct iphdr);
 	iph_inner = data + offset;
-	if (iph_inner + 1 > data_end)
+	if (iph_inner + 1 > (typeof(iph_inner))data_end)
 		return XDP_PASS;
 
 	/* A bit more complicated here since we need to
@@ -402,7 +402,7 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 
 	offset += sizeof(struct iphdr);
 	udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return XDP_DROP;
 
 	/* Only allow GTP-U decap !!! */
@@ -412,7 +412,7 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 	/* Perform xlat if needed */
 	offset += sizeof(struct udphdr);
 	gtph = data + offset;
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > (typeof(gtph))data_end)
 		return XDP_DROP;
 
 	/* Punt into netstack GTP-U echo request */
@@ -577,7 +577,7 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 
 	ethh = data;
 	iph = data + pkt->l3_offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > (typeof(iph))data_end)
 		return XDP_PASS;
 
 	if (iph->protocol == IPPROTO_IPIP)
@@ -602,7 +602,7 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	}
 
 	udph = data + offset + sizeof(struct iphdr);
-	if (udph + 1 > data_end)
+	if (udph + 1 > (typeof(udph))data_end)
 		return XDP_DROP;
 
 	if (udph->dest != bpf_htons(GTPU_PORT))
@@ -610,7 +610,7 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 
 	offset += sizeof(struct iphdr);
 	gtph = data + offset + sizeof(struct udphdr);
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > (typeof(gtph))data_end)
 		return XDP_DROP;
 
 	/* That is a nice feature of XDP here:
