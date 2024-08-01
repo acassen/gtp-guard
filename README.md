@@ -22,6 +22,14 @@ gcc is the default compiled. Should you prefer the usage of clang, then use:
 CC=clang make -j $(nproc)
 ```
 
+If you are missing the `llc` llvm tool, maybe it missing from your `PATH` or it
+has been renamed `llc-N`, for example `llc-18` on Ubuntu 24.04.
+
+If you are facing such issue, you can compile using:
+```
+LLC=llc-18 make -j $(nproc)
+```
+
 # Basic Run
 
 Define your own `gtp-guard.conf` settings in order to enable its vty over TCP.
