@@ -34,6 +34,7 @@ jobs:
           path : |
             bin/gtp-guard
             src/bpf/*.bpf
+            bin/*.bpf
             test/
   build-gtping:
     name: Build gtping
