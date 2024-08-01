@@ -27,6 +27,15 @@ BIN = ../../bin
 #  make samples/bpf/ LLC=~/git/llvm/build/bin/llc CLANG=~/git/llvm/build/bin/clang
 LLC ?= llc
 CLANG ?= clang
+
+# gcc does not support Assembly IR, so there is no such LLC wich gcc
+ifeq ($(CLANG), gcc)
+  LLC = gcc
+endif
+ifeq ($(LLC), gcc)
+  CLANG = gcc
+endif
+
 CFLAGS := -g -O2 -Wall -Werror
 
 # Include for BPF are pointing to libbpf
@@ -47,6 +56,19 @@ clean:
 # asm/sysreg.h - inline assembly used by it is incompatible with llvm.
 # But, there is no easy way to fix it, so just exclude it since it is
 # useless for BPF samples.
+ifeq ($(LLC), gcc)
+$(TARGETS): %.bpf: %.c
+	@echo "  GCC-bpf" $@
+	@$(CLANG) $(CFLAGS) -S $(NOSTDINC_FLAGS) $(LINUXINCLUDE) \
+	    -D__KERNEL__ -D__ASM_SYSREG_H \
+	    -D__BPF_TRACING__ \
+	    -Wall \
+	    -Wno-unused-value -Wno-pointer-sign \
+	    -D__TARGET_ARCH_$(ARCH) \
+	    -Wno-tautological-compare \
+	    -Wno-address-of-packed-member \
+	    -O2 -emit-llvm -g -c $< -o $(BIN)/$@
+else
 $(TARGETS): %.bpf: %.c
 	@echo "  CLANG-bpf" $@
 	@$(CLANG) $(CFLAGS) -S $(NOSTDINC_FLAGS) $(LINUXINCLUDE) \
@@ -62,3 +84,4 @@ $(TARGETS): %.bpf: %.c
 	    -Wno-address-of-packed-member \
 	    -O2 -emit-llvm -g -c $< -o ${@:.bpf=.ll}
 	@$(LLC) -march=bpf -filetype=obj -o $(BIN)/$@ ${@:.bpf=.ll}
+endif
