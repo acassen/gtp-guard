@@ -10,9 +10,11 @@ on:
 jobs:
   build-gtp-guard:
     name: Build gtp-guard
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ ubuntu-latest ]
+        arch: [x86_64, arm64]
         compiler: [ gcc, clang ]
     steps:
       - name: add missing packages
@@ -30,14 +32,19 @@ jobs:
       - name: Upload gtp-guard artifacts
         uses: actions/upload-artifact@v4
         with:
-          name : artifact-gtp-guard-${{ matrix.compiler }}
+          name : artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}
           path : |
             bin/gtp-guard
             src/bpf/*.bpf
+            bin/*.bpf
             test/
   build-gtping:
     name: Build gtping
-    runs-on: ubuntu-latest
+    runs-on: $${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        arch: [x86_64, arm64]
     needs: build-gtp-guard
     steps:
       - name: gtping from upstream
@@ -59,7 +66,11 @@ jobs:
   test-using-gtping:
     name: gtp-guard test using gtping
     needs: build-gtping
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        arch: [x86_64, arm64]
     steps:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
