@@ -25,10 +25,10 @@ VERSION := $(shell cat VERSION)
 TARBALL = $(EXEC)-$(VERSION).tar.xz
 TARFILES = AUTHOR VERSION LICENSE README.md bin src lib Makefile libbpf
 
-prefix = /usr/local
-exec_prefix = ${prefix}
-sbindir     = ${exec_prefix}/sbin
-sysconfdir  = ${prefix}/etc
+prefix ?= /usr/local
+exec_prefix ?= ${prefix}
+sbindir     ?= ${exec_prefix}/sbin
+sysconfdir  ?= ${prefix}/etc
 init_script = etc/init.d/gtp-guard.init
 conf_file   = etc/gtp-guard/gtp-guard.conf
 
@@ -66,7 +66,7 @@ uninstall:
 	rm -f $(sbindir)/$(EXEC)
 
 install:
-	install -d $(prefix)
+	install -d $(sbindir)
 	install -m 700 $(BIN)/$(EXEC) $(sbindir)/$(EXEC)-$(VERSION)
 	ln -sf $(sbindir)/$(EXEC)-$(VERSION) $(sbindir)/$(EXEC)
 
