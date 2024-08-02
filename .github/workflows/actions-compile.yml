@@ -40,7 +40,7 @@ jobs:
             test/
   build-gtping:
     name: Build gtping
-    runs-on: $${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest ]
@@ -61,7 +61,7 @@ jobs:
       - name: Upload gtping artifacts
         uses: actions/upload-artifact@v4
         with:
-          name : artifact-gtping
+          name : artifact-gtping-${{ matrix.arch }}
           path : src/gtping
   test-using-gtping:
     name: gtp-guard test using gtping
@@ -71,6 +71,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest ]
         arch: [x86_64, arm64]
+        compiler: [ gcc, clang ]
     steps:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
@@ -101,13 +102,14 @@ jobs:
         shell: bash
         run : |
           APATH="bin/artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}"
+          APING="bin/artifact-gtping-${{ matrix.arch }}"
           ls -R -la
           chmod 755 $APATH/bin/gtp-guard
-          chmod 755 bin/artifact-gtping/gtping
+          chmod 755 $APING/gtping
           chmod 755 $APATH/test/testenv.sh
-          chmod 755 $PATH/test/gtpu-ping.py
+          chmod 755 $APATH/test/gtpu-ping.py
           sudo $APATH/test/testenv.sh \
-            -i bin/artifact-gtping/gtping \
+            -i $APING/gtping \
             -u $APATH/test/gtpu-ping.py \
             -g $APATH/bin/gtp-guard \
             -c etc/gtp-guard.conf \
