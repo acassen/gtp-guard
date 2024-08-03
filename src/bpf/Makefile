@@ -47,6 +47,7 @@ clean:
 dependencies: verify_cmds verify_target_bpf
 verify_cmds: $(CLANG) $(LLC)
 	@for TOOL in $^ ; do \
+		which $${TOOL} ;\
 		if ! (which -- "$${TOOL}" > /dev/null 2>&1); then \
 			echo "*** ERROR: Cannot find LLVM tool $${TOOL}" ;\
 			exit 1; \
