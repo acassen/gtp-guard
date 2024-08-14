@@ -34,7 +34,6 @@
 #include "timer.h"
 #include "timer_thread.h"
 #include "scheduler.h"
-#include "mpool.h"
 #include "vector.h"
 #include "command.h"
 #include "rbtree.h"
