@@ -10,9 +10,11 @@ on:
 jobs:
   build-gtp-guard:
     name: Build gtp-guard
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ ubuntu-latest ]
+        arch: [x86_64, arm64]
         compiler: [ gcc, clang ]
     steps:
       - name: add missing packages
@@ -30,14 +32,19 @@ jobs:
       - name: Upload gtp-guard artifacts
         uses: actions/upload-artifact@v4
         with:
-          name : artifact-gtp-guard-${{ matrix.compiler }}
+          name : artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}
           path : |
             bin/gtp-guard
             src/bpf/*.bpf
+            bin/*.bpf
             test/
   build-gtping:
     name: Build gtping
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        arch: [x86_64, arm64]
     needs: build-gtp-guard
     steps:
       - name: gtping from upstream
@@ -54,12 +61,17 @@ jobs:
       - name: Upload gtping artifacts
         uses: actions/upload-artifact@v4
         with:
-          name : artifact-gtping
+          name : artifact-gtping-${{ matrix.arch }}
           path : src/gtping
   test-using-gtping:
     name: gtp-guard test using gtping
     needs: build-gtping
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        arch: [x86_64, arm64]
+        compiler: [ gcc, clang ]
     steps:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
@@ -89,17 +101,19 @@ jobs:
       - name: run the test
         shell: bash
         run : |
+          APATH="bin/artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}"
+          APING="bin/artifact-gtping-${{ matrix.arch }}"
           ls -R -la
-          chmod 755 bin/artifact-gtp-guard-gcc/bin/gtp-guard
-          chmod 755 bin/artifact-gtping/gtping
-          chmod 755 bin/artifact-gtp-guard-gcc/test/testenv.sh
-          chmod 755 bin/artifact-gtp-guard-gcc/test/gtpu-ping.py
-          sudo bin/artifact-gtp-guard-gcc/test/testenv.sh \
-            -i bin/artifact-gtping/gtping \
-            -u bin/artifact-gtp-guard-gcc/test/gtpu-ping.py \
-            -g bin/artifact-gtp-guard-gcc/bin/gtp-guard \
+          chmod 755 $APATH/bin/gtp-guard
+          chmod 755 $APING/gtping
+          chmod 755 $APATH/test/testenv.sh
+          chmod 755 $APATH/test/gtpu-ping.py
+          sudo $APATH/test/testenv.sh \
+            -i $APING/gtping \
+            -u $APATH/test/gtpu-ping.py \
+            -g $APATH/bin/gtp-guard \
             -c etc/gtp-guard.conf \
-            -f bin/artifact-gtp-guard-gcc/src/bpf/gtp_fwd.bpf \
-            -r bin/artifact-gtp-guard-gcc/src/bpf/gtp_route.bpf \
-            -m bin/artifact-gtp-guard-gcc/src/bpf/gtp_mirror.bpf \
+            -f $APATH/bin/gtp_fwd.bpf \
+            -r $APATH/bin/gtp_route.bpf \
+            -m $APATH/bin/gtp_mirror.bpf \
             -k no
