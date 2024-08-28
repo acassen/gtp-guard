@@ -482,7 +482,7 @@ gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp)
 }
 
 static int
-gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t instance)
+gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t instance, uint8_t type)
 {
 	gtp_ie_f_teid_t *f_teid;
 	uint16_t len = sizeof(gtp_ie_f_teid_t);
@@ -498,7 +498,7 @@ gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t instance)
 	f_teid = (gtp_ie_f_teid_t *) pbuff->data;
 	f_teid->h.instance = instance;
 	f_teid->v4 = 1;
-	f_teid->interface_type = GTP_TEID_INTERFACE_TYPE_SGW_GTPC;
+	f_teid->interface_type = type;
 	f_teid->teid_grekey = teid->id;
 	f_teid->ipv4 = teid->ipv4;
 	pkt_buffer_put_data(pbuff, len);
@@ -581,7 +581,7 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 
 	err = err ? : gtpc_pkt_put_eps_bearer_id(pbuff, apn->eps_bearer_id);
 	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
-	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid, 2);
+	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid, 2, GTP_TEID_INTERFACE_TYPE_SGW_GTPU);
 	err = err ? : gtpc_pkt_put_charging_id(pbuff, s->charging_id);
 	if (err)
 		return 1;
@@ -629,7 +629,7 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	err = err ? : gtpc_pkt_put_recovery(pbuff);
 	err = err ? : gtpc_pkt_put_indication(pbuff, apn->indication_flags);
 	err = err ? : gtpc_pkt_put_pco(pbuff, apn->pco, ipcp);
-	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1);
+	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid->peer_teid, 1, GTP_TEID_INTERFACE_TYPE_SGW_GTPC);
 	err = err ? : gtpc_pkt_put_apn_restriction(pbuff, apn);
 	err = err ? : gtpc_pkt_put_paa(pbuff, s->ipv4);
 	err = err ? : gtpc_pkt_put_bearer_context(pbuff, s, teid->peer_teid);
