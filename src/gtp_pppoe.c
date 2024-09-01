@@ -290,7 +290,7 @@ gtp_pppoe_ingress(pkt_t *pkt, void *arg)
 }
 
 static int
-gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto)
+gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 {
 	struct sockaddr_ll sll;
 	int fd, ret;
@@ -306,7 +306,7 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto)
 	fd = if_setsockopt_promisc(fd, sll.sll_ifindex, true);
 	if (fd < 0) {
 		log_message(LOG_INFO, "%s(): #%d : Error creating pppoe channel on interface %s (%m)"
-				    , __FUNCTION__
+				    , __FUNCTION__, id
 				    , pppoe->ifname);
 		return -1;
 	}
@@ -314,7 +314,7 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto)
 	ret = bind(fd, (struct sockaddr *) &sll, sizeof(sll));
 	if (ret < 0) {
 		log_message(LOG_INFO, "%s(): #%d : Error binding pppoe channel on interface %s (%m)"
-				    , __FUNCTION__
+				    , __FUNCTION__, id
 				    , pppoe->ifname);
 		close(fd);
 		return -1;
@@ -341,7 +341,7 @@ gtp_pppoe_worker_task(void *arg)
 	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
 
 	/* Socket init */
-	w->fd = gtp_pppoe_socket_init(pppoe, w->proto);
+	w->fd = gtp_pppoe_socket_init(pppoe, w->proto, w->id);
 	if (w->fd < 0)
 		return NULL;
 

@@ -131,6 +131,7 @@ enum pppoe_flags {
 	PPPOE_FL_LCP_MAX_TERMINATE_BIT,
 	PPPOE_FL_LCP_MAX_CONFIGURE_BIT,
 	PPPOE_FL_LCP_MAX_FAILURE_BIT,
+	PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT,
 };
 
 struct rps_opts {
@@ -164,7 +165,10 @@ typedef struct _gtp_pppoe_bundle {
 
 	struct _gtp_pppoe	**pppoe;
 	int			instance_idx;
+
 	list_head_t		next;
+
+	unsigned long		flags;
 } gtp_pppoe_bundle_t;
 
 typedef struct _gtp_pppoe {

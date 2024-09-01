@@ -571,6 +571,15 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		off += len;
 	}
 breakbreak:
+	/* Using PPPoE bundle, PPP frames could be broadcasted to every interfaces
+	 * part of the bundle. if "ignore-ingress-ppp-brd" feature is used then
+	 * only take care of pkt on the same interface as the one used during
+	 * session init */
+	if (s && s->pppoe->bundle &&
+	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &s->pppoe->bundle->flags) &&
+	    (s->pppoe->ifindex != pppoe->ifindex))
+		return;
+
 	switch (code) {
 	case PPPOE_CODE_PADI:
 	case PPPOE_CODE_PADR:
@@ -704,5 +713,15 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	}
 
 	pkt_buffer_put_data(pkt->pbuff, off);
+
+	/* Using PPPoE bundle, PPP frames could be broadcasted to every interfaces
+	 * part of the bundle. if "ignore-ingress-ppp-brd" feature is used then
+	 * only take care of pkt on the same interface as the one used during
+	 * session init */
+	if (sp->pppoe->bundle &&
+	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &sp->pppoe->bundle->flags) &&
+	    (sp->pppoe->ifindex != pppoe->ifindex))
+		return;
+
 	sppp_input(sp->s_ppp, pkt);
 }

@@ -581,6 +581,37 @@ DEFUN(pppoe_bundle_instance,
 	return CMD_SUCCESS;
 }
 
+DEFUN(pppoe_bundle_ignore_ingress_ppp_brd,
+      pppoe_bundle_ignore_ingress_ppp_brd_cmd,
+      "ignore-ingress-ppp-brd",
+      "Ignore Ingress PPP broadcast messages\n")
+{
+	gtp_pppoe_bundle_t *bundle = vty->index;
+	gtp_pppoe_t *pppoe;
+
+	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
+	if (!pppoe)
+		return CMD_WARNING;
+
+	__set_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pppoe_bundle_ignore_ingress_ppp_brd,
+      no_pppoe_bundle_ignore_ingress_ppp_brd_cmd,
+      "no ignore-ingress-ppp-brd",
+      "Allow Ingress PPP broadcast messages\n")
+{
+	gtp_pppoe_bundle_t *bundle = vty->index;
+	gtp_pppoe_t *pppoe;
+
+	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
+	if (!pppoe)
+		return CMD_WARNING;
+
+	__clear_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags);
+	return CMD_SUCCESS;
+}
 
 /*
  *	Show commands
@@ -732,11 +763,11 @@ gtp_config_pppoe_bundle_write(vty_t *vty)
 
 	list_for_each_entry(bundle, l, next) {
 		vty_out(vty, "pppoe-bundle %s%s", bundle->name, VTY_NEWLINE);
+		if (__test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags))
+			vty_out(vty, " ignore-ingress-ppp-brd%s", VTY_NEWLINE);
 		for (i = 0; i < PPPOE_BUNDLE_MAXSIZE && bundle->pppoe[i]; i++) {
 			pppoe = bundle->pppoe[i];
-			vty_out(vty, " instance %s%s"
-				   , pppoe->name
-				   , VTY_NEWLINE);
+			vty_out(vty, " instance %s%s", pppoe->name, VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -782,6 +813,8 @@ gtp_pppoe_vty_init(void)
 	install_element(CONFIG_NODE, &no_pppoe_bundle_cmd);
 
 	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_instance_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_ignore_ingress_ppp_brd_cmd);
+	install_element(PPPOE_BUNDLE_NODE, &no_pppoe_bundle_ignore_ingress_ppp_brd_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pppoe_cmd);
