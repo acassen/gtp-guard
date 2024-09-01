@@ -587,12 +587,6 @@ DEFUN(pppoe_bundle_ignore_ingress_ppp_brd,
       "Ignore Ingress PPP broadcast messages\n")
 {
 	gtp_pppoe_bundle_t *bundle = vty->index;
-	gtp_pppoe_t *pppoe;
-
-	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
-	if (!pppoe)
-		return CMD_WARNING;
-
 	__set_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags);
 	return CMD_SUCCESS;
 }
@@ -603,12 +597,6 @@ DEFUN(no_pppoe_bundle_ignore_ingress_ppp_brd,
       "Allow Ingress PPP broadcast messages\n")
 {
 	gtp_pppoe_bundle_t *bundle = vty->index;
-	gtp_pppoe_t *pppoe;
-
-	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
-	if (!pppoe)
-		return CMD_WARNING;
-
 	__clear_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags);
 	return CMD_SUCCESS;
 }
