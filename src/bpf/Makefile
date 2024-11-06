@@ -77,5 +77,6 @@ $(TARGETS): %.bpf: %.c
 	    -Wno-tautological-compare \
 	    -Wno-unknown-warning-option \
 	    -Wno-address-of-packed-member \
+	    -fno-asynchronous-unwind-tables \
 	    -O2 -emit-llvm -g -c $< -o ${@:.bpf=.ll}
 	@$(LLC) -march=bpf -filetype=obj -o $(BIN)/$@ ${@:.bpf=.ll}
