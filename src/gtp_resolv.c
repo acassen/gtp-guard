@@ -399,6 +399,7 @@ gtp_resolv_ctx_alloc(gtp_apn_t *apn)
 	res_ninit(&ctx->ns_rs);
 	ctx->ns_rs.nsaddr_list[0] = *((struct sockaddr_in *) addr);
 	ctx->ns_rs.nscount = 1;
+	ctx->ns_rs.retrans = (apn->nameserver_timeout) ? apn->nameserver_timeout : 0;
 
 	return ctx;
 }

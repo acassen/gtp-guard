@@ -535,6 +535,24 @@ DEFUN(apn_nameserver,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_nameserver_timeout,
+      apn_nameserver_timeout_cmd,
+      "nameserver-timeout INTEGER",
+      "Define nameserver operation timeout in seconds\n"
+      "seconds\n")
+{
+	gtp_apn_t *apn = vty->index;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	apn->nameserver_timeout = atoi(argv[0]);
+
+	return CMD_SUCCESS;
+}
+
 DEFUN(apn_resolv_max_retry,
       apn_resolv_max_retry_cmd,
       "resolv-max-retry INTEGER",
@@ -1232,6 +1250,10 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " nameserver %s%s"
 				   , inet_sockaddrtos(&apn->nameserver)
 				   , VTY_NEWLINE);
+		if (apn->nameserver_timeout)
+			vty_out(vty, " nameserver-timeout %d%s"
+				   , apn->nameserver_timeout
+				   , VTY_NEWLINE);
 		if (apn->resolv_max_retry)
 			vty_out(vty, " resolv-max-retry %d%s"
 				   , apn->resolv_max_retry
@@ -1288,6 +1310,7 @@ gtp_apn_vty_init(void)
 
 	install_default(APN_NODE);
 	install_element(APN_NODE, &apn_nameserver_cmd);
+	install_element(APN_NODE, &apn_nameserver_timeout_cmd);
 	install_element(APN_NODE, &apn_resolv_max_retry_cmd);
 	install_element(APN_NODE, &apn_resolv_cache_update_cmd);
 	install_element(APN_NODE, &apn_realm_cmd);
