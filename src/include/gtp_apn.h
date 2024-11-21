@@ -84,6 +84,7 @@ typedef struct _gtp_apn {
 	char			name[GTP_APN_MAX_LEN];
 	char			realm[GTP_REALM_LEN];
 	struct sockaddr_storage	nameserver;
+	struct sockaddr_storage	nameserver_bind;
 	int			nameserver_timeout;
 	uint8_t			resolv_max_retry;
 	int			resolv_cache_update;

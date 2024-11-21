@@ -535,6 +535,37 @@ DEFUN(apn_nameserver,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_nameserver_bind,
+      apn_nameserver_bind_cmd,
+      "nameserver-bind (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "Set Global PDN nameserver binding Address\n"
+      "IP Address\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "UDP Port\n"
+      "Number\n")
+{
+	gtp_apn_t *apn = vty->index;
+	struct sockaddr_storage *addr = &apn->nameserver_bind;
+	int ret, port;
+
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+
+	ret = inet_stosockaddr(argv[0], port, addr);
+	if (ret < 0) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		memset(addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
 DEFUN(apn_nameserver_timeout,
       apn_nameserver_timeout_cmd,
       "nameserver-timeout INTEGER",
@@ -1250,6 +1281,11 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " nameserver %s%s"
 				   , inet_sockaddrtos(&apn->nameserver)
 				   , VTY_NEWLINE);
+		if (apn->nameserver_bind.ss_family)
+			vty_out(vty, " nameserver-bind %s port %d%s"
+				   , inet_sockaddrtos(&apn->nameserver_bind)
+				   , ntohs(inet_sockaddrport(&apn->nameserver_bind))
+				   , VTY_NEWLINE);
 		if (apn->nameserver_timeout)
 			vty_out(vty, " nameserver-timeout %d%s"
 				   , apn->nameserver_timeout
@@ -1310,6 +1346,7 @@ gtp_apn_vty_init(void)
 
 	install_default(APN_NODE);
 	install_element(APN_NODE, &apn_nameserver_cmd);
+	install_element(APN_NODE, &apn_nameserver_bind_cmd);
 	install_element(APN_NODE, &apn_nameserver_timeout_cmd);
 	install_element(APN_NODE, &apn_resolv_max_retry_cmd);
 	install_element(APN_NODE, &apn_resolv_cache_update_cmd);

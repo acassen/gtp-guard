@@ -39,7 +39,7 @@ typedef struct _gtp_pgw {
 	uint16_t		priority;
 	uint16_t		weight;
 	char			srv_name[GTP_DISPLAY_SRV_LEN];
-	struct _gtp_naptr	*naptr;	  /*Back-pointer */
+	struct _gtp_naptr	*naptr;	  /* Back-pointer */
 	struct sockaddr_storage	addr;
 	uint64_t		cnt;
 	time_t			last_resp;
@@ -71,6 +71,7 @@ typedef struct _gtp_service {
 } gtp_service_t;
 
 typedef struct _gtp_resolv_ctx {
+	gtp_apn_t		*apn;	/* Back-pointer */
 	char			*realm;
 	struct __res_state	ns_rs;
 	ns_msg			msg;

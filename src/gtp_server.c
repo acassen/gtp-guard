@@ -90,25 +90,23 @@ gtp_server_udp_init(gtp_server_t *srv)
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
-		goto socket_error;
+		return -1;
 	}
 
 	/* Bind listening channel */
 	addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
 						 sizeof(struct sockaddr_in6);
 	err = bind(fd, (struct sockaddr *) addr, addrlen);
-	if (err < 0) {
+	if (err) {
 		log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
-		goto socket_error;
+		close(fd);
+		return -1;
 	}
 
 	return fd;
-
-  socket_error:
-	return -1;
 }
 
 static void *

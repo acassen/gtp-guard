@@ -104,12 +104,87 @@ ns_log_error(const char *dn, int error)
 }
 
 static int
+ns_bind_connect(gtp_apn_t *apn)
+{
+	struct sockaddr_storage *addr = &apn->nameserver_bind;
+	socklen_t addrlen;
+	int fd, err;
+
+	if (!apn->nameserver_bind.ss_family)
+		return -1;
+
+	/* Create UDP Client socket */
+	fd = socket(addr->ss_family, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+	fd = (fd < 0) ? fd : if_setsockopt_reuseaddr(fd, 1);
+	fd = (fd < 0) ? fd : if_setsockopt_rcvtimeo(fd, 2000);
+	fd = (fd < 0) ? fd : if_setsockopt_sndtimeo(fd, 2000);
+	if (fd < 0) {
+		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , ntohs(inet_sockaddrport(addr)));
+		return -1;
+	}
+
+	/* Bind listening channel */
+	addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
+						 sizeof(struct sockaddr_in6);
+	err = bind(fd, (struct sockaddr *) addr, addrlen);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , ntohs(inet_sockaddrport(addr)));
+		close(fd);
+		return -1;
+	}
+
+	err = connect(fd, (struct sockaddr *) &apn->nameserver, addrlen);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error connecting to [%s]:%d (%m)"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(&apn->nameserver)
+				    , ntohs(inet_sockaddrport(&apn->nameserver)));
+		close(fd);
+		return -1;
+	}
+
+	return fd;
+}
+
+static int
+ns_ctx_init(gtp_resolv_ctx_t *ctx)
+{
+	gtp_apn_t *apn = ctx->apn;
+	struct sockaddr_storage *addr;
+	int fd;
+
+	fd = ns_bind_connect(apn);
+	if (fd < 0)
+		return -1;
+
+	addr = (apn->nameserver.ss_family) ? &apn->nameserver : &daemon_data->nameserver;
+
+	/* glibc resolver is providing extension to set remote nameserver.
+	 * We are using this facility to set pre-allocated/pre-initialized
+	 * socket connection to remote nameserver. Specially useful when you
+	 * want to bind the connection to a local IP Address. */
+	ctx->ns_rs._u._ext.nssocks[0] = fd;
+	ctx->ns_rs._u._ext.nsaddrs[0] = MALLOC(sizeof(struct sockaddr_in6));
+	*ctx->ns_rs._u._ext.nsaddrs[0] = *((struct sockaddr_in6 *) addr);
+	ctx->ns_rs._u._ext.nscount = 1;
+	return 0;
+}
+
+
+static int
 ns_res_nquery_retry(gtp_resolv_ctx_t *ctx, int class, int type)
 {
 	int retry_count = 0;
 	int ret;
 
 retry:
+	ns_ctx_init(ctx);
 	ret = res_nquery(&ctx->ns_rs, ctx->nsdisp, class, type, ctx->nsbuffer, GTP_RESOLV_BUFFER_LEN);
 	if (ret < 0) {
 		ns_log_error(ctx->nsdisp, h_errno);
@@ -375,6 +450,7 @@ gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l, const char *format, ...)
 	return 0;
 }
 
+
 gtp_resolv_ctx_t *
 gtp_resolv_ctx_alloc(gtp_apn_t *apn)
 {
@@ -385,6 +461,7 @@ gtp_resolv_ctx_alloc(gtp_apn_t *apn)
 	if (!ctx)
 		return NULL;
 
+	ctx->apn = apn;
 	ctx->max_retry = apn->resolv_max_retry;
 	addr = (apn->nameserver.ss_family) ? &apn->nameserver : &daemon_data->nameserver;
 	if (!addr->ss_family) {
