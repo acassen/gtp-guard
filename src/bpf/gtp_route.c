@@ -545,9 +545,12 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	__builtin_memcpy(ppp_k.hw, ethh->h_dest, ETH_ALEN);
 	ppp_k.session_id = bpf_ntohs(pppoeh->session);
 
+	/* If no session is matching then we drop to prevent against
+	 * userland overflow while restarting. Only PPP-LCP are punt
+	 * to the userland. */
 	rt_rule = bpf_map_lookup_elem(&ppp_ingress, &ppp_k);
 	if (!rt_rule)
-		return XDP_PASS;
+		return XDP_DROP;
 	gtp_route_stats_update(rt_rule, payload_len);
 
 	/* Phase 0 : Got it ! perform GTP-U encapsulation, prepare headroom */
@@ -748,9 +751,12 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 	rt_key.id = gtph->teid;
 	rt_key.addr = iph->daddr;
 
+	/* If no session is matching then we drop to prevent against
+	 * userland overflow while restarting. Only GTP-U bound to an
+	 * existing session are kept into account. */
 	rule = bpf_map_lookup_elem(&teid_egress, &rt_key);
 	if (!rule)
-		return XDP_PASS;
+		return XDP_DROP;
 
 	/* remote GTP-U udp port learning */
 	if (rule->flags & GTP_RT_FL_UDP_LEARNING && rule->gtp_udp_port == 0)

@@ -577,8 +577,14 @@ breakbreak:
 	 * session init */
 	if (s && s->pppoe->bundle &&
 	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &s->pppoe->bundle->flags) &&
-	    (s->pppoe->ifindex != pppoe->ifindex))
+	    (s->pppoe->ifindex != pppoe->ifindex)) {
+		PPPDEBUG(("%s: pppoe brd filtering..."
+			  " s->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
+			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x",
+			  pppoe->ifname, s->pppoe->ifindex, pppoe->ifindex,
+			  ETHER_BYTES(eh->ether_dhost), session));
 		return;
+	}
 
 	switch (code) {
 	case PPPOE_CODE_PADI:
@@ -720,8 +726,14 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	 * session init */
 	if (sp->pppoe->bundle &&
 	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &sp->pppoe->bundle->flags) &&
-	    (sp->pppoe->ifindex != pppoe->ifindex))
+	    (sp->pppoe->ifindex != pppoe->ifindex)) {
+		PPPDEBUG(("%s: pppoe brd filtering..."
+			  " sp->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
+			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x",
+			  pppoe->ifname, sp->pppoe->ifindex, pppoe->ifindex,
+			  ETHER_BYTES(eh->ether_dhost), session));
 		return;
+	}
 
 	sppp_input(sp->s_ppp, pkt);
 }
