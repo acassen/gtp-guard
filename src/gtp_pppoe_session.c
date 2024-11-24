@@ -317,6 +317,10 @@ spppoe_release(spppoe_t *s)
 	gtp_pppoe_t *pppoe = s->pppoe;
 	gtp_htab_t *session_tab, *unique_tab;
 
+	/* Disconnect pppoe session */
+	spppoe_disconnect(s);
+
+	/* Release tracking */
 	session_tab = gtp_pppoe_get_session_tab(pppoe);
 	spppoe_session_unhash(session_tab, s);
 
@@ -406,7 +410,7 @@ spppoe_init(gtp_pppoe_t *pppoe, gtp_conn_t *c,
 	spppoe_add(c, s);
 
 	err = pppoe_connect(s);
-	if (err < 0) {
+	if (err) {
 		spppoe_destroy(s);
 		return NULL;
 	}

@@ -340,10 +340,17 @@ pppoe_abort_connect(spppoe_t *s)
 int
 pppoe_disconnect(spppoe_t *s)
 {
+	timer_thread_t *session_timer;
+	gtp_pppoe_t *pppoe = s->pppoe;
 	int ret;
 
 	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", s->pppoe->ifname, s->unique));
 
+	/* Release pending session timer */
+	session_timer = gtp_pppoe_get_session_timer(pppoe);
+	timer_node_del(session_timer, &s->t_node);
+
+	/* Send PADT if session is running */
 	if (s->state >= PPPOE_STATE_SESSION) {
 		ret = pppoe_send_padt(s);
 		if (ret < 0) {
