@@ -29,6 +29,9 @@ Define your own `gtp-guard.conf` settings in order to enable its vty over TCP.
 ```
 $ cat <<EOFCONF > /tmp/gtp-guard.conf
 !
+pdn
+  request-channel 127.0.0.1 port 8080
+!
 gtp-router demo
   gtpc-tunnel-endpoint 0.0.0.0 port 2123 listener-count 3
   gtpu-tunnel-endpoint 0.0.0.0 port 2152 listener-count 3
