@@ -160,8 +160,7 @@ struct gtp_rt_rule {
 #define GTP_RT_FL_UDP_LEARNING	(1 << 3)
 
 /* FIXME: How can we fetch cpu_num in BPF context ? */
-//const volatile int nr_cpus = 32;
-const volatile int nr_cpus = 16;
+const volatile int nr_cpus = 48;
 
 struct rt_percpu_ctx {
 	/* ingress */
