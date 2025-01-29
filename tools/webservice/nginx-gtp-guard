@@ -1,0 +1,28 @@
+server {
+	listen 10.0.0.254:443 ssl;
+	ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
+	ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+
+	index index.html
+
+	server_name barney; # Why not ? :D
+
+	access_log /var/log/nginx/gtp-guard/access.log;
+	error_log /var/log/nginx/gtp-guard/error.log;
+
+	root /var/www/gtp-guard;
+
+	location /gtpWS {
+		try_files $uri @wsgi;
+
+		# access list
+#		allow 10.0.0.1/32;
+#		deny all;
+	}
+
+	location @wsgi {
+		proxy_pass http://unix:/tmp/gunicorn.sock;
+		include proxy_params;
+	}
+}
+

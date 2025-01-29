@@ -1,0 +1,15 @@
+[Unit]
+Description=gunicorn daemon for /var/www/gtp-guard/wsgi.py
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+RuntimeDirectory=gunicorn
+WorkingDirectory=/var/www/gtp-guard/
+ExecStart=/usr/bin/gunicorn --bind=unix:/tmp/gunicorn.sock --workers=8 wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+
+[Install]
+WantedBy=multi-user.target
