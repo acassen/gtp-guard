@@ -74,9 +74,9 @@ sudo ./testenv.sh \
   -u path/dev/gtpu-guard/test/gtpu-ping.py \
   -g path/dev/gtp-guard/bin/gtp-guard \
   -c /tmp/gtp-guard.conf \
-  -f path/dev/gtp-guard/src/bpf/gtp_fwd.bpf \
-  -r path/dev/gtp-guard/src/bpf/gtp_route.bpf \
-  -m path/dev/gtp-guard/src/bpf/gtp_mirror.bpf \
+  -f path/dev/gtp-guard/bin/gtp_fwd.bpf \
+  -r path/dev/gtp-guard/bin/gtp_route.bpf \
+  -m path/dev/gtp-guard/bin/gtp_mirror.bpf \
   -k no
 ```
 
