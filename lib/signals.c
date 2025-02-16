@@ -199,7 +199,7 @@ signal_set(int signo, void (*func) (void *, int), void *v)
 	}
 
 	if (sigaction(signo, &sig, NULL))
-		log_message(LOG_INFO, "sigaction failed for signalfd");
+		log_message(LOG_INFO, "sigaction failed for signo %d", signo);
 
 	if (!func)
 		sigmask_func(SIG_UNBLOCK, &sset, NULL);

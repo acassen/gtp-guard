@@ -102,7 +102,6 @@ signal_init(void)
 	signal_set(SIGHUP, sigend, NULL);
 	signal_set(SIGINT, sigend, NULL);
 	signal_set(SIGTERM, sigend, NULL);
-	signal_set(SIGKILL, sigend, NULL);
 	signal_noignore_sigchld();
 	signal_ignore(SIGPIPE);
 }
