@@ -587,7 +587,7 @@ breakbreak:
 	    (s->pppoe->ifindex != pppoe->ifindex)) {
 		PPPDEBUG(("%s: pppoe brd filtering..."
 			  " s->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
-			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x",
+			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x\n",
 			  pppoe->ifname, s->pppoe->ifindex, pppoe->ifindex,
 			  ETHER_BYTES(eh->ether_dhost), session));
 		return;
@@ -736,7 +736,7 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	    (sp->pppoe->ifindex != pppoe->ifindex)) {
 		PPPDEBUG(("%s: pppoe brd filtering..."
 			  " sp->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
-			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x",
+			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x\n",
 			  pppoe->ifname, sp->pppoe->ifindex, pppoe->ifindex,
 			  ETHER_BYTES(eh->ether_dhost), session));
 		return;
