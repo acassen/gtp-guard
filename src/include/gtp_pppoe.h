@@ -192,11 +192,11 @@ typedef struct _gtp_pppoe {
 	pthread_t		task;
 
 	gtp_pppoe_bundle_t	*bundle;	/* Part of a pppoe-bundle */
-	gtp_htab_t		session_tab;	/* Session Tracking by sesion-id */
+	gtp_htab_t		session_tab;	/* Session Tracking by session-id */
 	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
 	int			session_count;	/* Number of session tracked */
-	timer_thread_t		session_timer;	/* Sesion timer */
-	timer_thread_t		ppp_timer;	/* PPP sesion timer */
+	timer_thread_t		session_timer;	/* Session timer */
+	timer_thread_t		ppp_timer;	/* PPP session timer */
 
 	gtp_pppoe_worker_t	*worker_disc;
 	gtp_pppoe_worker_t	*worker_ses;
