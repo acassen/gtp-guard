@@ -1109,6 +1109,8 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
+	log_message(LOG_INFO, "Delete-Session-Req:={F-TEID:0x%.8x}", ntohl(teid->peer_teid->id));
+
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
 	if (!msg_ie) {
 		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
