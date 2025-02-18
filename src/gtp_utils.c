@@ -619,3 +619,49 @@ gtpu_get_header_len(pkt_buffer_t *buffer)
 
 	return (pkt_buffer_len(buffer) < len) ? -1 : len;
 }
+
+/*
+ * stringify enum gtp_flags of flags
+ */
+char *
+gtp_flags2str(char *str, size_t str_len, unsigned long flags)
+{
+	if (!str || str_len == 0)
+		return NULL;
+
+	str[0] = '\0';
+
+	static const char* gtp_flags_strs[] = {
+		[GTP_FL_RUNNING_BIT] = "GTP_FL_RUNNING_BIT",
+		[GTP_FL_STARTING_BIT] = "GTP_FL_STARTING_BIT",
+		[GTP_FL_STOPPING_BIT] = "GTP_FL_STOPPING_BIT",
+		[GTP_FL_HASHED_BIT] = "GTP_FL_HASHED_BIT",
+		[GTP_FL_CTL_BIT] = "GTP_FL_CTL_BIT",
+		[GTP_FL_UPF_BIT] = "GTP_FL_UPF_BIT",
+		[GTP_FL_FORCE_PGW_BIT] = "GTP_FL_FORCE_PGW_BIT",
+		[GTP_FL_IPTNL_BIT] = "GTP_FL_IPTNL_BIT",
+		[GTP_FL_DIRECT_TX_BIT] = "GTP_FL_DIRECT_TX_BIT",
+		[GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT] = "GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT",
+		[GTP_FL_GTPC_INGRESS_BIT] = "GTP_FL_GTPC_INGRESS_BIT",
+		[GTP_FL_GTPC_EGRESS_BIT] = "GTP_FL_GTPC_EGRESS_BIT",
+		[GTP_FL_GTPU_INGRESS_BIT] = "GTP_FL_GTPU_INGRESS_BIT",
+		[GTP_FL_GTPU_EGRESS_BIT] = "GTP_FL_GTPU_EGRESS_BIT",
+	};
+
+	size_t max_index = sizeof(gtp_flags_strs) / sizeof(char*);
+
+	for (size_t i = 0; i < max_index; i++) {
+		if (!__test_bit(i, &flags))
+			continue;
+		const char *s = gtp_flags_strs[i] ? gtp_flags_strs[i] : "null";
+		strncat(str, s, str_len - strlen(str) - 1);
+		strncat(str, ", ", str_len - strlen(str) - 1);
+	}
+
+        /* Remove trailing ", " */
+	size_t len = strlen(str);
+	if (len > 2)
+		str[len - 2] = '\0';
+
+	return str;
+}
