@@ -60,4 +60,6 @@ extern int gtp_foreach_ie(uint8_t, uint8_t *, size_t, uint8_t *,
 			  gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *));
 extern ssize_t gtpu_get_header_len(pkt_buffer_t *);
 
+extern char * gtp_flags2str(char *str, size_t str_len, unsigned long flags);
+
 #endif

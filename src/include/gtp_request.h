@@ -130,5 +130,6 @@ typedef struct __attribute__ ((packed)) _gtp_imsi_request {
 extern int gtp_request_worker_start(void);
 extern int gtp_request_init(void);
 extern int gtp_request_destroy(void);
+extern int gtp_request_for_each_worker(gtp_req_channel_t *srv, int (*cb) (gtp_req_worker_t *, void *), void *arg);
 
 #endif
