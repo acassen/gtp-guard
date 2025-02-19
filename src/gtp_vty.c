@@ -814,11 +814,13 @@ vty_request_worker(gtp_req_worker_t *w, void *arg)
 {
 	char flags2str[BUFSIZ];
 	vty_t *vty =(vty_t *)arg;
+	char fdpath[PATH_MAX];
 
-	vty_out(vty, "  Worker %d task 0x%lx%s"
+	vty_out(vty, "  Worker %d task 0x%lx fd %d (%s)%s"
 		     "    flags:%s%s"
 		   , w->id
 		   , w->task
+		   , w->fd, w->fd >= 0 ? gtp_disk_fd2filename(w->fd, fdpath, sizeof(fdpath)) : "none"
 		   , VTY_NEWLINE
 		   , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
 		   , VTY_NEWLINE);
