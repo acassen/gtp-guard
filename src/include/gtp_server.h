@@ -22,6 +22,11 @@
 #ifndef _GTP_SERVER_H
 #define _GTP_SERVER_H
 
+typedef struct _gtp_server_stats {
+	gtp_stats_t		rx[0xff];
+	gtp_stats_t		tx[0xff];
+} gtp_server_stats_t;
+
 /* GTP Switching context */
 typedef struct _gtp_server_worker {
 	char			pname[GTP_PNAME];
@@ -37,6 +42,8 @@ typedef struct _gtp_server_worker {
 	uint64_t		tx_bytes;
 	uint64_t		rx_pkt;
 	uint64_t		tx_pkt;
+	gtp_server_stats_t	msg_stats;
+	gtp_server_stats_t	cause_stats;
 
 	list_head_t		next;
 
