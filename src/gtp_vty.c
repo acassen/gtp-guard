@@ -809,6 +809,58 @@ DEFUN(gtp_send_echo_request_extended,
 	return CMD_SUCCESS;
 }
 
+static int
+vty_request_worker(gtp_req_worker_t *w, void *arg)
+{
+	char flags2str[BUFSIZ];
+	vty_t *vty =(vty_t *)arg;
+	char fdpath[PATH_MAX];
+
+	vty_out(vty, "  Worker %d task 0x%lx fd %d (%s)%s"
+		     "    flags:%s%s"
+		   , w->id
+		   , w->task
+		   , w->fd, w->fd >= 0 ? gtp_disk_fd2filename(w->fd, fdpath, sizeof(fdpath)) : "none"
+		   , VTY_NEWLINE
+		   , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
+		   , VTY_NEWLINE);
+	return 0;
+}
+
+DEFUN(show_workers_request_channel,
+      show_workers_request_channel_cmd,
+      "show workers request-channel",
+      SHOW_STR
+      "workers tasks\n"
+      "pdn request-channel workers\n")
+{
+	gtp_req_channel_t *srv = &daemon_data->request_channel;
+
+	if (srv == NULL) {
+		vty_out(vty, "%% missing settings: pdn request-channel%s"
+			   , VTY_NEWLINE);
+	}
+
+	uint16_t port = inet_sockaddrport(&srv->addr);
+	char addr_str[INET6_ADDRSTRLEN];
+	char flags2str[BUFSIZ];
+
+	inet_sockaddrtos2(&srv->addr, addr_str);
+
+	vty_out(vty, "pdn request-channel:%s port:%d with %d threads%s"
+		     "  flags:%s%s"
+		   , addr_str
+		   , ntohs(port)
+		   , srv->thread_cnt
+		   , VTY_NEWLINE
+		   , gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
+		   , VTY_NEWLINE);
+
+	gtp_request_for_each_worker(srv, vty_request_worker, vty);
+
+	return CMD_SUCCESS;
+}
+
 
 /* Configuration writer */
 static int
@@ -882,6 +934,8 @@ gtp_vty_init(void)
 	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
+
+	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
 
 	/* Install other VTY */
 	gtp_pppoe_vty_init();

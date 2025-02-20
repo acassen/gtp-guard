@@ -478,6 +478,17 @@ gtp_request_worker_release(gtp_req_worker_t *w)
 	return 0;
 }
 
+int
+gtp_request_for_each_worker(gtp_req_channel_t *srv, int (*cb) (gtp_req_worker_t *, void *), void *arg)
+{
+	gtp_req_worker_t *w;
+
+	pthread_mutex_lock(&srv->workers_mutex);
+	list_for_each_entry(w, &srv->workers, next)
+		(*cb) (w, arg);
+	pthread_mutex_unlock(&srv->workers_mutex);
+	return 0;
+}
 
 /*
  *	GTP Request init

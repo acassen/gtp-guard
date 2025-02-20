@@ -1723,8 +1723,9 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 				 * this is agreeable.  Gonna conf-ack
 				 * it.
 				 */
+				uint32_t ndesiredaddr = htonl(desiredaddr);
 				PPPDEBUG(("%u.%u.%u.%u [ack] ",
-					 NIPQUAD(desiredaddr)));
+					 NIPQUAD(ndesiredaddr)));
 				/* record that we've seen it already */
 				sp->ipcp.flags |= IPCP_HISADDR_SEEN;
 				sp->ipcp.req_hisaddr = desiredaddr;
@@ -1738,11 +1739,12 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 			 * matching our value.  Either case, we gonna
 			 * conf-nak it with our value.
 			 */
+			uint32_t ndesiredaddr = htonl(desiredaddr);
 			if (desiredaddr == 0)
 				PPPDEBUG(("[addr requested] "));
 			else
 				PPPDEBUG(("%u.%u.%u.%u [not agreed] ",
-					 NIPQUAD(desiredaddr)));
+					 NIPQUAD(ndesiredaddr)));
 
 			p[2] = hisaddr >> 24;
 			p[3] = hisaddr >> 16;
@@ -1858,7 +1860,8 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			if (len >= 6 && p[1] == 6) {
 				wantaddr = p[2] << 24 | p[3] << 16 | p[4] << 8 | p[5];
 				sp->ipcp.opts |= (1 << SPPP_IPCP_OPT_ADDRESS);
-				PPPDEBUG(("[wantaddr %u.%u.%u.%u] ", NIPQUAD(wantaddr)));
+				uint32_t nwantaddr = htonl(wantaddr);
+				PPPDEBUG(("[Xwantaddr %u.%u.%u.%u] ", NIPQUAD(nwantaddr)));
 				/*
 				 * When doing dynamic address assignment,
 				 * we accept his offer.  Otherwise, we
@@ -1873,12 +1876,16 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 			}
 			break;
 		case IPCP_OPT_PRIMDNS:
-			if (len >= 6 && p[1] == 6)
+			if (len >= 6 && p[1] == 6) {
 				memcpy(&sp->ipcp.dns[0].s_addr, p + 2, sizeof(sp->ipcp.dns[0]));
+				PPPDEBUG(("[pri dns addr %u.%u.%u.%u] ", NIPQUAD(sp->ipcp.dns[0].s_addr)));
+			}
 			break;
 		case IPCP_OPT_SECDNS:
-			if (len >= 6 && p[1] == 6)
+			if (len >= 6 && p[1] == 6) {
 				memcpy(&sp->ipcp.dns[1].s_addr, p + 2, sizeof(sp->ipcp.dns[1]));
+				PPPDEBUG(("[sec dns addr %u.%u.%u.%u] ", NIPQUAD(sp->ipcp.dns[1].s_addr)));
+			}
 			break;
 		}
 	}
