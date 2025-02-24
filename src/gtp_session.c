@@ -577,12 +577,16 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 		}
 
 		t = &s->creation_time;
-		vty_out(vty, " session-id:0x%.8x apn:%s creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d expire:%s%s"
+		vty_out(vty, " session-id:0x%.8x apn:%s imsi:%ld creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d expire:%s pppoe cnt:%d%s"
 			   , s->id, s->apn->name
+			   , c->imsi
 			   , t->tm_mday, t->tm_mon+1, t->tm_year+1900
 			   , t->tm_hour, t->tm_min, t->tm_sec
 			   , timerisset(&s->t_node.sands) ? s->tmp_str : "never"
+			   , c->pppoe_cnt
 			   , VTY_NEWLINE);
+		if (s->s_pppoe)
+			vty_out(vty, "  pppuser:%s%s" , s->s_pppoe->gtp_username , VTY_NEWLINE);
 		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
 		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
 	}
@@ -636,7 +640,7 @@ DEFUN(show_gtp_session,
       SHOW_STR
       "GTP related informations\n"
       "GTP Session tracking\n"
-      "IMSI to look for\n")
+      "IMSI to look for (0 for all)\n")
 {
 	uint64_t imsi;
 

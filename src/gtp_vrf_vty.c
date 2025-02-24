@@ -402,7 +402,7 @@ gtp_config_write(vty_t *vty)
 		if (__test_bit(IP_VRF_FL_DECAP_DOT1Q_BIT, &vrf->flags))
 			vty_out(vty, " decapsulation dot1q %d%s", vrf->decap_vlan_id, VTY_NEWLINE);
 		if (__test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags))
-			vty_out(vty, " encapsulation ipip local %u.%u.%u.%u remoite %u.%u.%u.%u%s"
+			vty_out(vty, " encapsulation ipip local %u.%u.%u.%u remote %u.%u.%u.%u%s"
 				   , NIPQUAD(vrf->iptnl.local_addr)
 				   , NIPQUAD(vrf->iptnl.remote_addr)
 				   , VTY_NEWLINE);
