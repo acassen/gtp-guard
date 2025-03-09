@@ -22,6 +22,12 @@
 #ifndef _GTP_SERVER_H
 #define _GTP_SERVER_H
 
+/* Statistics counters */
+typedef struct _gtp_stats {
+	uint32_t		count;
+	uint32_t		unsupported;
+} gtp_stats_t;
+
 typedef struct _gtp_server_stats {
 	gtp_stats_t		rx[0xff];
 	gtp_stats_t		tx[0xff];
@@ -39,9 +45,9 @@ typedef struct _gtp_server_worker {
 
 	/* stats */
 	uint64_t		rx_bytes;
+	uint64_t		rx_pkts;
 	uint64_t		tx_bytes;
-	uint64_t		rx_pkt;
-	uint64_t		tx_pkt;
+	uint64_t		tx_pkts;
 	gtp_server_stats_t	msg_stats;
 	gtp_server_stats_t	cause_stats;
 
@@ -69,7 +75,7 @@ typedef struct _gtp_server {
 /* Prototypes */
 extern ssize_t gtp_server_send(gtp_server_worker_t *, int, struct sockaddr_in *);
 extern int gtp_server_start(gtp_server_t *);
-extern int gtp_server_for_each_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *));
+extern int gtp_server_for_each_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *, void *), void *);
 extern int gtp_server_init(gtp_server_t *, void *
 					 , int (*init) (gtp_server_worker_t *)
 					 , int (*process) (gtp_server_worker_t *, struct sockaddr_storage *));

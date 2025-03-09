@@ -49,7 +49,7 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 
 	/* Update stats */
 	if (nbytes > 0) {
-		w->rx_pkt++;
+		w->rx_pkts++;
 		w->rx_bytes += nbytes;
 	}
 
@@ -65,7 +65,7 @@ gtp_server_send(gtp_server_worker_t *w, int fd, struct sockaddr_in *addr)
 
 	/* Update stats */
 	if (nbytes > 0) {
-		w->tx_pkt++;
+		w->tx_pkts++;
 		w->tx_bytes += nbytes;
 	}
 
@@ -212,13 +212,13 @@ gtp_server_worker_destroy(gtp_server_worker_t *w)
  *	GTP Server related
  */
 int
-gtp_server_for_each_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *))
+gtp_server_for_each_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *, void *), void *arg)
 {
 	gtp_server_worker_t *w;
 
 	pthread_mutex_lock(&srv->workers_mutex);
 	list_for_each_entry(w, &srv->workers, next)
-		(*hdl) (w);
+		(*hdl) (w, arg);
 	pthread_mutex_unlock(&srv->workers_mutex);
 	return 0;
 }

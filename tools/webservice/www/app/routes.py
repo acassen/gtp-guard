@@ -27,7 +27,7 @@ from flask import redirect, url_for, request, jsonify
 
 
 #
-#	DRA-Guard related
+#	GTP-Guard related
 #
 class gtpguard:
 	def __init__(self):

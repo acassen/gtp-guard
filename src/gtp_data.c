@@ -196,10 +196,10 @@ gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
 		return -1;
 	}
 
-	strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
+	bsd_strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
 	ifindex = if_nametoindex(argv[1]);
 	if (argc == 3)
-		strlcpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
+		bsd_strlcpy(opts->progname, argv[2], GTP_STR_MAX_LEN-1);
 	if (!ifindex) {
 		vty_out(vty, "%% Error resolving interface %s (%m)%s"
 			   , argv[1]

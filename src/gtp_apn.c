@@ -76,7 +76,7 @@ gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
 	INIT_LIST_HEAD(&new->next);
 	new->prio = prio;
 	if (str)
-		strlcpy(new->str, str, GTP_APN_MAX_LEN);
+		bsd_strlcpy(new->str, str, GTP_APN_MAX_LEN);
 
 	pthread_mutex_lock(&apn->mutex);
 	list_add_tail(&new->next, &apn->service_selection);
@@ -365,7 +365,7 @@ gtp_apn_alloc(const char *name)
 	INIT_LIST_HEAD(&new->oi_match);
 	INIT_LIST_HEAD(&new->next);
         pthread_mutex_init(&new->mutex, NULL);
-	strlcpy(new->name, name, GTP_APN_MAX_LEN - 1);
+	bsd_strlcpy(new->name, name, GTP_APN_MAX_LEN - 1);
 
 	/* FIXME: lookup before insert */
 	pthread_mutex_lock(&gtp_apn_mutex);

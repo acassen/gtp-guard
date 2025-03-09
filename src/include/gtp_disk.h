@@ -25,6 +25,5 @@
 /* Prototypes */
 extern int gtp_disk_write_restart_counter(void);
 extern int gtp_disk_read_restart_counter(void);
-extern char * gtp_disk_fd2filename(int fd, char *buffer, size_t bufsize);
 
 #endif

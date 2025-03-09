@@ -640,7 +640,7 @@ DEFUN(show_gtp_session,
       SHOW_STR
       "GTP related informations\n"
       "GTP Session tracking\n"
-      "IMSI to look for (0 for all)\n")
+      "IMSI to look for (none for all)\n")
 {
 	uint64_t imsi;
 

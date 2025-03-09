@@ -224,98 +224,82 @@ gtp_config_write(vty_t *vty)
 	return CMD_SUCCESS;
 }
 
-/* XXX TODO, extend gtp_server_for_each_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *)) */
-static int
-_gtp_server_for_each_worker(gtp_server_t *srv, int (*cb) (gtp_server_worker_t *, void *), void *arg)
-{
-	gtp_server_worker_t *w;
-
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry(w, &srv->workers, next)
-		(*cb) (w, arg);
-	pthread_mutex_unlock(&srv->workers_mutex);
-	return 0;
-}
-
-struct vty_server_work_arg {
-	vty_t *vty;
-	const gtp_msg_type_map_t *msg_type2str;
-};
-
 static int
 vty_server_worker(gtp_server_worker_t *w, void *arg)
 {
+	vty_t *vty = arg;
+	gtp_server_t *srv = w->srv;
 	char flags2str[BUFSIZ];
-	vty_t *vty = ((struct vty_server_work_arg *)arg)->vty;
-	const gtp_msg_type_map_t *msg_type2str = ((struct vty_server_work_arg *)arg)->msg_type2str;
 	char fdpath[PATH_MAX];
+	int i, type = -1;
 
-	vty_out(vty, "   %s worker %d task 0x%lx fd %d (%s)%s"
+	/* Can only be GTP-C OR GTP-U */
+	if (__test_bit(GTP_FL_CTL_BIT, &srv->flags))
+		type = GTP_FL_CTL_BIT;
+	else if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
+		type = GTP_FL_UPF_BIT;
+
+	vty_out(vty, "   %s worker:#%.2d task:0x%lx fd:%d(%s)%s"
 		     "    flags:%s%s"
 		     "    seed:%d pbuff:%p (len:%d size:%d bytes)%s"
-		     "    rx:%"PRIu64"bytes %"PRIu64"pkt | tx:%"PRIu64"bytes %"PRIu64"pkt%s"
+		     "    rx:%"PRIu64"bytes %"PRIu64"pkts | tx:%"PRIu64"bytes %"PRIu64"pkts%s"
 		   , w->pname
 		   , w->id
 		   , w->task
-		   , w->fd, w->fd >= 0 ? gtp_disk_fd2filename(w->fd, fdpath, sizeof(fdpath)) : "none"
+		   , w->fd, (w->fd < 0) ? "none" : fd2str(w->fd, fdpath, PATH_MAX)
 		   , VTY_NEWLINE
 		   , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
 		   , VTY_NEWLINE
 		   , w->seed , w->pbuff
 		   , pkt_buffer_len(w->pbuff), pkt_buffer_size(w->pbuff)
 		   , VTY_NEWLINE
-		   , w->rx_bytes, w->rx_pkt
-		   , w->tx_bytes, w->tx_pkt
+		   , w->rx_bytes, w->rx_pkts
+		   , w->tx_bytes, w->tx_pkts
 		   , VTY_NEWLINE);
 
-	vty_out(vty, "    RX:%s"
-		   , VTY_NEWLINE);
-	for (int i = 0; i < ARRAY_SIZE(w->msg_stats.rx); i++) {
-		if (w->msg_stats.rx[i].count != 0)
+	vty_out(vty, "    RX:%s", VTY_NEWLINE);
+	for (i = 0; i < ARRAY_SIZE(w->msg_stats.rx); i++) {
+		if (w->msg_stats.rx[i].count)
 			vty_out(vty, "     %s(%d): %d%s"
-				   , msg_type2str
-				       ? msg_type2str[i].name
-				       : "null"
+				   , gtp_msgtype2str(type, i)
 				   , i
 				   , w->msg_stats.rx[i].count
 				   , VTY_NEWLINE);
-		if (w->msg_stats.rx[i].unsupported != 0)
+
+		if (w->msg_stats.rx[i].unsupported)
 			vty_out(vty, "     %s(%d): %d (not supported)%s"
-				   , msg_type2str
-				       ? msg_type2str[i].name ? msg_type2str[i].name : "bad type"
-				       : "null"
+				   , gtp_msgtype2str(type, i)
 				   , i
 				   , w->msg_stats.rx[i].unsupported
 				   , VTY_NEWLINE);
-		if (w->cause_stats.rx[i].count != 0)
+
+		if (w->cause_stats.rx[i].count)
 			vty_out(vty, "     %s(%d): %d%s"
-				   , gtpc_msg_cause2str[i].name ? gtpc_msg_cause2str[i].name : "bad cause"
+				   , gtpc_cause2str(i)
 				   , i
 				   , w->cause_stats.rx[i].count
 				   , VTY_NEWLINE);
 	}
-	vty_out(vty, "    TX:%s"
-		   , VTY_NEWLINE);
-	for (int i = 0; i < ARRAY_SIZE(w->msg_stats.tx); i++) {
-		if (w->msg_stats.tx[i].count != 0)
+
+	vty_out(vty, "    TX:%s", VTY_NEWLINE);
+	for (i = 0; i < ARRAY_SIZE(w->msg_stats.tx); i++) {
+		if (w->msg_stats.tx[i].count)
 			vty_out(vty, "     %s(%d): %d%s"
-				   , msg_type2str
-				       ? msg_type2str[i].name
-				       : "null"
+				   , gtp_msgtype2str(type, i)
 				   , i
 				   , w->msg_stats.tx[i].count
 				   , VTY_NEWLINE);
-		if (w->msg_stats.tx[i].unsupported != 0)
+
+		if (w->msg_stats.tx[i].unsupported)
 			vty_out(vty, "     %s(%d): %d (not supported)%s"
-				   , msg_type2str
-				       ? msg_type2str[i].name ? msg_type2str[i].name : "bad type"
-				       : "null"
+				   , gtp_msgtype2str(type, i)
 				   , i
 				   , w->msg_stats.tx[i].unsupported
 				   , VTY_NEWLINE);
-		if (w->cause_stats.tx[i].count != 0)
+
+		if (w->cause_stats.tx[i].count)
 			vty_out(vty, "     %s(%d): %d%s"
-				   , gtpc_msg_cause2str[i].name ? gtpc_msg_cause2str[i].name : "bad cause"
+				   , gtpc_cause2str(i)
 				   , i
 				   , w->cause_stats.tx[i].count
 				   , VTY_NEWLINE);
@@ -325,7 +309,7 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 }
 
 static int
-vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane, const gtp_msg_type_map_t *msg_type2str)
+vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
 {
 	char flags2str[BUFSIZ];
 
@@ -338,11 +322,7 @@ vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane, const gtp_msg_typ
 		   , VTY_NEWLINE
 		   , srv->flags, gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
 		   , VTY_NEWLINE);
-	struct vty_server_work_arg arg = {
-		.vty = vty,
-		.msg_type2str = msg_type2str,
-	};
-	_gtp_server_for_each_worker(srv, vty_server_worker, &arg);
+	gtp_server_for_each_worker(srv, vty_server_worker, vty);
 
 	return CMD_SUCCESS;
 }
@@ -361,10 +341,10 @@ DEFUN(show_workers_gtp_router,
       "both GTPu and GTPc\n")
 {
 	const list_head_t *l = &daemon_data->gtp_router_ctx;
-	gtp_router_t *ctx;
-
 	const char *name =  (argc > 0) ? argv[0] : "*";
 	const char *plane = (argc > 2) ? argv[2] : "both";
+	gtp_router_t *ctx;
+	gtp_server_t *srv;
 
         list_for_each_entry(ctx, l, next) {
 		char flags2str[BUFSIZ];
@@ -380,24 +360,20 @@ DEFUN(show_workers_gtp_router,
 			   , ctx->flags, gtp_flags2str(flags2str, sizeof(flags2str), ctx->flags)
 			   , VTY_NEWLINE);
 
-		if ((strcmp(plane, "both") == 0) ||
-		    (strcmp(plane, "gtpc") == 0)) {
-			gtp_server_t *srv = &ctx->gtpc;
+		if (!strncmp(plane, "both", 4) || !strncmp(plane, "gtpc", 4)) {
+			srv = &ctx->gtpc;
 			if (__test_bit(GTP_FL_CTL_BIT, &srv->flags))
-				vty_server(vty, srv, "gtpc", gtpc_msg_type2str);
+				vty_server(vty, srv, "gtpc");
 			else
-				vty_out(vty, "  gtpc: none%s"
-					   , VTY_NEWLINE);
+				vty_out(vty, "  gtpc: none%s", VTY_NEWLINE);
 		}
 
-		if ((strcmp(plane, "both") == 0) ||
-		    (strcmp(plane, "gtpu") == 0)) {
-			gtp_server_t *srv = &ctx->gtpu;
+		if (!strncmp(plane, "both", 4) || !strncmp(plane, "gtpu", 4)) {
+			srv = &ctx->gtpu;
 			if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
-				vty_server(vty, srv, "gtpu", gtpu_msg_type2str);
+				vty_server(vty, srv, "gtpu");
 			else
-				vty_out(vty, "  gtpu: none%s"
-					   , VTY_NEWLINE);
+				vty_out(vty, "  gtpu: none%s", VTY_NEWLINE);
 		}
 	}
 
@@ -420,6 +396,7 @@ gtp_router_vty_init(void)
 	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_cmd);
 
+	install_element(VIEW_NODE, &show_workers_gtp_router_cmd);
 	install_element(ENABLE_NODE, &show_workers_gtp_router_cmd);
 
 	return 0;

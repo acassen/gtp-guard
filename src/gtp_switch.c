@@ -182,7 +182,7 @@ gtp_switch_init(const char *name)
 }
 
 static int
-gtp_switch_socketpair_set(gtp_server_worker_t *w)
+gtp_switch_socketpair_set(gtp_server_worker_t *w, void *arg)
 {
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
@@ -203,7 +203,7 @@ gtp_switch_gtpc_socketpair_init(gtp_server_t *srv)
 
 	if (!ctx->gtpc_socket_pair)
 		ctx->gtpc_socket_pair = MALLOC(sizeof(socket_pair_t) * srv->thread_cnt);
-	gtp_server_for_each_worker(srv, gtp_switch_socketpair_set);
+	gtp_server_for_each_worker(srv, gtp_switch_socketpair_set, NULL);
 	return 0;
 }
 

@@ -275,9 +275,9 @@ DEFUN(pdn_bpf_ppp_rps,
 		return -1;
 	}
 
-	strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
+	bsd_strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
 	if (argc == 2)
-		strlcpy(opts->progname, argv[1], GTP_STR_MAX_LEN-1);
+		bsd_strlcpy(opts->progname, argv[1], GTP_STR_MAX_LEN-1);
 
 	__set_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
@@ -319,7 +319,7 @@ pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 		return CMD_WARNING;
 	}
 
-        VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
+	VTY_GET_INTEGER_RANGE("Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
 	if (err) {
@@ -812,18 +812,18 @@ DEFUN(gtp_send_echo_request_extended,
 static int
 vty_request_worker(gtp_req_worker_t *w, void *arg)
 {
+	vty_t *vty = (vty_t *) arg;
 	char flags2str[BUFSIZ];
-	vty_t *vty =(vty_t *)arg;
 	char fdpath[PATH_MAX];
 
-	vty_out(vty, "  Worker %d task 0x%lx fd %d (%s)%s"
-		     "    flags:%s%s"
-		   , w->id
-		   , w->task
-		   , w->fd, w->fd >= 0 ? gtp_disk_fd2filename(w->fd, fdpath, sizeof(fdpath)) : "none"
-		   , VTY_NEWLINE
-		   , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
-		   , VTY_NEWLINE);
+	vty_out(vty, "  Worker:#%.2d task:0x%lx fd:%d(%s)%s"
+		       "    flags:%s%s"
+		     , w->id
+		     , w->task
+		     , w->fd, (w->fd < 0) ? "none" : fd2str(w->fd, fdpath, PATH_MAX)
+		     , VTY_NEWLINE
+		     , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
+		     , VTY_NEWLINE);
 	return 0;
 }
 
@@ -835,27 +835,23 @@ DEFUN(show_workers_request_channel,
       "pdn request-channel workers\n")
 {
 	gtp_req_channel_t *srv = &daemon_data->request_channel;
-
-	if (srv == NULL) {
-		vty_out(vty, "%% missing settings: pdn request-channel%s"
-			   , VTY_NEWLINE);
-	}
-
-	uint16_t port = inet_sockaddrport(&srv->addr);
 	char addr_str[INET6_ADDRSTRLEN];
 	char flags2str[BUFSIZ];
 
-	inet_sockaddrtos2(&srv->addr, addr_str);
+	if (!srv) {
+		vty_out(vty, "%% missing settings: pdn request-channel%s"
+			     , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	vty_out(vty, "pdn request-channel:%s port:%d with %d threads%s"
 		     "  flags:%s%s"
-		   , addr_str
-		   , ntohs(port)
-		   , srv->thread_cnt
-		   , VTY_NEWLINE
-		   , gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
-		   , VTY_NEWLINE);
-
+		     , inet_sockaddrtos2(&srv->addr, addr_str)
+		     , ntohs(inet_sockaddrport(&srv->addr))
+		     , srv->thread_cnt
+		     , VTY_NEWLINE
+		     , gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
+		     , VTY_NEWLINE);
 	gtp_request_for_each_worker(srv, vty_request_worker, vty);
 
 	return CMD_SUCCESS;
@@ -879,8 +875,8 @@ pdn_config_write(vty_t *vty)
 		gtp_bpf_opts_config_write(vty, " xdp-mirror", &daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_RESTART_COUNTER_LOADED_BIT, &daemon_data->flags)) {
 		vty_out(vty, " restart-counter-file %s%s"
-			   , daemon_data->restart_counter_filename
-			   , VTY_NEWLINE);
+			     , daemon_data->restart_counter_filename
+			     , VTY_NEWLINE);
 	}
 	vty_out(vty, "!%s", VTY_NEWLINE);
 
@@ -923,6 +919,7 @@ gtp_vty_init(void)
 	install_element(VIEW_NODE, &show_xdp_routing_iptnl_cmd);
 	install_element(VIEW_NODE, &show_xdp_routing_mac_learning_cmd);
 	install_element(VIEW_NODE, &show_xdp_mirror_cmd);
+	install_element(VIEW_NODE, &show_workers_request_channel_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
 	install_element(ENABLE_NODE, &show_xdp_forwarding_cmd);
@@ -932,18 +929,17 @@ gtp_vty_init(void)
 	install_element(ENABLE_NODE, &show_xdp_routing_iptnl_cmd);
 	install_element(ENABLE_NODE, &show_xdp_routing_mac_learning_cmd);
 	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
+	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
 
-	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
-
 	/* Install other VTY */
 	gtp_pppoe_vty_init();
-        gtp_vrf_vty_init();
-        gtp_apn_vty_init();
-        gtp_switch_vty_init();
-        gtp_router_vty_init();
-        gtp_sessions_vty_init();
+	gtp_vrf_vty_init();
+	gtp_apn_vty_init();
+	gtp_switch_vty_init();
+	gtp_router_vty_init();
+	gtp_sessions_vty_init();
 
 	return 0;
 }

@@ -24,6 +24,8 @@
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <net/if.h>
+#include <sys/stat.h>
+#include <sys/un.h>
 #include "utils.h"
 
 /* global vars */
@@ -630,9 +632,10 @@ xorshift_prng(uint64_t *state)
  * Copy string src to buffer dst of size dsize.  At most dsize-1
  * chars will be copied.  Always NUL terminates (unless dsize == 0).
  * Returns strlen(src); if retval >= dsize, truncation occurred.
+ * -- Coming from OpenBSD
  */
 size_t
-strlcpy(char *dst, const char *src, size_t dsize)
+bsd_strlcpy(char *dst, const char *src, size_t dsize)
 {
 	const char *osrc = src;
 	size_t nleft = dsize;
@@ -654,4 +657,138 @@ strlcpy(char *dst, const char *src, size_t dsize)
 	}
 
 	return(src - osrc - 1);	/* count does not include NUL */
+}
+
+/*
+ * Appends src to string dst of size dsize (unlike strncat, dsize is the
+ * full size of dst, not space left).  At most dsize-1 characters
+ * will be copied.  Always NUL terminates (unless dsize <= strlen(dst)).
+ * Returns strlen(src) + MIN(dsize, strlen(initial dst)).
+ * If retval >= dsize, truncation occurred.
+ * -- Coming from OpenBSD
+ */
+size_t
+bsd_strlcat(char *dst, const char *src, size_t dsize)
+{
+	const char *odst = dst;
+	const char *osrc = src;
+	size_t n = dsize;
+	size_t dlen;
+
+	/* Find the end of dst and adjust bytes left but don't go past end. */
+	while (n-- != 0 && *dst != '\0')
+		dst++;
+	dlen = dst - odst;
+	n = dsize - dlen;
+
+	if (n-- == 0)
+		return(dlen + strlen(src));
+	while (*src != '\0') {
+		if (n != 0) {
+			*dst++ = *src;
+			n--;
+		}
+		src++;
+	}
+	*dst = '\0';
+
+	return(dlen + (src - osrc));	/* count does not include NUL */
+}
+
+/*
+ *	Stringify fd infos
+ */
+static ssize_t
+regular_file_fd2str(int fd, char *dst, size_t dsize)
+{
+	char path[PATH_MAX];
+	ssize_t dlen = 0;
+	int ret;
+
+	ret = snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+	if (ret < 0)
+		return -1;
+
+	dlen = readlink(path, dst, dsize - 1);
+	if (dlen < 0)
+		return snprintf(dst, dsize, "error: %m");
+
+	return dlen;
+}
+
+static ssize_t
+socket_fd2str(struct sockaddr_storage *addr, char *dst, size_t dsize)
+{
+	char addr_str[INET6_ADDRSTRLEN];
+	struct sockaddr_un *un;
+
+	if (dsize <= 0)
+		return -1;
+
+	if (addr->ss_family == AF_INET || addr->ss_family == AF_INET6)
+		return snprintf(dst, dsize, "%s%s%s:%d"
+				   , (addr->ss_family == AF_INET6) ? "[" : ""
+				   , inet_sockaddrtos2(addr, addr_str)
+				   , (addr->ss_family == AF_INET6) ? "]" : ""
+				   , ntohs(inet_sockaddrport(addr)));
+
+	if (addr->ss_family == AF_UNIX) {
+		un = (struct sockaddr_un *) addr;
+		return snprintf(dst, dsize, "unix[%s]"
+				   , (*un->sun_path) ? un->sun_path : "'abstract'");
+	}
+
+	return snprintf(dst, dsize, "socket type not supported");
+}
+
+char *
+fd2str(int fd, char *dst, size_t dsize)
+{
+	struct stat statbuf;
+	struct sockaddr_storage addr;
+	socklen_t addr_len = sizeof(addr);
+	ssize_t dlen = 0;
+
+	if (fd < 0 || !dst || !dsize)
+		goto err;
+
+	/* what is fd ? socket, regular file name, etc... (could be used to get pipe, etc.) */
+	if (fstat(fd, &statbuf) < 0)
+		goto err;
+
+	/* Buffer init */
+	memset(dst, 0, dsize);
+
+	/* fd is a regular file, get its pathname */
+	if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) {
+		dlen = regular_file_fd2str(fd, dst, dsize);
+		if (dlen < 0)
+			goto err;
+
+		goto end;
+	}
+
+	/* fd is a socket */
+	if (getsockname(fd, (struct sockaddr *)&addr, &addr_len) < 0)
+		goto unknown;
+
+	dlen = socket_fd2str(&addr, dst, dsize);
+	if (dlen < 0)
+		goto end;
+
+	/* fetch peer */
+	if (getpeername(fd, (struct sockaddr *)&addr, &addr_len) < 0)
+		goto end;
+
+	dlen = bsd_strlcat(dst + dlen, " -> remote_peer: ", dsize - dlen);
+	socket_fd2str(&addr, dst + dlen, dsize - dlen);
+	return dst;
+
+  unknown:
+	snprintf(dst, dsize, "Unknown");
+	return dst;
+  err:
+	snprintf(dst, dsize, "invalid fd");
+  end:
+	return dst;
 }

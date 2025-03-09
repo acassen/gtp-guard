@@ -28,6 +28,9 @@ typedef struct _gtp_msg_type_map {
 } gtp_msg_type_map_t;
 
 /* Prototypes */
+extern char *gtp_flags2str(char *, size_t, unsigned long);
+extern const char *gtp_msgtype2str(int, int);
+extern const char *gtpc_cause2str(int);
 
 /* GTPv1 */
 extern int gtp1_ie_apn_extract(gtp1_ie_apn_t *, char *, size_t);
@@ -65,10 +68,5 @@ extern int gtp_foreach_ie(uint8_t, uint8_t *, size_t, uint8_t *,
 			  gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *));
 extern ssize_t gtpu_get_header_len(pkt_buffer_t *);
 
-extern char * gtp_flags2str(char *str, size_t str_len, unsigned long flags);
-
-extern const gtp_msg_type_map_t gtpc_msg_type2str[0xff];
-extern const gtp_msg_type_map_t gtpu_msg_type2str[256];
-extern const gtp_msg_type_map_t gtpc_msg_cause2str[0xff];
 
 #endif

@@ -200,7 +200,7 @@ DEFUN(pppoe_ac_name,
 		return CMD_WARNING;
 	}
 
-	strlcpy(pppoe->ac_name, argv[0], PPPOE_NAMELEN);
+	bsd_strlcpy(pppoe->ac_name, argv[0], PPPOE_NAMELEN);
 	return CMD_SUCCESS;
 }
 
@@ -217,7 +217,7 @@ DEFUN(pppoe_service_name,
 		return CMD_WARNING;
 	}
 
-	strlcpy(pppoe->service_name, argv[0], PPPOE_NAMELEN);
+	bsd_strlcpy(pppoe->service_name, argv[0], PPPOE_NAMELEN);
 	return CMD_SUCCESS;
 }
 
@@ -325,7 +325,7 @@ DEFUN(pppoe_auth_pap_username,
 		return CMD_WARNING;
 	}
 
-	strlcpy(pppoe->pap_username, argv[0], PPPOE_NAMELEN);
+	bsd_strlcpy(pppoe->pap_username, argv[0], PPPOE_NAMELEN);
 	__set_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
@@ -345,7 +345,7 @@ DEFUN(pppoe_auth_pap_passwd,
 		return CMD_WARNING;
 	}
 
-	strlcpy(pppoe->pap_passwd, argv[0], PPPOE_NAMELEN);
+	bsd_strlcpy(pppoe->pap_passwd, argv[0], PPPOE_NAMELEN);
 	__set_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }

@@ -509,7 +509,7 @@ gtp_pppoe_interface_init(gtp_pppoe_t *pppoe, const char *ifname)
 		return -1;
 	}
 
-	strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
+	bsd_strlcpy(pppoe->ifname, ifname, GTP_NAME_MAX_LEN);
 	pppoe->ifindex = ifindex;
 	return 0;
 }
@@ -530,7 +530,7 @@ gtp_pppoe_init(const char *name)
 		errno = ENOMEM;
 		return NULL;
 	}
-	strlcpy(pppoe->name, name, GTP_NAME_MAX_LEN);
+	bsd_strlcpy(pppoe->name, name, GTP_NAME_MAX_LEN);
 	INIT_LIST_HEAD(&pppoe->next);
 	pppoe->seed = time(NULL);
 	srand(pppoe->seed);
@@ -604,7 +604,7 @@ gtp_pppoe_bundle_init(const char *name)
 		errno = ENOMEM;
 		return NULL;
 	}
-	strlcpy(bundle->name, name, GTP_NAME_MAX_LEN);
+	bsd_strlcpy(bundle->name, name, GTP_NAME_MAX_LEN);
 	INIT_LIST_HEAD(&bundle->next);
 	bundle->pppoe = MALLOC(sizeof(gtp_pppoe_t) * PPPOE_BUNDLE_MAXSIZE);
 

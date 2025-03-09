@@ -100,7 +100,7 @@ gtp_router_init(const char *name)
 
 	PMALLOC(new);
         INIT_LIST_HEAD(&new->next);
-        strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
+        bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
         list_add_tail(&new->next, &daemon_data->gtp_router_ctx);
 
 	return new;

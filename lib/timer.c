@@ -359,7 +359,7 @@ timer_thread_init(timer_thread_t *t, const char *name, int (*fired) (void *))
 {
 	t->timer = RB_ROOT_CACHED;
 	t->fired = fired;
-	strlcpy(t->name, name, TIMER_THREAD_NAMESIZ);
+	bsd_strlcpy(t->name, name, TIMER_THREAD_NAMESIZ);
 	pthread_mutex_init(&t->timer_mutex, NULL);
 	pthread_mutex_init(&t->cond_mutex, NULL);
 	pthread_cond_init(&t->cond, NULL);

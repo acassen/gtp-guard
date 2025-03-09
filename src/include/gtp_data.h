@@ -90,10 +90,6 @@ typedef struct _data {
 	unsigned long		flags;
 } data_t;
 
-typedef struct _gtp_stats {
-	uint32_t	count;
-	uint32_t	unsupported;
-} gtp_stats_t;
 
 /* Prototypes */
 extern gtp_mirror_rule_t *gtp_mirror_rule_get(const struct sockaddr_storage *, uint8_t, int);
