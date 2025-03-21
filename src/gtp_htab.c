@@ -33,45 +33,34 @@
 
 
 /*
- *      Distributate lock handling
+ *      Distributed lock handling
  */
-static dlock_mutex_t *
-dlock_hash(dlock_mutex_t *__array, uint32_t w1, uint32_t w2)
+static pthread_mutex_t *
+dlock_hash(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
 {
-	return __array + (jhash_2words(w1, w2, 0) & DLOCK_HASHTAB_MASK);
+	return &__array[(jhash_2words(w1, w2, 0) & DLOCK_HASHTAB_MASK)];
 }
 
 int
-dlock_lock_id(dlock_mutex_t *__array, uint32_t w1, uint32_t w2)
+dlock_lock_id(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
 {
-	dlock_mutex_t *m = dlock_hash(__array, w1, w2);
-	pthread_mutex_lock(&m->mutex);
-	__sync_add_and_fetch(&m->refcnt, 1);
+	pthread_mutex_t *m = dlock_hash(__array, w1, w2);
+	pthread_mutex_lock(m);
 	return 0;
 }
 
 int
-dlock_unlock_id(dlock_mutex_t *__array, uint32_t w1, uint32_t w2)
+dlock_unlock_id(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
 {
-	dlock_mutex_t *m = dlock_hash(__array, w1, w2);
-	if (__sync_sub_and_fetch(&m->refcnt, 1) == 0)
-		pthread_mutex_unlock(&m->mutex);
+	pthread_mutex_t *m = dlock_hash(__array, w1, w2);
+	pthread_mutex_unlock(m);
 	return 0;
 }
 
-dlock_mutex_t *
+pthread_mutex_t *
 dlock_init(void)
 {
-	dlock_mutex_t *new;
-	new = (dlock_mutex_t *) MALLOC(DLOCK_HASHTAB_SIZE * sizeof(dlock_mutex_t));
-        return new;
-}
-
-int
-dlock_destroy(dlock_mutex_t *__array)
-{
-	FREE(__array);
-	return 0;
+	return MALLOC(DLOCK_HASHTAB_SIZE * sizeof(pthread_mutex_t));
 }
 
 /*
