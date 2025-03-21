@@ -39,7 +39,7 @@ extern thread_master_t *master;
 /* Local data */
 struct hlist_head *gtp_conn_tab;
 static int gtp_conn_tab_cnt = 0;
-dlock_mutex_t *__gtp_conn_lock_array;
+pthread_mutex_t *__gtp_conn_lock_array;
 
 
 /*
@@ -60,15 +60,15 @@ gtp_conn_unlock_id(uint64_t id)
 int
 gtp_conn_lock_init(void)
 {
-        __gtp_conn_lock_array = dlock_init();
-        return 0;
+	__gtp_conn_lock_array = dlock_init();
+	return 0;
 }
 
 int
 gtp_conn_lock_destroy(void)
 {
 	FREE(__gtp_conn_lock_array);
-        return 0;
+	return 0;
 }
 
 
@@ -78,18 +78,18 @@ gtp_conn_lock_destroy(void)
 int
 gtp_conn_get(gtp_conn_t *c)
 {
-        if (!c)
-                return 0;
-        __sync_add_and_fetch(&c->refcnt, 1);
+	if (!c)
+		return 0;
+	__sync_add_and_fetch(&c->refcnt, 1);
 	return 0;
 }
 
 int
 gtp_conn_put(gtp_conn_t *c)
 {
-        if (!c)
-                return 0;
-        __sync_sub_and_fetch(&c->refcnt, 1);
+	if (!c)
+		return 0;
+	__sync_sub_and_fetch(&c->refcnt, 1);
 	return 0;
 }
 

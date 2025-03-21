@@ -27,22 +27,16 @@
 #define DLOCK_HASHTAB_SIZE    (1 << DLOCK_HASHTAB_BITS)
 #define DLOCK_HASHTAB_MASK    (DLOCK_HASHTAB_SIZE - 1)
 
-typedef struct _dlock_mutex {
-	pthread_mutex_t		mutex;
-	uint32_t		refcnt;
-} dlock_mutex_t;
-
 /* htab */
 typedef struct _gtp_htab {
 	struct hlist_head	*htab;
-	dlock_mutex_t		*dlock;
+	pthread_mutex_t		*dlock;
 } gtp_htab_t;
 
 /* Prototypes */
-extern int dlock_lock_id(dlock_mutex_t *, uint32_t, uint32_t);
-extern int dlock_unlock_id(dlock_mutex_t *, uint32_t, uint32_t);
-extern dlock_mutex_t *dlock_init(void);
-extern int dlock_destroy(dlock_mutex_t *);
+extern int dlock_lock_id(pthread_mutex_t *, uint32_t, uint32_t);
+extern int dlock_unlock_id(pthread_mutex_t *, uint32_t, uint32_t);
+extern pthread_mutex_t *dlock_init(void);
 extern void gtp_htab_init(gtp_htab_t *, size_t);
 extern void gtp_htab_destroy(gtp_htab_t *);
 
