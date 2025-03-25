@@ -644,7 +644,7 @@ DEFUN(apn_resolv_cache_reload,
 
 	apn = gtp_apn_get(argv[0]);
 	if (!apn) {
-		vty_out(vty, "%% unkown access-point-name %s%s", argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% unknown access-point-name %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -654,6 +654,30 @@ DEFUN(apn_resolv_cache_reload,
 		apn_resolv_cache_realloc(apn);
 	}
 
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_tag_uli_with_serving_node_ip4,
+      apn_tag_uli_with_serving_node_ip4_cmd,
+      "tag-uli-with-serving-node-ip4",
+      "Override ULI eCGI/CGI to include serving node IPv4 address\n"
+      "access-point-name string")
+{
+	gtp_apn_t *apn = vty->index;
+
+	__set_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_no_tag_uli_with_serving_node_ip4,
+      apn_no_tag_uli_with_serving_node_ip4_cmd,
+      "no tag-uli-with-serving-node-ip4",
+      "Override ULI eCGI/CGI to include serving node IPv4 address\n"
+      "access-point-name string")
+{
+	gtp_apn_t *apn = vty->index;
+
+	__clear_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags);
 	return CMD_SUCCESS;
 }
 
@@ -1298,6 +1322,9 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " resolv-cache-update %d%s"
 				   , apn->resolv_cache_update
 				   , VTY_NEWLINE);
+		if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+			vty_out(vty, " tag-uli-with-serving-node-ip4%s"
+				   , VTY_NEWLINE);
 		if (apn->realm[0])
 			vty_out(vty, " realm %s%s", apn->realm, VTY_NEWLINE);
 		if (__test_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags))
@@ -1352,6 +1379,8 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_resolv_cache_update_cmd);
 	install_element(APN_NODE, &apn_realm_cmd);
 	install_element(APN_NODE, &apn_realm_dynamic_cmd);
+	install_element(APN_NODE, &apn_tag_uli_with_serving_node_ip4_cmd);
+	install_element(APN_NODE, &apn_no_tag_uli_with_serving_node_ip4_cmd);
 	install_element(APN_NODE, &apn_service_selection_cmd);
 	install_element(APN_NODE, &apn_imsi_match_cmd);
 	install_element(APN_NODE, &apn_oi_match_cmd);

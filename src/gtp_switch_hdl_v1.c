@@ -290,6 +290,10 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		goto end;
 	}
 
+	/* ULI tag */
+	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+		gtp1_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
+
 	log_message(LOG_INFO, "Create-PDP-Req:={IMSI:%ld APN:%s TEID-C:0x%.8x}%s"
 			    , imsi, apn_str, ntohl(teid->id)
 			    , (retransmit) ? " (retransmit)" : "");

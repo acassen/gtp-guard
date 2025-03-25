@@ -141,7 +141,7 @@ gtp1_ie_apn_extract(gtp1_ie_apn_t *apn, char *buffer, size_t size)
 
 
 /*
- *      GTPv2 utilities
+ *	GTPv2 utilities
  */
 int
 bcd_buffer_swap(uint8_t *buffer_in, int size, uint8_t *buffer_out)
@@ -171,23 +171,23 @@ int64_t
 bcd_to_int64(const uint8_t *buffer, size_t size)
 {
 	int64_t value = 0;
-        uint8_t high, low;
+	uint8_t high, low;
 	int i;
 
 	/* With bit swapping */
-        for (i = 0; i < size; i++) {
-                low = (buffer[i] & 0xf0) >> 4;
-                high = buffer[i] & 0x0f;
-                if (high > 9)
-                        return value;
-                value = (value * 10) + high;
+	for (i = 0; i < size; i++) {
+		low = (buffer[i] & 0xf0) >> 4;
+		high = buffer[i] & 0x0f;
+		if (high > 9)
+			return value;
+		value = (value * 10) + high;
 
-                if (low > 9)
-                        return value;
-                value = (value * 10) + low;
-        }
+		if (low > 9)
+			return value;
+		value = (value * 10) + low;
+	}
 
-        return value;
+	return value;
 }
 
 int
@@ -440,7 +440,7 @@ gtp_ie_apn_rewrite(gtp_apn_t *apn, gtp_ie_apn_t *ie_apn, size_t offset_ni)
 	memset(apn_oi, 0, 32);
 	gtp_ie_apn_extract_oi(ie_apn, apn_oi, 32);
 
-        list_for_each_entry(rule, l, next) {
+	list_for_each_entry(rule, l, next) {
 		if (strncmp(rule->match, apn_oi, rule->match_len) == 0) {
 			gtp_ie_apn_rewrite_oi(ie_apn, offset_ni, rule->rewrite);
 			return 0;
@@ -448,44 +448,6 @@ gtp_ie_apn_rewrite(gtp_apn_t *apn, gtp_ie_apn_t *ie_apn, size_t offset_ni)
 	}
 
 	return -1;
-}
-
-gtp_id_ecgi_t *
-gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *uli)
-{
-	size_t offset = 0;
-
-	if (!uli->ecgi)
-		return NULL;
-
-	offset += (uli->cgi) ? sizeof(gtp_id_cgi_t) : 0;
-	offset += (uli->sai) ? sizeof(gtp_id_sai_t) : 0;
-	offset += (uli->rai) ? sizeof(gtp_id_rai_t) : 0;
-	offset += (uli->tai) ? sizeof(gtp_id_tai_t) : 0;
-
-	/* overflow protection */
-	if (offset + sizeof(gtp_id_ecgi_t) > ntohs(uli->h.length))
-		return NULL;
-
-	offset += sizeof(gtp_ie_uli_t);
-	return (gtp_id_ecgi_t *) ((uint8_t *)uli + offset);
-}
-
-int
-gtp_id_ecgi_str(gtp_id_ecgi_t *ecgi, char *buffer, size_t size)
-{
-	int mcc, mnc;
-
-	if (!ecgi) {
-		bsd_strlcpy(buffer, "0+0+0+0", size);
-		return -1;
-	}
-
-	mcc = bcd_to_int64(ecgi->mcc_mnc, 2);
-	mnc = bcd_to_int64(ecgi->mcc_mnc+2, 1);
-
-	return snprintf(buffer, size, "%d+%d+%d+%d"
-			      , mcc, mnc, ntohs(ecgi->enbid), ecgi->cellid);
 }
 
 int
@@ -583,17 +545,17 @@ gtpu_get_header_len(pkt_buffer_t *buffer)
 		return -1;
 
 	if (gtph->flags & GTPU_FL_E) {
-	        len += GTPV1U_EXTENSION_HEADER_LEN;
+		len += GTPV1U_EXTENSION_HEADER_LEN;
 
 		if (pkt_buffer_len(buffer) < len)
 			return -1;
 
-	        /*
-	         * TS29.281
-	         * 5.2.1 General format of the GTP-U Extension Header
-	         *
-	         * If no such Header follows,
-	         * then the value of the Next Extension Header Type shall be 0. */
+		/*
+		 * TS29.281
+		 * 5.2.1 General format of the GTP-U Extension Header
+		 *
+		 * If no such Header follows,
+		 * then the value of the Next Extension Header Type shall be 0. */
 		while (*(ext_h = (buffer->head + len - 1))) {
 			/*
 		 	 * The length of the Extension header shall be defined
@@ -614,7 +576,7 @@ gtpu_get_header_len(pkt_buffer_t *buffer)
 		 * For example, if only the E flag is set to 1, then
 		 * the N-PDU Number and Sequence Number fields shall also be present,
 		 * but will not have meaningful values and shall not be evaluated.
-	         */
+		 */
 		len += 4;
 	}
 

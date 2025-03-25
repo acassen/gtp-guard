@@ -310,6 +310,10 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
+	/* ULI tag */
+	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+		gtp_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
+
 	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
 			    , imsi, apn_str, ntohl(teid->id)
 			    , (retransmit) ? " (retransmit)" : "");
