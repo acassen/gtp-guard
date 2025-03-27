@@ -38,6 +38,7 @@ enum gtp_apn_flags {
 	GTP_APN_FL_SESSION_UNIQ_PTYPE,
 	GTP_APN_FL_REALM_DYNAMIC,
 	GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4,
+	GTP_APN_FL_TAG_ULI_WITH_EGCI_PLMN,
 };
 
 enum gtp_pco_flags {
@@ -103,6 +104,7 @@ typedef struct _gtp_apn {
 	gtp_pco_t		*pco;
 	gtp_ip_pool_t		*ip_pool;
 	ip_vrf_t		*vrf;
+	gtp_plmn_t		egci_plmn;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;

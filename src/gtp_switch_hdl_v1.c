@@ -301,7 +301,7 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags) &&
 	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
-		gtp1_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
+		gtp1_ie_uli_update(w->pbuff, &apn->egci_plmn, (struct sockaddr_in *) addr);
 
 	log_message(LOG_INFO, "Create-PDP-Req:={IMSI:%ld APN:%s TEID-C:0x%.8x}%s"
 			    , imsi, apn_str, ntohl(teid->id)
@@ -498,7 +498,7 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &s->apn->flags) &&
 	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
-		gtp1_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
+		gtp1_ie_uli_update(w->pbuff, &s->apn->egci_plmn, (struct sockaddr_in *) addr);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

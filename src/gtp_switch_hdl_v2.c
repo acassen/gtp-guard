@@ -321,7 +321,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags) &&
 	    !__gtp_apn_hplmn_get(apn, s->serving_plmn.plmn))
-		gtp_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
+		gtp_ie_uli_update(w->pbuff, &apn->egci_plmn, (struct sockaddr_in *) addr);
 
 	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
 			    , imsi, apn_str, ntohl(teid->id)
@@ -650,7 +650,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &s->apn->flags) &&
 	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
-		gtp_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
+		gtp_ie_uli_update(w->pbuff, &s->apn->egci_plmn, (struct sockaddr_in *) addr);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

@@ -755,11 +755,26 @@ DEFUN(apn_resolv_cache_reload,
 
 DEFUN(apn_tag_uli_with_serving_node_ip4,
       apn_tag_uli_with_serving_node_ip4_cmd,
-      "tag-uli-with-serving-node-ip4",
+      "tag-uli-with-serving-node-ip4 [INTEGER]",
       "Override ULI eCGI/CGI to include serving node IPv4 address\n"
-      "access-point-name string")
+      "PLMN string")
 {
 	gtp_apn_t *apn = vty->index;
+	uint8_t plmn[GTP_PLMN_MAX_LEN];
+	gtp_plmn_t *egci_plmn = &apn->egci_plmn;
+	int err;
+
+	memset(egci_plmn->plmn, 0xff, GTP_PLMN_MAX_LEN);
+	if (argc == 1) {
+		err = str_plmn_to_bcd(argv[0], plmn, GTP_PLMN_MAX_LEN);
+		if (err) {
+			vty_out(vty, "%% invalid plmn:%s%s", argv[0], VTY_NEWLINE);
+			return CMD_WARNING;
+		}
+
+		memcpy(egci_plmn->plmn, plmn, GTP_PLMN_MAX_LEN);
+		__set_bit(GTP_APN_FL_TAG_ULI_WITH_EGCI_PLMN, &apn->flags);
+	}
 
 	__set_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags);
 	return CMD_SUCCESS;
@@ -768,11 +783,11 @@ DEFUN(apn_tag_uli_with_serving_node_ip4,
 DEFUN(apn_no_tag_uli_with_serving_node_ip4,
       apn_no_tag_uli_with_serving_node_ip4_cmd,
       "no tag-uli-with-serving-node-ip4",
-      "Override ULI eCGI/CGI to include serving node IPv4 address\n"
-      "access-point-name string")
+      "Override ULI eCGI/CGI to include serving node IPv4 address\n")
 {
 	gtp_apn_t *apn = vty->index;
 
+	__clear_bit(GTP_APN_FL_TAG_ULI_WITH_EGCI_PLMN, &apn->flags);
 	__clear_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags);
 	return CMD_SUCCESS;
 }
@@ -1483,9 +1498,13 @@ apn_config_write(vty_t *vty)
 			vty_out(vty, " resolv-cache-update %d%s"
 				   , apn->resolv_cache_update
 				   , VTY_NEWLINE);
-		if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
-			vty_out(vty, " tag-uli-with-serving-node-ip4%s"
-				   , VTY_NEWLINE);
+		if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags)) {
+			vty_out(vty, " tag-uli-with-serving-node-ip4");
+			if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+				vty_out(vty, " %ld"
+					   , bcd_plmn_to_int64(apn->egci_plmn.plmn, GTP_PLMN_MAX_LEN));
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
 		if (apn->realm[0])
 			vty_out(vty, " realm %s%s", apn->realm, VTY_NEWLINE);
 		if (__test_bit(GTP_RESOLV_FL_SERVICE_SELECTION, &apn->flags))

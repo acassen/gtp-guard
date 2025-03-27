@@ -36,16 +36,16 @@
  *	GTPv1 utilities
  */
 static int
-gtp1_ie_uli_set(gtp1_ie_uli_t *uli, struct sockaddr_in *addr)
+gtp1_ie_uli_set(gtp1_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	uli->geographic_location_type = GTP1_ULI_GEOGRAPHIC_LOCATION_TYPE_CGI;
-	memset(uli->mcc_mnc, 0xff, sizeof(uli->mcc_mnc));
+	memcpy(uli->mcc_mnc, p->plmn, GTP_PLMN_MAX_LEN);
 	uli->u.value = addr->sin_addr.s_addr;
 	return 0;
 }
 
 static int
-gtp1_ie_uli_append(pkt_buffer_t *pkt, struct sockaddr_in *addr)
+gtp1_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	gtp1_hdr_t *gtph = (gtp1_hdr_t *) pkt->head;
 	uint8_t *cp = pkt_buffer_end(pkt);
@@ -65,7 +65,7 @@ gtp1_ie_uli_append(pkt_buffer_t *pkt, struct sockaddr_in *addr)
 	uli = (gtp1_ie_uli_t *) cp;
 	uli->h.type = GTP1_IE_ULI_TYPE;
 	uli->h.length = htons(sizeof(gtp1_ie_uli_t) - sizeof(gtp1_ie_t));
-	gtp1_ie_uli_set(uli, addr);
+	gtp1_ie_uli_set(uli, p, addr);
 
 	/* Update pkt */
 	pkt_buffer_put_end(pkt, delta);
@@ -74,15 +74,15 @@ gtp1_ie_uli_append(pkt_buffer_t *pkt, struct sockaddr_in *addr)
 }
 
 int
-gtp1_ie_uli_update(pkt_buffer_t *pkt, struct sockaddr_in *addr)
+gtp1_ie_uli_update(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	uint8_t *cp;
 
 	cp = gtp1_get_ie(GTP1_IE_ULI_TYPE, pkt);
 	if (cp)
-		return gtp1_ie_uli_set((gtp1_ie_uli_t *) cp, addr);
+		return gtp1_ie_uli_set((gtp1_ie_uli_t *) cp, p, addr);
 
-	return gtp1_ie_uli_append(pkt, addr);
+	return gtp1_ie_uli_append(pkt, p, addr);
 }
 
 
@@ -143,15 +143,15 @@ gtp_id_ecgi_str(gtp_id_ecgi_t *ecgi, char *buffer, size_t size)
 }
 
 static int
-gtp_ecgi_set(gtp_id_ecgi_t *ecgi, struct sockaddr_in *addr)
+gtp_ecgi_set(gtp_id_ecgi_t *ecgi, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
-	memset(ecgi->mcc_mnc, 0xff, sizeof(ecgi->mcc_mnc));
+	memcpy(ecgi->mcc_mnc, p->plmn, GTP_PLMN_MAX_LEN);
 	ecgi->u.value = addr->sin_addr.s_addr;
 	return 0;
 }
 
 static int
-gtp_ie_uli_ecgi_append(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, struct sockaddr_in *addr)
+gtp_ie_uli_ecgi_append(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) pkt->head;
 	int tail_len, delta = sizeof(gtp_id_ecgi_t);
@@ -176,23 +176,23 @@ gtp_ie_uli_ecgi_append(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, struct sockaddr_in 
 	uli->h.length = htons(ntohs(uli->h.length) + delta);
 	gtph->length = htons(ntohs(gtph->length) + delta);
 
-	return gtp_ecgi_set((gtp_id_ecgi_t *) cp, addr);
+	return gtp_ecgi_set((gtp_id_ecgi_t *) cp, p, addr);
 }
 
 static int
-gtp_ie_uli_ecgi_update(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, struct sockaddr_in *addr)
+gtp_ie_uli_ecgi_update(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	gtp_id_ecgi_t *ecgi;
 
 	ecgi = gtp_ie_uli_extract_ecgi(uli);
 	if (ecgi)
-		return gtp_ecgi_set(ecgi, addr);
+		return gtp_ecgi_set(ecgi, p, addr);
 
-	return gtp_ie_uli_ecgi_append(pkt, uli, addr);
+	return gtp_ie_uli_ecgi_append(pkt, uli, p, addr);
 }
 
 static int
-gtp_ie_uli_append(pkt_buffer_t *pkt, struct sockaddr_in *addr)
+gtp_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) pkt->head;
 	uint8_t *cp = pkt_buffer_end(pkt);
@@ -216,7 +216,7 @@ gtp_ie_uli_append(pkt_buffer_t *pkt, struct sockaddr_in *addr)
 	uli->h.length = htons(sizeof(gtp_id_ecgi_t) + 1);
 	uli->ecgi = 1;
 	ecgi =(gtp_id_ecgi_t *) (cp + sizeof(gtp_ie_uli_t));
-	gtp_ecgi_set(ecgi, addr);
+	gtp_ecgi_set(ecgi, p, addr);
 
 	/* Update pkt */
 	pkt_buffer_put_end(pkt, delta);
@@ -225,13 +225,13 @@ gtp_ie_uli_append(pkt_buffer_t *pkt, struct sockaddr_in *addr)
 }
 
 int
-gtp_ie_uli_update(pkt_buffer_t *pkt, struct sockaddr_in *addr)
+gtp_ie_uli_update(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 {
 	uint8_t *cp;
 
 	cp = gtp_get_ie(GTP_IE_ULI_TYPE, pkt);
 	if (cp)
-		return gtp_ie_uli_ecgi_update(pkt, (gtp_ie_uli_t *) cp, addr);
+		return gtp_ie_uli_ecgi_update(pkt, (gtp_ie_uli_t *) cp, p, addr);
 
-	return gtp_ie_uli_append(pkt, addr);
+	return gtp_ie_uli_append(pkt, p, addr);
 }

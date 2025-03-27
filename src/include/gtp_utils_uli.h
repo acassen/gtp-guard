@@ -23,11 +23,11 @@
 #define _GTP_UTILS_ULI_H
 
 /* GTPv1 */
-extern int gtp1_ie_uli_update(pkt_buffer_t *, struct sockaddr_in *);
+extern int gtp1_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
 
 /* GTPv2 */
 extern gtp_id_ecgi_t *gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *);
 extern int gtp_id_ecgi_str(gtp_id_ecgi_t *, char *, size_t);
-extern int gtp_ie_uli_update(pkt_buffer_t *, struct sockaddr_in *);
+extern int gtp_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
 
 #endif
