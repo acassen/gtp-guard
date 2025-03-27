@@ -216,6 +216,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 {
 	gtp_ie_imsi_t *ie_imsi;
 	gtp_ie_apn_t *ie_apn;
+	gtp_ie_serving_network_t *ie_serving_network;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
@@ -310,8 +311,16 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
+	/* Serving Network */
+	cp = gtp_get_ie(GTP_IE_SERVING_NETWORK_TYPE, w->pbuff);
+	if (cp) {
+		ie_serving_network = (gtp_ie_serving_network_t *) cp;
+		memcpy(s->serving_plmn.plmn, ie_serving_network->mcc_mnc, GTP_PLMN_MAX_LEN);
+	}
+
 	/* ULI tag */
-	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags) &&
+	    !__gtp_apn_hplmn_get(apn, s->serving_plmn.plmn))
 		gtp_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
 
 	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
@@ -591,6 +600,7 @@ static gtp_teid_t *
 gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr, int direction)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
+	gtp_ie_serving_network_t *ie_serving_network;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
@@ -629,6 +639,18 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	/* Update GTP-C with current sGW*/
 	gtp_teid_update_sgw(teid, addr);
 	gtp_teid_update_sgw(teid->peer_teid, addr);
+
+	/* Update Serving Network */
+	cp = gtp_get_ie(GTP_IE_SERVING_NETWORK_TYPE, w->pbuff);
+	if (cp) {
+		ie_serving_network = (gtp_ie_serving_network_t *) cp;
+		memcpy(s->serving_plmn.plmn, ie_serving_network->mcc_mnc, GTP_PLMN_MAX_LEN);
+	}
+
+	/* ULI tag */
+	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &s->apn->flags) &&
+	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
+		gtp_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

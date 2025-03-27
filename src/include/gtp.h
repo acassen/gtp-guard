@@ -149,6 +149,14 @@ typedef struct _gtp1_ie_imsi {
 	uint8_t		imsi[8];
 } __attribute__((packed)) gtp1_ie_imsi_t;
 
+#define GTP1_IE_RAI_TYPE				3
+typedef struct _gtp1_ie_rai {
+	uint8_t		type;
+	uint8_t		plmn[3];
+	uint16_t	lac;
+	uint8_t		rac;
+} __attribute__((packed)) gtp1_ie_rai_t;
+
 #define GTP1_IE_RECOVERY_TYPE				14
 typedef struct _gtp1_ie_recovery {
 	uint8_t		type;
@@ -424,7 +432,8 @@ typedef struct _gtp_id_sai {
 typedef struct _gtp_id_rai {
 	uint8_t		mcc_mnc[3];
 	uint16_t	lac;
-	uint16_t	rac;
+	uint8_t		rac;
+	uint8_t		spare;
 } __attribute__((packed)) gtp_id_rai_t;
 
 typedef struct _gtp_id_tai {

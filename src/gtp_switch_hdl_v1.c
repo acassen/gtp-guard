@@ -201,6 +201,7 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 {
 	gtp1_ie_apn_t *ie_apn;
 	gtp1_ie_imsi_t *ie_imsi;
+	gtp1_ie_rai_t *ie_rai;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL;
@@ -290,8 +291,16 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		goto end;
 	}
 
+	/* RAI */
+	cp = gtp1_get_ie(GTP1_IE_RAI_TYPE, w->pbuff);
+	if (cp) {
+		ie_rai = (gtp1_ie_rai_t *) cp;
+		memcpy(s->serving_plmn.plmn, ie_rai->plmn, GTP_PLMN_MAX_LEN);
+	}
+
 	/* ULI tag */
-	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags) &&
+	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
 		gtp1_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
 
 	log_message(LOG_INFO, "Create-PDP-Req:={IMSI:%ld APN:%s TEID-C:0x%.8x}%s"
@@ -429,6 +438,7 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 {
 	gtp1_hdr_t *h = (gtp1_hdr_t *) w->pbuff->head;
 	gtp1_ie_imsi_t *ie_imsi;
+	gtp1_ie_rai_t *ie_rai;
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
@@ -477,6 +487,18 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* Update GTP-C with current sGW*/
 	gtp_teid_update_sgw(teid, addr);
 	gtp_teid_update_sgw(teid->peer_teid, addr);
+
+	/* Update serving PLMN */
+	cp = gtp1_get_ie(GTP1_IE_RAI_TYPE, w->pbuff);
+	if (cp) {
+		ie_rai = (gtp1_ie_rai_t *) cp;
+		memcpy(s->serving_plmn.plmn, ie_rai->plmn, GTP_PLMN_MAX_LEN);
+	}
+
+	/* ULI tag */
+	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &s->apn->flags) &&
+	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
+		gtp1_ie_uli_update(w->pbuff, (struct sockaddr_in *) addr);
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

@@ -22,6 +22,7 @@
 /* system includes */
 #include <unistd.h>
 #include <pthread.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
@@ -242,6 +243,83 @@ int64_to_bcd(const uint64_t value, uint8_t *buffer, size_t size)
 }
 
 int
+str_plmn_to_bcd(const char *src, uint8_t *dst, size_t dsize)
+{
+	static char digits[] = "0123456789";
+	int str_len = strlen(src);
+	const char *end = src + str_len, *cp, *pch;
+	char tmp;
+	int i = 0;
+
+	/* Never more than 6 digits */
+	if (str_len > 6)
+		return -1;
+
+	if (str_len / 2 > dsize)
+		return -1;
+	memset(dst, 0, dsize);
+
+	for (cp = src; cp < end; cp++) {
+		pch = strchr(digits, tolower((int) *cp));
+		if (!pch)
+			return -1;
+
+		tmp = (uint8_t) (pch - digits) << 4 * !!(i % 2);
+
+		/* MNC can be 2 or 3 digits. In that last
+		 * case, last digit of MNC replace 'f' in
+		 * BCD buffer output... */
+		if (i == 6) {
+			dst[1] = (tmp << 4) | (dst[1] & 0x0f);
+			break;
+		}
+
+		dst[i / 2] |= tmp;
+
+		/* MCC is always 3 digits */
+		if (++i == 3)
+			dst[i++ / 2] |= 0xf0;
+	}
+
+	return 0;
+}
+
+int64_t
+bcd_plmn_to_int64(const uint8_t *src, size_t ssize)
+{
+	int64_t plmn = 0;
+	int i;
+
+	if (ssize != 3)
+		return -1;
+
+	for (i = 0; i < ssize; i++) {
+		plmn = 10 * plmn + (src[i] & 0x0f);
+		if ((src[i] >> 4) != 0xf)
+			plmn = 10 * plmn + (src[i] >> 4);
+	}
+
+	/* Last digit of MNC */
+	if ((src[1] >> 4) != 0xf)
+		plmn = 10 * plmn + (src[1] >> 4);
+
+	return plmn;
+}
+
+int
+bcd_plmn_cmp(const uint8_t *a, const uint8_t *b)
+{
+	int i;
+
+	for (i = 0; i < 3; i++) {
+		if (a[i] ^ b[i])
+			return -1;
+	}
+
+	return 0;
+}
+
+int
 gtp_imsi_ether_addr_build(const uint64_t imsi, struct ether_addr *eth, uint8_t id)
 {
 	uint8_t eui_oui[8] = { 0x02, 0x03, 0x06, 0x07, 0x0a, 0x0b, 0x0e, 0x0f };
@@ -279,6 +357,7 @@ gtp_imsi_rewrite(gtp_apn_t *apn, uint8_t *imsi)
 	gtp_rewrite_rule_t *rule, *rule_match = NULL;
 	int len;
 
+	/* FIXME: this list MUST be protected or use lock-less */
 	if (list_empty(l))
 		return -1;
 
