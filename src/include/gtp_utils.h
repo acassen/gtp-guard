@@ -48,6 +48,7 @@ extern int int64_to_bcd(const uint64_t, uint8_t *, size_t);
 extern int str_plmn_to_bcd(const char *, uint8_t *, size_t);
 extern int64_t bcd_plmn_to_int64(const uint8_t *, size_t);
 extern int bcd_plmn_cmp(const uint8_t *, const uint8_t *);
+extern bool bcd_imsi_plmn_match(const uint8_t *, const uint8_t *);
 extern int gtp_imsi_ether_addr_build(const uint64_t, struct ether_addr *, uint8_t);
 extern int gtp_ifid_from_ether_build(struct ether_addr *, struct in6_addr *);
 extern size_t gtpc_get_header_len(gtp_hdr_t *);

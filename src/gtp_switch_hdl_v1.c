@@ -212,7 +212,7 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	uint64_t imsi;
 	uint8_t *cp;
 	char apn_str[64];
-	int ret;
+	int err;
 
 	/* Retransmission detection */
 	s = gtpc_retransmit_detected(w);
@@ -244,8 +244,8 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	}
 	ie_apn = (gtp1_ie_apn_t *) cp;
 	memset(apn_str, 0, 64);
-	ret = gtp1_ie_apn_extract(ie_apn, apn_str, 63);
-	if (ret < 0) {
+	err = gtp1_ie_apn_extract(ie_apn, apn_str, 63);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Error parsing Access-Point-Name IE. ignoring..."
 				    , __FUNCTION__);
 		return NULL;
@@ -298,14 +298,23 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		memcpy(s->serving_plmn.plmn, ie_rai->plmn, GTP_PLMN_MAX_LEN);
 	}
 
+	/* Set session roaming status */
+	err = gtp_session_roaming_status_set(s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): unable to set Roaming Status for IMSI:%ld"
+				    , __FUNCTION__
+				    , c->imsi);
+	}
+
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags) &&
-	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
+	    __test_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags))
 		gtp1_ie_uli_update(w->pbuff, &apn->egci_plmn, (struct sockaddr_in *) addr);
 
-	log_message(LOG_INFO, "Create-PDP-Req:={IMSI:%ld APN:%s TEID-C:0x%.8x}%s"
+	log_message(LOG_INFO, "Create-PDP-Req:={IMSI:%ld APN:%s TEID-C:0x%.8x Roaming-Status:%s}%s"
 			    , imsi, apn_str, ntohl(teid->id)
-			    , (retransmit) ? " (retransmit)" : "");
+			    , (retransmit) ? " (retransmit)" : ""
+			    , gtp_session_roaming_status_str(s));
 	if (retransmit) {
 		gtp_sqn_masq(w, teid);
 		goto end;
@@ -327,8 +336,8 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		goto end;
 	}
 
-	ret = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
-	if (ret < 0) {
+	err = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__
 				    , apn->name);
@@ -446,6 +455,7 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	uint32_t *gsn_address_c;
 	bool mobility = false;
 	uint8_t *cp;
+	int err;
 
 	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
@@ -469,10 +479,6 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* Update GTP-C with current SGSN */
 	teid->sgw_addr = *((struct sockaddr_in *) addr);
 
-	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x}%s"
-			    , ntohl(h->teid)
-			    , mobility ? " (4G Mobility)" : "");
-
 	/* IMSI rewrite if needed */
 	cp = gtp1_get_ie(GTP1_IE_IMSI_TYPE, w->pbuff);
 	if (cp) {
@@ -495,10 +501,23 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		memcpy(s->serving_plmn.plmn, ie_rai->plmn, GTP_PLMN_MAX_LEN);
 	}
 
+	/* Set session roaming status */
+	err = gtp_session_roaming_status_set(s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): unable to update Roaming Status for IMSI:%ld"
+				    , __FUNCTION__
+				    , s->conn->imsi);
+	}
+
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &s->apn->flags) &&
-	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
+	    __test_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags))
 		gtp1_ie_uli_update(w->pbuff, &s->apn->egci_plmn, (struct sockaddr_in *) addr);
+
+	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x Roaming-Status:%s}%s"
+			    , ntohl(h->teid)
+			    , mobility ? " (4G Mobility)" : ""
+			    , gtp_session_roaming_status_str(s));
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

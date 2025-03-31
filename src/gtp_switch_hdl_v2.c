@@ -250,6 +250,14 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		return NULL;
 	}
 
+	/* Serving Network */
+	cp = gtp_get_ie(GTP_IE_SERVING_NETWORK_TYPE, w->pbuff);
+	if (!cp) {
+		log_message(LOG_INFO, "%s(): no Serving Netwokr IE present. ignoring..."
+				    , __FUNCTION__);
+		return NULL;
+	}
+
 	/* APN selection */
 	cp = gtp_get_ie(GTP_IE_APN_TYPE, w->pbuff);
 	if (!cp) {
@@ -311,21 +319,27 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
-	/* Serving Network */
-	cp = gtp_get_ie(GTP_IE_SERVING_NETWORK_TYPE, w->pbuff);
-	if (cp) {
-		ie_serving_network = (gtp_ie_serving_network_t *) cp;
-		memcpy(s->serving_plmn.plmn, ie_serving_network->mcc_mnc, GTP_PLMN_MAX_LEN);
+	/* Set Serving PLMN */
+	ie_serving_network = (gtp_ie_serving_network_t *) cp;
+	memcpy(s->serving_plmn.plmn, ie_serving_network->mcc_mnc, GTP_PLMN_MAX_LEN);
+
+	/* Set session roaming status */
+	err = gtp_session_roaming_status_set(s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): unable to set Roaming Status for IMSI:%ld"
+				    , __FUNCTION__
+				    , c->imsi);
 	}
 
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags) &&
-	    !__gtp_apn_hplmn_get(apn, s->serving_plmn.plmn))
+	    __test_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags))
 		gtp_ie_uli_update(w->pbuff, &apn->egci_plmn, (struct sockaddr_in *) addr);
 
-	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}%s"
+	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x Roaming-Status:%s}%s"
 			    , imsi, apn_str, ntohl(teid->id)
-			    , (retransmit) ? " (retransmit)" : "");
+			    , (retransmit) ? " (retransmit)" : ""
+			    , gtp_session_roaming_status_str(s));
 	if (retransmit) {
 		gtp_sqn_masq(w, teid);
 		goto end;
@@ -607,6 +621,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	gtp_session_t *s;
 	bool mobility = false;
 	uint8_t *cp;
+	int err;
 
 	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
@@ -621,10 +636,6 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 		mobility = true;
 		teid->version = 2;
 	}
-
-	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x}%s"
-			    , ntohl(teid->id)
-			    , mobility ? " (3G Mobility)" : "");
 
 	/* IMSI rewrite if needed */
 	cp = gtp_get_ie(GTP_IE_IMSI_TYPE, w->pbuff);
@@ -647,10 +658,23 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 		memcpy(s->serving_plmn.plmn, ie_serving_network->mcc_mnc, GTP_PLMN_MAX_LEN);
 	}
 
+	/* Update session roaming status */
+	err = gtp_session_roaming_status_set(s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): unable to update Roaming Status for IMSI:%ld"
+				    , __FUNCTION__
+				    , s->conn->imsi);
+	}
+
 	/* ULI tag */
 	if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &s->apn->flags) &&
-	    !__gtp_apn_hplmn_get(s->apn, s->serving_plmn.plmn))
+	    __test_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags))
 		gtp_ie_uli_update(w->pbuff, &s->apn->egci_plmn, (struct sockaddr_in *) addr);
+
+	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x Roamng-Status:%s}%s"
+			    , ntohl(teid->id)
+			    , mobility ? " (3G Mobility)" : ""
+			    , gtp_session_roaming_status_str(s));
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

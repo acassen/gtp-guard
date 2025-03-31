@@ -242,6 +242,7 @@ int64_to_bcd(const uint64_t value, uint8_t *buffer, size_t size)
 	return 0;
 }
 
+/* PLMN Related */
 int
 str_plmn_to_bcd(const char *src, uint8_t *dst, size_t dsize)
 {
@@ -319,6 +320,35 @@ bcd_plmn_cmp(const uint8_t *a, const uint8_t *b)
 	return 0;
 }
 
+bool
+bcd_imsi_plmn_match(const uint8_t *imsi, const uint8_t *plmn)
+{
+	uint8_t tmp;
+
+	/* a bit manual to keep it readable... */
+
+	/* MCC matching */
+	if (imsi[0] ^ plmn[0])
+		return false;
+
+	if ((imsi[1] ^ plmn[1]) & 0x0f)
+		return false;
+
+	/* MNC matching */
+	tmp = (imsi[1] >> 4) | (imsi[2] << 4);
+	if (plmn[2] ^ tmp)
+		return false;
+
+	/* MNC is 3 digits ? */
+	if ((plmn[1] >> 4) != 0xf) {
+		if ((imsi[2] >> 4) ^ (plmn[1] >> 4))
+			return false;
+	}
+
+	return true;
+}
+
+/* IMSI related */
 int
 gtp_imsi_ether_addr_build(const uint64_t imsi, struct ether_addr *eth, uint8_t id)
 {
@@ -396,6 +426,7 @@ gtp_ie_imsi_rewrite(gtp_apn_t *apn, uint8_t *buffer)
 	return gtp_imsi_rewrite(apn, ie_imsi->imsi);
 }
 
+/* APN related */
 int
 gtp_apn_extract_ni(char *apn, size_t apn_size, char *buffer, size_t size)
 {
@@ -661,6 +692,7 @@ gtpu_get_header_len(pkt_buffer_t *buffer)
 
 	return (pkt_buffer_len(buffer) < len) ? -1 : len;
 }
+
 
 /*
  *	Stringify enum gtp_flags of flags
