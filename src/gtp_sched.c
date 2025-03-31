@@ -80,7 +80,7 @@ gtp_sched_pgw_wlc(gtp_naptr_t *naptr, struct sockaddr_in *addr_skip)
 }
 
 static gtp_pgw_t *
-gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_skip)
+__gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_skip)
 {
 	gtp_naptr_t *naptr, *least = NULL;
 	gtp_pgw_t *pgw = NULL;
@@ -115,15 +115,22 @@ gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_sk
 }
 
 static int
-gtp_sched_generic(gtp_apn_t *apn, list_head_t *l, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+gtp_sched_generic(gtp_apn_t *apn, list_head_t *l, const char *service_base,
+		  struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
 {
+	char service_str[GTP_SCHED_MAX_LEN+1] = {};
 	gtp_service_t *service;
 	gtp_pgw_t *pgw = NULL;
+	int err;
 
 	/* Service selection list is already sorted by prio */
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry(service, &apn->service_selection, next) {
-		pgw = gtp_sched_naptr(l, service->str, addr_skip);
+		err = snprintf(service_str, GTP_SCHED_MAX_LEN, "%s+%s", service_base, service->str);
+		if (err < 0)
+			continue;
+
+		pgw = __gtp_sched_naptr(l, service_str, addr_skip);
 		if (pgw) {
 			*addr = *(struct sockaddr_in *) &pgw->addr;
 			pthread_mutex_unlock(&apn->mutex);
@@ -135,14 +142,60 @@ gtp_sched_generic(gtp_apn_t *apn, list_head_t *l, struct sockaddr_in *addr, stru
 	return -1;
 }
 
-int
-gtp_sched(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+static const char *
+gtp_sched_roaming_status_to_str(unsigned long *flags)
 {
-	return gtp_sched_generic(apn, &apn->naptr, addr, addr_skip);
+	if (__test_bit(GTP_SESSION_FL_HPLMN, flags))
+		return "x-3gpp-pgw:x-s5-gtp";
+
+	if (__test_bit(GTP_SESSION_FL_ROAMING_OUT, flags) ||
+	    __test_bit(GTP_SESSION_FL_ROAMING_IN, flags))
+		return "x-3gpp-pgw:x-s8-gtp";
+
+	return NULL;
+}
+
+static int
+gtp_sched_or_fallback(gtp_apn_t *apn, list_head_t *l,
+		      struct sockaddr_in *addr, struct sockaddr_in *addr_skip, unsigned long *flags)
+{
+	const char *service_base = gtp_sched_roaming_status_to_str(flags);
+	gtp_pgw_t *pgw = NULL;
+	int err;
+
+	if (!service_base) {
+		log_message(LOG_INFO, "%s(): unknown Roaming-Status", __FUNCTION__);
+		return -1;
+	}
+
+	/* Service selection matching */
+	err = gtp_sched_generic(apn, l, service_base, addr, addr_skip);
+	if (!err)
+		return 0;
+
+	/* Fallback to service base selection */
+	pthread_mutex_lock(&apn->mutex);
+	pgw = __gtp_sched_naptr(l, service_base, addr_skip);
+	if (pgw) {
+		*addr = *(struct sockaddr_in *) &pgw->addr;
+		pthread_mutex_unlock(&apn->mutex);
+		return 0;
+	}
+	pthread_mutex_unlock(&apn->mutex);
+
+	return -1;
 }
 
 int
-gtp_sched_dynamic(gtp_apn_t *apn, const char *apn_name, const char *plmn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
+gtp_sched(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip, unsigned long *flags)
+{
+	return gtp_sched_or_fallback(apn, &apn->naptr, addr, addr_skip, flags);
+}
+
+int
+gtp_sched_dynamic(gtp_apn_t *apn, const char *apn_name, const char *plmn,
+		  struct sockaddr_in *addr, struct sockaddr_in *addr_skip,
+		  unsigned long *flags)
 {
 	gtp_resolv_ctx_t *ctx;
 	list_head_t l;
@@ -167,7 +220,7 @@ gtp_sched_dynamic(gtp_apn_t *apn, const char *apn_name, const char *plmn, struct
 		goto end;
 	}
 
-	err = gtp_sched_generic(apn, &l, addr, addr_skip);
+	err = gtp_sched_or_fallback(apn, &l, addr, addr_skip, flags);
 
   end:
 	gtp_resolv_ctx_destroy(ctx);

@@ -149,6 +149,7 @@ int main(int argc, char **argv)
 	struct sockaddr_in pgw, sgw;
 	gtp_apn_t *apn;
 	gtp_service_t *svc;
+	unsigned long flags = 0;
 	int err;
 
         /* Command line parsing */
@@ -160,17 +161,20 @@ int main(int argc, char **argv)
 
 	PMALLOC(apn);
 	INIT_LIST_HEAD(&apn->service_selection);
-	strlcpy(apn->name, "*", GTP_APN_MAX_LEN);
+	bsd_strlcpy(apn->name, "*", GTP_APN_MAX_LEN);
 	inet_stosockaddr(nameserver, 53, &apn->nameserver);
-	PMALLOC(svc);
-	INIT_LIST_HEAD(&svc->next);
-	svc->prio = 10;
-	strlcpy(svc->str, service_selection, GTP_APN_MAX_LEN);
-	list_add_tail(&svc->next, &apn->service_selection);
+	if (service_selection) {
+		PMALLOC(svc);
+		INIT_LIST_HEAD(&svc->next);
+		svc->prio = 10;
+		bsd_strlcpy(svc->str, service_selection, GTP_APN_MAX_LEN);
+		list_add_tail(&svc->next, &apn->service_selection);
+	}
+	__set_bit(GTP_SESSION_FL_ROAMING_OUT, &flags);
 
 	memset(&pgw, 0, sizeof(struct sockaddr_in));
 	memset(&sgw, 0, sizeof(struct sockaddr_in));
-	err = gtp_sched_dynamic(apn, apn_str, plmn_str, &pgw, &sgw);
+	err = gtp_sched_dynamic(apn, apn_str, plmn_str, &pgw, &sgw, &flags);
 	if (err) {
 		fprintf(stderr, " Unable to schedule pGW for apn:'%s.apn.epc.%s.3gppnetwork.org.'"
 			      , apn_str, plmn_str);

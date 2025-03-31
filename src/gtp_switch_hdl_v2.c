@@ -366,7 +366,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		if (err)
 			goto end;
 
-		err = gtp_sched_dynamic(apn, apn_str, apn_plmn, &teid->pgw_addr, &teid->sgw_addr);
+		err = gtp_sched_dynamic(apn, apn_str, apn_plmn, &teid->pgw_addr, &teid->sgw_addr, &s->flags);
 		if (err) {
 			log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:'%s.apn.epc.%s.3gppnetwork.org.'"
 					    , __FUNCTION__
@@ -379,7 +379,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		goto end;
 	}
 
-	err = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
+	err = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr, &s->flags);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__

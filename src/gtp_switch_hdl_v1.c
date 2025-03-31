@@ -336,7 +336,7 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		goto end;
 	}
 
-	err = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr);
+	err = gtp_sched(apn, &teid->pgw_addr, &teid->sgw_addr, &s->flags);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__
