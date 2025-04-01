@@ -74,6 +74,7 @@
 #include "gtp_router_hdl.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
+#include "gtp_utils_uli.h"
 #include "gtp_disk.h"
 #include "gtp_bpf_utils.h"
 #include "gtp_xdp.h"

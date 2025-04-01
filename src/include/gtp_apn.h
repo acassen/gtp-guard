@@ -29,6 +29,7 @@
 #define GTP_DISPLAY_BUFFER_LEN	512
 #define GTP_DISPLAY_SRV_LEN	256
 #define GTP_MATCH_MAX_LEN	256
+#define GTP_PLMN_MAX_LEN	3
 
 /* flags */
 enum gtp_apn_flags {
@@ -36,6 +37,8 @@ enum gtp_apn_flags {
 	GTP_RESOLV_FL_CACHE_UPDATE,
 	GTP_APN_FL_SESSION_UNIQ_PTYPE,
 	GTP_APN_FL_REALM_DYNAMIC,
+	GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4,
+	GTP_APN_FL_TAG_ULI_WITH_EGCI_PLMN,
 };
 
 enum gtp_pco_flags {
@@ -68,7 +71,6 @@ typedef struct _gtp_ip_pool {
 	int			next_lease_idx;
 } gtp_ip_pool_t;
 
-
 /* Rewriting rule */
 typedef struct _gtp_rewrite_rule {
 	char			match[GTP_MATCH_MAX_LEN];
@@ -78,6 +80,13 @@ typedef struct _gtp_rewrite_rule {
 
 	list_head_t		next;
 } gtp_rewrite_rule_t;
+
+/* HPLMN */
+typedef struct _gtp_plmn {
+	uint8_t			plmn[GTP_PLMN_MAX_LEN];
+
+	list_head_t		next;
+} gtp_plmn_t;
 
 /* Access-Point-Name */
 typedef struct _gtp_apn {
@@ -95,11 +104,13 @@ typedef struct _gtp_apn {
 	gtp_pco_t		*pco;
 	gtp_ip_pool_t		*ip_pool;
 	ip_vrf_t		*vrf;
+	gtp_plmn_t		egci_plmn;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;
 	list_head_t		imsi_match;
 	list_head_t		oi_match;
+	list_head_t		hplmn;
 	pthread_mutex_t		mutex;
 
 	pthread_t		cache_task;
@@ -116,6 +127,7 @@ typedef struct _gtp_apn {
 /* Prototypes */
 extern uint32_t gtp_ip_pool_get(gtp_apn_t *);
 extern int gtp_ip_pool_put(gtp_apn_t *, uint32_t);
+extern gtp_plmn_t *__gtp_apn_hplmn_get(gtp_apn_t *, uint8_t *);
 extern gtp_apn_t *gtp_apn_get(const char *);
 extern int gtp_apn_destroy(void);
 extern int gtp_apn_vty_init(void);

@@ -19,16 +19,15 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_SCHED_H
-#define _GTP_SCHED_H
+#ifndef _GTP_UTILS_ULI_H
+#define _GTP_UTILS_ULI_H
 
-/* defines */
-#define GTP_SCHED_MAX_LEN	64
+/* GTPv1 */
+extern int gtp1_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
 
-/* Prototypes */
-extern int gtp_sched(gtp_apn_t *, struct sockaddr_in *, struct sockaddr_in *, unsigned long *);
-extern int gtp_sched_dynamic(gtp_apn_t *, const char *, const char *,
-			     struct sockaddr_in *, struct sockaddr_in *,
-			     unsigned long *);
+/* GTPv2 */
+extern gtp_id_ecgi_t *gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *);
+extern int gtp_id_ecgi_str(gtp_id_ecgi_t *, char *, size_t);
+extern int gtp_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
 
 #endif

@@ -22,6 +22,12 @@
 #ifndef _GTP_SESSION_H
 #define _GTP_SESSION_H
 
+/* flags */
+enum gtp_session_flags {
+	GTP_SESSION_FL_HPLMN,
+	GTP_SESSION_FL_ROAMING_IN,
+	GTP_SESSION_FL_ROAMING_OUT,
+};
 
 /* Tunnel Actions */
 enum {
@@ -38,6 +44,7 @@ typedef struct _gtp_session {
 	uint64_t		mei;
 	uint64_t		msisdn;
 	uint8_t			ptype;
+	gtp_plmn_t		serving_plmn;
 
 	gtp_apn_t		*apn;
 	list_head_t		gtpc_teid;
@@ -61,8 +68,9 @@ typedef struct _gtp_session {
 	list_head_t		next;
 
 	int			refcnt;
-} gtp_session_t;
 
+	unsigned long		flags;
+} gtp_session_t;
 
 /* Prototypes */
 extern void gtp_session_dump(gtp_session_t *s);
@@ -72,6 +80,8 @@ extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
 extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *);
 extern int gtp_session_gtpu_teid_xdp_add(gtp_session_t *);
 extern void gtp_session_mod_timer(gtp_session_t *, int);
+extern const char *gtp_session_roaming_status_str(gtp_session_t *);
+extern int gtp_session_roaming_status_set(gtp_session_t *);
 extern gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *,
 					int (*gtpc_destroy) (gtp_teid_t *),
 					int (*gtpu_destroy) (gtp_teid_t *));

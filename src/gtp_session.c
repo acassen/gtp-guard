@@ -196,6 +196,59 @@ gtp_session_add(gtp_conn_t *c, gtp_session_t *s)
 	return 0;
 }
 
+const char *
+gtp_session_roaming_status_str(gtp_session_t *s)
+{
+	if (__test_bit(GTP_SESSION_FL_HPLMN, &s->flags))
+		return "HPLMN";
+
+	if (__test_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags))
+		return "Roaming-OUT";
+
+	if (__test_bit(GTP_SESSION_FL_ROAMING_IN, &s->flags))
+		return "Roaming-IN";
+
+	return "unknown";
+}
+
+int
+gtp_session_roaming_status_set(gtp_session_t *s)
+{
+	gtp_conn_t *c = s->conn;
+	gtp_apn_t *apn = s->apn;
+	list_head_t *l = &apn->hplmn;
+	gtp_plmn_t *p, *splmn = &s->serving_plmn;
+	uint8_t imsi[8] = {};
+	int ret;
+
+	/* reset previous status */
+	__clear_bit(GTP_SESSION_FL_HPLMN, &s->flags);
+	__clear_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags);
+	__clear_bit(GTP_SESSION_FL_ROAMING_IN, &s->flags);
+
+	ret = int64_to_bcd_swap(c->imsi, imsi, 8);
+	if (ret < 0)
+		return -1;
+
+	if (bcd_imsi_plmn_match(imsi, splmn->plmn)) {
+		__set_bit(GTP_SESSION_FL_HPLMN, &s->flags);
+		return 0;
+	}
+
+	if (list_empty(l))
+		return -1;
+
+	list_for_each_entry(p, l, next) {
+		if (bcd_imsi_plmn_match(imsi, p->plmn)) {
+			__set_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags);
+			return 0;
+		}
+	}
+
+	__set_bit(GTP_SESSION_FL_ROAMING_IN, &s->flags);
+	return 0;
+}
+
 gtp_session_t *
 gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 		  int (*gtpc_destroy) (gtp_teid_t *), int (*gtpu_destroy) (gtp_teid_t *))

@@ -96,6 +96,11 @@ static inline void pkt_buffer_put_data(pkt_buffer_t *b, unsigned int offset)
 	b->data += offset;
 }
 
+static inline void pkt_buffer_put_end(pkt_buffer_t *b, unsigned int offset)
+{
+	b->end += offset;
+}
+
 /* Prototypes */
 extern ssize_t pkt_send(int fd, pkt_queue_t *, pkt_t *);
 extern ssize_t pkt_recv(int fd, pkt_t *);
