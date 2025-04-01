@@ -1500,7 +1500,7 @@ apn_config_write(vty_t *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags)) {
 			vty_out(vty, " tag-uli-with-serving-node-ip4");
-			if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags))
+			if (__test_bit(GTP_APN_FL_TAG_ULI_WITH_EGCI_PLMN, &apn->flags))
 				vty_out(vty, " %ld"
 					   , bcd_plmn_to_int64(apn->egci_plmn.plmn, GTP_PLMN_MAX_LEN));
 			vty_out(vty, "%s", VTY_NEWLINE);
