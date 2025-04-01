@@ -230,7 +230,7 @@ gtp_session_roaming_status_set(gtp_session_t *s)
 	if (ret < 0)
 		return -1;
 
-	if (bcd_imsi_plmn_match(splmn->plmn, imsi)) {
+	if (bcd_imsi_plmn_match(imsi, splmn->plmn)) {
 		__set_bit(GTP_SESSION_FL_HPLMN, &s->flags);
 		return 0;
 	}
@@ -239,7 +239,7 @@ gtp_session_roaming_status_set(gtp_session_t *s)
 		return -1;
 
 	list_for_each_entry(p, l, next) {
-		if (bcd_imsi_plmn_match(p->plmn, imsi)) {
+		if (bcd_imsi_plmn_match(imsi, p->plmn)) {
 			__set_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags);
 			return 0;
 		}

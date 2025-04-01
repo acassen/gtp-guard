@@ -225,7 +225,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_apn_t *apn;
 	bool retransmit = false;
 	uint64_t imsi;
-	uint8_t *cp;
+	uint8_t *cp, *serving_network;
 	char apn_str[64];
 	char apn_plmn[64];
 	int err;
@@ -251,8 +251,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	}
 
 	/* Serving Network */
-	cp = gtp_get_ie(GTP_IE_SERVING_NETWORK_TYPE, w->pbuff);
-	if (!cp) {
+	serving_network = gtp_get_ie(GTP_IE_SERVING_NETWORK_TYPE, w->pbuff);
+	if (!serving_network) {
 		log_message(LOG_INFO, "%s(): no Serving Netwokr IE present. ignoring..."
 				    , __FUNCTION__);
 		return NULL;
@@ -320,7 +320,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	}
 
 	/* Set Serving PLMN */
-	ie_serving_network = (gtp_ie_serving_network_t *) cp;
+	ie_serving_network = (gtp_ie_serving_network_t *) serving_network;
 	memcpy(s->serving_plmn.plmn, ie_serving_network->mcc_mnc, GTP_PLMN_MAX_LEN);
 
 	/* Set session roaming status */
@@ -338,8 +338,8 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x Roaming-Status:%s}%s"
 			    , imsi, apn_str, ntohl(teid->id)
-			    , (retransmit) ? " (retransmit)" : ""
-			    , gtp_session_roaming_status_str(s));
+			    , gtp_session_roaming_status_str(s)
+			    , (retransmit) ? " (retransmit)" : "");
 	if (retransmit) {
 		gtp_sqn_masq(w, teid);
 		goto end;
@@ -384,7 +384,10 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__
 				    , apn->name);
-	}
+		gtp_teid_put(teid);
+		gtp_session_destroy(s);
+		teid = NULL;
+    }
 
   end:
 	gtp_conn_put(c);
@@ -673,8 +676,8 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 
 	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x Roamng-Status:%s}%s"
 			    , ntohl(teid->id)
-			    , mobility ? " (3G Mobility)" : ""
-			    , gtp_session_roaming_status_str(s));
+			    , gtp_session_roaming_status_str(s)
+			    , mobility ? " (3G Mobility)" : "");
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);

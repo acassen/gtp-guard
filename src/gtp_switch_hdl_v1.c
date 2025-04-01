@@ -313,8 +313,8 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 
 	log_message(LOG_INFO, "Create-PDP-Req:={IMSI:%ld APN:%s TEID-C:0x%.8x Roaming-Status:%s}%s"
 			    , imsi, apn_str, ntohl(teid->id)
-			    , (retransmit) ? " (retransmit)" : ""
-			    , gtp_session_roaming_status_str(s));
+			    , gtp_session_roaming_status_str(s)
+			    , (retransmit) ? " (retransmit)" : "");
 	if (retransmit) {
 		gtp_sqn_masq(w, teid);
 		goto end;
@@ -341,6 +341,9 @@ gtp1_create_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		log_message(LOG_INFO, "%s(): Unable to schedule pGW for apn:%s"
 				    , __FUNCTION__
 				    , apn->name);
+		gtp_teid_put(teid);
+		gtp_session_destroy(s);
+		teid = NULL;
 	}
 
   end:
@@ -516,8 +519,8 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 
 	log_message(LOG_INFO, "Update-PDP-Req:={F-TEID:0x%.8x Roaming-Status:%s}%s"
 			    , ntohl(h->teid)
-			    , mobility ? " (4G Mobility)" : ""
-			    , gtp_session_roaming_status_str(s));
+			    , gtp_session_roaming_status_str(s)
+			    , mobility ? " (4G Mobility)" : "");
 
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
