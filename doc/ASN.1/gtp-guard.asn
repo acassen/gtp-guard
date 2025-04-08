@@ -1,0 +1,167 @@
+-------------------------------------------------------------------------
+--
+--                      GTP-Guard supported 3GPP CDR
+--
+--  CDR format are defined in 3GPP ETSI TS 132 298. We are supporting
+--  a subset of the specification.
+--
+-------------------------------------------------------------------------
+
+GTP-GUARD DEFINITIONS IMPLICIT TAGS ::=
+
+BEGIN
+
+GPRSRecord ::= CHOICE
+{
+	pGWRecord [79] PGWRecord
+}
+
+PGWRecord ::= SET
+{
+	recordType				[0] RecordType,
+	servedIMSI				[3] IMSI OPTIONAL,
+	p-GWAddress				[4] GSNAddress,
+	servingNodeAddress			[6] SEQUENCE OF GSNAddress,
+	accessPointNameNI			[7] AccessPointNameNI OPTIONAL,
+	pdpPDNType				[8] PDPType OPTIONAL,
+	servedPDPPDNAddress			[9] PDPAddress OPTIONAL,
+	recordOpeningTime			[13] TimeStamp,
+	duration				[14] CallDuration,
+	causeForRecClosing			[15] CauseForRecClosing,
+	nodeID					[18] NodeID OPTIONAL,
+	servedMSISDN				[22] MSISDN OPTIONAL,
+	chargingCharacteristics			[23] ChargingCharacteristics,
+	servingNodePLMNIdentifier		[27] PLMN-Id OPTIONAL,
+	servedIMEI				[29] IMEI OPTIONAL,
+	rATType					[30] RATType OPTIONAL,
+	mSTimeZone				[31] MSTimeZone OPTIONAL,
+	userLocationInformation			[32] OCTET STRING OPTIONAL,
+	listOfServiceData			[34] SEQUENCE OF ChangeOfServiceCondition OPTIONAL,
+	servingNodeType				[35] SEQUENCE OF ServingNodeType,
+	p-GWPLMNIdentifier			[37] PLMN-Id OPTIONAL,
+	startTime				[38] TimeStamp OPTIONAL,
+	stopTime				[39] TimeStamp OPTIONAL,
+	servedPDPPDNAddressExt			[45] PDPAddress OPTIONAL,
+}
+
+RecordType ::= INTEGER
+{
+	pGWRecord (85)
+}
+
+GSNAddress ::= IPAddress
+IPAddress ::= CHOICE
+{
+	iPBinaryAddress IPBinaryAddress,
+}
+
+IPBinaryAddress ::= CHOICE
+{
+	iPBinV4Address [0] IPBinV4Address,
+	iPBinV6Address [1] IPBinV6Address,
+}
+
+IPBinV4Address ::= OCTET STRING (SIZE(4))
+IPBinV6Address ::= OCTET STRING (SIZE(16))
+
+IMEI ::= OCTET STRING (SIZE (8))
+IMSI ::= OCTET STRING (SIZE (3..8))
+
+AccessPointNameNI ::= IA5String (SIZE(1..63))
+
+PDPType ::= OCTET STRING (SIZE(2))
+
+TimeStamp ::= OCTET STRING (SIZE(9))
+
+CallDuration ::= INTEGER
+
+NodeID ::= IA5String (SIZE(1..20))
+
+RATType ::= INTEGER (0..255)
+
+MSISDN ::= ISDN-AddressString
+ISDN-AddressString ::= AddressString (SIZE (1..maxISDN-AddressLength))
+maxISDN-AddressLength INTEGER ::= 9
+
+ChargingCharacteristics ::= OCTET STRING (SIZE(2))
+
+PLMN-Id ::= OCTET STRING (SIZE (3))
+
+MSTimeZone ::= OCTET STRING (SIZE (2))
+
+PDPAddress ::= CHOICE
+{
+	iPAddress [0] IPAddress,
+	eTSIAddress [1] ETSIAddress -- NOT USED
+}
+
+CauseForRecClosing ::= INTEGER
+{
+	normalRelease (0),
+	abnormalRelease (4),
+	cAMELInitCallRelease (5),
+	volumeLimit (16),
+	timeLimit (17),
+	sGSNChange (18),
+	maxChangeCond (19),
+	managementIntervention (20),
+	intraSGSNIntersystemChange (21),
+	rATChange (22),
+	mSTimeZoneChange (23),
+	sGSNPLMNIDChange (24),
+	unauthorizedRequestingNetwork (52),
+	unauthorizedLCSClient (53),
+	positionMethodFailure (54),
+	unknownOrUnreachableLCSClient (58),
+	listofDownstreamNodeChange (59)
+}
+
+ChangeOfServiceCondition ::= SEQUENCE
+{
+	ratingGroup		[1] RatingGroupId,
+	serviceConditionChange	[8] ServiceConditionChange,
+	datavolumeFBCUplink	[12] DataVolumeGPRS OPTIONAL,
+	datavolumeFBCDownlink	[13] DataVolumeGPRS OPTIONAL,
+	timeOfReport		[14] TimeStamp,
+}
+
+RatingGroupId ::= INTEGER
+DataVolumeGPRS ::= INTEGER
+
+ServiceConditionChange ::= BIT STRING
+{
+	qoSChange (0),
+	sGSNChange (1),
+	sGSNPLMNIDChange (2),
+	tariffTimeSwitch (3),
+	pDPContextRelease (4),
+	rATChange (5),
+	serviceIdledOut (6),
+	reserved (7),
+	configurationChange (8),
+	serviceStop (9),
+	dCCATimeThresholdReached (10),
+	dCCAVolumeThresholdReached (11),
+	dCCAServiceSpecificUnitThresholdReached (12),
+	dCCATimeExhausted (13),
+	dCCAVolumeExhausted (14),
+	dCCAValidityTimeout (15),
+	reserved1 (16),
+	dCCAReauthorisationRequest (17),
+	dCCAContinueOngoingSession (18),
+	dCCARetryAndTerminateOngoingSession (19),
+	dCCATerminateOngoingSession (20),
+	cGI-SAIChange (21),
+	rAIChange (22),
+	dCCAServiceSpecificUnitExhausted (23),
+	recordClosure (24),
+	timeLimit (25),
+	volumeLimit (26),
+	serviceSpecificUnitLimit (27),
+	envelopeClosure (28),
+	eCGIChange (29),
+	tAIChange (30),
+	userLocationChange (31)
+}
+
+END
