@@ -29,7 +29,7 @@ COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 OBJS = 	memory.o utils.o timer.o vector.o rbtree.o daemon.o \
 	scheduler.o md5.o list_head.o pidfile.o prefix.o rt_table.o \
 	signals.o process.o logger.o buffer.o command.o vty.o \
-	pkt_buffer.o json_reader.o json_writer.o
+	pkt_buffer.o json_reader.o json_writer.o asn1_encoder.o asn1_decoder.o
 HEADERS = $(OBJS:.o=.h)
 
 .c.o:
@@ -61,3 +61,5 @@ command.o: command.c command.h vector.h memory.h vty.h timer.h \
 	config.h logger.h
 vty.o: vty.c vty.h scheduler.h timer.h utils.h command.h logger.h \
 	memory.h
+asn1_encoder.o: asn1_encoder.c asn1_encoder.h asn1.h asn1_ber_bytecode.h
+asn1_decoder.o: asn1_encoder.c asn1_decoder.h asn1.h asn1_ber_bytecode.h
