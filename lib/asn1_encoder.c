@@ -240,14 +240,55 @@ asn1_encode_length(unsigned char **data, int *data_len, int len)
 }
 
 /**
+ * asn1_encode_tag_id() - encode tag id
+ * @data: pointer to encode at
+ * @data_len: pointer to remaining length (adjusted by routine)
+ * @class:	tag class
+ * @method:	tag method
+ * @tag:	tag to be placed
+ *
+ * This routine encodes tag identifier bytes according to :
+ * ITU-T Recommendation X.690 - 8.1.2
+ */
+static int
+asn1_encode_tag_id(unsigned char **data, int *data_len,
+		   uint8_t class, uint8_t method, uint32_t tag)
+{
+	uint32_t sub_bytes;
+
+	/* ITU-T Recommendation X.690 - 8.1.2.2 */
+	if (tag < 0x1f) {
+		*((*data)++) = _tag_explicit(class, method, tag);
+		goto end;
+	}
+
+	/* ITU-T Recommendation X.690 - 8.1.2.4 */
+	*((*data)++) = _tag_explicit(class, method, 0x1f);
+	if (--*data_len < 0)
+		return -1;
+
+	/* ITU-T Recommendation X.690 - 8.1.2.4.3 */
+	for (sub_bytes = 0x7f; sub_bytes < tag; sub_bytes += 0x7f) {
+		*((*data)++) = ~0;
+		if (--*data_len < 0)
+			return -1;
+	}
+
+	*((*data)++) = tag % 0x7f;
+
+end:
+	return (--*data_len < 0) ? -1 : 0;
+}
+
+/**
  * asn1_encode_tag() - add a tag for optional or explicit value
  * @data:	pointer to place tag at
  * @end_data:	end of data pointer, points one beyond last usable byte in @data
+ * @class:	tag class
+ * @method:	tag method
  * @tag:	tag to be placed
  * @string:	the data to be tagged
  * @len:	the length of the data to be tagged
- *
- * Note this currently only handles short form tags < 31.
  *
  * Standard usage is to pass in a @tag, @string and @length and the
  * @string will be ASN.1 encoded with @tag and placed into @data.  If
@@ -267,37 +308,24 @@ asn1_encode_length(unsigned char **data, int *data_len, int len)
  */
 unsigned char *
 asn1_encode_tag(unsigned char *data, const unsigned char *end_data,
-		uint32_t tag, const unsigned char *string, int len)
+		uint8_t class, uint8_t method, uint32_t tag,
+		const unsigned char *string, int len)
 {
 	int data_len = end_data - data;
-	int ret;
-
-	if (tag > 30)
-		return NULL;
-
-	if (!string && (len > 127))
-		return NULL;
-
-	if (!data)
-		return NULL;
-
-	if (!string && len > 0) {
-		/*
-		 * we're recoding, so move back to the start of the
-		 * tag and install a dummy length because the real
-		 * data_len should be NULL
-		 */
-		data -= 2;
-		data_len = 2;
-	}
+	int err;
 
 	if (data_len < 2)
 		return NULL;
 
-	*(data++) = _tagn(CONT, CONS, tag);
-	data_len--;
-	ret = asn1_encode_length(&data, &data_len, len);
-	if (ret < 0)
+	err = asn1_encode_tag_id(&data, &data_len, class, method, tag);
+	if (err)
+		return NULL;
+
+	if (data_len <= 0)
+		return NULL;
+
+	err = asn1_encode_length(&data, &data_len, len);
+	if (err)
 		return NULL;
 
 	if (!string)
