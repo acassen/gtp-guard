@@ -41,10 +41,10 @@ typedef struct _gtp_msg {
 
 /* Prototypes */
 extern size_t gtp_msg_hlen(gtp_hdr_t *);
-extern void gtp_msg_ie_dump(const gtp_msg_ie_t *);
+extern void gtp_msg_ie_dump(const char *, const gtp_msg_ie_t *);
 extern gtp_msg_ie_t *gtp_msg_ie_get(gtp_msg_t *, uint8_t);
 extern gtp_msg_t *gtp_msg_alloc(const pkt_buffer_t *);
 extern void gtp_msg_destroy(gtp_msg_t *);
-extern void gtp_msg_dump(gtp_msg_t *);
+extern void gtp_msg_dump(const char *, gtp_msg_t *);
 
 #endif

@@ -242,6 +242,13 @@ int64_to_bcd(const uint64_t value, uint8_t *buffer, size_t size)
 	return 0;
 }
 
+uint8_t
+hex_to_bcd(uint8_t data)
+{
+        return ((data / 10) << 4) + (data % 10);
+}
+
+
 /* PLMN Related */
 int
 str_plmn_to_bcd(const char *src, uint8_t *dst, size_t dsize)

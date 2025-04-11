@@ -45,6 +45,7 @@
 #include "pkt_buffer.h"
 #include "jhash.h"
 #include "gtp.h"
+#include "gtp_msg.h"
 #include "gtp_if.h"
 #include "gtp_request.h"
 #include "gtp_data.h"
@@ -62,6 +63,7 @@
 #include "gtp_ppp_session.h"
 #include "gtp_vrf.h"
 #include "gtp_apn.h"
+#include "gtp_cdr.h"
 #include "gtp_session.h"
 #include "gtp_dpd.h"
 #include "gtp_resolv.h"
@@ -76,16 +78,17 @@
 #include "gtp_utils.h"
 #include "gtp_utils_uli.h"
 #include "gtp_disk.h"
-#include "gtp_bpf_utils.h"
-#include "gtp_xdp.h"
-#include "gtp_xdp_ppp.h"
-#include "gtp_xdp_iptnl.h"
-#include "gtp_xdp_fwd.h"
-#include "gtp_xdp_mirror.h"
-#include "gtp_xdp_rt.h"
-#include "gtp_msg.h"
 #include "gtp_vty.h"
 #include "gtp_cmd.h"
 
+#ifndef _WITHOUT_BPF_
+ #include "gtp_bpf_utils.h"
+ #include "gtp_xdp.h"
+ #include "gtp_xdp_ppp.h"
+ #include "gtp_xdp_iptnl.h"
+ #include "gtp_xdp_fwd.h"
+ #include "gtp_xdp_mirror.h"
+ #include "gtp_xdp_rt.h"
+#endif
 
 #endif

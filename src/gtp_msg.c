@@ -74,10 +74,10 @@ gtp_msg_ie_destroy(gtp_msg_ie_t *msg_ie)
 }
 
 void
-gtp_msg_ie_dump(const gtp_msg_ie_t *msg_ie)
+gtp_msg_ie_dump(const char *prefix, const gtp_msg_ie_t *msg_ie)
 {
-	printf("IE Type : %d\n", msg_ie->h->type);
-	dump_buffer("  ", (char *) msg_ie->data, ntohs(msg_ie->h->length));
+	printf("%sIE Type : %d\n", prefix, msg_ie->h->type);
+	dump_buffer(prefix, (char *) msg_ie->data, ntohs(msg_ie->h->length));
 }
 
 
@@ -140,13 +140,13 @@ gtp_msg_destroy(gtp_msg_t *msg)
 }
 
 void
-gtp_msg_dump(gtp_msg_t *msg)
+gtp_msg_dump(const char *prefix, gtp_msg_t *msg)
 {
 	gtp_hdr_t *h = msg->h;
 	gtp_msg_ie_t *msg_ie;
 
-	printf("GPRS Tunneling Protocol V2\n");
-	printf("Flags : 0x%.x\n", h->flags);
+	printf("%sGPRS Tunneling Protocol V2\n", prefix);
+	printf("%sFlags : 0x%.x\n", prefix, h->flags);
 	rb_for_each_entry_cached(msg_ie, &msg->ie, n)
-		gtp_msg_ie_dump(msg_ie);
+		gtp_msg_ie_dump(prefix, msg_ie);
 }

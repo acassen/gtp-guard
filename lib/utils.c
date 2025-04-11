@@ -33,7 +33,7 @@ unsigned long debug = 0;
 
 /* Display a buffer into a HEXA formated output */
 void
-dump_buffer(char *prefix, char *buff, int count)
+dump_buffer(const char *prefix, char *buff, int count)
 {
         int i, j, c;
         int printnext = 1;

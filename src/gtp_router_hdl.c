@@ -1026,7 +1026,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	}
 
 	log_message(LOG_INFO, "Create-Session-Req:={IMSI:%ld APN:%s F-TEID:0x%.8x}"
-		    , imsi, apn_str, ntohl(teid->id));
+			    , imsi, apn_str, ntohl(teid->id));
 	gtpc_teid_set_bearer(s);
 
 	/* MEI */

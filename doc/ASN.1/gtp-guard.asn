@@ -72,6 +72,23 @@ AccessPointNameNI ::= IA5String (SIZE(1..63))
 PDPType ::= OCTET STRING (SIZE(2))
 
 TimeStamp ::= OCTET STRING (SIZE(9))
+--
+-- The contents of this field are a compact form of the UTCTime format
+-- containing local time plus an offset to universal time. Binary coded
+-- decimal encoding is employed for the digits to reduce the storage and
+-- transmission overhead
+-- e.g. YYMMDDhhmmssShhmm
+-- where
+-- YY = Year 00 to 99 BCD encoded
+-- MM = Month 01 to 12 BCD encoded
+-- DD = Day 01 to 31 BCD encoded
+-- hh = hour 00 to 23 BCD encoded
+-- mm = minute 00 to 59 BCD encoded
+-- ss = second 00 to 59 BCD encoded
+-- S = Sign 0 = "+", "-" ASCII encoded
+-- hh = hour 00 to 23 BCD encoded
+-- mm = minute 00 to 59 BCD encoded
+--
 
 CallDuration ::= INTEGER
 
@@ -127,6 +144,16 @@ ChangeOfServiceCondition ::= SEQUENCE
 
 RatingGroupId ::= INTEGER
 DataVolumeGPRS ::= INTEGER
+
+ServingNodeType ::= ENUMERATED
+{
+	sGSN (0),
+	pMIPSGW (1),
+	gTPSGW (2),
+	ePDG (3),
+	hSGW (4),
+	mME (5)
+}
 
 ServiceConditionChange ::= BIT STRING
 {

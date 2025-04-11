@@ -45,6 +45,7 @@ typedef struct _gtp_session {
 	uint64_t		msisdn;
 	uint8_t			ptype;
 	gtp_plmn_t		serving_plmn;
+	gtp_cdr_t		*cdr;
 
 	gtp_apn_t		*apn;
 	list_head_t		gtpc_teid;

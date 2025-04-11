@@ -126,7 +126,7 @@ sockstorage_equal(const struct sockaddr_storage *s1, const struct sockaddr_stora
 extern unsigned long debug;
 
 /* Prototypes defs */
-extern void dump_buffer(char *, char *, int);
+extern void dump_buffer(const char *, char *, int);
 extern uint16_t in_csum(uint16_t *, int, uint16_t);
 extern uint16_t udp_csum(const void *, size_t, uint32_t, uint32_t);
 extern char *inet_ntop2(uint32_t);

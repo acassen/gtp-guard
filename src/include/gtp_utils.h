@@ -45,6 +45,7 @@ extern int str_imsi_to_bcd_swap(char *, size_t, uint8_t *);
 extern int64_t bcd_to_int64(const uint8_t *, size_t);
 extern int int64_to_bcd_swap(const uint64_t, uint8_t *, size_t);
 extern int int64_to_bcd(const uint64_t, uint8_t *, size_t);
+extern uint8_t hex_to_bcd(uint8_t);
 extern int str_plmn_to_bcd(const char *, uint8_t *, size_t);
 extern int64_t bcd_plmn_to_int64(const uint8_t *, size_t);
 extern int bcd_plmn_cmp(const uint8_t *, const uint8_t *);
