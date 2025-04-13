@@ -9,7 +9,7 @@
 #include "asn1_ber_bytecode.h"
 
 #define asn1_oid_len(oid) (sizeof(oid)/sizeof(uint32_t))
-unsigned char *asn1_encode_integer(unsigned char *, const unsigned char *, int64_t);
+unsigned char *asn1_encode_integer(unsigned char *, const unsigned char *, bool, int64_t);
 unsigned char *asn1_encode_oid(unsigned char *, const unsigned char *, uint32_t *, int);
 unsigned char *asn1_encode_tag(unsigned char *, const unsigned char *,
 			       uint8_t, uint8_t, uint32_t,

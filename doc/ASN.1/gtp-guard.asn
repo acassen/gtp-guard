@@ -21,6 +21,7 @@ PGWRecord ::= SET
 	recordType				[0] RecordType,
 	servedIMSI				[3] IMSI OPTIONAL,
 	p-GWAddress				[4] GSNAddress,
+	chargingID				[5] ChargingID,
 	servingNodeAddress			[6] SEQUENCE OF GSNAddress,
 	accessPointNameNI			[7] AccessPointNameNI OPTIONAL,
 	pdpPDNType				[8] PDPType OPTIONAL,
@@ -48,6 +49,8 @@ RecordType ::= INTEGER
 {
 	pGWRecord (85)
 }
+
+ChargingID ::= INTEGER (0..4294967295)
 
 GSNAddress ::= IPAddress
 IPAddress ::= CHOICE

@@ -74,6 +74,20 @@ dump_buffer(const char *prefix, char *buff, int count)
         }
 }
 
+void
+buffer_to_c_array(const char *name, char *buffer, size_t blen)
+{
+	int i;
+
+	printf("const char %s[%ld] = {\n  ", name, blen);
+	for (i = 0; i < blen; i++) {
+		if (i && !(i % 16))
+			printf("\n  ");
+		printf("0x%.2x%s ", buffer[i] & 0xff, (i < blen-1) ? "," : "");
+	}
+	printf("\n};\n");
+}
+
 /* Compute a checksum */
 uint16_t
 in_csum(uint16_t *addr, int len, uint16_t csum)

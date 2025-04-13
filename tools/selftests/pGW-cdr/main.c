@@ -144,7 +144,7 @@ parse_cmdline(int argc, char **argv)
 /*
  *	PCAP related
  */
-static int
+static gtp_cdr_t *
 gtp_pcap_process(const char *path)
 {
 	char errbuff[PCAP_ERRBUF_SIZE];
@@ -162,7 +162,7 @@ gtp_pcap_process(const char *path)
 	pcap = pcap_open_offline(path, errbuff);
 	if (!pcap) {
 		fprintf(stderr, "Error opening pcap file:%s (%s)\n", path, errbuff);
-		return -1;
+		return NULL;
 	}
 
 	pkt = pkt_buffer_alloc(8192);
@@ -206,41 +206,56 @@ gtp_pcap_process(const char *path)
 
 	pcap_close(pcap);
 	pkt_buffer_free(pkt);
-	return 0;
+	return cdr;
 }
 
-
+/*
+ * Input pcap file contains GTP-C message with a full protocol
+ * sequence :
+ *  . create-session-reguest
+ *  . create-session-response
+ *  . delete-session-request
+ *  . delete-session-response
+ * gtp_cdr_update(...) is called for each GTP-C protocol msg in
+ * order to simulate full protocol stack insertion and debugging
+ * on the side. It incrementally update internal CDR represenation
+ * with GTP-C IE cherry picking.
+ * Displayed output is a C source code ARRAY, which can be later used
+ * as an input into any ASN.1 decoder for encoding validation.
+ *
+ * usage: ./pGW-cdr -p gtp-c-capture.pcapng
+ */
 int main(int argc, char **argv)
 {
+	uint8_t data[512];
+	int len;
+	gtp_cdr_t *cdr;
+
 	/* Command line parsing */
 	parse_cmdline(argc, argv);
+	host.name = "test-node";
 
 	/* dummy data */
 	PMALLOC(daemon_data);
 	INIT_LIST_HEAD(&daemon_data->gtp_apn);
 
-	gtp_pcap_process(gtp_pcap_file);
+	cdr = gtp_pcap_process(gtp_pcap_file);
+	if (!cdr)
+		goto end;
 
+	memset(data, 0, 512);
+	len = gtp_cdr_asn1_pgw_record_encode(cdr, data, 512);
 
-#if 0
-	unsigned char cdr[512];
-	const unsigned char *cdr_end = cdr + 512;
-	unsigned char *cp;
+	printf("----[ Generated CDR (%d) ]----\n", len);
+	dump_buffer("", (char *) data, len);
 
+	/* Generate c array to be injected into third party
+	 * ASN.1 decoder to validate our ASN.1 encoder output.
+	 */
+	buffer_to_c_array("cdr_3gpp", (char *) data, len);
 
-
-	memset(cdr, 0, 512);
-
-	cp = asn1_encode_tag(cdr, cdr_end, ASN1_CONT, ASN1_CONS, 79, NULL, -1);
-	if (!cp)
-		printf("Error...\n");
-
-
-
-	printf("----[ Generated CDR ]----\n");
-	dump_buffer("", cdr, 16);
-#endif
-
+	gtp_cdr_destroy(cdr);
+  end:
 	FREE(daemon_data);
 	exit(0);
 }

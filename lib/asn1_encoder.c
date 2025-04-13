@@ -24,10 +24,10 @@
  */
 unsigned char *
 asn1_encode_integer(unsigned char *data, const unsigned char *end_data,
-		    int64_t integer)
+		    bool tag, int64_t integer)
 {
 	int data_len = end_data - data;
-	unsigned char *d = &data[2];
+	unsigned char *d = (tag) ? &data[2] : &data[1];
 	bool found = false;
 	int i;
 
@@ -44,7 +44,8 @@ asn1_encode_integer(unsigned char *data, const unsigned char *end_data,
 	/* remaining length where at d (the start of the integer encoding) */
 	data_len -= 2;
 
-	data[0] = _tag(UNIV, PRIM, INT);
+	if (tag)
+		data[0] = _tag(UNIV, PRIM, INT);
 	if (integer == 0) {
 		*d++ = 0;
 		goto out;
@@ -80,7 +81,10 @@ asn1_encode_integer(unsigned char *data, const unsigned char *end_data,
 	}
 
  out:
-	data[1] = d - data - 2;
+	if (tag)
+		data[1] = d - data - 2;
+	else
+		data[0] = d - data - 1;
 
 	return d;
 }
@@ -324,6 +328,9 @@ asn1_encode_tag(unsigned char *data, const unsigned char *end_data,
 	if (data_len <= 0)
 		return NULL;
 
+	if (len < 0)
+		return data;
+
 	err = asn1_encode_length(&data, &data_len, len);
 	if (err)
 		return NULL;
@@ -399,22 +406,6 @@ asn1_encode_sequence(unsigned char *data, const unsigned char *end_data,
 {
 	int data_len = end_data - data;
 	int ret;
-
-	if (!seq && (len > 127))
-		return NULL;
-
-	if (!data)
-		return NULL;
-
-	if (!seq && len >= 0) {
-		/*
-		 * we're recoding, so move back to the start of the
-		 * sequence and install a dummy length because the
-		 * real length should be NULL
-		 */
-		data -= 2;
-		data_len = 2;
-	}
 
 	if (data_len < 2)
 		return NULL;

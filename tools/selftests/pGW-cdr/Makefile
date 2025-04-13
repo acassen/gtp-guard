@@ -25,9 +25,9 @@ CC= gcc
 CFLAGS= -Wall -Wstrict-prototypes -Wpointer-arith -O3 -fomit-frame-pointer -fexpensive-optimizations -g $(INCLUDES) -D_WITHOUT_BPF_
 LDFLAGS= -lm -lcrypt -lpthread -lresolv -lpcap -ggdb
 SUBDIRS= ../../../lib
-OBJECTS= main.o ../../../src/gtp_msg.o ../../../src/gtp_cdr.o ../../../src/gtp_utils.o	\
-	../../../src/gtp_apn.o  ../../../src/gtp_resolv.o ../../../src/gtp_vrf.o	\
-	 ../../../src/gtp_if.o
+OBJECTS= main.o ../../../src/gtp_msg.o ../../../src/gtp_cdr.o ../../../src/gtp_cdr_asn1.o	 \
+	 ../../../src/gtp_utils.o ../../../src/gtp_apn.o  ../../../src/gtp_resolv.o		\
+	 ../../../src/gtp_vrf.o ../../../src/gtp_if.o
 
 .c.o:
 	@echo "  CC" $@
