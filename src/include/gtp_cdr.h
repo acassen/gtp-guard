@@ -55,17 +55,17 @@ typedef struct _gtp_cdr {
 	uint32_t	served_addr;
 	uint8_t		rating_group;
 	uint8_t		service_condition_change[5];
-	uint32_t	charging_id;
+	uint64_t	charging_id;
 	uint8_t		rec_type;
 
 	/* Stop infos */
 	uint8_t		cause_for_rec_closing;
 	uint8_t		stop_time[9];
-	uint32_t	duration;
+	uint64_t	duration;
 
 	/* Data-Path infos */
-	uint32_t	volume_down;
-	uint32_t	volume_up;
+	uint64_t	volume_down;
+	uint64_t	volume_up;
 
 	/* Local infos */
 	time_t		start;

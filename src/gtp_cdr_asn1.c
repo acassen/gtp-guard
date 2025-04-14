@@ -19,113 +19,84 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
-
-/* Extern data */
-extern data_t *daemon_data;
 
 
 /*
  *	ASN.1 3GPP ETSI TS 132 298 encoding
  */
-static int
-gtp_cdr_asn1_tag_raw(uint8_t *dst, const uint8_t *end, uint32_t tag, uint8_t *data, size_t dlen)
+static uint8_t *
+gtp_cdr_asn1_tag(uint8_t *dst, const uint8_t *end, uint32_t tag, uint8_t *data, size_t dlen)
 {
-	uint8_t *cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_PRIM, tag, data, dlen);
-
-	return (cp) ? cp - dst : 0;
+	return asn1_encode_tag(dst, end, ASN1_CONT, ASN1_PRIM, tag, data, dlen);
 }
 
-static int
+static uint8_t *
 gtp_cdr_asn1_tag_ip4(uint8_t *dst, const uint8_t *end, uint32_t tag, uint8_t *data, size_t dlen)
 {
-	uint8_t *cp;
-	
-	cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, dlen + 2);
-	cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_PRIM, 0, data, dlen);
+	uint8_t *cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, dlen + 2);
 
-	return (cp) ? cp - dst : 0;
+	return gtp_cdr_asn1_tag(cp, end, 0, data, dlen);
 }
 
-static int
+static uint8_t *
 gtp_cdr_asn1_tag_integer(uint8_t *dst, const uint8_t *end, uint32_t tag, uint8_t *data, size_t dlen)
 {
-	uint32_t value = *(uint32_t *) data;
-	uint8_t *cp;
-	
-	cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_PRIM, tag, NULL, -1);
-	cp = asn1_encode_integer(cp, end, false, value);
+	uint64_t value = *(uint64_t *) data;
+	uint8_t *cp = gtp_cdr_asn1_tag(dst, end, tag, NULL, -1);
 
-	return (cp) ? cp - dst : 0;
+	return asn1_encode_integer(cp, end, false, value);
 }
 
-static int
+static uint8_t *
 gtp_cdr_asn1_served_addr(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	uint8_t *cp;
 
 	/* FIXME: Add support to IPv6 */
 	if (!cdr->served_addr)
-		return 0;
+		return dst;
 
 	cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 8);
-	cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_CONS, 0, NULL, 6);
-	cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_PRIM, 0, (uint8_t *) &cdr->served_addr, 4);
-
-	return (cp) ? cp - dst : 0;
+	return gtp_cdr_asn1_tag_ip4(cp, end, 0, (uint8_t *) &cdr->served_addr, 4);
 }
 
-static int
+static uint8_t *
 gtp_cdr_asn1_service_data(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	uint8_t *cp, *outer, *seq;
 	uint16_t *len, *len_seq;
+
+	if (!cdr->volume_up && !cdr->volume_down)
+		return dst;
 
 	outer = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 0xffff);
 	len = (uint16_t *) (outer - 2);
 
 	seq = asn1_encode_sequence(outer, end, NULL, 0xffff);
 	len_seq = (uint16_t *) (seq - 2);
-	cp = asn1_encode_tag(seq, end, ASN1_CONT, ASN1_PRIM, 1, (uint8_t *) &cdr->rating_group, 1);
-	cp = asn1_encode_tag(seq, end, ASN1_CONT, ASN1_PRIM, 1, (uint8_t *) &cdr->rating_group, 1);
-	cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_PRIM, 8, cdr->service_condition_change, 5);
-	if (cdr->volume_up) {
-		cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_PRIM, 12, NULL, -1);
-		cp = asn1_encode_integer(cp, end, false, cdr->volume_up);
-	}
-	if (cdr->volume_down) {
-		cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_PRIM, 13, NULL, -1);
-		cp = asn1_encode_integer(cp, end, false, cdr->volume_down);
-	}
-	cp = asn1_encode_tag(cp, end, ASN1_CONT, ASN1_PRIM, 14, cdr->stop_time, 9);
+	cp = gtp_cdr_asn1_tag(seq, end, 1, (uint8_t *) &cdr->rating_group, 1);
+	cp = gtp_cdr_asn1_tag(cp, end, 8, cdr->service_condition_change, 5);
+	cp = gtp_cdr_asn1_tag_integer(cp, end, 12, (uint8_t *) &cdr->volume_up, -1);
+	cp = gtp_cdr_asn1_tag_integer(cp, end, 13, (uint8_t *) &cdr->volume_down, -1);
+	cp = gtp_cdr_asn1_tag(cp, end, 14, cdr->stop_time, 9);
 
 	/* Update len */
 	*len_seq = htons(cp - seq);
 	*len = htons(cp - outer);
 
-	return (cp) ? cp - dst : 0;
+	return cp;
 }
 
-static int
+static uint8_t *
 gtp_cdr_asn1_serving_node_type(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	uint8_t *cp;
 
 	cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 3);
-	cp = asn1_encode_tag(cp, end, ASN1_UNIV, ASN1_PRIM, ASN1_ENUM
-			       , (uint8_t *) &cdr->serving_node_type, 1);
-
-	return (cp) ? cp - dst : 0;
+	return asn1_encode_tag(cp, end, ASN1_UNIV, ASN1_PRIM, ASN1_ENUM
+				 , (uint8_t *) &cdr->serving_node_type, 1);
 }
 
 
@@ -133,19 +104,19 @@ gtp_cdr_asn1_serving_node_type(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst
  *	ASN.1 encoder
  */
 static const struct {
-	int (*encode) (uint8_t *, const uint8_t *, uint32_t, uint8_t *, size_t);
+	uint8_t * (*encode) (uint8_t *, const uint8_t *, uint32_t, uint8_t *, size_t);
 } cdr_asn1_method[] = {
-	{ gtp_cdr_asn1_tag_raw		},
+	{ gtp_cdr_asn1_tag		},
 	{ gtp_cdr_asn1_tag_ip4		},
 	{ gtp_cdr_asn1_tag_integer	},
 	{ NULL }
 };
 
-static int
+static uint8_t *
 gtp_cdr_asn1_encode(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	if (!cdr || !cdr->asn1_ctx[tag].data || m >= M_MAX)
-		return 0;
+		return dst;
 
 	return (*(cdr_asn1_method[m].encode)) (dst, end, tag
 						  , cdr->asn1_ctx[tag].data
@@ -154,7 +125,7 @@ gtp_cdr_asn1_encode(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uin
 
 static const struct {
 	uint32_t tag;
-	int (*encode) (gtp_cdr_t *, int, uint32_t, uint8_t *, const uint8_t *);
+	uint8_t * (*encode) (gtp_cdr_t *, int, uint32_t, uint8_t *, const uint8_t *);
 	int method;
 } cdr_asn1_encoder[] = {
 	{ 0,	gtp_cdr_asn1_encode		,	M_RAW		},
@@ -189,8 +160,8 @@ int
 gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 {
 	const uint8_t *end = dst + dsize;
-	size_t dsize_remain, offset = 0;
-	uint8_t *outer;
+	size_t dsize_remain;
+	uint8_t *outer, *cp;
 	uint16_t *len;
 	int i;
 
@@ -202,19 +173,19 @@ gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 	len = (uint16_t *) (outer - 2);
 	dsize_remain = dsize - (outer - dst);
 
-	for (i = 0; *(cdr_asn1_encoder[i].encode); i++) {
-		if (offset > dsize_remain)
+	for (i = 0, cp = outer; *(cdr_asn1_encoder[i].encode); i++) {
+		if (cp - outer > dsize_remain)
 			return -1;
 
-		offset += (*(cdr_asn1_encoder[i].encode)) (cdr, cdr_asn1_encoder[i].method
-							      , cdr_asn1_encoder[i].tag
-							      , outer + offset, end);
+		cp = (*(cdr_asn1_encoder[i].encode)) (cdr, cdr_asn1_encoder[i].method
+							 , cdr_asn1_encoder[i].tag
+							 , cp, end);
 	}
 
 	/* Update len */
-	*len = htons(offset);
+	*len = htons(cp - outer);
 
-	return (outer + offset) - dst;
+	return cp - dst;
 }
 
 int

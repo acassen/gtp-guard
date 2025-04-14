@@ -26,7 +26,7 @@
 #define PGW_RECORD_TYPE		85
 
 /* TAGs */
-enum cdr_gtp_asn1_tag {
+enum gtp_cdr_asn1_tag {
 	PGW_RECORD_TAG = 79,
 	PGW_IMSI_TAG = 3,
 	PGW_PGW_ADDR_TAG = 4,
@@ -51,7 +51,7 @@ enum cdr_gtp_asn1_tag {
 };
 
 /* Encoding method */
-enum cdr_gtp_asn1_encode_method {
+enum gtp_cdr_asn1_encode_method {
 	M_RAW = 0,
 	M_IP_ADDRESS,
 	M_INTEGER,

@@ -319,31 +319,29 @@ asn1_encode_tag(unsigned char *data, const unsigned char *end_data,
 	int err;
 
 	if (data_len < 2)
-		return NULL;
+		goto end;
 
 	err = asn1_encode_tag_id(&data, &data_len, class, method, tag);
 	if (err)
-		return NULL;
+		goto end;
 
-	if (data_len <= 0)
-		return NULL;
-
-	if (len < 0)
-		return data;
+	if (data_len <= 0 || len < 0)
+		goto end;
 
 	err = asn1_encode_length(&data, &data_len, len);
 	if (err)
-		return NULL;
+		goto end;
 
 	if (!string)
-		return data;
+		goto end;
 
 	if (data_len < len)
-		return NULL;
+		goto end;
 
 	memcpy(data, string, len);
 	data += len;
 
+end:
 	return data;
 }
 

@@ -19,20 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
-
-/* Extern data */
-extern data_t *daemon_data;
 
 
 /*
@@ -263,10 +251,7 @@ cdr_create_session_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
 
 	/* Hardcoded value */
 	cdr->serving_node_type = 2;	/* S5/S8 GTP-C */
-	cdr->rating_group = 0;
 	cdr->service_condition_change[1] = 8;
-	cdr->volume_up = 1000000000;
-	cdr->volume_down = 12000;
 
 	cdr->charging_id = 5732;
 	gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_CHARGING_ID_TAG
