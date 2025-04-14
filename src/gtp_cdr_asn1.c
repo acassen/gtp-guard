@@ -160,7 +160,6 @@ int
 gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 {
 	const uint8_t *end = dst + dsize;
-	size_t dsize_remain;
 	uint8_t *outer, *cp;
 	uint16_t *len;
 	int i;
@@ -171,12 +170,8 @@ gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 	 */
 	outer = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, PGW_RECORD_TAG, NULL, 0xffff);
 	len = (uint16_t *) (outer - 2);
-	dsize_remain = dsize - (outer - dst);
 
 	for (i = 0, cp = outer; *(cdr_asn1_encoder[i].encode); i++) {
-		if (cp - outer > dsize_remain)
-			return -1;
-
 		cp = (*(cdr_asn1_encoder[i].encode)) (cdr, cdr_asn1_encoder[i].method
 							 , cdr_asn1_encoder[i].tag
 							 , cp, end);
