@@ -92,9 +92,8 @@ gtp_cdr_asn1_service_data(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, con
 static uint8_t *
 gtp_cdr_asn1_serving_node_type(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
-	uint8_t *cp;
+	uint8_t *cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 3);
 
-	cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 3);
 	return asn1_encode_tag(cp, end, ASN1_UNIV, ASN1_PRIM, ASN1_ENUM
 				 , (uint8_t *) &cdr->serving_node_type, 1);
 }
@@ -163,7 +162,6 @@ gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 	uint8_t *outer, *cp;
 	uint16_t *len;
 	int i;
-
 
 	/* Trick: we reserve enough headroom by tagging with large length.
 	 * It will prevent buffer copying.

@@ -242,6 +242,7 @@ int main(int argc, char **argv)
 	cdr = gtp_pcap_process(gtp_pcap_file);
 	if (!cdr)
 		goto end;
+	gtp_cdr_volumes_update(cdr, 12345, 12345);
 
 	memset(data, 0, 512);
 	len = gtp_cdr_asn1_pgw_record_encode(cdr, data, 512);

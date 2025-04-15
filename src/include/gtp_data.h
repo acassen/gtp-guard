@@ -29,6 +29,7 @@
 #define GTP_DEFAULT_THREAD_CNT	10
 #define GTP_BUFFER_SIZE		4096
 #define GTP_PNAME		128
+#define GTP_PATH_MAX_LEN	256
 
 
 /* Flags */

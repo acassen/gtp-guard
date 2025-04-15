@@ -92,7 +92,9 @@ __gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_
 	/* Second stage : Schedule by order until pgw election */
   shoot_again:
 	list_for_each_entry(naptr, l, next) {
-		if (!strstr(naptr->service, service) ||
+		/* Skip every non pGW */
+		if (!strstr(naptr->service, "x-3gpp-pgw") ||
+		    !strstr(naptr->service, service) ||
 		    __test_bit(GTP_SCHEDULE_FL_SKIP, &naptr->fl))
 			continue;
 
@@ -146,11 +148,11 @@ static const char *
 gtp_sched_roaming_status_to_str(unsigned long *flags)
 {
 	if (__test_bit(GTP_SESSION_FL_HPLMN, flags))
-		return "x-3gpp-pgw:x-s5-gtp";
+		return "x-s5-gtp";
 
 	if (__test_bit(GTP_SESSION_FL_ROAMING_OUT, flags) ||
 	    __test_bit(GTP_SESSION_FL_ROAMING_IN, flags))
-		return "x-3gpp-pgw:x-s8-gtp";
+		return "x-s8-gtp";
 
 	return NULL;
 }

@@ -41,15 +41,15 @@ extern data_t *daemon_data;
 int
 gtp_disk_write_restart_counter(void)
 {
-        FILE *fcounter;
+	FILE *fcounter;
 
-        fcounter = fopen(daemon_data->restart_counter_filename, "w");
-        if (!fcounter)
-                return -1;
+	fcounter = fopen(daemon_data->restart_counter_filename, "w");
+	if (!fcounter)
+		return -1;
 
-        fprintf(fcounter, "%hhx\n", daemon_data->restart_counter);
-        fclose(fcounter);
-        return 0;
+	fprintf(fcounter, "%hhx\n", daemon_data->restart_counter);
+	fclose(fcounter);
+	return 0;
 }
 
 int
@@ -58,17 +58,17 @@ gtp_disk_read_restart_counter(void)
 	FILE *fcounter;
 	int ret;
 
-        fcounter = fopen(daemon_data->restart_counter_filename, "r");
-        if (!fcounter)
-                return -1;
+	fcounter = fopen(daemon_data->restart_counter_filename, "r");
+	if (!fcounter)
+		return -1;
 
-        ret = fscanf(fcounter, "%hhx\n", &daemon_data->restart_counter);
-        if (ret != 1) {
-                fclose(fcounter);
-                return -1;
-        }
+	ret = fscanf(fcounter, "%hhx\n", &daemon_data->restart_counter);
+	if (ret != 1) {
+		fclose(fcounter);
+		return -1;
+	}
 
-        fclose(fcounter);
-        return daemon_data->restart_counter;
+	fclose(fcounter);
+	return daemon_data->restart_counter;
 }
 

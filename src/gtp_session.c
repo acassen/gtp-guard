@@ -235,9 +235,6 @@ gtp_session_roaming_status_set(gtp_session_t *s)
 		return 0;
 	}
 
-	if (list_empty(l))
-		return -1;
-
 	list_for_each_entry(p, l, next) {
 		if (bcd_imsi_plmn_match(imsi, p->plmn)) {
 			__set_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags);
