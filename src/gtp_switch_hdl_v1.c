@@ -40,6 +40,29 @@ extern thread_master_t *master;
 extern gtp_teid_t dummy_teid;
 
 
+static int
+gtp1_gsn_address_masq(gtp_server_worker_t *w, int direction)
+{
+	gtp_switch_t *ctx = w->srv->ctx;
+	gtp_server_t *srv_gtpc_ingress = &ctx->gtpc;
+	gtp_server_t *srv_gtpc_egress = &ctx->gtpc_egress;
+	gtp_server_t *srv = srv_gtpc_ingress;
+	uint32_t *gsn_address_c;
+	uint8_t *cp;
+
+	if (__test_bit(GTP_FL_CTL_BIT, &srv_gtpc_egress->flags) &&
+	    direction == GTP_INGRESS)
+		srv = srv_gtpc_egress;
+
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
+	if (cp) {
+		gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+		*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
+	}
+
+	return 0;
+}
+
 static gtp_teid_t *
 gtp1_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t *h, gtp_htab_t *vh,
 		 gtp_f_teid_t *f_teid, gtp_session_t *s)
@@ -157,9 +180,9 @@ gtp1_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 	if (teid_c && gsn_address_c) {
 		f_teid_c.ipv4 = gsn_address_c;
 		teid = gtp1_create_teid(GTP_TEID_C, direction, w
-						, &ctx->gtpc_teid_tab
-						, &ctx->vteid_tab
-						, &f_teid_c, s);
+						  , &ctx->gtpc_teid_tab
+						  , &ctx->vteid_tab
+						  , &f_teid_c, s);
 	}
 
 	/* User-Plane */
@@ -455,7 +478,6 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *t_u = NULL, *pteid;
 	gtp_session_t *s;
-	uint32_t *gsn_address_c;
 	bool mobility = false;
 	uint8_t *cp;
 	int err;
@@ -533,12 +555,8 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* Performing session translation */
 	t = gtp1_session_xlat(w, s, GTP_INGRESS);
 	if (!t) {
-		/* No GTP-C IE, if related GSN Address present then xlat it */
-		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
-		if (cp) {
-			gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
-			*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
-		}
+		/* No GTP-C IE, if related GSN Address is present then xlat it */
+		gtp1_gsn_address_masq(w, GTP_INGRESS);
 
 		/* There is no GTP-C update, so just forward */
 		return teid;
@@ -576,7 +594,6 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 	gtp_server_t *srv = w->srv;
 	gtp_switch_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *t, *teid_u, *oteid;
-	uint32_t *gsn_address_c;
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
@@ -614,12 +631,8 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 	/* Performing session translation */
 	t = gtp1_session_xlat(w, teid->session, GTP_EGRESS);
 	if (!t) {
-		/* No GTP-C IE, if related GSN Address present then xlat it */
-		cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
-		if (cp) {
-			gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
-			*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
-		}
+		/* No GTP-C IE, if related GSN Address is present then xlat it */
+		gtp1_gsn_address_masq(w, GTP_EGRESS);
 	}
 
 	/* If binding already exist then bearer update already done */
