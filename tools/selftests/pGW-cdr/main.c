@@ -47,6 +47,7 @@ thread_master_t *master = NULL;
 
 /* Local var */
 static const char *gtp_pcap_file;
+static const char *gtp_cdr_file;
 static bool verbose = false;
 
 
@@ -57,9 +58,10 @@ static void
 usage(const char *prog)
 {
 	fprintf(stderr, "Usage: %s [OPTION...]\n", prog);
-	fprintf(stderr, "  -p, --pcap-file		PCAP file\n");
-	fprintf(stderr, "  -v, --verbose		verbose mode\n");
-	fprintf(stderr, "  -h, --help			Display this help message\n");
+	fprintf(stderr, "  -p, --pcap-file              PCAP file\n");
+	fprintf(stderr, "  -c, --cdr-file               CDR file\n");
+	fprintf(stderr, "  -v, --verbose                verbose mode\n");
+	fprintf(stderr, "  -h, --help                   Display this help message\n");
 }
 
 /*
@@ -73,6 +75,7 @@ parse_cmdline(int argc, char **argv)
 
 	struct option long_options[] = {
 		{"pcap-file",		required_argument,	NULL, 'p'},
+		{"cdr-file",		required_argument,	NULL, 'c'},
 		{"verbose",		no_argument,		NULL, 'v'},
 		{"help",		no_argument,		NULL, 'h'},
 		{NULL,			0,			NULL,  0 }
@@ -85,7 +88,7 @@ parse_cmdline(int argc, char **argv)
 
 
 	curind = optind;
-	while (longindex = -1, (c = getopt_long(argc, argv, ":hvp:"
+	while (longindex = -1, (c = getopt_long(argc, argv, ":hvp:c:"
 						, long_options, &longindex)) != -1) {
 		if (longindex >= 0 && long_options[longindex].has_arg == required_argument &&
 		    optarg && !optarg[0]) {
@@ -103,6 +106,9 @@ parse_cmdline(int argc, char **argv)
 			break;
 		case 'p':
 			gtp_pcap_file = optarg;
+			break;
+		case 'c':
+			gtp_cdr_file = optarg;
 			break;
 		case '?':
 			if (optopt && argv[curind][1] != '-')
@@ -209,6 +215,45 @@ gtp_pcap_process(const char *path)
 	return cdr;
 }
 
+
+/*
+ * I/O operations
+ */
+static int
+write_cdr(const void *buf, size_t bsize)
+{
+	map_file_t *map_file;
+	off_t offset = 0;
+	int err, i;
+
+	PMALLOC(map_file);
+	bsd_strlcpy(map_file->path, gtp_cdr_file, GTP_PATH_MAX_LEN);
+
+	err = gtp_disk_open(map_file, 10*1024*1024);
+	if (err) {
+		fprintf(stderr, "error creating file:%s (%m)\n", gtp_cdr_file);
+		return -1;
+	}
+
+	for (i = 0; i < 1000; i++, offset += bsize) {
+		err = gtp_disk_write_sync(map_file, offset, buf, bsize);
+		if (err) {
+			fprintf(stderr, "\n#%d error writing (%m)\n", i);
+			goto end;
+		}
+
+		printf(".%s", ((i + 1) % 64) ? "" : "\n");
+	}
+	printf("\n");
+
+end:
+	gtp_disk_close(map_file);
+	FREE(map_file);
+	return 0;
+}
+
+
+
 /*
  * Input pcap file contains GTP-C message with a full protocol
  * sequence :
@@ -246,6 +291,7 @@ int main(int argc, char **argv)
 
 	memset(data, 0, 512);
 	len = gtp_cdr_asn1_pgw_record_encode(cdr, data, 512);
+	gtp_cdr_destroy(cdr);
 
 	printf("----[ Generated CDR (%d) ]----\n", len);
 	dump_buffer("", (char *) data, len);
@@ -255,7 +301,10 @@ int main(int argc, char **argv)
 	 */
 	buffer_to_c_array("cdr_3gpp", (char *) data, len);
 
-	gtp_cdr_destroy(cdr);
+	/* I/O operations */
+	if (gtp_cdr_file)
+		write_cdr(data, len);
+
   end:
 	FREE(daemon_data);
 	exit(0);
