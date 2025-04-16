@@ -235,7 +235,8 @@ write_cdr(const void *buf, size_t bsize)
 		return -1;
 	}
 
-	for (i = 0; i < 1000; i++, offset += bsize) {
+	/* writing */
+	for (i = 0, offset = 0; i < 1000; i++, offset += bsize) {
 		err = gtp_disk_write_sync(map_file, offset, buf, bsize);
 		if (err) {
 			fprintf(stderr, "\n#%d error writing (%m)\n", i);
@@ -245,6 +246,17 @@ write_cdr(const void *buf, size_t bsize)
 		printf(".%s", ((i + 1) % 64) ? "" : "\n");
 	}
 	printf("\n");
+
+	/* vrfy */
+	for (i = 0, offset = 0; i < 1000; i++, offset += bsize) {
+		if (!memcmp((char *) map_file->map + offset, buf, bsize))
+			continue;
+
+		fprintf(stderr, "\n#%d buffer miss-match :\n", i);
+		dump_buffer("Error buffer ", (char *)map_file->map + offset, bsize);
+		goto end;
+	}
+	printf("Success vrfy file content integrity\n");
 
 end:
 	gtp_disk_close(map_file);

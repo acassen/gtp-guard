@@ -64,6 +64,7 @@
 #include "gtp_ppp_session.h"
 #include "gtp_vrf.h"
 #include "gtp_apn.h"
+#include "gtp_disk.h"
 #include "gtp_cdr.h"
 #include "gtp_cdr_asn1.h"
 #include "gtp_cdr_file.h"

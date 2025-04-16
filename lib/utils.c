@@ -80,11 +80,10 @@ buffer_to_c_array(const char *name, char *buffer, size_t blen)
 	int i;
 
 	printf("const char %s[%ld] = {\n  ", name, blen);
-	for (i = 0; i < blen; i++) {
-		if (i && !(i % 16))
-			printf("\n  ");
-		printf("0x%.2x%s ", buffer[i] & 0xff, (i < blen-1) ? "," : "");
-	}
+	for (i = 0; i < blen; i++)
+		printf("0x%.2x%s%s", buffer[i] & 0xff
+				   , (i < blen - 1) ? "," : ""
+				   , ((i + 1) % 16) ? " " : "\n  ");
 	printf("\n};\n");
 }
 
