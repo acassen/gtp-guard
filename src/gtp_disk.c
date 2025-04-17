@@ -130,15 +130,15 @@ gtp_disk_close_fd(int *fd)
 }
 
 int
-gtp_disk_rm(char *path)
+gtp_disk_rm(const char *path)
 {
 	return unlink(path);
 }
 
 int
-gtp_disk_mv(char *old, char *new)
+gtp_disk_mv(const char *src, const char *dst)
 {
-	return rename(old, new);
+	return rename(src, dst);
 }
 
 static void *

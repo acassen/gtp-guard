@@ -674,7 +674,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	    __test_bit(GTP_SESSION_FL_ROAMING_OUT, &s->flags))
 		gtp_ie_uli_update(w->pbuff, &s->apn->egci_plmn, (struct sockaddr_in *) addr);
 
-	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x Roamng-Status:%s}%s"
+	log_message(LOG_INFO, "Modify-Bearer-Req:={F-TEID:0x%.8x Roaming-Status:%s}%s"
 			    , ntohl(teid->id)
 			    , gtp_session_roaming_status_str(s)
 			    , mobility ? " (3G Mobility)" : "");

@@ -23,8 +23,24 @@
 #define _GTP_CDR_FILE_H
 
 /* Defines */
+#define GTP_CDR_MAGIC		0x0700
 
-/* Spool */
+/* File data structures */
+typedef struct _gtp_cdr_file_header {
+	uint32_t		flen;
+	uint32_t		hlen;
+	uint16_t		magic;
+	uint16_t		reserved;
+	uint64_t		file_creation_ts;
+	uint64_t		last_cdr_ts;
+	uint32_t		cdr_count;
+} __attribute__((packed)) gtp_cdr_file_header_t;
+
+typedef struct _gtp_cdr_header {
+	uint16_t		clen;
+	uint16_t		magic;
+} __attribute__((packed)) gtp_cdr_header_t;
+
 typedef struct _gtp_cdr_spool {
 	char			desc[GTP_STR_MAX_LEN];
 	char			document_root[GTP_PATH_MAX_LEN];
