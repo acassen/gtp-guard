@@ -61,26 +61,100 @@ gtp_cdr_file_header_init(gtp_cdr_spool_t *s)
 	return gtp_cdr_file_header_sync(s);
 }
 
+static int
+gtp_cdr_file_mv(const char *src, const char *dst_dir)
+{
+	char filename[GTP_PATH_MAX_LEN+1];
+	char *bname = basename(src);
+
+	if (!bname)
+		return -1;
+
+	snprintf(filename, GTP_PATH_MAX_LEN, "%s/%s", dst_dir, bname);
+
+	return gtp_disk_mv(src, filename);
+}
+
+static int
+gtp_cdr_file_roll(gtp_cdr_spool_t *s)
+{
+	map_file_t *map_file = s->cdr_file;
+	gtp_cdr_file_header_t *h;
+
+	if (!map_file)
+		return -1;
+
+	h = (gtp_cdr_file_header_t *) map_file->map;
+	gtp_disk_resize(map_file, ntohl(h->flen));
+	gtp_cdr_file_close(s);
+	s->cdr_file = NULL;
+
+	return gtp_cdr_file_create(s);
+}
+
 int
 gtp_cdr_file_write(gtp_cdr_spool_t *s, const void *buf, size_t bsize)
 {
-	map_file_t *map_file = s->cdr_file;
-	gtp_cdr_file_header_t *h = (gtp_cdr_file_header_t *) map_file->map;
+	map_file_t *map_file;
+	gtp_cdr_file_header_t *h;
 	gtp_cdr_header_t *cdrh;
-	off_t offset = ntohl(h->flen);
-	int err, sync;
+	int err, sync, retry_cnt = 0;
+	off_t offset;
+
+retry:
+	/* SHOULD only hit one time. Discard otherwise */
+	if (retry_cnt > 1)
+		return -1;
+
+	/* Roll time reached ? */
+	if (time(NULL) > s->roll_time) {
+		log_message(LOG_INFO, "%s(): roll time reached Creating new file."
+				    , __FUNCTION__);
+
+		err = gtp_cdr_file_roll(s);
+		if (err) {
+			log_message(LOG_INFO, "%s(): Unable to create a new cdr file !!!"
+					    , __FUNCTION__);
+			return -1;
+		}
+	}
+
+	/* Pointer */
+	map_file = s->cdr_file;
+	h = (gtp_cdr_file_header_t *) map_file->map;
+	offset = ntohl(h->flen);
 
 	/* Write CDR */
-	cdrh = (gtp_cdr_header_t *) ((uint8_t *)map_file->map + offset);
-	cdrh->clen = htons(bsize);
-	cdrh->magic = GTP_CDR_MAGIC;
 	err = gtp_disk_write(map_file, offset + sizeof(gtp_cdr_header_t), buf, bsize);
 	if (err) {
+		if (errno == ENOSPC) {
+			log_message(LOG_INFO, "%s(): file:[%s] exceed max size."
+					      " Creating new file."
+					    , __FUNCTION__
+					    , map_file->path);
+			err = gtp_cdr_file_roll(s);
+			if (err) {
+				log_message(LOG_INFO, "%s(): Unable to create a new cdr file !!!"
+						    , __FUNCTION__);
+				return -1;
+			}
+
+			/* One more time, we're gonna celebrate
+			 * Oh yeah, all right, don't stop dancing... */
+			retry_cnt++;
+			goto retry;
+		}
+
 		log_message(LOG_INFO, "%s(): Cant write cdr into file:[%s] (%m)"
 				    , __FUNCTION__
 				    , map_file->path);
 		return -1;
 	}
+
+	/* Create cdr header */
+	cdrh = (gtp_cdr_header_t *) ((uint8_t *)map_file->map + offset);
+	cdrh->clen = htons(bsize);
+	cdrh->magic = GTP_CDR_MAGIC;
 
 	sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
 								  GTP_DISK_SYNC;
@@ -156,10 +230,27 @@ gtp_cdr_file_open(gtp_cdr_spool_t *s)
 	}
 
 	s->create_time = t;
-	t += (s->roll_period) ? : GTP_CDR_DEFAULT_ROLLPERIOD;
-	s->roll_time = t;
+	s->roll_time = t + (s->roll_period) ? : GTP_CDR_DEFAULT_ROLLPERIOD;
 
 	return n;
+}
+
+int
+gtp_cdr_file_close(gtp_cdr_spool_t *s)
+{
+	map_file_t *map_file = s->cdr_file;
+
+	if (!map_file)
+		return -1;
+
+	gtp_disk_close(map_file);
+
+	/* Move to archive if specified */
+	if (s->archive_root[0])
+		gtp_cdr_file_mv(map_file->path, s->archive_root);
+
+	FREE(map_file);
+	return 0;
 }
 
 int

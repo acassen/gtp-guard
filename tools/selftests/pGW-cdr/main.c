@@ -49,6 +49,7 @@ thread_master_t *master = NULL;
 static const char *gtp_pcap_file;
 static const char *gtp_cdr_file;
 static const char *document_root;
+static const char *archive_root;
 static bool verbose = false;
 
 
@@ -62,6 +63,7 @@ usage(const char *prog)
 	fprintf(stderr, "  -p, --pcap-file              PCAP file\n");
 	fprintf(stderr, "  -c, --cdr-file               CDR file\n");
 	fprintf(stderr, "  -d, --document-root          CDR File Document Root\n");
+	fprintf(stderr, "  -a, --archive-root           CDR File Archive Root\n");
 	fprintf(stderr, "  -v, --verbose                verbose mode\n");
 	fprintf(stderr, "  -h, --help                   Display this help message\n");
 }
@@ -79,6 +81,7 @@ parse_cmdline(int argc, char **argv)
 		{"pcap-file",		required_argument,	NULL, 'p'},
 		{"cdr-file",		required_argument,	NULL, 'c'},
 		{"dpcument-root",	required_argument,	NULL, 'd'},
+		{"archive-root",	required_argument,	NULL, 'a'},
 		{"verbose",		no_argument,		NULL, 'v'},
 		{"help",		no_argument,		NULL, 'h'},
 		{NULL,			0,			NULL,  0 }
@@ -90,7 +93,7 @@ parse_cmdline(int argc, char **argv)
 	}
 
 	curind = optind;
-	while (longindex = -1, (c = getopt_long(argc, argv, ":hvp:c:d:"
+	while (longindex = -1, (c = getopt_long(argc, argv, ":hvp:c:d:a:"
 						, long_options, &longindex)) != -1) {
 		if (longindex >= 0 && long_options[longindex].has_arg == required_argument &&
 		    optarg && !optarg[0]) {
@@ -114,6 +117,9 @@ parse_cmdline(int argc, char **argv)
 			break;
 		case 'd':
 			document_root = optarg;
+			break;
+		case 'a':
+			archive_root = optarg;
 			break;
 		case '?':
 			if (optopt && argv[curind][1] != '-')
@@ -277,6 +283,8 @@ write_cdr_file(const void *buf, size_t bsize)
 
 	PMALLOC(s);
 	bsd_strlcpy(s->document_root, document_root, GTP_PATH_MAX_LEN);
+	if (archive_root)
+		bsd_strlcpy(s->archive_root, archive_root, GTP_PATH_MAX_LEN);
 	bsd_strlcpy(s->prefix, "pGW-test_", GTP_PATH_MAX_LEN);
 	s->roll_period = 60;
 	s->cdr_file_size = 1*1024*1024; /* 1MB test file */

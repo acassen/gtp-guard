@@ -71,6 +71,7 @@ typedef struct _gtp_cdr_spool {
 extern int gtp_cdr_file_header_init(gtp_cdr_spool_t *);
 extern int gtp_cdr_file_write(gtp_cdr_spool_t *, const void *, size_t);
 extern int gtp_cdr_file_create(gtp_cdr_spool_t *);
+extern int gtp_cdr_file_close(gtp_cdr_spool_t *);
 extern int gtp_cdr_file_spool_destroy(gtp_cdr_spool_t *);
 
 #endif
