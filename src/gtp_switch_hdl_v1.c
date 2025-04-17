@@ -701,6 +701,10 @@ gtp1_delete_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* Recovery xlat */
 	gtp1_session_xlat_recovery(w);
 
+	/* Update addr tunnel endpoint */
+	gtp_teid_update_sgw(teid, addr);
+	gtp_teid_update_sgw(teid->peer_teid, addr);
+
 	/* Update SQN */
 	gtp_sqn_update(w, teid);
 	gtp_vsqn_alloc(w, teid, false);
