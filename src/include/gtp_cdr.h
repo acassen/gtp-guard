@@ -69,7 +69,6 @@ typedef struct _gtp_cdr {
 
 	/* Local infos */
 	time_t		start;
-	timeval_t	time;
 	struct tm	date;
 
 	/* ASN.1 context */

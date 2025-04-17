@@ -30,15 +30,16 @@ static int
 cdr_current_date_to_bcd(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 {
 	struct tm *date = &cdr->date;
+	time_t now;
 	uint64_t tmp;
 
 	if (dsize < 9)
 		return -1;
 
-	gettimeofday(&cdr->time, NULL);
+	now = time(NULL);
 	memset(date, 0, sizeof(struct tm));
 	date->tm_isdst = -1;
-	localtime_r(&cdr->time.tv_sec, date);
+	localtime_r(&now, date);
 
 	dst[0] = hex_to_bcd(date->tm_year - 100);
 	dst[1] = hex_to_bcd(date->tm_mon + 1);

@@ -515,7 +515,7 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	h->teid = teid->id;
 	s = teid->session;
 
-	/* Update GTP-C with current sGW*/
+	/* Update GTP-C with current sGW */
 	gtp_teid_update_sgw(teid, addr);
 	gtp_teid_update_sgw(teid->peer_teid, addr);
 

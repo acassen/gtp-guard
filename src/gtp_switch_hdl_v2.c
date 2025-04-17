@@ -650,7 +650,7 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	h->teid = teid->id;
 	s = teid->session;
 
-	/* Update GTP-C with current sGW*/
+	/* Update GTP-C with current sGW */
 	gtp_teid_update_sgw(teid, addr);
 	gtp_teid_update_sgw(teid->peer_teid, addr);
 
@@ -844,7 +844,7 @@ gtpc_delete_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	h->teid = teid->id;
 	s = teid->session;
 
-	/* Msg from pGW, update pGW addr*/
+	/* Msg from pGW, update pGW addr */
 	gtp_teid_update_pgw(teid, addr);
 	gtp_teid_update_pgw(teid->peer_teid, addr);
 

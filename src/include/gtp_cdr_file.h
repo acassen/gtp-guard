@@ -22,8 +22,15 @@
 #ifndef _GTP_CDR_FILE_H
 #define _GTP_CDR_FILE_H
 
+/* Flags */
+enum gtp_cdr_file_flags {
+	GTP_CDR_FILE_FL_ASYNC_BIT,
+};
+
 /* Defines */
-#define GTP_CDR_MAGIC		0x0700
+#define GTP_CDR_MAGIC			0x0707
+#define GTP_CDR_DEFAULT_FSIZE		10*1024*1024
+#define GTP_CDR_DEFAULT_ROLLPERIOD	7200
 
 /* File data structures */
 typedef struct _gtp_cdr_file_header {
@@ -32,7 +39,6 @@ typedef struct _gtp_cdr_file_header {
 	uint16_t		magic;
 	uint16_t		reserved;
 	uint64_t		file_creation_ts;
-	uint64_t		last_cdr_ts;
 	uint32_t		cdr_count;
 } __attribute__((packed)) gtp_cdr_file_header_t;
 
@@ -47,6 +53,7 @@ typedef struct _gtp_cdr_spool {
 	char			archive_root[GTP_PATH_MAX_LEN];
 	char			prefix[GTP_NAME_MAX_LEN];
 	int			roll_period;
+	size_t			cdr_file_size;
 
 	struct dirent		**spool_cdr;
 	struct tm		date;
@@ -56,8 +63,14 @@ typedef struct _gtp_cdr_spool {
 	time_t			close_time;
 
 	map_file_t		*cdr_file;
+
+	unsigned long		flags;
 } gtp_cdr_spool_t;
 
 /* Prototypes */
+extern int gtp_cdr_file_header_init(gtp_cdr_spool_t *);
+extern int gtp_cdr_file_write(gtp_cdr_spool_t *, const void *, size_t);
+extern int gtp_cdr_file_create(gtp_cdr_spool_t *);
+extern int gtp_cdr_file_spool_destroy(gtp_cdr_spool_t *);
 
 #endif

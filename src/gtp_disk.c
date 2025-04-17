@@ -31,7 +31,6 @@
 /* local includes */
 #include "gtp_guard.h"
 
-
 /* Extern data */
 extern data_t *daemon_data;
 
@@ -233,6 +232,9 @@ end:
 int
 gtp_disk_close(map_file_t *map_file)
 {
+	if (!map_file)
+		return -1;
+
 	if (map_file->map) {
 		munmap(map_file->map, map_file->fstat.st_size);
 		map_file->map = NULL;
@@ -242,13 +244,21 @@ gtp_disk_close(map_file_t *map_file)
 	return 0;
 }
 
-static int
-gtp_disk_sync(map_file_t *map_file)
+int
+gtp_disk_msync_offset(map_file_t *map_file, off_t offset, size_t ssize, int flags)
 {
+	off_t sync_offset;
+	int sync_flags = (flags) ? MS_SYNC : MS_ASYNC;
+	size_t sync_size;
+
 	if (!map_file->map)
 		return -1;
 
-	return msync(map_file->map, map_file->fstat.st_size, MS_ASYNC);
+	/* synced zone need to be aligned, assumption : bl_ksize = page_size */
+	sync_offset = (offset / map_file->fstat.st_blksize) * map_file->fstat.st_blksize;
+	sync_size = ssize + offset % map_file->fstat.st_blksize;
+
+	return msync(map_file->map + sync_offset, sync_size, sync_flags);
 }
 
 int
@@ -260,7 +270,9 @@ gtp_disk_resize(map_file_t *map_file, size_t new_size)
 		return -1;
 
 	/* sync and close current file */
-	err = (err) ? : gtp_disk_sync(map_file);
+	err = (err) ? : gtp_disk_msync_offset(map_file, 0
+						      , map_file->fstat.st_size
+						      , MS_ASYNC);
 	err = (err) ? : gtp_disk_close(map_file);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error closing file [%s] (%m)"
@@ -293,12 +305,10 @@ end:
 	return err;
 }
 
-static int
-gtp_disk_write(map_file_t *map_file, off_t offset, const void *buf, size_t bsize, int flags)
+int
+gtp_disk_write(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
 {
 	void *cp, *end = map_file->map + map_file->fstat.st_size;
-	off_t sync_offset;
-	size_t sync_size;
 
 	if (!map_file->map)
 		return -1;
@@ -315,24 +325,23 @@ gtp_disk_write(map_file_t *map_file, off_t offset, const void *buf, size_t bsize
 	}
 
 	memcpy(cp, buf, bsize);
-
-	/* synced zone need to be aligned, assumption : bl_ksize = page_size */
-	sync_offset = (offset / map_file->fstat.st_blksize) * map_file->fstat.st_blksize;
-	sync_size = bsize + offset % map_file->fstat.st_blksize;
-
-	return msync(map_file->map + sync_offset, sync_size, flags);
-}
-
-int
-gtp_disk_write_sync(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
-{
-	return gtp_disk_write(map_file, offset, buf, bsize, MS_SYNC);
+	return 0;
 }
 
 int
 gtp_disk_write_async(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
 {
-	return gtp_disk_write(map_file, offset, buf, bsize, MS_ASYNC);
+	int err = gtp_disk_write(map_file, offset, buf, bsize);
+
+	return (err) ? : gtp_disk_msync_offset(map_file, offset, bsize, GTP_DISK_ASYNC);
+}
+
+int
+gtp_disk_write_sync(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
+{
+	int err = gtp_disk_write(map_file, offset, buf, bsize);
+
+	return (err) ? : gtp_disk_msync_offset(map_file, offset, bsize, GTP_DISK_SYNC);
 }
 
 /*

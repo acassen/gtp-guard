@@ -48,6 +48,7 @@ thread_master_t *master = NULL;
 /* Local var */
 static const char *gtp_pcap_file;
 static const char *gtp_cdr_file;
+static const char *document_root;
 static bool verbose = false;
 
 
@@ -60,6 +61,7 @@ usage(const char *prog)
 	fprintf(stderr, "Usage: %s [OPTION...]\n", prog);
 	fprintf(stderr, "  -p, --pcap-file              PCAP file\n");
 	fprintf(stderr, "  -c, --cdr-file               CDR file\n");
+	fprintf(stderr, "  -d, --document-root          CDR File Document Root\n");
 	fprintf(stderr, "  -v, --verbose                verbose mode\n");
 	fprintf(stderr, "  -h, --help                   Display this help message\n");
 }
@@ -76,6 +78,7 @@ parse_cmdline(int argc, char **argv)
 	struct option long_options[] = {
 		{"pcap-file",		required_argument,	NULL, 'p'},
 		{"cdr-file",		required_argument,	NULL, 'c'},
+		{"dpcument-root",	required_argument,	NULL, 'd'},
 		{"verbose",		no_argument,		NULL, 'v'},
 		{"help",		no_argument,		NULL, 'h'},
 		{NULL,			0,			NULL,  0 }
@@ -86,9 +89,8 @@ parse_cmdline(int argc, char **argv)
 		exit(1);
 	}
 
-
 	curind = optind;
-	while (longindex = -1, (c = getopt_long(argc, argv, ":hvp:c:"
+	while (longindex = -1, (c = getopt_long(argc, argv, ":hvp:c:d:"
 						, long_options, &longindex)) != -1) {
 		if (longindex >= 0 && long_options[longindex].has_arg == required_argument &&
 		    optarg && !optarg[0]) {
@@ -109,6 +111,9 @@ parse_cmdline(int argc, char **argv)
 			break;
 		case 'c':
 			gtp_cdr_file = optarg;
+			break;
+		case 'd':
+			document_root = optarg;
 			break;
 		case '?':
 			if (optopt && argv[curind][1] != '-')
@@ -229,7 +234,7 @@ write_cdr(const void *buf, size_t bsize)
 	PMALLOC(map_file);
 	bsd_strlcpy(map_file->path, gtp_cdr_file, GTP_PATH_MAX_LEN);
 
-	err = gtp_disk_open(map_file, 10*1024*1024);
+	err = gtp_disk_open(map_file, GTP_CDR_DEFAULT_FSIZE);
 	if (err) {
 		fprintf(stderr, "error creating file:%s (%m)\n", gtp_cdr_file);
 		return -1;
@@ -264,6 +269,43 @@ end:
 	return 0;
 }
 
+static int
+write_cdr_file(const void *buf, size_t bsize)
+{
+	gtp_cdr_spool_t *s;
+	int err, i;
+
+	PMALLOC(s);
+	bsd_strlcpy(s->document_root, document_root, GTP_PATH_MAX_LEN);
+	bsd_strlcpy(s->prefix, "pGW-test_", GTP_PATH_MAX_LEN);
+	s->roll_period = 60;
+	s->cdr_file_size = 1*1024*1024; /* 1MB test file */
+	__set_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &s->flags);
+
+	err = gtp_cdr_file_create(s);
+	if (err) {
+		fprintf(stderr, "error creating cdr file:%s (%m)\n", document_root);
+		goto end;
+	}
+
+	/* writing */
+	for (i = 0; i < 100000; i++) {
+		err = gtp_cdr_file_write(s, buf, bsize);
+		if (err) {
+			fprintf(stderr, "\n#%d error writing cdr file:%s (%m)\n"
+				      , i, s->cdr_file->path);
+			goto end;
+		}
+
+		printf(".%s", ((i + 1) % 64) ? "" : "\n");
+	}
+	printf("\n");
+
+
+end:
+	gtp_cdr_file_spool_destroy(s);
+	return 0;
+}
 
 
 /*
@@ -316,6 +358,9 @@ int main(int argc, char **argv)
 	/* I/O operations */
 	if (gtp_cdr_file)
 		write_cdr(data, len);
+
+	if (document_root)
+		write_cdr_file(data, len);
 
   end:
 	FREE(daemon_data);
