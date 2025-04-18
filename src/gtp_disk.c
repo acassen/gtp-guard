@@ -20,13 +20,7 @@
  */
 
 /* system includes */
-#include <stdio.h>
-#include <sys/stat.h>
 #include <sys/mman.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"
@@ -120,7 +114,7 @@ end:
 static int
 gtp_disk_close_fd(int *fd)
 {
-	if (*fd) {
+	if (*fd >= 0) {
 		close(*fd);
 		*fd = -1;
 	}
@@ -135,8 +129,22 @@ gtp_disk_rm(const char *path)
 }
 
 int
-gtp_disk_mv(const char *src, const char *dst)
+gtp_disk_mv(char *src, char *dst)
 {
+	char *p = strrchr(dst, '/');
+	int err;
+
+	if (!p)
+		return -1;
+
+	if (p > dst) *p = '\0';
+	err = access(dst, F_OK);
+	if (p > dst) *p = '/';
+
+	err = (err) ? gtp_disk_mkdir(dst) : 0;
+	if (err)
+		return -1;
+
 	return rename(src, dst);
 }
 
@@ -301,7 +309,6 @@ gtp_disk_resize(map_file_t *map_file, size_t new_size)
 
 	map_file->fstat.st_size = new_size;
 end:
-	gtp_disk_close_fd(&map_file->fd);
 	return err;
 }
 

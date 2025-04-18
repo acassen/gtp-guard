@@ -51,18 +51,17 @@ typedef struct _gtp_cdr_spool {
 	char			desc[GTP_STR_MAX_LEN];
 	char			document_root[GTP_PATH_MAX_LEN];
 	char			archive_root[GTP_PATH_MAX_LEN];
+	char			dst_path[GTP_PATH_MAX_LEN];
 	char			prefix[GTP_NAME_MAX_LEN];
 	int			roll_period;
 	size_t			cdr_file_size;
 
-	struct dirent		**spool_cdr;
 	struct tm		date;
 	time_t			create_time;
 	time_t			roll_time;
-	time_t			open_time;
-	time_t			close_time;
 
 	map_file_t		*cdr_file;
+	uint8_t			cdr_file_seq;
 
 	unsigned long		flags;
 } gtp_cdr_spool_t;

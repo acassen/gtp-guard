@@ -26,7 +26,6 @@
 #include <string.h>
 #include <getopt.h>
 #include <ctype.h>
-#define _XOPEN_SOURCE
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -308,7 +307,6 @@ write_cdr_file(const void *buf, size_t bsize)
 		printf(".%s", ((i + 1) % 64) ? "" : "\n");
 	}
 	printf("\n");
-
 
 end:
 	gtp_cdr_file_spool_destroy(s);
