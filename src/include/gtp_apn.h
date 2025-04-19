@@ -127,6 +127,7 @@ typedef struct _gtp_apn {
 
 /* Prototypes */
 extern uint32_t gtp_ip_pool_get(gtp_apn_t *);
+extern int gtp_apn_cdr_commit(gtp_apn_t *, gtp_cdr_t *);
 extern int gtp_ip_pool_put(gtp_apn_t *, uint32_t);
 extern gtp_plmn_t *__gtp_apn_hplmn_get(gtp_apn_t *, uint8_t *);
 extern gtp_apn_t *gtp_apn_get(const char *);

@@ -25,6 +25,8 @@
 /* Flags */
 enum gtp_cdr_file_flags {
 	GTP_CDR_SPOOL_FL_ASYNC_BIT,
+	GTP_CDR_SPOOL_FL_SHUTDOWN_BIT,
+	GTP_CDR_SPOOL_FL_STOP_BIT,
 };
 
 /* Spool data structure */
@@ -38,6 +40,19 @@ typedef struct _gtp_cdr_spool {
 	gtp_cdr_file_t		*cdr_file;
 	size_t			cdr_file_size;
 
+	list_head_t		q;
+	uint8_t			q_buf[GTP_BUFFER_SIZE];
+	int			q_size;
+	int			q_max_size;
+	pthread_mutex_t		q_mutex;
+	pthread_t		task;
+	pthread_cond_t		cond;
+	pthread_mutex_t		cond_mutex;
+
+	/* stats */
+	uint64_t		cdr_count;
+	uint64_t		cdr_bytes;
+
 	list_head_t		next;
 
 	int			refcnt;
@@ -46,8 +61,11 @@ typedef struct _gtp_cdr_spool {
 
 
 /* Prototypes */
+extern int gtp_cdr_spool_q_add(gtp_cdr_spool_t *, gtp_cdr_t *);
 extern gtp_cdr_spool_t *gtp_cdr_spool_get(const char *);
 extern int gtp_cdr_spool_put(gtp_cdr_spool_t *);
+extern int gtp_cdr_spool_start(gtp_cdr_spool_t *);
+extern int gtp_cdr_spool_stop(gtp_cdr_spool_t *);
 extern gtp_cdr_spool_t *gtp_cdr_spool_alloc(const char *);
 extern int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);
 

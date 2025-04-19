@@ -282,7 +282,7 @@ write_cdr_file(const void *buf, size_t bsize)
 	int err, i;
 
 	/* Init context */
-	s = gtp_cdr_spool_alloc();
+	s = gtp_cdr_spool_alloc("cdr-test");
 	bsd_strlcpy(s->document_root, document_root, GTP_PATH_MAX_LEN);
 	if (archive_root)
 		bsd_strlcpy(s->archive_root, archive_root, GTP_PATH_MAX_LEN);

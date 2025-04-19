@@ -72,6 +72,7 @@ DEFUN(cdr_spool,
 	new = gtp_cdr_spool_alloc(argv[0]);
 	vty->node = CDR_NODE;
 	vty->index = new;
+	__set_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &new->flags);
 	return CMD_SUCCESS;
 }
 
@@ -82,6 +83,7 @@ DEFUN(no_cdr_spool,
       "Spool Name")
 {
 	gtp_cdr_spool_t *s;
+	int err;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -94,7 +96,13 @@ DEFUN(no_cdr_spool,
 		return CMD_WARNING;
 	}
 
-	gtp_cdr_spool_destroy(s);
+	err = gtp_cdr_spool_destroy(s);
+	if (err) {
+		vty_out(vty, "%% cdr-spool is used by at least one APN%s", VTY_NEWLINE);
+		return CMD_WARNING;
+
+	}
+
 	return CMD_SUCCESS;
 }
 
@@ -194,12 +202,72 @@ DEFUN(cdr_file_async_io,
 {
 	gtp_cdr_spool_t *s = vty->index;
 
+	__set_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(cdr_max_queue_size,
+      cdr_max_queue_size_cmd,
+      "max-queue-size <10-65536>",
+      "Configure Maximum CDR queue retention size\n"
+      "Number of CDR")
+{
+	gtp_cdr_spool_t *s = vty->index;
+	int size;
+
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	__set_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags);
+	VTY_GET_INTEGER_RANGE("Number of CDR", size, argv[0], 10, 35536);
+	s->q_max_size = size;
+	return CMD_SUCCESS;
+}
+
+DEFUN(cdr_shutdown,
+      cdr_shutdown_cmd,
+      "shutdown",
+      "Shutdown CDR spool\n")
+{
+	gtp_cdr_spool_t *s = vty->index;
+
+	if (__test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags)) {
+		vty_out(vty, "%% spood:%s is already shutdown%s"
+			   , s->name
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_cdr_spool_stop(s);
+	__clear_bit(GTP_CDR_SPOOL_FL_STOP_BIT, &s->flags);
+	__set_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(cdr_no_shutdown,
+      cdr_no_shutdown_cmd,
+      "no shutdown",
+      "Activate CDR spool\n")
+{
+	gtp_cdr_spool_t *s = vty->index;
+	int err;
+
+	if (!__test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags)) {
+		vty_out(vty, "%% spood:%s is already running%s"
+			   , s->name
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!s->document_root[0]) {
+		vty_out(vty, "%% document-root MUST be configured first%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	err = gtp_cdr_spool_start(s);
+	if (!err)
+		__clear_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags);
 	return CMD_SUCCESS;
 }
 
@@ -210,6 +278,22 @@ DEFUN(show_cdr,
       "CDR Spool\n"
       "Spool name")
 {
+	gtp_cdr_spool_t *s;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	s = gtp_cdr_spool_get(argv[0]);
+	if (!s) {
+		vty_out(vty, "%% unknown cdr-spool %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vty_out(vty, " Pending in Queue : %d%s", s->q_size, VTY_NEWLINE);
+	vty_out(vty, "        CDR count : %ld%s", s->cdr_count, VTY_NEWLINE);
+	vty_out(vty, "        CDR bytes : %ld%s", s->cdr_bytes, VTY_NEWLINE);
 	return CMD_SUCCESS;
 }
 
@@ -230,7 +314,12 @@ gtp_config_cdr_write(vty_t *vty)
 		if (s->roll_period != GTP_CDR_DEFAULT_ROLLPERIOD)
 			vty_out(vty, " roll-period %d%s", s->roll_period, VTY_NEWLINE);
 		if (__test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags))
-			vty_out(vty, " async-io %d%s", s->roll_period, VTY_NEWLINE);
+			vty_out(vty, " async-io%s", VTY_NEWLINE);
+		if (s->q_max_size)
+			vty_out(vty, " max-queue-size %d%s", s->q_max_size, VTY_NEWLINE);
+		vty_out(vty, " %sshutdown%s"
+			   , __test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags) ? "" : "no "
+			   , VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -245,17 +334,19 @@ int
 gtp_cdr_vty_init(void)
 {
 
-	/* Install PPPoE commands. */
+	/* Install CDR commands. */
 	install_node(&cdr_node);
 	install_element(CONFIG_NODE, &cdr_spool_cmd);
 	install_element(CONFIG_NODE, &no_cdr_spool_cmd);
 
-	install_element(PPPOE_NODE, &cdr_document_root_cmd);
-	install_element(PPPOE_NODE, &cdr_archive_root_cmd);
-	install_element(PPPOE_NODE, &cdr_file_prefix_cmd);
-	install_element(PPPOE_NODE, &cdr_file_roll_period_cmd);
-	install_element(PPPOE_NODE, &cdr_file_size_cmd);
-	install_element(PPPOE_NODE, &cdr_file_async_io_cmd);
+	install_element(CDR_NODE, &cdr_document_root_cmd);
+	install_element(CDR_NODE, &cdr_archive_root_cmd);
+	install_element(CDR_NODE, &cdr_file_prefix_cmd);
+	install_element(CDR_NODE, &cdr_file_roll_period_cmd);
+	install_element(CDR_NODE, &cdr_file_size_cmd);
+	install_element(CDR_NODE, &cdr_file_async_io_cmd);
+	install_element(CDR_NODE, &cdr_shutdown_cmd);
+	install_element(CDR_NODE, &cdr_no_shutdown_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cdr_cmd);

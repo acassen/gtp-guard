@@ -317,8 +317,10 @@ gtp_disk_write(map_file_t *map_file, off_t offset, const void *buf, size_t bsize
 {
 	void *cp, *end = map_file->map + map_file->fstat.st_size;
 
-	if (!map_file->map)
+	if (!map_file->map) {
+		errno = EINVAL;
 		return -1;
+	}
 
 	if (offset >= map_file->fstat.st_size) {
 		errno = ENOSPC;

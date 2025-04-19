@@ -520,6 +520,15 @@ gtp_apn_get(const char *name)
 	return NULL;
 }
 
+int
+gtp_apn_cdr_commit(gtp_apn_t *apn, gtp_cdr_t *cdr)
+{
+	if (!apn->cdr_spool)
+		return -1;
+
+	return gtp_cdr_spool_q_add(apn->cdr_spool, cdr);
+}
+
 static int
 gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
 {

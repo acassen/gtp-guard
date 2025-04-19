@@ -279,7 +279,6 @@ gtp_cdr_file_create(gtp_cdr_file_t *f)
 				    , __FUNCTION__
 				    , map_file->path);
 		gtp_disk_close(f->file);
-		FREE(map_file);
 		f->file = NULL;
 		return -1;
 	}

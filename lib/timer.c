@@ -136,7 +136,7 @@ set_mono_offset(struct timespec *ts)
  * It will normally return 0, unless <now> is NULL, in which case it will
  * return -1 and set errno to EFAULT.
  */
-static int
+int
 monotonic_gettimeofday(timeval_t *now)
 {
 	static struct timespec mono_offset;
@@ -313,7 +313,7 @@ timer_thread_fired(timer_thread_t *t, timeval_t *now)
 	pthread_mutex_unlock(&t->timer_mutex);
 }
 
-static void
+void
 timespec_add_now_ms(struct timespec *t, timeval_t *now, unsigned long ms)
 {
 	t->tv_sec = now->tv_sec;
