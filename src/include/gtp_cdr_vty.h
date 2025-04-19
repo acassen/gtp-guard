@@ -19,36 +19,10 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_CDR_SPOOL_H
-#define _GTP_CDR_SPOOL_H
-
-/* Flags */
-enum gtp_cdr_file_flags {
-	GTP_CDR_SPOOL_FL_ASYNC_BIT,
-};
-
-/* Spool data structure */
-typedef struct _gtp_cdr_spool {
-	char			name[GTP_STR_MAX_LEN];
-	char			document_root[GTP_PATH_MAX_LEN];
-	char			archive_root[GTP_PATH_MAX_LEN];
-	char			prefix[GTP_NAME_MAX_LEN];
-	int			roll_period;
-
-	gtp_cdr_file_t		*cdr_file;
-	size_t			cdr_file_size;
-
-	list_head_t		next;
-
-	int			refcnt;
-	unsigned long		flags;
-} gtp_cdr_spool_t;
-
+#ifndef _GTP_CDR_VTY_H
+#define _GTP_CDR_VTY_H
 
 /* Prototypes */
-extern gtp_cdr_spool_t *gtp_cdr_spool_get(const char *);
-extern int gtp_cdr_spool_put(gtp_cdr_spool_t *);
-extern gtp_cdr_spool_t *gtp_cdr_spool_alloc(const char *);
-extern int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);
+extern int gtp_cdr_vty_init(void);
 
 #endif

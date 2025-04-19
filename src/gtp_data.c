@@ -276,6 +276,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->pppoe);
 	INIT_LIST_HEAD(&new->pppoe_bundle);
 	INIT_LIST_HEAD(&new->gtp_apn);
+	INIT_LIST_HEAD(&new->gtp_cdr);
 	INIT_LIST_HEAD(&new->gtp_switch_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
 
@@ -304,6 +305,7 @@ free_daemon_data(void)
 	gtp_teid_destroy();
 	gtp_mirror_destroy();
 	gtp_vrf_destroy();
+	gtp_cdr_spool_destroy(NULL);
 	gtp_apn_destroy();
 	FREE(daemon_data);
 }

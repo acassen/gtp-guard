@@ -35,10 +35,12 @@
 static int
 gtp_cdr_file_header_sync(gtp_cdr_file_t *f)
 {
+	gtp_cdr_spool_t *s = f->spool;
+
 	map_file_t *map_file = f->file;
 	int hlen = sizeof(gtp_cdr_file_header_t);
-	int sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &f->flags) ? GTP_DISK_ASYNC :
-								      GTP_DISK_SYNC;
+	int sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
+								       GTP_DISK_SYNC;
 	return gtp_disk_msync_offset(map_file, 0, hlen, sync);
 }
 
@@ -84,6 +86,7 @@ gtp_cdr_file_roll(gtp_cdr_file_t *f)
 int
 gtp_cdr_file_write(gtp_cdr_file_t *f, const void *buf, size_t bsize)
 {
+	gtp_cdr_spool_t *s = f->spool;
 	map_file_t *map_file;
 	gtp_cdr_file_header_t *h;
 	gtp_cdr_header_t *cdrh;
@@ -145,8 +148,8 @@ retry:
 	cdrh->clen = htons(bsize);
 	cdrh->magic = GTP_CDR_MAGIC;
 
-	sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &f->flags) ? GTP_DISK_ASYNC :
-								  GTP_DISK_SYNC;
+	sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
+								   GTP_DISK_SYNC;
 	err = gtp_disk_msync_offset(map_file, offset
 					    , bsize + sizeof(gtp_cdr_header_t)
 					    , sync);

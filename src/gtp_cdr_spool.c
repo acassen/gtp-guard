@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <pthread.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
@@ -31,12 +32,41 @@
 /* local includes */
 #include "gtp_guard.h"
 
+/* Extern data */
+extern data_t *daemon_data;
 
+/* Local data */
+pthread_mutex_t gtp_cdr_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 
 gtp_cdr_spool_t *
-gtp_cdr_spool_alloc(void)
+gtp_cdr_spool_get(const char *name)
+{
+	gtp_cdr_spool_t *s;
+
+	pthread_mutex_lock(&gtp_cdr_mutex);
+	list_for_each_entry(s, &daemon_data->gtp_cdr, next) {
+		if (!strncmp(s->name, name, GTP_STR_MAX_LEN)) {
+			pthread_mutex_unlock(&gtp_cdr_mutex);
+			__sync_add_and_fetch(&s->refcnt, 1);
+			return s;
+		}
+	}
+	pthread_mutex_unlock(&gtp_cdr_mutex);
+
+	return NULL;
+}
+
+int
+gtp_cdr_spool_put(gtp_cdr_spool_t *s)
+{
+	__sync_sub_and_fetch(&s->refcnt, 1);
+	return 0;
+}
+
+gtp_cdr_spool_t *
+gtp_cdr_spool_alloc(const char *name)
 {
 	gtp_cdr_spool_t *n;
 	gtp_cdr_file_t *f;
@@ -47,16 +77,50 @@ gtp_cdr_spool_alloc(void)
 		return NULL;
 	}
 
+	INIT_LIST_HEAD(&n->next);
+	bsd_strlcpy(n->name, name, GTP_STR_MAX_LEN);
 	f = gtp_cdr_file_alloc();
 	n->cdr_file = f;
 	f->spool = n;
+
+	pthread_mutex_lock(&gtp_cdr_mutex);
+	list_add_tail(&n->next, &daemon_data->gtp_cdr);
+	pthread_mutex_unlock(&gtp_cdr_mutex);
+
 	return n;
 }
 
-int
-gtp_cdr_spool_destroy(gtp_cdr_spool_t *s)
+static int
+__gtp_cdr_spool_destroy(gtp_cdr_spool_t *s)
 {
 	gtp_cdr_file_destroy(s->cdr_file);
+	list_head_del(&s->next);
 	FREE(s);
 	return 0;
+}
+
+int
+gtp_cdr_spool_destroy(gtp_cdr_spool_t *spool)
+{
+	list_head_t *l = &daemon_data->gtp_cdr;
+	gtp_cdr_spool_t *s, *_s;
+	int err = 0;
+
+	pthread_mutex_lock(&gtp_cdr_mutex);
+	if (spool) {
+		if (__sync_add_and_fetch(&spool->refcnt, 0)) {
+			err = -1;
+			goto end;
+		}
+
+		__gtp_cdr_spool_destroy(spool);
+		goto end;
+	}
+
+	list_for_each_entry_safe(s, _s, l, next)
+		__gtp_cdr_spool_destroy(s);
+
+end:
+	pthread_mutex_unlock(&gtp_cdr_mutex);
+	return err;
 }

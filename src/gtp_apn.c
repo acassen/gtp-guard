@@ -553,10 +553,10 @@ DEFUN(apn,
 {
         gtp_apn_t *new;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	new = gtp_apn_get(argv[0]);
 	if (new) {
@@ -1370,8 +1370,8 @@ DEFUN(apn_hplmn,
 	return CMD_SUCCESS;
 }
 
-DEFUN(apn_no_hplmn,
-      apn_no_hplmn_cmd,
+DEFUN(no_apn_hplmn,
+      no_apn_hplmn_cmd,
       "no hplmn INTEGER",
       "Undefine a HPLMN\n"
       "PLMN\n")
@@ -1399,6 +1399,58 @@ DEFUN(apn_no_hplmn,
 	}
 
 	gtp_apn_hplmn_del(apn, hplmn);
+	return CMD_SUCCESS;
+}
+
+DEFUN(apn_cdr_spool,
+      apn_cdr_spool_cmd,
+      "cdr-spool STRING",
+      "Use a CDR Spool\n"
+      "Name\n")
+{
+	gtp_apn_t *apn = vty->index;
+	gtp_cdr_spool_t *s;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (apn->cdr_spool) {
+		vty_out(vty, "%% cdr-spool already configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	s = gtp_cdr_spool_get(argv[0]);
+	if (!s) {
+		vty_out(vty, "%% unknown cdr-spool %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	apn->cdr_spool = s;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_apn_cdr_spool,
+      no_apn_cdr_spool_cmd,
+      "no cdr-spool",
+      "Use a CDR Spool\n"
+      "Name\n")
+{
+	gtp_apn_t *apn = vty->index;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (!apn->cdr_spool) {
+		vty_out(vty, "%% no cdr-spool configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_cdr_spool_put(apn->cdr_spool);
+	apn->cdr_spool = NULL;
 	return CMD_SUCCESS;
 }
 
@@ -1578,7 +1630,9 @@ gtp_apn_vty_init(void)
 	install_element(APN_NODE, &apn_ip_vrf_forwarding_cmd);
 	install_element(APN_NODE, &apn_gtp_session_uniq_ptype_cmd);
 	install_element(APN_NODE, &apn_hplmn_cmd);
-	install_element(APN_NODE, &apn_no_hplmn_cmd);
+	install_element(APN_NODE, &no_apn_hplmn_cmd);
+	install_element(APN_NODE, &apn_cdr_spool_cmd);
+	install_element(APN_NODE, &no_apn_cdr_spool_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);

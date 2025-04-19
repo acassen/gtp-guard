@@ -35,7 +35,7 @@ OBJS = 	main.o gtp_data.o gtp_vty.o gtp_if.o gtp_server.o			\
 	gtp_switch_hdl_v1.o gtp_switch_hdl_v2.o gtp_router.o gtp_router_vty.o	\
 	gtp_router_hdl.o gtp_pppoe.o gtp_pppoe_session.o gtp_pppoe_proto.o	\
 	gtp_pppoe_vty.o	gtp_pppoe_monitor.o gtp_ppp.o gtp_cdr.o gtp_cdr_asn1.o	\
-	gtp_cdr_file.o gtp_cdr_spool.o
+	gtp_cdr_file.o gtp_cdr_spool.o gtp_cdr_vty.o
 
 HEADERS = $(OBJS:.o=.h)
 

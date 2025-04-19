@@ -51,6 +51,7 @@ typedef enum _node_type {
 	PPPOE_BUNDLE_NODE,				/* PPPoE Bundle commands. */
 	IP_VRF_NODE,					/* IP VRF commands. */
 	APN_NODE,					/* APN commands. */
+	CDR_NODE,					/* CDR commands. */
 	GTP_SWITCH_NODE,				/* GTP Switch commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
 

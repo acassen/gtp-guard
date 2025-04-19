@@ -105,6 +105,7 @@ typedef struct _gtp_apn {
 	gtp_ip_pool_t		*ip_pool;
 	ip_vrf_t		*vrf;
 	gtp_plmn_t		egci_plmn;
+	gtp_cdr_spool_t		*cdr_spool;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;

@@ -290,7 +290,7 @@ write_cdr_file(const void *buf, size_t bsize)
 	s->roll_period = 60;
 	s->cdr_file_size = 1*1024*1024; /* 1MB test file */
 	f = s->cdr_file;
-	__set_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &f->flags);
+	__set_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags);
 
 	err = gtp_cdr_file_create(f);
 	if (err) {

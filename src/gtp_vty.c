@@ -936,6 +936,7 @@ gtp_vty_init(void)
 	/* Install other VTY */
 	gtp_pppoe_vty_init();
 	gtp_vrf_vty_init();
+	gtp_cdr_vty_init();
 	gtp_apn_vty_init();
 	gtp_switch_vty_init();
 	gtp_router_vty_init();

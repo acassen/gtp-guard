@@ -22,11 +22,6 @@
 #ifndef _GTP_CDR_FILE_H
 #define _GTP_CDR_FILE_H
 
-/* Flags */
-enum gtp_cdr_file_flags {
-	GTP_CDR_FILE_FL_ASYNC_BIT,
-};
-
 /* Defines */
 #define GTP_CDR_MAGIC			0x0707
 #define GTP_CDR_DEFAULT_FSIZE		10*1024*1024
@@ -56,8 +51,6 @@ typedef struct _gtp_cdr_file {
 
 	map_file_t		*file;
 	uint8_t			file_seq;
-
-	unsigned long		flags;
 } gtp_cdr_file_t;
 
 
