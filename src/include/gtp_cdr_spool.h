@@ -19,54 +19,30 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_CDR_FILE_H
-#define _GTP_CDR_FILE_H
-
-/* Flags */
-enum gtp_cdr_file_flags {
-	GTP_CDR_FILE_FL_ASYNC_BIT,
-};
+#ifndef _GTP_CDR_SPOOL_H
+#define _GTP_CDR_SPOOL_H
 
 /* Defines */
 #define GTP_CDR_MAGIC			0x0707
 #define GTP_CDR_DEFAULT_FSIZE		10*1024*1024
 #define GTP_CDR_DEFAULT_ROLLPERIOD	7200
 
-/* File data structures */
-typedef struct _gtp_cdr_file_header {
-	uint32_t		flen;
-	uint32_t		hlen;
-	uint16_t		magic;
-	uint16_t		reserved;
-	uint64_t		file_creation_ts;
-	uint32_t		cdr_count;
-} __attribute__((packed)) gtp_cdr_file_header_t;
+typedef struct _gtp_cdr_spool {
+	char			desc[GTP_STR_MAX_LEN];
+	char			document_root[GTP_PATH_MAX_LEN];
+	char			archive_root[GTP_PATH_MAX_LEN];
+	char			prefix[GTP_NAME_MAX_LEN];
+	int			roll_period;
 
-typedef struct _gtp_cdr_header {
-	uint16_t		clen;
-	uint16_t		magic;
-} __attribute__((packed)) gtp_cdr_header_t;
+	gtp_cdr_file_t		*cdr_file;
+	size_t			cdr_file_size;
+} gtp_cdr_spool_t;
 
-typedef struct _gtp_cdr_file {
-	char			dst_path[GTP_PATH_MAX_LEN];
-	struct tm		date;
-	time_t			create_time;
-	time_t			roll_time;
-	struct _gtp_cdr_spool	*spool;		/* backpointer */
 
-	map_file_t		*file;
-	uint8_t			file_seq;
-
-	unsigned long		flags;
-} gtp_cdr_file_t;
 
 
 /* Prototypes */
-extern int gtp_cdr_file_header_init(gtp_cdr_file_t *);
-extern int gtp_cdr_file_write(gtp_cdr_file_t *, const void *, size_t);
-extern int gtp_cdr_file_create(gtp_cdr_file_t *);
-extern int gtp_cdr_file_close(gtp_cdr_file_t *);
-extern gtp_cdr_file_t *gtp_cdr_file_alloc(void);
-extern int gtp_cdr_file_destroy(gtp_cdr_file_t *f);
+extern gtp_cdr_spool_t *gtp_cdr_spool_alloc(void);
+extern int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);
 
 #endif

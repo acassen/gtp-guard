@@ -278,18 +278,21 @@ static int
 write_cdr_file(const void *buf, size_t bsize)
 {
 	gtp_cdr_spool_t *s;
+	gtp_cdr_file_t *f;
 	int err, i;
 
-	PMALLOC(s);
+	/* Init context */
+	s = gtp_cdr_spool_alloc();
 	bsd_strlcpy(s->document_root, document_root, GTP_PATH_MAX_LEN);
 	if (archive_root)
 		bsd_strlcpy(s->archive_root, archive_root, GTP_PATH_MAX_LEN);
 	bsd_strlcpy(s->prefix, "pGW-test_", GTP_PATH_MAX_LEN);
 	s->roll_period = 60;
 	s->cdr_file_size = 1*1024*1024; /* 1MB test file */
-	__set_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &s->flags);
+	f = s->cdr_file;
+	__set_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &f->flags);
 
-	err = gtp_cdr_file_create(s);
+	err = gtp_cdr_file_create(f);
 	if (err) {
 		fprintf(stderr, "error creating cdr file:%s (%m)\n", document_root);
 		goto end;
@@ -297,10 +300,10 @@ write_cdr_file(const void *buf, size_t bsize)
 
 	/* writing */
 	for (i = 0; i < 100000; i++) {
-		err = gtp_cdr_file_write(s, buf, bsize);
+		err = gtp_cdr_file_write(f, buf, bsize);
 		if (err) {
 			fprintf(stderr, "\n#%d error writing cdr file:%s (%m)\n"
-				      , i, s->cdr_file->path);
+				      , i, f->file->path);
 			goto end;
 		}
 
@@ -309,7 +312,7 @@ write_cdr_file(const void *buf, size_t bsize)
 	printf("\n");
 
 end:
-	gtp_cdr_file_spool_destroy(s);
+	gtp_cdr_spool_destroy(s);
 	return 0;
 }
 

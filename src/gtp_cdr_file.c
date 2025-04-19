@@ -33,19 +33,19 @@
 
 
 static int
-gtp_cdr_file_header_sync(gtp_cdr_spool_t *s)
+gtp_cdr_file_header_sync(gtp_cdr_file_t *f)
 {
-	map_file_t *map_file = s->cdr_file;
+	map_file_t *map_file = f->file;
 	int hlen = sizeof(gtp_cdr_file_header_t);
-	int sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
+	int sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &f->flags) ? GTP_DISK_ASYNC :
 								      GTP_DISK_SYNC;
 	return gtp_disk_msync_offset(map_file, 0, hlen, sync);
 }
 
 int
-gtp_cdr_file_header_init(gtp_cdr_spool_t *s)
+gtp_cdr_file_header_init(gtp_cdr_file_t *f)
 {
-	map_file_t *map_file = s->cdr_file;
+	map_file_t *map_file = f->file;
 	gtp_cdr_file_header_t *h;
 	int hlen = sizeof(gtp_cdr_file_header_t);
 
@@ -62,27 +62,27 @@ gtp_cdr_file_header_init(gtp_cdr_spool_t *s)
 	h->flen = htonl(hlen);
 	h->hlen = h->flen;
 	h->magic = GTP_CDR_MAGIC;
-	h->file_creation_ts = htobe64(s->create_time);
+	h->file_creation_ts = htobe64(f->create_time);
 
-	return gtp_cdr_file_header_sync(s);
+	return gtp_cdr_file_header_sync(f);
 }
 
 static int
-gtp_cdr_file_roll(gtp_cdr_spool_t *s)
+gtp_cdr_file_roll(gtp_cdr_file_t *f)
 {
-	map_file_t *map_file = s->cdr_file;
+	map_file_t *map_file = f->file;
 
 	if (!map_file)
 		return -1;
 
-	gtp_cdr_file_close(s);
-	s->cdr_file = NULL;
+	gtp_cdr_file_close(f);
+	f->file = NULL;
 
-	return gtp_cdr_file_create(s);
+	return gtp_cdr_file_create(f);
 }
 
 int
-gtp_cdr_file_write(gtp_cdr_spool_t *s, const void *buf, size_t bsize)
+gtp_cdr_file_write(gtp_cdr_file_t *f, const void *buf, size_t bsize)
 {
 	map_file_t *map_file;
 	gtp_cdr_file_header_t *h;
@@ -96,11 +96,11 @@ retry:
 		return -1;
 
 	/* Roll time reached ? */
-	if (time(NULL) > s->roll_time) {
+	if (time(NULL) > f->roll_time) {
 		log_message(LOG_INFO, "%s(): roll time reached Creating new file."
 				    , __FUNCTION__);
 
-		err = gtp_cdr_file_roll(s);
+		err = gtp_cdr_file_roll(f);
 		if (err) {
 			log_message(LOG_INFO, "%s(): Unable to create a new cdr file !!!"
 					    , __FUNCTION__);
@@ -109,7 +109,7 @@ retry:
 	}
 
 	/* Pointer */
-	map_file = s->cdr_file;
+	map_file = f->file;
 	h = (gtp_cdr_file_header_t *) map_file->map;
 	offset = ntohl(h->flen);
 
@@ -121,7 +121,7 @@ retry:
 					      " Creating new file."
 					    , __FUNCTION__
 					    , map_file->path);
-			err = gtp_cdr_file_roll(s);
+			err = gtp_cdr_file_roll(f);
 			if (err) {
 				log_message(LOG_INFO, "%s(): Unable to create a new cdr file !!!"
 						    , __FUNCTION__);
@@ -145,7 +145,7 @@ retry:
 	cdrh->clen = htons(bsize);
 	cdrh->magic = GTP_CDR_MAGIC;
 
-	sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
+	sync = __test_bit(GTP_CDR_FILE_FL_ASYNC_BIT, &f->flags) ? GTP_DISK_ASYNC :
 								  GTP_DISK_SYNC;
 	err = gtp_disk_msync_offset(map_file, offset
 					    , bsize + sizeof(gtp_cdr_header_t)
@@ -162,23 +162,19 @@ retry:
 	h->flen = htonl(offset);
 	h->cdr_count = htonl(ntohl(h->cdr_count) + 1);
 
-	return gtp_cdr_file_header_sync(s);
+	return gtp_cdr_file_header_sync(f);
 }
 
 static map_file_t *
-gtp_cdr_file_open(gtp_cdr_spool_t *s)
+gtp_cdr_file_open(gtp_cdr_file_t *f)
 {
+	gtp_cdr_spool_t *s = f->spool;
 	map_file_t *n;
 	time_t t;
 	int err;
 
-	if (s->cdr_file) {
+	if (f->file) {
 		errno = EEXIST;
-		return NULL;
-	}
-
-	if (!s->document_root[0]) {
-		errno = EINVAL;
 		return NULL;
 	}
 
@@ -198,16 +194,17 @@ gtp_cdr_file_open(gtp_cdr_spool_t *s)
 
 	/* Current time init */
 	t = time(NULL);
-	s->create_time = t;
-	s->roll_time = t + (s->roll_period) ? : GTP_CDR_DEFAULT_ROLLPERIOD;
+	f->create_time = t;
+	f->roll_time = t + (s->roll_period) ? : GTP_CDR_DEFAULT_ROLLPERIOD;
 
 	return n;
 }
 
 static int
-gtp_cdr_file_build_dst_path(gtp_cdr_spool_t *s, char *dst, size_t dsize, time_t t)
+gtp_cdr_file_build_dst_path(gtp_cdr_file_t *f, char *dst, size_t dsize, time_t t)
 {
-	struct tm *date = &s->date;
+	gtp_cdr_spool_t *s = f->spool;
+	struct tm *date = &f->date;
 	char filename[256];
 	char *document_root;
 	int err;
@@ -223,20 +220,20 @@ gtp_cdr_file_build_dst_path(gtp_cdr_spool_t *s, char *dst, size_t dsize, time_t 
 	/* Seq is 8bits so we only support 256 full cdr files creation per seconds.
 	 * which is enough to prevent against DDoS flooding impact on disk space.
 	 * In such a scenario simply consider it as a circular buffer. */
-	s->cdr_file_seq = (s->create_time == t) ? s->cdr_file_seq + 1 : 0;
+	f->file_seq = (f->create_time == t) ? f->file_seq + 1 : 0;
 	err = strftime(filename, sizeof(filename), "%Y%m%d%H%M%S", date);
 	err = (!err) ? -1 : snprintf(dst, dsize, "%s/%s%s%.3d"
 					       , document_root
 					       , (s->prefix[0]) ? s->prefix : "cdr_"
 					       , filename
-					       , s->cdr_file_seq);
+					       , f->file_seq);
 	return (err < 0);
 }
 
 int
-gtp_cdr_file_close(gtp_cdr_spool_t *s)
+gtp_cdr_file_close(gtp_cdr_file_t *f)
 {
-	map_file_t *map_file = s->cdr_file;
+	map_file_t *map_file = f->file;
 	gtp_cdr_file_header_t *h;
 	time_t t;
 	int err;
@@ -247,7 +244,7 @@ gtp_cdr_file_close(gtp_cdr_spool_t *s)
 	h = (gtp_cdr_file_header_t *) map_file->map;
 	t = be64toh(h->file_creation_ts);
 
-	err = gtp_cdr_file_build_dst_path(s, s->dst_path, GTP_PATH_MAX_LEN, t);
+	err = gtp_cdr_file_build_dst_path(f, f->dst_path, GTP_PATH_MAX_LEN, t);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Cant build filename...", __FUNCTION__);
 		goto end;
@@ -256,41 +253,55 @@ gtp_cdr_file_close(gtp_cdr_spool_t *s)
 	/* Resize, Close & Move to final dst */
 	gtp_disk_resize(map_file, ntohl(h->flen));
 	gtp_disk_close(map_file);
-	gtp_disk_mv(map_file->path, s->dst_path);
+	gtp_disk_mv(map_file->path, f->dst_path);
 end:
 	FREE(map_file);
 	return 0;
 }
 
 int
-gtp_cdr_file_create(gtp_cdr_spool_t *s)
+gtp_cdr_file_create(gtp_cdr_file_t *f)
 {
 	map_file_t *map_file;
 	int err;
 
-	map_file = gtp_cdr_file_open(s);
+	map_file = gtp_cdr_file_open(f);
 	if (!map_file)
 		return -1;
 
-	s->cdr_file = map_file;
-	err = gtp_cdr_file_header_init(s);
+	f->file = map_file;
+	err = gtp_cdr_file_header_init(f);
 	if (err) {
 		log_message(LOG_INFO, "%s(): error init header for cdr file:%s (%m)"
 				    , __FUNCTION__
 				    , map_file->path);
-		gtp_disk_close(s->cdr_file);
+		gtp_disk_close(f->file);
 		FREE(map_file);
-		s->cdr_file = NULL;
+		f->file = NULL;
 		return -1;
 	}
 
 	return 0;
 }
 
-int
-gtp_cdr_file_spool_destroy(gtp_cdr_spool_t *s)
+gtp_cdr_file_t *
+gtp_cdr_file_alloc(void)
 {
-	gtp_cdr_file_close(s);
-	FREE(s);
+	gtp_cdr_file_t *n;
+
+	PMALLOC(n);
+	if (!n) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	return n;
+}
+
+int
+gtp_cdr_file_destroy(gtp_cdr_file_t *f)
+{
+	gtp_cdr_file_close(f);
+	FREE(f);
 	return 0;
 }

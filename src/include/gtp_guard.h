@@ -68,6 +68,7 @@
 #include "gtp_cdr.h"
 #include "gtp_cdr_asn1.h"
 #include "gtp_cdr_file.h"
+#include "gtp_cdr_spool.h"
 #include "gtp_session.h"
 #include "gtp_dpd.h"
 #include "gtp_resolv.h"

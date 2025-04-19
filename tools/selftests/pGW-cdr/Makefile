@@ -28,7 +28,7 @@ SUBDIRS= ../../../lib
 OBJECTS= main.o ../../../src/gtp_msg.o ../../../src/gtp_cdr.o ../../../src/gtp_cdr_asn1.o	\
 	 ../../../src/gtp_utils.o ../../../src/gtp_apn.o  ../../../src/gtp_resolv.o		\
 	 ../../../src/gtp_vrf.o ../../../src/gtp_if.o ../../../src/gtp_disk.o			\
-	 ../../../src/gtp_cdr_file.o
+	 ../../../src/gtp_cdr_file.o ../../../src/gtp_cdr_spool.o
 
 .c.o:
 	@echo "  CC" $@
