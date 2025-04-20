@@ -124,7 +124,7 @@ gtp_vsqn_alloc(gtp_server_worker_t *w, gtp_teid_t *teid, bool set_msb)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
-	gtp_switch_t *ctx = srv->ctx;
+	gtp_proxy_t *ctx = srv->ctx;
 	uint32_t *sqn = &ctx->seqnum;
 	uint32_t sqn_max = ~(1 << 31) >> 8; /* MSB is reserved */
 	uint32_t vsqn;

@@ -277,7 +277,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->pppoe_bundle);
 	INIT_LIST_HEAD(&new->gtp_apn);
 	INIT_LIST_HEAD(&new->gtp_cdr);
-	INIT_LIST_HEAD(&new->gtp_switch_ctx);
+	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
 
 	return new;
@@ -292,14 +292,14 @@ free_daemon_data(void)
 		gtp_bpf_mirror_unload(&daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		gtp_bpf_opts_destroy(&daemon_data->xdp_gtp_route, gtp_bpf_rt_unload);
-	gtp_switch_server_destroy();
+	gtp_proxy_server_destroy();
 	gtp_router_server_destroy();
 	gtp_request_destroy();
 	gtp_pppoe_bundle_destroy();
 	gtp_pppoe_destroy();
 	gtp_sessions_destroy();
 	gtp_conn_destroy();
-	gtp_switch_destroy();
+	gtp_proxy_destroy();
 	gtp_router_destroy();
 	gtp_bpf_destroy();
 	gtp_teid_destroy();

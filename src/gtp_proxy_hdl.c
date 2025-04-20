@@ -49,7 +49,7 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
-	gtp_switch_t *ctx = srv->ctx;
+	gtp_proxy_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
 	gtp_session_t *s = NULL;
 	gtp_teid_t *teid;
@@ -101,12 +101,12 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 static const struct {
 	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
 } gtpc_msg_hdl[7] = {
-	[1]	= { gtpc_switch_handle_v1 },
-	[2]	= { gtpc_switch_handle_v2 },
+	[1]	= { gtpc_proxy_handle_v1 },
+	[2]	= { gtpc_proxy_handle_v2 },
 };
 
 gtp_teid_t *
-gtpc_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpc_proxy_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 
@@ -125,7 +125,7 @@ gtpc_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 }
 
 int
-gtpc_switch_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
+gtpc_proxy_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
 {
 	gtp_session_t *s;
 
@@ -172,7 +172,7 @@ static gtp_teid_t *
 gtpu_error_indication_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_server_t *srv = w->srv;
-	gtp_switch_t *ctx = srv->ctx;
+	gtp_proxy_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
 	uint8_t *cp;
@@ -221,7 +221,7 @@ gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	gtp_server_t *srv = w->srv;
-	gtp_switch_t *ctx = srv->ctx;
+	gtp_proxy_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
 	uint32_t field = gtph->teid;
@@ -266,7 +266,7 @@ static const struct {
 };
 
 gtp_teid_t *
-gtpu_switch_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpu_proxy_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
 	ssize_t len;

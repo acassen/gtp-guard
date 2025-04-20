@@ -52,7 +52,7 @@ typedef enum _node_type {
 	IP_VRF_NODE,					/* IP VRF commands. */
 	APN_NODE,					/* APN commands. */
 	CDR_NODE,					/* CDR commands. */
-	GTP_SWITCH_NODE,				/* GTP Switch commands. */
+	GTP_PROXY_NODE,					/* GTP Proxy commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
 
 	VTY_NODE,					/* Vty node. */

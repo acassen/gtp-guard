@@ -34,10 +34,10 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 static int gtp_config_write(vty_t *vty);
-cmd_node_t gtp_switch_node = {
-        .node = GTP_SWITCH_NODE,
+cmd_node_t gtp_proxy_node = {
+        .node = GTP_PROXY_NODE,
         .parent_node = CONFIG_NODE,
-        .prompt = "%s(gtp-switch)# ",
+        .prompt = "%s(gtp-proxy)# ",
         .config_write = gtp_config_write,
 };
 
@@ -45,13 +45,13 @@ cmd_node_t gtp_switch_node = {
 /*
  *	Command
  */
-DEFUN(gtp_switch,
-      gtp_switch_cmd,
-      "gtp-switch WORD",
-      "Configure GTP switching context\n"
+DEFUN(gtp_proxy,
+      gtp_proxy_cmd,
+      "gtp-proxy WORD",
+      "Configure GTP proxying context\n"
       "Context Name")
 {
-	gtp_switch_t *new;
+	gtp_proxy_t *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -59,22 +59,22 @@ DEFUN(gtp_switch,
 	}
 
 	/* Already existing ? */
-	new = gtp_switch_get(argv[0]);
+	new = gtp_proxy_get(argv[0]);
 	if (!new)
-		new = gtp_switch_init(argv[0]);
+		new = gtp_proxy_init(argv[0]);
 
-	vty->node = GTP_SWITCH_NODE;
+	vty->node = GTP_PROXY_NODE;
 	vty->index = new;
 	return CMD_SUCCESS;
 }
 
-DEFUN(no_gtp_switch,
-      no_gtp_switch_cmd,
-      "no gtp-switch WORD",
-      "Configure GTP switching context\n"
+DEFUN(no_gtp_proxy,
+      no_gtp_proxy_cmd,
+      "no gtp-proxy WORD",
+      "Configure GTP proxying context\n"
       "Context Name")
 {
-	gtp_switch_t *ctx;
+	gtp_proxy_t *ctx;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -82,37 +82,37 @@ DEFUN(no_gtp_switch,
 	}
 
 	/* Already existing ? */
-	ctx = gtp_switch_get(argv[0]);
+	ctx = gtp_proxy_get(argv[0]);
 	if (!ctx) {
 		vty_out(vty, "%% unknown gtp-switch %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	gtp_switch_ctx_server_destroy(ctx);
-	gtp_switch_ctx_destroy(ctx);
+	gtp_proxy_ctx_server_destroy(ctx);
+	gtp_proxy_ctx_destroy(ctx);
 	FREE(ctx);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtp_switch_direct_tx,
-      gtp_switch_direct_tx_cmd,
+DEFUN(gtp_proxy_direct_tx,
+      gtp_proxy_direct_tx_cmd,
       "direct-tx",
       "xmit packet to the same interface it was received on\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 
 	__set_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags);
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtp_switch_session_expiration_timeout_delete,
-      gtp_switch_session_expiration_timeout_delete_cmd,
+DEFUN(gtp_proxy_session_expiration_timeout_delete,
+      gtp_proxy_session_expiration_timeout_delete_cmd,
       "session-expiration-on-delete-timeout <5-300>",
       "Force session expiration if delete response is timeout\n"
       "number of seconds\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	int timeout;
 
 	if (argc < 1) {
@@ -127,8 +127,8 @@ DEFUN(gtp_switch_session_expiration_timeout_delete,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpc_switch_tunnel_endpoint,
-      gtpc_switch_tunnel_endpoint_cmd,
+DEFUN(gtpc_proxy_tunnel_endpoint,
+      gtpc_proxy_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Control channel ingress tunnel endpoint\n"
       "Bind IPv4 Address\n"
@@ -138,7 +138,7 @@ DEFUN(gtpc_switch_tunnel_endpoint,
       "max UDP listener pthreads\n"
       "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
         gtp_server_t *srv_egress = &ctx->gtpc_egress;
 	struct sockaddr_storage *addr = &srv->addr;
@@ -177,15 +177,15 @@ DEFUN(gtpc_switch_tunnel_endpoint,
 
 	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
 	__set_bit(GTP_FL_GTPC_INGRESS_BIT, &srv->flags);
-	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
 	gtp_server_start(srv);
-	gtp_switch_gtpc_socketpair_init(srv);
+	gtp_proxy_gtpc_socketpair_init(srv);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpc_switch_egress_tunnel_endpoint,
-      gtpc_switch_egress_tunnel_endpoint_cmd,
+DEFUN(gtpc_proxy_egress_tunnel_endpoint,
+      gtpc_proxy_egress_tunnel_endpoint_cmd,
       "gtpc-egress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Control channel egress tunnel endpoint\n"
       "Bind IPv4 Address\n"
@@ -195,7 +195,7 @@ DEFUN(gtpc_switch_egress_tunnel_endpoint,
       "max UDP listener pthreads\n"
       "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc_egress;
         gtp_server_t *srv_ingress = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->addr;
@@ -234,15 +234,15 @@ DEFUN(gtpc_switch_egress_tunnel_endpoint,
 
 	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
 	__set_bit(GTP_FL_GTPC_EGRESS_BIT, &srv->flags);
-	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
 	gtp_server_start(srv);
-	gtp_switch_gtpc_socketpair_init(srv);
+	gtp_proxy_gtpc_socketpair_init(srv);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_switch_tunnel_endpoint,
-      gtpu_switch_tunnel_endpoint_cmd,
+DEFUN(gtpu_proxy_tunnel_endpoint,
+      gtpu_proxy_tunnel_endpoint_cmd,
       "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Userplane channel tunnel endpoint\n"
       "Bind IPv4 Address\n"
@@ -252,7 +252,7 @@ DEFUN(gtpu_switch_tunnel_endpoint,
       "max UDP listener pthreads\n"
       "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
-	gtp_switch_t *ctx = vty->index;
+	gtp_proxy_t *ctx = vty->index;
 	gtp_server_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 2152, ret = 0;
@@ -282,14 +282,14 @@ DEFUN(gtpu_switch_tunnel_endpoint,
 	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 	__set_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags);
-	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
 	gtp_server_start(srv);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_switch_egress_tunnel_endpoint,
-      gtpu_switch_egress_tunnel_endpoint_cmd,
+DEFUN(gtpu_proxy_egress_tunnel_endpoint,
+      gtpu_proxy_egress_tunnel_endpoint_cmd,
       "gtpu-egress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
       "GTP Userplane channel tunnel endpoint\n"
       "Bind IPv4 Address\n"
@@ -299,7 +299,7 @@ DEFUN(gtpu_switch_egress_tunnel_endpoint,
       "max UDP listener pthreads\n"
       "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
 {
-	gtp_switch_t *ctx = vty->index;
+	gtp_proxy_t *ctx = vty->index;
 	gtp_server_t *srv = &ctx->gtpu_egress;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 2152, ret = 0;
@@ -329,7 +329,7 @@ DEFUN(gtpu_switch_egress_tunnel_endpoint,
 	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 	__set_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags);
-	gtp_server_init(srv, ctx, gtp_switch_ingress_init, gtp_switch_ingress_process);
+	gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
 	gtp_server_start(srv);
 
 	return CMD_SUCCESS;
@@ -342,7 +342,7 @@ DEFUN(gtpc_force_pgw_selection,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	struct sockaddr_storage *addr = &ctx->pgw_addr;
 	int ret;
 
@@ -378,7 +378,7 @@ DEFUN(gtpu_ipip,
       "Vlan ID\n"
       "Number\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
@@ -446,7 +446,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
       "Payload attached to DPD GTP packet\n"
       "Number\n")
 {
-	gtp_switch_t *ctx = vty->index;
+	gtp_proxy_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int credit, ifindex, plen, err;
 	uint32_t saddr;
@@ -517,7 +517,7 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent ingress encapsulation mode\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
@@ -547,7 +547,7 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent egress encapsulation mode\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
@@ -577,7 +577,7 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Untag VLAN header during decap\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
@@ -607,7 +607,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Untag VLAN header during decap\n")
 {
-        gtp_switch_t *ctx = vty->index;
+        gtp_proxy_t *ctx = vty->index;
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret, vlan;
 
@@ -647,10 +647,10 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 static int
 gtp_config_write(vty_t *vty)
 {
-        list_head_t *l = &daemon_data->gtp_switch_ctx;
+        list_head_t *l = &daemon_data->gtp_proxy_ctx;
 	char ifname[IF_NAMESIZE];
         gtp_server_t *srv;
-        gtp_switch_t *ctx;
+        gtp_proxy_t *ctx;
 
         list_for_each_entry(ctx, l, next) {
         	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);
@@ -739,28 +739,28 @@ gtp_config_write(vty_t *vty)
  *	VTY init
  */
 int
-gtp_switch_vty_init(void)
+gtp_proxy_vty_init(void)
 {
 
 	/* Install PDN commands. */
-	install_node(&gtp_switch_node);
-	install_element(CONFIG_NODE, &gtp_switch_cmd);
-	install_element(CONFIG_NODE, &no_gtp_switch_cmd);
+	install_node(&gtp_proxy_node);
+	install_element(CONFIG_NODE, &gtp_proxy_cmd);
+	install_element(CONFIG_NODE, &no_gtp_proxy_cmd);
 
-	install_default(GTP_SWITCH_NODE);
-	install_element(GTP_SWITCH_NODE, &gtp_switch_direct_tx_cmd);
-	install_element(GTP_SWITCH_NODE, &gtp_switch_session_expiration_timeout_delete_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpc_switch_tunnel_endpoint_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpc_switch_egress_tunnel_endpoint_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_switch_tunnel_endpoint_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_switch_egress_tunnel_endpoint_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpc_force_pgw_selection_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_ipip_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_ipip_dead_peer_detection_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
-	install_element(GTP_SWITCH_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
+	install_default(GTP_PROXY_NODE);
+	install_element(GTP_PROXY_NODE, &gtp_proxy_direct_tx_cmd);
+	install_element(GTP_PROXY_NODE, &gtp_proxy_session_expiration_timeout_delete_cmd);
+	install_element(GTP_PROXY_NODE, &gtpc_proxy_tunnel_endpoint_cmd);
+	install_element(GTP_PROXY_NODE, &gtpc_proxy_egress_tunnel_endpoint_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_proxy_tunnel_endpoint_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_proxy_egress_tunnel_endpoint_cmd);
+	install_element(GTP_PROXY_NODE, &gtpc_force_pgw_selection_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_dead_peer_detection_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
 
 	/* Install show commands */
 //	install_element(VIEW_NODE, &show_gtp_cmd);

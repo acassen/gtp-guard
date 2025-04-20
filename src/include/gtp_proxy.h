@@ -19,8 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_SWITCH_H
-#define _GTP_SWITCH_H
+#ifndef _GTP_PROXY_H
+#define _GTP_PROXY_H
 
 /* GTP Switching context */
 typedef struct _socket_pair {
@@ -28,7 +28,7 @@ typedef struct _socket_pair {
 	int	*fd_egress;
 } socket_pair_t;
 
-typedef struct _gtp_switch {
+typedef struct _gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];
 	gtp_server_t		gtpc;
 	gtp_server_t		gtpc_egress;
@@ -52,21 +52,21 @@ typedef struct _gtp_switch {
 	uint32_t		refcnt;
 
 	list_head_t		next;
-} gtp_switch_t;
+} gtp_proxy_t;
 
 
 /* Prototypes */
-extern int gtp_switch_gtpc_teid_destroy(gtp_teid_t *);
-extern int gtp_switch_gtpu_teid_destroy(gtp_teid_t *);
-extern int gtp_switch_ingress_init(gtp_server_worker_t *);
-extern int gtp_switch_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
-extern gtp_switch_t *gtp_switch_get(const char *);
-extern gtp_switch_t *gtp_switch_init(const char *);
-extern int gtp_switch_gtpc_socketpair_init(gtp_server_t *);
-extern int gtp_switch_ctx_server_destroy(gtp_switch_t *);
-extern int gtp_switch_ctx_destroy(gtp_switch_t *);
-extern int gtp_switch_server_destroy(void);
-extern int gtp_switch_destroy(void);
-extern int gtp_switch_vty_init(void);
+extern int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *);
+extern int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *);
+extern int gtp_proxy_ingress_init(gtp_server_worker_t *);
+extern int gtp_proxy_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
+extern gtp_proxy_t *gtp_proxy_get(const char *);
+extern gtp_proxy_t *gtp_proxy_init(const char *);
+extern int gtp_proxy_gtpc_socketpair_init(gtp_server_t *);
+extern int gtp_proxy_ctx_server_destroy(gtp_proxy_t *);
+extern int gtp_proxy_ctx_destroy(gtp_proxy_t *);
+extern int gtp_proxy_server_destroy(void);
+extern int gtp_proxy_destroy(void);
+extern int gtp_proxy_vty_init(void);
 
 #endif

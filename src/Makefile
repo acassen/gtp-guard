@@ -31,8 +31,8 @@ OBJS = 	main.o gtp_data.o gtp_vty.o gtp_if.o gtp_server.o			\
 	gtp_resolv.o gtp_sched.o gtp_disk.o gtp_utils.o gtp_utils_uli.o		\
 	gtp_cmd.o gtp_request.o	gtp_dpd.o gtp_bpf.o gtp_bpf_fwd.o		\
 	gtp_bpf_mirror.o gtp_bpf_rt.o gtp_bpf_iptnl.o gtp_bpf_ppp.o gtp_msg.o	\
-	gtp_vrf.o gtp_vrf_vty.o	gtp_switch.o gtp_switch_vty.o gtp_switch_hdl.o	\
-	gtp_switch_hdl_v1.o gtp_switch_hdl_v2.o gtp_router.o gtp_router_vty.o	\
+	gtp_vrf.o gtp_vrf_vty.o	gtp_proxy.o gtp_proxy_vty.o gtp_proxy_hdl.o	\
+	gtp_proxy_hdl_v1.o gtp_proxy_hdl_v2.o gtp_router.o gtp_router_vty.o	\
 	gtp_router_hdl.o gtp_pppoe.o gtp_pppoe_session.o gtp_pppoe_proto.o	\
 	gtp_pppoe_vty.o	gtp_pppoe_monitor.o gtp_ppp.o gtp_cdr.o gtp_cdr_asn1.o	\
 	gtp_cdr_file.o gtp_cdr_spool.o gtp_cdr_vty.o gtp_stats.o

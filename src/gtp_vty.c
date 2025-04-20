@@ -938,7 +938,7 @@ gtp_vty_init(void)
 	gtp_vrf_vty_init();
 	gtp_cdr_vty_init();
 	gtp_apn_vty_init();
-	gtp_switch_vty_init();
+	gtp_proxy_vty_init();
 	gtp_router_vty_init();
 	gtp_sessions_vty_init();
 
