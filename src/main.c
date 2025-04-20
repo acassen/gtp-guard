@@ -76,7 +76,7 @@ start_gtp(void)
 	vty_init();
 	gtp_vty_init();
 	sort_node();
-	gtp_xdp_init();
+	gtp_bpf_init();
 	gtp_conn_init();
 	gtp_teid_init();
 	gtp_sessions_init();

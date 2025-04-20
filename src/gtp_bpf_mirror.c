@@ -49,7 +49,7 @@ static struct bpf_map *xdp_mirror_map;
  *	Mirroring handling
  */
 static int
-gtp_xdp_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
+gtp_bpf_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
 {
 	r->addr = ((struct sockaddr_in *) &m->addr)->sin_addr.s_addr;
 	r->port = ((struct sockaddr_in *) &m->addr)->sin_port;
@@ -59,7 +59,7 @@ gtp_xdp_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
 }
 
 int
-gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
+gtp_bpf_mirror_action(int action, gtp_mirror_rule_t *m)
 {
 	struct bpf_map *map = xdp_mirror_map;
 	struct gtp_mirror_rule r;
@@ -74,7 +74,7 @@ gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
 		return 0;
 
 	memset(&r, 0, sizeof(struct gtp_mirror_rule));
-	gtp_xdp_mirror_rule_set(&r, m);
+	gtp_bpf_mirror_rule_set(&r, m);
 
 	if (action == RULE_ADD) {
 		err = bpf_map__update_elem(map, &r.addr, sizeof(uint32_t)
@@ -108,7 +108,7 @@ gtp_xdp_mirror_action(int action, gtp_mirror_rule_t *m)
 }
 
 int
-gtp_xdp_mirror_vty(vty_t *vty)
+gtp_bpf_mirror_vty(vty_t *vty)
 {
 	struct bpf_map *map = xdp_mirror_map;
 	__be32 key, next_key;
@@ -149,7 +149,7 @@ gtp_xdp_mirror_vty(vty_t *vty)
 }
 
 static int
-gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
+gtp_bpf_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
@@ -169,7 +169,7 @@ gtp_xdp_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
 }
 
 static int
-gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direction,
+gtp_bpf_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direction,
 		      const struct bpf_program *bpf_prog)
 {
 	DECLARE_LIBBPF_OPTS(bpf_tc_opts, tc_opts, .handle = 1, .priority = 0,
@@ -195,7 +195,7 @@ gtp_xdp_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direc
 }
 
 void
-gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
+gtp_bpf_mirror_unload(gtp_bpf_opts_t *opts)
 {
 	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
@@ -205,7 +205,7 @@ gtp_xdp_mirror_unload(gtp_bpf_opts_t *opts)
 }
 
 int
-gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
+gtp_bpf_mirror_load(gtp_bpf_opts_t *opts)
 {
 	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
@@ -214,14 +214,14 @@ gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
 	int err = 0;
 
 	/* Load eBPF prog */
-	bpf_prog = gtp_xdp_load_prog(opts);
+	bpf_prog = gtp_bpf_load_prog(opts);
 	if (!bpf_prog)
 		return -1;
 
 	/* Create Qdisc Clsact & attach {in,e}gress filters */
-	err = err ? : gtp_xdp_qdisc_clsact_add(&q_hook);
-	err = err ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
-	err = err ? : gtp_xdp_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
+	err = err ? : gtp_bpf_qdisc_clsact_add(&q_hook);
+	err = err ? : gtp_bpf_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
+	err = err ? : gtp_bpf_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
 	if (err) {
 		bpf_object__close(opts->bpf_obj);
 		return -1;
@@ -229,7 +229,7 @@ gtp_xdp_mirror_load(gtp_bpf_opts_t *opts)
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "mirror_rules");
 	if (!map) {
-		gtp_xdp_mirror_unload(opts);
+		gtp_bpf_mirror_unload(opts);
 		return -1;
 	}
 	xdp_mirror_map = map;

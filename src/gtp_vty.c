@@ -118,7 +118,7 @@ DEFUN(pdn_xdp_gtp_route,
 	}
 
 	opts = gtp_bpf_opts_alloc();
-	err = gtp_bpf_opts_load(opts, vty, argc, argv, gtp_xdp_rt_load);
+	err = gtp_bpf_opts_load(opts, vty, argc, argv, gtp_bpf_rt_load);
 	if (err) {
 		FREE(opts);
 		return CMD_WARNING;
@@ -142,7 +142,7 @@ DEFUN(no_pdn_xdp_gtp_route,
 		return CMD_WARNING;
 	}
 
-	gtp_bpf_opts_destroy(l, gtp_xdp_rt_unload);
+	gtp_bpf_opts_destroy(l, gtp_bpf_rt_unload);
 
         vty_out(vty, "Success unloading eBPF xdp-gtp-route programs%s"
                    , VTY_NEWLINE);
@@ -169,7 +169,7 @@ DEFUN(pdn_xdp_gtp_forward,
 	}
 
 	err = gtp_bpf_opts_load(&daemon_data->xdp_gtp_forward, vty, argc, argv,
-				gtp_xdp_fwd_load);
+				gtp_bpf_fwd_load);
 	if (err)
 		return CMD_WARNING;
 
@@ -190,7 +190,7 @@ DEFUN(no_pdn_xdp_gtp_forward,
 		return CMD_WARNING;
 	}
 
-        gtp_xdp_fwd_unload(opts);
+        gtp_bpf_fwd_unload(opts);
 
         /* Reset data */
 	memset(opts, 0, sizeof(gtp_bpf_opts_t));
@@ -221,7 +221,7 @@ DEFUN(pdn_xdp_mirror,
 	}
 
 	err = gtp_bpf_opts_load(&daemon_data->xdp_mirror, vty, argc, argv,
-				gtp_xdp_mirror_load);
+				gtp_bpf_mirror_load);
 	if (err)
 		return CMD_WARNING;
 
@@ -242,7 +242,7 @@ DEFUN(no_pdn_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-        gtp_xdp_mirror_unload(opts);
+        gtp_bpf_mirror_unload(opts);
 
         /* Reset data */
 	memset(opts, 0, sizeof(gtp_bpf_opts_t));
@@ -385,7 +385,7 @@ DEFUN(pdn_mirror,
 
 	r = gtp_mirror_rule_add(&addr, protocol, ifindex);
 
-	err = gtp_xdp_mirror_action(RULE_ADD, r);
+	err = gtp_bpf_mirror_action(RULE_ADD, r);
 	if (err) {
 		vty_out(vty, "%% Error while setting XDP mirroring rule%s"
 			   , VTY_NEWLINE);
@@ -428,7 +428,7 @@ DEFUN(no_pdn_mirror,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_mirror_action(RULE_DEL, r);
+	err = gtp_bpf_mirror_action(RULE_DEL, r);
 	if (err) {
 		vty_out(vty, "%% Error while removing XDP mirroring rule%s"
 			   , VTY_NEWLINE);
@@ -521,7 +521,7 @@ DEFUN(show_xdp_forwarding,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_fwd_vty(vty);
+	err = gtp_bpf_fwd_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -545,7 +545,7 @@ DEFUN(show_xdp_forwarding_iptnl,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_fwd_iptnl_vty(vty);
+	err = gtp_bpf_fwd_iptnl_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -569,7 +569,7 @@ DEFUN(show_xdp_forwarding_mac_learning,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_fwd_mac_learning_vty(vty);
+	err = gtp_bpf_fwd_mac_learning_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -593,7 +593,7 @@ DEFUN(show_xdp_routing,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_rt_vty(vty);
+	err = gtp_bpf_rt_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -617,7 +617,7 @@ DEFUN(show_xdp_routing_iptnl,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_rt_iptnl_vty(vty);
+	err = gtp_bpf_rt_iptnl_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -641,7 +641,7 @@ DEFUN(show_xdp_routing_mac_learning,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_rt_mac_learning_vty(vty);
+	err = gtp_bpf_rt_mac_learning_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -665,7 +665,7 @@ DEFUN(show_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-	err = gtp_xdp_mirror_vty(vty);
+	err = gtp_bpf_mirror_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);

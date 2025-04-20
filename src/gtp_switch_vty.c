@@ -420,7 +420,7 @@ DEFUN(gtpu_ipip,
 	t->local_addr = laddr;
 	t->remote_addr = raddr;
 	t->encap_vlan_id = vlan;
-	ret = gtp_xdp_fwd_iptnl_action(RULE_ADD, t);
+	ret = gtp_bpf_fwd_iptnl_action(RULE_ADD, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to create XDP IPIP-Tunnel%s", VTY_NEWLINE);
 		memset(t, 0, sizeof(gtp_iptnl_t));
@@ -532,7 +532,7 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
 	}
 
 	t->flags |= IPTNL_FL_TRANSPARENT_INGRESS_ENCAP;
-	ret = gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
+	ret = gtp_bpf_fwd_iptnl_action(RULE_UPDATE, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to update XDP IPIP-Tunnel%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -562,7 +562,7 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
 	}
 
 	t->flags |= IPTNL_FL_TRANSPARENT_EGRESS_ENCAP;
-	ret = gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
+	ret = gtp_bpf_fwd_iptnl_action(RULE_UPDATE, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to update XDP IPIP-Tunnel%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -592,7 +592,7 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
 	}
 
 	t->flags |= IPTNL_FL_UNTAG_VLAN;
-	ret = gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
+	ret = gtp_bpf_fwd_iptnl_action(RULE_UPDATE, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to update XDP IPIP-Tunnel%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -631,7 +631,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 
 	t->flags |= IPTNL_FL_TAG_VLAN;
 	t->decap_vlan_id = vlan;
-	ret = gtp_xdp_fwd_iptnl_action(RULE_UPDATE, t);
+	ret = gtp_bpf_fwd_iptnl_action(RULE_UPDATE, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to update XDP IPIP-Tunnel%s", VTY_NEWLINE);
 		return CMD_WARNING;

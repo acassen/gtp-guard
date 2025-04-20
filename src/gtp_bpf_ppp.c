@@ -46,7 +46,7 @@ extern data_t *daemon_data;
  *	PPP Handling
  */
 static struct gtp_rt_rule *
-gtp_xdp_ppp_rule_alloc(size_t *sz)
+gtp_bpf_ppp_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_rt_rule *new;
@@ -60,7 +60,7 @@ gtp_xdp_ppp_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
+gtp_bpf_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	gtp_session_t *s = t->session;
@@ -104,7 +104,7 @@ gtp_xdp_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 }
 
 static int
-gtp_xdp_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
+gtp_bpf_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
 {
 	/* Set PPP routing key */
 	memcpy(ppp_k->hw, &spppoe->hw_src, ETH_ALEN);
@@ -113,7 +113,7 @@ gtp_xdp_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
 }
 
 static int
-gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
+gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
 {
 	gtp_session_t *s = t->session;
 	spppoe_t *spppoe = s->s_pppoe;
@@ -125,21 +125,21 @@ gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifind
 	size_t sz;
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
-		gtp_xdp_rt_key_set(t, &rt_k);
+		gtp_bpf_rt_key_set(t, &rt_k);
 	else
-		gtp_xdp_ppp_key_set(t, &ppp_k, spppoe);
+		gtp_bpf_ppp_key_set(t, &ppp_k, spppoe);
 
 	/* Set rule */
 	if (action == RULE_ADD) {
 		/* fill per cpu rule */
-		new = gtp_xdp_ppp_rule_alloc(&sz);
+		new = gtp_bpf_ppp_rule_alloc(&sz);
 		if (!new) {
 			log_message(LOG_INFO, "%s(): Cant allocate teid_rule !!!"
 					    , __FUNCTION__);
 			err = -1;
 			goto end;
 		}
-		gtp_xdp_ppp_rule_set(new, t, spppoe);
+		gtp_bpf_ppp_rule_set(new, t, spppoe);
 		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
 			err = bpf_map__update_elem(map, &rt_k, sizeof(struct ip_rt_key),
 						   new, sz, BPF_NOEXIST);
@@ -176,7 +176,7 @@ gtp_xdp_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifind
 }
 
 static int
-gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
+gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key rt_k = { 0 };
@@ -190,7 +190,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
 	size_t sz;
 
 	/* Allocate temp rule */
-	r = gtp_xdp_ppp_rule_alloc(&sz);
+	r = gtp_bpf_ppp_rule_alloc(&sz);
 	if (!r) {
 		vty_out(vty, "%% Cant allocate temp rt_rule%s", VTY_NEWLINE);
 		return -1;
@@ -201,13 +201,13 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
 		spppoe = s->s_pppoe;
 
 		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
-			gtp_xdp_rt_key_set(t, &rt_k);
+			gtp_bpf_rt_key_set(t, &rt_k);
 			err = bpf_map__lookup_elem(map, &rt_k, sizeof(struct ip_rt_key), r, sz, 0);
 		} else {
 			if (!spppoe)
 				goto end;
 
-			gtp_xdp_ppp_key_set(t, &ppp_k, spppoe);
+			gtp_bpf_ppp_key_set(t, &ppp_k, spppoe);
 			err = bpf_map__lookup_elem(map, &ppp_k, sizeof(struct ppp_key), r, sz, 0);
 		}
 
@@ -259,7 +259,7 @@ gtp_xdp_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
 }
 
 int
-gtp_xdp_ppp_action(int action, gtp_teid_t *t, int ifindex,
+gtp_bpf_ppp_action(int action, gtp_teid_t *t, int ifindex,
 		   struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
 	/* If daemon is currently stopping, we simply skip action on ruleset.
@@ -269,25 +269,25 @@ gtp_xdp_ppp_action(int action, gtp_teid_t *t, int ifindex,
 		return 0;
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
-		return gtp_xdp_ppp_map_action(map_egress, action, t, ifindex);
+		return gtp_bpf_ppp_map_action(map_egress, action, t, ifindex);
 
-	return gtp_xdp_ppp_map_action(map_ingress, action, t, ifindex);
+	return gtp_bpf_ppp_map_action(map_ingress, action, t, ifindex);
 }
 
 int
-gtp_xdp_ppp_teid_vty(vty_t *vty, gtp_teid_t *t, int ifindex,
+gtp_bpf_ppp_teid_vty(vty_t *vty, gtp_teid_t *t, int ifindex,
 		     struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
 	int err = 0;
 
 	if (!t) {
-		err = (map_ingress) ? gtp_xdp_teid_vty(map_ingress, vty, NULL, ifindex) : 0;
-		err = (err) ? : (map_egress) ? gtp_xdp_teid_vty(map_egress, vty, NULL, ifindex) : 0;
+		err = (map_ingress) ? gtp_bpf_teid_vty(map_ingress, vty, NULL, ifindex) : 0;
+		err = (err) ? : (map_egress) ? gtp_bpf_teid_vty(map_egress, vty, NULL, ifindex) : 0;
 		return err;
 	}
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
-		return gtp_xdp_teid_vty(map_egress, vty, t, ifindex);
+		return gtp_bpf_teid_vty(map_egress, vty, t, ifindex);
 
-	return gtp_xdp_teid_vty(map_ingress, vty, t, ifindex);
+	return gtp_bpf_teid_vty(map_ingress, vty, t, ifindex);
 }

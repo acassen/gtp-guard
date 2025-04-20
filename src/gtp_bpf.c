@@ -49,7 +49,7 @@ static const char *pin_basedir = "/sys/fs/bpf";
  *	XDP common helpers
  */
 static struct port_mac_address *
-gtp_xdp_port_mac_address_alloc(size_t *sz)
+gtp_bpf_port_mac_address_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct port_mac_address *new;
@@ -63,7 +63,7 @@ gtp_xdp_port_mac_address_alloc(size_t *sz)
 }
 
 int
-gtp_xdp_mac_learning_vty(vty_t *vty, struct bpf_map *map)
+gtp_bpf_mac_learning_vty(vty_t *vty, struct bpf_map *map)
 {
 	struct port_mac_address *pma;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -71,7 +71,7 @@ gtp_xdp_mac_learning_vty(vty_t *vty, struct bpf_map *map)
 	size_t sz;
 	int err;
 
-	pma = gtp_xdp_port_mac_address_alloc(&sz);
+	pma = gtp_bpf_port_mac_address_alloc(&sz);
 	if (!pma) {
 		vty_out(vty, "%% Cant allocate temp port_mac_address%s", VTY_NEWLINE);
 		return -1;
@@ -207,7 +207,7 @@ gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 }
 
 struct bpf_program *
-gtp_xdp_load_prog(gtp_bpf_opts_t *opts)
+gtp_bpf_load_prog(gtp_bpf_opts_t *opts)
 {
 	struct bpf_program *bpf_prog = NULL;
 	struct bpf_object *bpf_obj;
@@ -267,7 +267,7 @@ gtp_xdp_load_prog(gtp_bpf_opts_t *opts)
 
 
 int
-gtp_xdp_load(gtp_bpf_opts_t *opts)
+gtp_bpf_load(gtp_bpf_opts_t *opts)
 {
 	struct bpf_program *bpf_prog = NULL;
 	struct bpf_link *bpf_lnk;
@@ -275,7 +275,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 	int err;
 
 	/* Load eBPF prog */
-	bpf_prog = gtp_xdp_load_prog(opts);
+	bpf_prog = gtp_bpf_load_prog(opts);
 	if (!bpf_prog)
 		return -1;
 
@@ -308,7 +308,7 @@ gtp_xdp_load(gtp_bpf_opts_t *opts)
 }
 
 void
-gtp_xdp_unload(gtp_bpf_opts_t *opts)
+gtp_bpf_unload(gtp_bpf_opts_t *opts)
 {
 	if (opts->bpf_maps)
 		FREE(opts->bpf_maps);
@@ -321,14 +321,14 @@ gtp_xdp_unload(gtp_bpf_opts_t *opts)
  *	XDP init
  */
 int
-gtp_xdp_init(void)
+gtp_bpf_init(void)
 {
 	libbpf_set_print(gtp_bpf_log_message);
 	return 0;
 }
 
 int
-gtp_xdp_destroy(void)
+gtp_bpf_destroy(void)
 {
 	return 0;
 }

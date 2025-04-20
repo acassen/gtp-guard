@@ -90,12 +90,12 @@
 
 #ifndef _WITHOUT_BPF_
  #include "gtp_bpf_utils.h"
- #include "gtp_xdp.h"
- #include "gtp_xdp_ppp.h"
- #include "gtp_xdp_iptnl.h"
- #include "gtp_xdp_fwd.h"
- #include "gtp_xdp_mirror.h"
- #include "gtp_xdp_rt.h"
+ #include "gtp_bpf.h"
+ #include "gtp_bpf_ppp.h"
+ #include "gtp_bpf_iptnl.h"
+ #include "gtp_bpf_fwd.h"
+ #include "gtp_bpf_mirror.h"
+ #include "gtp_bpf_rt.h"
 #endif
 
 #endif

@@ -263,7 +263,7 @@ DEFUN(ip_vrf_encapsulation_ipip,
 	t->selector_addr = vrf->id;
 	t->local_addr = laddr;
 	t->remote_addr = raddr;
-	ret = gtp_xdp_rt_iptnl_action(RULE_ADD, t);
+	ret = gtp_bpf_rt_iptnl_action(RULE_ADD, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to create XDP IPIP-Tunnel%s", VTY_NEWLINE);
 		memset(t, 0, sizeof(gtp_iptnl_t));

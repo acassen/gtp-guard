@@ -19,18 +19,21 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_PPP_H
-#define _GTP_XDP_PPP_H
+#ifndef _GTP_BPF_MIRROR_H
+#define _GTP_BPF_MIRROR_H
 
-struct ppp_key {
-	__u8	hw[6];
-	__u16	session_id;
+struct gtp_mirror_rule {
+	__be32	addr;
+	__be16	port;
+	__u8	protocol;
+	int	ifindex;
 } __attribute__ ((__aligned__(8)));
 
+
 /* Prototypes */
-extern int gtp_xdp_ppp_action(int, gtp_teid_t *, int, struct bpf_map *, struct bpf_map *);
-extern int gtp_xdp_ppp_teid_vty(vty_t *, gtp_teid_t *, int, struct bpf_map *, struct bpf_map *);
-extern int gtp_xdp_ppp_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_ppp_unload(gtp_bpf_opts_t *);
+extern int gtp_bpf_mirror_action(int, gtp_mirror_rule_t *);
+extern int gtp_bpf_mirror_vty(vty_t *);
+extern int gtp_bpf_mirror_load(gtp_bpf_opts_t *);
+extern void gtp_bpf_mirror_unload(gtp_bpf_opts_t *);
 
 #endif

@@ -45,12 +45,12 @@ extern data_t *daemon_data;
  *	XDP RT BPF related
  */
 int
-gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
+gtp_bpf_rt_load(gtp_bpf_opts_t *opts)
 {
 	struct bpf_map *map;
 	int err;
 
-	err = gtp_xdp_load(opts);
+	err = gtp_bpf_load(opts);
 	if (err < 0)
 		return -1;
 
@@ -58,35 +58,35 @@ gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
 	opts->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_RT_MAP_CNT);
 	map = gtp_bpf_load_map(opts->bpf_obj, "teid_ingress");
 	if (!map) {
-		gtp_xdp_unload(opts);
+		gtp_bpf_unload(opts);
 		return -1;
 	}
 	opts->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "teid_egress");
 	if (!map) {
-		gtp_xdp_unload(opts);
+		gtp_bpf_unload(opts);
 		return -1;
 	}
 	opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "ppp_ingress");
 	if (!map) {
-		gtp_xdp_unload(opts);
+		gtp_bpf_unload(opts);
 		return -1;
 	}
 	opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
 	if (!map) {
-		gtp_xdp_unload(opts);
+		gtp_bpf_unload(opts);
 		return -1;
 	}
 	opts->bpf_maps[XDP_RT_MAP_IPTNL].map = map;
 
 	map = gtp_bpf_load_map(opts->bpf_obj, "mac_learning");
 	if (!map) {
-		gtp_xdp_unload(opts);
+		gtp_bpf_unload(opts);
 		return -1;
 	}
 	opts->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map = map;
@@ -95,9 +95,9 @@ gtp_xdp_rt_load(gtp_bpf_opts_t *opts)
 }
 
 void
-gtp_xdp_rt_unload(gtp_bpf_opts_t *opts)
+gtp_bpf_rt_unload(gtp_bpf_opts_t *opts)
 {
-	gtp_xdp_unload(opts);
+	gtp_bpf_unload(opts);
 }
 
 
@@ -105,7 +105,7 @@ gtp_xdp_rt_unload(gtp_bpf_opts_t *opts)
  *	TEID Routing handling
  */
 static struct gtp_rt_rule *
-gtp_xdp_rt_rule_alloc(size_t *sz)
+gtp_bpf_rt_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_rt_rule *new;
@@ -119,7 +119,7 @@ gtp_xdp_rt_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
+gtp_bpf_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	gtp_session_t *s = t->session;
@@ -152,7 +152,7 @@ gtp_xdp_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 }
 
 int
-gtp_xdp_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
+gtp_bpf_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 {
 	gtp_session_t *s = t->session;
 	gtp_server_t *w_srv = s->w->srv;
@@ -175,7 +175,7 @@ gtp_xdp_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 }
 
 static int
-gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
+gtp_bpf_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
 {
 	struct gtp_rt_rule *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -183,19 +183,19 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
 	struct ip_rt_key rt_key;
 	size_t sz;
 
-	gtp_xdp_rt_key_set(t, &rt_key);
+	gtp_bpf_rt_key_set(t, &rt_key);
 
 	/* Set rule */
 	if (action == RULE_ADD) {
 		/* fill per cpu rule */
-		new = gtp_xdp_rt_rule_alloc(&sz);
+		new = gtp_bpf_rt_rule_alloc(&sz);
 		if (!new) {
 			log_message(LOG_INFO, "%s(): Cant allocate teid_rule !!!"
 					    , __FUNCTION__);
 			err = -1;
 			goto end;
 		}
-		gtp_xdp_rt_rule_set(new, t);
+		gtp_bpf_rt_rule_set(new, t);
 		err = bpf_map__update_elem(map, &rt_key, sizeof(struct ip_rt_key), new, sz, BPF_NOEXIST);
 	} else if (action == RULE_DEL)
 		err = bpf_map__delete_elem(map, &rt_key, sizeof(struct ip_rt_key), 0);
@@ -225,7 +225,7 @@ gtp_xdp_rt_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
 }
 
 static int
-gtp_xdp_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, int ifindex)
+gtp_bpf_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, int ifindex)
 {
 	struct bpf_map *map = opts->bpf_maps[map_id].map;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
@@ -239,14 +239,14 @@ gtp_xdp_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, in
 	size_t sz;
 
 	/* Allocate temp rule */
-	r = gtp_xdp_rt_rule_alloc(&sz);
+	r = gtp_bpf_rt_rule_alloc(&sz);
 	if (!r) {
 		vty_out(vty, "%% Cant allocate temp rt_rule%s", VTY_NEWLINE);
 		return -1;
 	}
 
 	if (t) {
-		gtp_xdp_rt_key_set(t, &key);
+		gtp_bpf_rt_key_set(t, &key);
 		err = bpf_map__lookup_elem(map, &key, sizeof(struct ip_rt_key), r, sz, 0);
 		if (err) {
 			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
@@ -300,7 +300,7 @@ gtp_xdp_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, in
 }
 
 int
-gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
+gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
 {
 	list_head_t *l = &daemon_data->xdp_gtp_route;
 	gtp_bpf_opts_t *opts;
@@ -325,7 +325,7 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 		/* PPPoE vrf ? */
 		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
 				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
-			err = gtp_xdp_ppp_action(action, t, opts->ifindex,
+			err = gtp_bpf_ppp_action(action, t, opts->ifindex,
 						 opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map,
 						 opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
 			if (err)
@@ -333,7 +333,7 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 			continue;
 		}
 
-		err = gtp_xdp_rt_action(opts->bpf_maps[direction].map, action, t, opts->ifindex);
+		err = gtp_bpf_rt_action(opts->bpf_maps[direction].map, action, t, opts->ifindex);
 		if (err)
 			goto rollback;
 	}
@@ -349,20 +349,20 @@ gtp_xdp_rt_teid_action(int action, gtp_teid_t *t)
 		/* PPPoE vrf ? */
 		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
 				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
-			gtp_xdp_ppp_action(RULE_DEL, t, opts->ifindex,
+			gtp_bpf_ppp_action(RULE_DEL, t, opts->ifindex,
 					   opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map,
 					   opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
 			continue;
 		}
 
-		gtp_xdp_rt_action(opts->bpf_maps[direction].map, RULE_DEL, t, opts->ifindex);
+		gtp_bpf_rt_action(opts->bpf_maps[direction].map, RULE_DEL, t, opts->ifindex);
 	}
 
 	return err;
 }
 
 int
-gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
+gtp_bpf_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 {
 	list_head_t *l = &daemon_data->xdp_gtp_route;
 	gtp_bpf_opts_t *opts;
@@ -381,20 +381,20 @@ gtp_xdp_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 		/* PPPoE vrf ? */
 		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
 				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
-			gtp_xdp_ppp_teid_vty(vty, t, opts->ifindex
+			gtp_bpf_ppp_teid_vty(vty, t, opts->ifindex
 						, opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map
 						, opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map);
 			continue;
 		}
 
-		gtp_xdp_teid_vty(opts, direction, vty, t, opts->ifindex);
+		gtp_bpf_teid_vty(opts, direction, vty, t, opts->ifindex);
 	}
 
 	return 0;
 }
 
 int
-gtp_xdp_rt_vty(vty_t *vty)
+gtp_bpf_rt_vty(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->xdp_gtp_route;
 	gtp_bpf_opts_t *opts;
@@ -408,9 +408,9 @@ gtp_xdp_rt_vty(vty_t *vty)
 			     "|    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 			     "+------------+------------------+-----------+--------------+---------------------+%s"
 			   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-		gtp_xdp_teid_vty(opts, XDP_RT_MAP_TEID_INGRESS, vty, NULL, 0);
-		gtp_xdp_teid_vty(opts, XDP_RT_MAP_TEID_EGRESS, vty, NULL, 0);
-		gtp_xdp_ppp_teid_vty(vty, NULL, 0, opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map, NULL);
+		gtp_bpf_teid_vty(opts, XDP_RT_MAP_TEID_INGRESS, vty, NULL, 0);
+		gtp_bpf_teid_vty(opts, XDP_RT_MAP_TEID_EGRESS, vty, NULL, 0);
+		gtp_bpf_ppp_teid_vty(vty, NULL, 0, opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map, NULL);
 		vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
 			   , VTY_NEWLINE);
 	}
@@ -422,7 +422,7 @@ gtp_xdp_rt_vty(vty_t *vty)
  *	IP Tunneling related
  */
 int
-gtp_xdp_rt_iptnl_action(int action, gtp_iptnl_t *t)
+gtp_bpf_rt_iptnl_action(int action, gtp_iptnl_t *t)
 {
 	list_head_t *l = &daemon_data->xdp_gtp_route;
 	gtp_bpf_opts_t *opts;
@@ -432,7 +432,7 @@ gtp_xdp_rt_iptnl_action(int action, gtp_iptnl_t *t)
 		return -1;
 
 	list_for_each_entry(opts, l, next) {
-		err = gtp_xdp_iptnl_action(action, t, opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
+		err = gtp_bpf_iptnl_action(action, t, opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
 		if (err) {
 			/* global Roll-back on first error */
 			goto rollback;
@@ -447,13 +447,13 @@ gtp_xdp_rt_iptnl_action(int action, gtp_iptnl_t *t)
 		return 0;
 
 	list_for_each_entry(opts, l, next)
-		gtp_xdp_iptnl_action(RULE_DEL, t, opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
+		gtp_bpf_iptnl_action(RULE_DEL, t, opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
 
 	return err;
 }
 
 int
-gtp_xdp_rt_iptnl_vty(vty_t *vty)
+gtp_bpf_rt_iptnl_vty(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->xdp_gtp_route;
 	gtp_bpf_opts_t *opts;
@@ -463,7 +463,7 @@ gtp_xdp_rt_iptnl_vty(vty_t *vty)
 
 	list_for_each_entry(opts, l, next) {
 		vty_out(vty, "XDP ruleset on ifindex:%d:%s", opts->ifindex, VTY_NEWLINE);
-		gtp_xdp_iptnl_vty(vty, opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
+		gtp_bpf_iptnl_vty(vty, opts->bpf_maps[XDP_RT_MAP_IPTNL].map);
 	}
 
 	return 0;
@@ -473,7 +473,7 @@ gtp_xdp_rt_iptnl_vty(vty_t *vty)
  *	MAC learning related
  */
 int
-gtp_xdp_rt_mac_learning_vty(vty_t *vty)
+gtp_bpf_rt_mac_learning_vty(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->xdp_gtp_route;
 	gtp_bpf_opts_t *opts;
@@ -483,7 +483,7 @@ gtp_xdp_rt_mac_learning_vty(vty_t *vty)
 
 	list_for_each_entry(opts, l, next) {
 		vty_out(vty, "XDP ruleset on ifindex:%d:%s", opts->ifindex, VTY_NEWLINE);
-		gtp_xdp_mac_learning_vty(vty, opts->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map);
+		gtp_bpf_mac_learning_vty(vty, opts->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map);
 	}
 
 	return 0;

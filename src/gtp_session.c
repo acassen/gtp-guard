@@ -127,9 +127,9 @@ gtp_session_gtu_teid_xdp_rule_add(gtp_teid_t *teid)
 	int err = -1;
 
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
-		err = gtp_xdp_fwd_teid_action(RULE_ADD, teid);
+		err = gtp_bpf_fwd_teid_action(RULE_ADD, teid);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
-		err = gtp_xdp_rt_teid_action(RULE_ADD, teid);
+		err = gtp_bpf_rt_teid_action(RULE_ADD, teid);
 
 	if (!err)
 		__set_bit(GTP_TEID_FL_XDP_SET, &teid->flags);
@@ -321,9 +321,9 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 		goto end;
 
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
-		gtp_xdp_fwd_teid_action(RULE_DEL, teid);
+		gtp_bpf_fwd_teid_action(RULE_DEL, teid);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
-		gtp_xdp_rt_teid_action(RULE_DEL, teid);
+		gtp_bpf_rt_teid_action(RULE_DEL, teid);
 
   end:
 	gtp_teid_free(teid);
@@ -605,13 +605,13 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 				   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
 				   , VTY_NEWLINE);
 			if (t->vid)
-				gtp_xdp_fwd_teid_vty(vty, ntohl(t->vid));
+				gtp_bpf_fwd_teid_vty(vty, ntohl(t->vid));
 		} else if (__test_bit(GTP_TEID_FL_RT, &t->flags)) {
 			vty_out(vty, "  [UP] teid:0x%.8x"
 				     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"
 				   , ntohl(t->id), t->bearer_id, NIPQUAD(t->ipv4)
 				   , VTY_NEWLINE);
-			gtp_xdp_rt_teid_vty(vty, t);
+			gtp_bpf_rt_teid_vty(vty, t);
 		}
 	}
 	return 0;

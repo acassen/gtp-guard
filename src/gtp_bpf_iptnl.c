@@ -46,7 +46,7 @@ extern data_t *daemon_data;
  *	Tunneling Handling
  */
 static struct gtp_iptnl_rule *
-gtp_xdp_iptnl_rule_alloc(size_t *sz)
+gtp_bpf_iptnl_rule_alloc(size_t *sz)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_iptnl_rule *new;
@@ -60,7 +60,7 @@ gtp_xdp_iptnl_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_xdp_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
+gtp_bpf_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	int i;
@@ -76,7 +76,7 @@ gtp_xdp_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
 }
 
 int
-gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
+gtp_bpf_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
 {
 	struct gtp_iptnl_rule *new = NULL;
 	int ret = 0, err = 0;
@@ -99,14 +99,14 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
 	/* Set rule */
 	if (action == RULE_ADD || action == RULE_UPDATE) {
 		/* fill per cpu rule */
-		new = gtp_xdp_iptnl_rule_alloc(&sz);
+		new = gtp_bpf_iptnl_rule_alloc(&sz);
 		if (!new) {
 			log_message(LOG_INFO, "%s(): Cant allocate iptnl_rule !!!"
 					    , __FUNCTION__);
 			ret = -1;
 			goto end;
 		}
-		gtp_xdp_iptnl_rule_set(new, t);
+		gtp_bpf_iptnl_rule_set(new, t);
 
 		if (action == RULE_ADD) {
 			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_NOEXIST);
@@ -122,7 +122,7 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
 				goto end;
 			}
 			action_str = "updating";
-			gtp_xdp_iptnl_rule_set(new, t);
+			gtp_bpf_iptnl_rule_set(new, t);
 			err = bpf_map__update_elem(map, &key, sizeof(uint32_t), new, sz, BPF_EXIST);
 		}
 	} else if (action == RULE_DEL) {
@@ -153,7 +153,7 @@ gtp_xdp_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
 }
 
 int
-gtp_xdp_iptnl_vty(vty_t *vty, struct bpf_map *map)
+gtp_bpf_iptnl_vty(vty_t *vty, struct bpf_map *map)
 {
 	__be32 key = 0, next_key = 0;
 	struct gtp_iptnl_rule *r;
@@ -163,7 +163,7 @@ gtp_xdp_iptnl_vty(vty_t *vty, struct bpf_map *map)
 	size_t sz;
 
 	/* Allocate temp rule */
-	r = gtp_xdp_iptnl_rule_alloc(&sz);
+	r = gtp_bpf_iptnl_rule_alloc(&sz);
 	if (!r) {
 		vty_out(vty, "%% Cant allocate temp iptnl_rule%s", VTY_NEWLINE);
 		return -1;

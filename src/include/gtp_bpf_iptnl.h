@@ -19,33 +19,20 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_XDP_H
-#define _GTP_XDP_H
+#ifndef _GTP_BPF_IPTNL_H
+#define _GTP_BPF_IPTNL_H
 
-enum {
-	RULE_ADD = 0,
-	RULE_UPDATE,
-	RULE_DEL,
-	RULE_LIST
-};
-
-#define GTP_XDP_STRERR_BUFSIZE	128
-#define XDP_PATH_MAX 128
-#define GTP_INGRESS	0
-#define GTP_EGRESS	1
-
-typedef struct _xdp_exported_maps {
-	struct bpf_map	*map;
-} xdp_exported_maps_t;
-
+struct gtp_iptnl_rule {
+	__be32	selector_addr;
+	__be32	local_addr;
+	__be32	remote_addr;
+	__be16	encap_vlan_id;
+	__be16	decap_vlan_id;
+	__u8	flags;
+} __attribute__ ((__aligned__(8)));
 
 /* Prototypes */
-extern int gtp_xdp_mac_learning_vty(vty_t *, struct bpf_map *);
-extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
-extern struct bpf_program *gtp_xdp_load_prog(gtp_bpf_opts_t *);
-extern int gtp_xdp_load(gtp_bpf_opts_t *);
-extern void gtp_xdp_unload(gtp_bpf_opts_t *);
-extern int gtp_xdp_init(void);
-extern int gtp_xdp_destroy(void);
+extern int gtp_bpf_iptnl_action(int, gtp_iptnl_t *, struct bpf_map *);
+extern int gtp_bpf_iptnl_vty(vty_t *, struct bpf_map *);
 
 #endif
