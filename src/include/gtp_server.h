@@ -22,17 +22,6 @@
 #ifndef _GTP_SERVER_H
 #define _GTP_SERVER_H
 
-/* Statistics counters */
-typedef struct _gtp_stats {
-	uint32_t		count;
-	uint32_t		unsupported;
-} gtp_stats_t;
-
-typedef struct _gtp_server_stats {
-	gtp_stats_t		rx[0xff];
-	gtp_stats_t		tx[0xff];
-} gtp_server_stats_t;
-
 /* GTP Switching context */
 typedef struct _gtp_server_worker {
 	char			pname[GTP_PNAME];
@@ -44,12 +33,11 @@ typedef struct _gtp_server_worker {
 	unsigned int		seed;
 
 	/* stats */
-	uint64_t		rx_bytes;
-	uint64_t		rx_pkts;
-	uint64_t		tx_bytes;
-	uint64_t		tx_pkts;
-	gtp_server_stats_t	msg_stats;
-	gtp_server_stats_t	cause_stats;
+	gtp_stats_pkt_t		rx_stats;
+	gtp_stats_pkt_t		tx_stats;
+	gtp_stats_cause_t	cause_rx_stats;
+	gtp_stats_cause_t	cause_tx_stats;
+	gtp_stats_msg_t		msg_stats;
 
 	list_head_t		next;
 
@@ -74,6 +62,7 @@ typedef struct _gtp_server {
 
 /* Prototypes */
 extern ssize_t gtp_server_send(gtp_server_worker_t *, int, struct sockaddr_in *);
+extern ssize_t gtp_server_send_async(gtp_server_worker_t *, pkt_buffer_t *, struct sockaddr_in *);
 extern int gtp_server_start(gtp_server_t *);
 extern int gtp_server_for_each_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *, void *), void *);
 extern int gtp_server_init(gtp_server_t *, void *

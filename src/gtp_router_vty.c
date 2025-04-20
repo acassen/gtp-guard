@@ -253,8 +253,8 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 		   , w->seed , w->pbuff
 		   , pkt_buffer_len(w->pbuff), pkt_buffer_size(w->pbuff)
 		   , VTY_NEWLINE
-		   , w->rx_bytes, w->rx_pkts
-		   , w->tx_bytes, w->tx_pkts
+		   , w->rx_stats.bytes, w->rx_stats.pkts
+		   , w->tx_stats.bytes, w->tx_stats.pkts
 		   , VTY_NEWLINE);
 
 	vty_out(vty, "    RX:%s", VTY_NEWLINE);
@@ -273,11 +273,11 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 				   , w->msg_stats.rx[i].unsupported
 				   , VTY_NEWLINE);
 
-		if (w->cause_stats.rx[i].count)
+		if (w->cause_rx_stats.cause[i])
 			vty_out(vty, "     %s(%d): %d%s"
 				   , gtpc_cause2str(i)
 				   , i
-				   , w->cause_stats.rx[i].count
+				   , w->cause_rx_stats.cause[i]
 				   , VTY_NEWLINE);
 	}
 
@@ -297,11 +297,11 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 				   , w->msg_stats.tx[i].unsupported
 				   , VTY_NEWLINE);
 
-		if (w->cause_stats.tx[i].count)
+		if (w->cause_tx_stats.cause[i])
 			vty_out(vty, "     %s(%d): %d%s"
 				   , gtpc_cause2str(i)
 				   , i
-				   , w->cause_stats.tx[i].count
+				   , w->cause_tx_stats.cause[i]
 				   , VTY_NEWLINE);
 	}
 

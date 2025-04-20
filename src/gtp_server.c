@@ -47,11 +47,8 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 				       , pkt_buffer_size(w->pbuff)
 				       , 0, addr, addrlen);
 
-	/* Update stats */
-	if (nbytes > 0) {
-		w->rx_pkts++;
-		w->rx_bytes += nbytes;
-	}
+	/* stats */
+	gtp_stats_pkt_update(&w->rx_stats, nbytes);
 
 	return nbytes;
 }
@@ -59,15 +56,31 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 ssize_t
 gtp_server_send(gtp_server_worker_t *w, int fd, struct sockaddr_in *addr)
 {
+	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
+
 	ssize_t nbytes = sendto(fd, w->pbuff->head
 				  , pkt_buffer_len(w->pbuff)
 				  , 0, addr, sizeof(*addr));
 
-	/* Update stats */
-	if (nbytes > 0) {
-		w->tx_pkts++;
-		w->tx_bytes += nbytes;
-	}
+	/* stats */
+	gtp_stats_pkt_update(&w->tx_stats, nbytes);
+	gtp_stats_tx(&w->msg_stats, h->type);
+	gtp_stats_cause_update(&w->cause_tx_stats, w->pbuff);
+
+	return nbytes;
+}
+
+ssize_t
+gtp_server_send_async(gtp_server_worker_t *w, pkt_buffer_t *pbuff, struct sockaddr_in *addr)
+{
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+
+	ssize_t nbytes = pkt_buffer_send(w->fd, pbuff, (struct sockaddr_storage *) addr);
+
+	/* stats */
+	gtp_stats_pkt_update(&w->tx_stats, pkt_buffer_len(pbuff));
+	gtp_stats_tx(&w->msg_stats, h->type);
+	gtp_stats_cause_update(&w->cause_tx_stats, pbuff);
 
 	return nbytes;
 }

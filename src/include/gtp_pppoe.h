@@ -154,10 +154,8 @@ typedef struct _gtp_pppoe_worker {
 	pkt_queue_t		pkt_q;
 
 	/* Stats */
-	uint64_t		rx_packets;
-	uint64_t		rx_bytes;
-	uint64_t		tx_packets;
-	uint64_t		tx_bytes;
+	gtp_stats_pkt_t		rx_stats;
+	gtp_stats_pkt_t		tx_stats;
 } gtp_pppoe_worker_t;
 
 typedef struct _gtp_pppoe_bundle {

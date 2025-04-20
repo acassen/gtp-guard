@@ -607,8 +607,11 @@ DEFUN(no_pppoe_bundle_ignore_ingress_ppp_brd,
 static int
 gtp_pppoe_worker_vty(vty_t *vty, gtp_pppoe_worker_t *w)
 {
+	gtp_stats_pkt_t *rx = &w->rx_stats;
+	gtp_stats_pkt_t *tx = &w->rx_stats;
+
 	vty_out(vty, "   #%.2d: rx_packets:%ld rx_bytes:%ld tx_packets:%ld tx_bytes:%ld%s"
-		   , w->id, w->rx_packets, w->rx_bytes, w->tx_packets, w->tx_bytes
+		   , w->id, rx->pkts, rx->bytes, tx->pkts, tx->bytes
 		   , VTY_NEWLINE);
 	return 0;
 }

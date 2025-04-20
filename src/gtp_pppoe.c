@@ -223,24 +223,12 @@ bpf_rps_filter_init(gtp_pppoe_worker_t *w, int fd, const char *filename)
 /*
  *	PPPoE Workers
  */
-static void
-gtp_pppoe_update_rx_stats(gtp_pppoe_worker_t *w, pkt_t *pkt)
-{
-	w->rx_packets++;
-	w->rx_bytes += pkt_buffer_len(pkt->pbuff);
-}
-
-static void
-gtp_pppoe_update_tx_stats(gtp_pppoe_worker_t *w, pkt_t *pkt)
-{
-	w->tx_packets++;
-	w->tx_bytes += pkt_buffer_len(pkt->pbuff);
-}
-
 static int
 gtp_pppoe_send(gtp_pppoe_t *pppoe, gtp_pppoe_worker_t *w, pkt_t *pkt)
 {
-	gtp_pppoe_update_tx_stats(w, pkt);
+	/* stats */
+	gtp_stats_pkt_update(&w->tx_stats, pkt_buffer_len(pkt->pbuff));
+
 	return pkt_send(w->fd, &pppoe->pkt_q, pkt);
 }
 
@@ -286,7 +274,8 @@ gtp_pppoe_ingress(pkt_t *pkt, void *arg)
 		break;
 	}
 
-	gtp_pppoe_update_rx_stats(w, pkt);
+	/* stats */
+	gtp_stats_pkt_update(&w->rx_stats, pkt_buffer_len(pkt->pbuff));
 }
 
 static int
