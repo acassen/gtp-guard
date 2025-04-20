@@ -266,6 +266,10 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 	__sync_add_and_fetch(&gtp_session_id, 1);
 	new->id = gtp_session_id;
 
+	/* CDR context */
+	if (apn->cdr_spool)
+		new->cdr = gtp_cdr_alloc();
+
 	gtp_session_add(c, new);
 	gtp_session_add_timer(new);
 
@@ -380,6 +384,9 @@ __gtp_session_destroy(gtp_session_t *s)
 	gtp_conn_t *c = s->conn;
 
 	pthread_mutex_lock(&c->session_mutex);
+
+	/* Generate CDR */
+	gtp_apn_cdr_commit(s->apn, s->cdr);
 
 	/* Send Delete-Bearer-Request if needed */
 	if (s->action == GTP_ACTION_SEND_DELETE_BEARER_REQUEST)

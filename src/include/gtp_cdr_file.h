@@ -23,7 +23,7 @@
 #define _GTP_CDR_FILE_H
 
 /* Defines */
-#define GTP_CDR_MAGIC			0x0707
+#define GTP_CDR_MAGIC			0x0c0c
 #define GTP_CDR_DEFAULT_FSIZE		10*1024*1024
 #define GTP_CDR_DEFAULT_ROLLPERIOD	7200
 
@@ -40,6 +40,7 @@ typedef struct _gtp_cdr_file_header {
 typedef struct _gtp_cdr_header {
 	uint16_t		clen;
 	uint16_t		magic;
+	uint8_t			reserved;
 } __attribute__((packed)) gtp_cdr_header_t;
 
 typedef struct _gtp_cdr_file {

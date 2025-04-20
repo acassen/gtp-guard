@@ -240,7 +240,6 @@ DEFUN(cdr_shutdown,
 	}
 
 	gtp_cdr_spool_stop(s);
-	__clear_bit(GTP_CDR_SPOOL_FL_STOP_BIT, &s->flags);
 	__set_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags);
 	return CMD_SUCCESS;
 }
@@ -291,7 +290,7 @@ DEFUN(show_cdr,
 		return CMD_WARNING;
 	}
 
-	vty_out(vty, " Pending in Queue : %d%s", s->q_size, VTY_NEWLINE);
+	vty_out(vty, " Pending in Queue : %d%s", s->q_len, VTY_NEWLINE);
 	vty_out(vty, "        CDR count : %ld%s", s->cdr_count, VTY_NEWLINE);
 	vty_out(vty, "        CDR bytes : %ld%s", s->cdr_bytes, VTY_NEWLINE);
 	return CMD_SUCCESS;

@@ -345,6 +345,7 @@ int main(int argc, char **argv)
 
 	/* dummy data */
 	PMALLOC(daemon_data);
+	INIT_LIST_HEAD(&daemon_data->gtp_cdr);
 	INIT_LIST_HEAD(&daemon_data->gtp_apn);
 
 	cdr = gtp_pcap_process(gtp_pcap_file);

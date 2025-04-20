@@ -130,8 +130,11 @@ void
 gtp_msg_destroy(gtp_msg_t *msg)
 {
 	gtp_msg_ie_t *msg_ie, *_msg_ie;
-	rb_root_cached_t *root = &msg->ie;
-	
+	rb_root_cached_t *root = (msg) ? &msg->ie : NULL;
+
+	if (!msg)
+		return;
+
 	rb_for_each_entry_safe_cached(msg_ie, _msg_ie, root, n) {
 		rb_erase_cached(&msg_ie->n, root);
 		gtp_msg_ie_destroy(msg_ie);

@@ -647,6 +647,9 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 
 	/* 3GPP TS 129.274 Section 5.5.1 */
 	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+
+	/* CDR Update */
+	gtp_cdr_update(pbuff, NULL, s->cdr);
 	return 0;
 }
 
@@ -691,6 +694,10 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
 
 	/* 3GPP TS 129.274 Section 5.5.1 */
 	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+
+	/* CDR Update */
+	if (teid)
+		gtp_cdr_update(pbuff, NULL, teid->session->cdr);
 	return 0;
 }
 
@@ -1055,6 +1062,9 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	/* Generate Charging-ID */
 	s->charging_id = poor_prng(&w->seed) ^ c->sgw_addr.sin_addr.s_addr;
 
+	/* CDR init */
+	gtp_cdr_update(w->pbuff, msg, s->cdr);
+
 	/* IP VRF is in use and PPPoE session forwarding is configured */
 	if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
 			 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
@@ -1161,6 +1171,10 @@ gtpc_delete_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		spppoe_close(teid->session->s_pppoe);
 	else
 		gtp_session_destroy(teid->session);
+
+	/* CDR Update */
+	gtp_cdr_update(w->pbuff, NULL, teid->session->cdr);
+
   end:
 	gtp_msg_destroy(msg);
 	return rc;

@@ -523,8 +523,13 @@ gtp_apn_get(const char *name)
 int
 gtp_apn_cdr_commit(gtp_apn_t *apn, gtp_cdr_t *cdr)
 {
-	if (!apn->cdr_spool)
+	if (!cdr)
 		return -1;
+
+	if (!apn->cdr_spool) {
+		gtp_cdr_destroy(cdr);
+		return -1;
+	}
 
 	return gtp_cdr_spool_q_add(apn->cdr_spool, cdr);
 }

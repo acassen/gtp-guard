@@ -265,7 +265,7 @@ cdr_create_session_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
 	cdr->mstimezone = htons(0x8001);
 	gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_MSTIMEZONE_TAG, (uint8_t *) &cdr->mstimezone, 2);
 
-	cdr->cause_for_rec_closing = 0;
+	cdr->cause_for_rec_closing = 4;
 	gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_CAUSE_TAG, &cdr->cause_for_rec_closing, 1);
 
 	return 0;
@@ -274,6 +274,19 @@ cdr_create_session_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
 static int
 cdr_create_session_response(gtp_cdr_t *cdr, gtp_msg_t *msg)
 {
+	gtp_msg_ie_t *msg_ie;
+	uint8_t cause;
+
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_CAUSE_TYPE);
+	if (msg_ie) {
+		cause = *(uint8_t *) msg_ie->data;
+		if (cause == GTP_CAUSE_REQUEST_ACCEPTED)
+			cdr->cause_for_rec_closing = 0;
+		else if (cause == GTP_CAUSE_USER_AUTH_FAILED)
+			cdr->cause_for_rec_closing = 52;
+		gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_CAUSE_TAG, &cdr->cause_for_rec_closing, 1);
+	}
+
 	cdr_teid_addr_set(msg, &cdr->pgw_addr);
 	gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_PGW_ADDR_TAG, (uint8_t *) &cdr->pgw_addr, 4);
 
@@ -307,15 +320,24 @@ int
 gtp_cdr_update(pkt_buffer_t *pbuff, gtp_msg_t *msg, gtp_cdr_t *cdr)
 {
 	gtp_hdr_t *gtph;
+	gtp_msg_t *m = NULL;
+	int err = -1;
 
-	if (!cdr || !pbuff || !msg)
+	if (!cdr || !pbuff)
 		return -1;
+
+	if (!msg) {
+		m = gtp_msg_alloc(pbuff);
+		if (!m)
+			return -1;
+	}
 
 	gtph = (gtp_hdr_t *) pbuff->head;
 	if (*(cdr_msg_hdl[gtph->type].update))
-		return (*(cdr_msg_hdl[gtph->type].update)) (cdr, msg);
+		err = (*(cdr_msg_hdl[gtph->type].update)) (cdr, (msg) ? : m);
 
-	return -1;
+	gtp_msg_destroy(m);
+	return err;
 }
 
 int

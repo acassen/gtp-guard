@@ -42,7 +42,7 @@ typedef struct _gtp_cdr_spool {
 
 	list_head_t		q;
 	uint8_t			q_buf[GTP_BUFFER_SIZE];
-	int			q_size;
+	int			q_len;
 	int			q_max_size;
 	pthread_mutex_t		q_mutex;
 	pthread_t		task;

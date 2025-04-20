@@ -80,7 +80,7 @@ gtp_cdr_spool_q_run(gtp_cdr_spool_t *s)
 		pthread_mutex_unlock(&s->q_mutex);
 
 		gtp_cdr_spool_commit(s, c);
-		__sync_sub_and_fetch(&s->q_size, 1);
+		__sync_sub_and_fetch(&s->q_len, 1);
 
 		pthread_mutex_lock(&s->q_mutex);
 	}
@@ -138,10 +138,11 @@ gtp_cdr_spool_q_destroy(gtp_cdr_spool_t *s)
 	list_for_each_entry_safe(c, _c, l, next) {
 		list_head_del(&c->next);
 		gtp_cdr_destroy(c);
-		__sync_sub_and_fetch(&s->q_size, 1);
+		__sync_sub_and_fetch(&s->q_len, 1);
 	}
 	pthread_mutex_unlock(&s->q_mutex);
 
+	INIT_LIST_HEAD(l);
 	return 0;
 }
 
@@ -154,7 +155,7 @@ gtp_cdr_spool_q_add(gtp_cdr_spool_t *s, gtp_cdr_t *c)
 	}
 
 	/* This one will be lost in translation... */
-	if (s->q_max_size && s->q_size >= s->q_max_size) {
+	if (s->q_max_size && s->q_len >= s->q_max_size) {
 		log_message(LOG_INFO, "%s(): cdr q for spool:%s overflow..."
 				      " dropping CDR"
 				    , __FUNCTION__
@@ -166,7 +167,7 @@ gtp_cdr_spool_q_add(gtp_cdr_spool_t *s, gtp_cdr_t *c)
 	list_add_tail(&c->next, &s->q);
 	pthread_mutex_unlock(&s->q_mutex);
 
-	__sync_add_and_fetch(&s->q_size, 1);
+	__sync_add_and_fetch(&s->q_len, 1);
 	gtp_cdr_spool_q_signal(s);
 	return 0;
 }
@@ -255,9 +256,7 @@ gtp_cdr_spool_stop(gtp_cdr_spool_t *s)
 	gtp_cdr_spool_q_signal(s);
 	pthread_join(s->task, NULL);
 	gtp_cdr_spool_q_destroy(s);
-	pthread_mutex_destroy(&s->q_mutex);
-	pthread_mutex_destroy(&s->cond_mutex);
-	pthread_cond_destroy(&s->cond);
+	__clear_bit(GTP_CDR_SPOOL_FL_STOP_BIT, &s->flags);
 	return 0;
 }
 
@@ -265,6 +264,9 @@ static int
 __gtp_cdr_spool_destroy(gtp_cdr_spool_t *s)
 {
 	gtp_cdr_spool_stop(s);
+	pthread_mutex_destroy(&s->q_mutex);
+	pthread_mutex_destroy(&s->cond_mutex);
+	pthread_cond_destroy(&s->cond);
 	gtp_cdr_file_destroy(s->cdr_file);
 	list_head_del(&s->next);
 	FREE(s);
