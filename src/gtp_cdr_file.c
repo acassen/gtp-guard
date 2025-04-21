@@ -69,20 +69,6 @@ gtp_cdr_file_header_init(gtp_cdr_file_t *f)
 	return gtp_cdr_file_header_sync(f);
 }
 
-static int
-gtp_cdr_file_roll(gtp_cdr_file_t *f)
-{
-	map_file_t *map_file = f->file;
-
-	if (!map_file)
-		return -1;
-
-	gtp_cdr_file_close(f);
-	f->file = NULL;
-
-	return gtp_cdr_file_create(f);
-}
-
 int
 gtp_cdr_file_write(gtp_cdr_file_t *f, const void *buf, size_t bsize)
 {
@@ -98,12 +84,9 @@ retry:
 	if (retry_cnt > 1)
 		return -1;
 
-	/* Roll time reached ? */
-	if (time(NULL) > f->roll_time) {
-		log_message(LOG_INFO, "%s(): roll time reached Creating new file."
-				    , __FUNCTION__);
-
-		err = gtp_cdr_file_roll(f);
+	/* Already open ? */
+	if (!f->file) {
+		err = gtp_cdr_file_create(f);
 		if (err) {
 			log_message(LOG_INFO, "%s(): Unable to create a new cdr file !!!"
 					    , __FUNCTION__);
@@ -124,15 +107,10 @@ retry:
 					      " Creating new file."
 					    , __FUNCTION__
 					    , map_file->path);
-			err = gtp_cdr_file_roll(f);
-			if (err) {
-				log_message(LOG_INFO, "%s(): Unable to create a new cdr file !!!"
-						    , __FUNCTION__);
-				return -1;
-			}
 
 			/* One more time, we're gonna celebrate
 			 * Oh yeah, all right, don't stop dancing... */
+			gtp_cdr_file_close(f);
 			retry_cnt++;
 			goto retry;
 		}
@@ -259,6 +237,7 @@ gtp_cdr_file_close(gtp_cdr_file_t *f)
 	gtp_disk_mv(map_file->path, f->dst_path);
 end:
 	FREE(map_file);
+	f->file = NULL;
 	return 0;
 }
 

@@ -89,6 +89,20 @@ gtp_cdr_spool_q_run(gtp_cdr_spool_t *s)
 	return 0;
 }
 
+static int
+gtp_cdr_spool_roll(gtp_cdr_spool_t *s)
+{
+	gtp_cdr_file_t *f = s->cdr_file;
+
+	if (!f->file)
+		return -1;
+
+	if (time(NULL) < f->roll_time)
+		return -1;
+
+	return gtp_cdr_file_close(f);
+}
+
 static void *
 gtp_cdr_spool_q_task(void *arg)
 {
@@ -110,7 +124,10 @@ q_process:
 	if (__test_bit(GTP_CDR_SPOOL_FL_STOP_BIT, &s->flags))
 		goto q_finish;
 
-	/* Expiration handling */
+	/* Current file needs to be rolled ? */
+	gtp_cdr_spool_roll(s);
+
+	/* Queue processing */
 	gtp_cdr_spool_q_run(s);
 
 	goto q_process;
