@@ -108,6 +108,20 @@ gtp_teid_free(gtp_teid_t *t)
 	__sync_add_and_fetch(&gtp_teid_unuse_count, 1);
 }
 
+int
+gtp_teid_foreach_entry(list_head_t *l, void *arg, int (*hdl) (gtp_teid_t *, void *))
+{
+	gtp_teid_t *t;
+	int err;
+
+	list_for_each_entry(t, l, next) {
+		err = (*hdl) (t, arg);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
 
 /*
  *	TEID hashtab

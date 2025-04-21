@@ -51,6 +51,7 @@ extern void gtp_bpf_fwd_unload(gtp_bpf_opts_t *);
 extern int gtp_bpf_fwd_teid_action(int, gtp_teid_t *);
 extern int gtp_bpf_fwd_teid_vty(vty_t *, __be32);
 extern int gtp_bpf_fwd_vty(vty_t *);
+extern int gtp_bpf_fwd_teid_bytes(gtp_teid_t *, uint64_t *);
 extern int gtp_bpf_fwd_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_bpf_fwd_iptnl_vty(vty_t *);
 extern int gtp_bpf_fwd_mac_learning_vty(vty_t *);

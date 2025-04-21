@@ -249,6 +249,32 @@ gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
 	return 0;
 }
 
+static int
+gtp_bpf_teid_bytes(struct bpf_map *map, __be32 id, uint64_t *bytes)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct gtp_teid_rule *r;
+	int err = 0, i;
+	size_t sz;
+
+	/* Allocate temp rule */
+	r = gtp_bpf_teid_rule_alloc(&sz);
+	if (!r)
+		return -1;
+
+	/* Specific VTEID lookup */
+	err = bpf_map__lookup_elem(map, &id, sizeof(uint32_t), r, sz, 0);
+	if (err)
+		goto end;
+
+	for (i = 0; i < nr_cpus; i++)
+		*bytes += r[i].bytes;
+
+  end:
+	free(r);
+	return 0;
+}
+
 int
 gtp_bpf_fwd_teid_action(int action, gtp_teid_t *t)
 {
@@ -290,6 +316,17 @@ gtp_bpf_fwd_vty(vty_t *vty)
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
+}
+
+int
+gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
+{
+	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
+
+	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+		return -1;
+
+	return gtp_bpf_teid_bytes(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, ntohl(t->vid), bytes);
 }
 
 /*

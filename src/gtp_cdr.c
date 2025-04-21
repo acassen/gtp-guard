@@ -368,6 +368,26 @@ gtp_cdr_volumes_update(gtp_cdr_t *cdr, uint64_t up, uint64_t down)
 }
 
 int
+gtp_cdr_bpf_volumes_update(gtp_teid_t *t, void *arg)
+{
+	gtp_cdr_t *cdr = arg;
+	uint64_t bytes = 0;
+
+	if (__test_bit(GTP_TEID_FL_FWD, &t->flags))
+		gtp_bpf_fwd_teid_bytes(t, &bytes);
+	else if (__test_bit(GTP_TEID_FL_RT, &t->flags))
+		gtp_bpf_rt_teid_bytes(t, &bytes);
+
+	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
+		cdr->volume_down += bytes;
+		return 0;
+	}
+
+	cdr->volume_up += bytes;
+	return 0;
+}
+
+int
 gtp_cdr_close(gtp_cdr_t *cdr)
 {
 	return cdr_delete_session_response(cdr, NULL);

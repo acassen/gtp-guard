@@ -299,6 +299,35 @@ gtp_bpf_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, in
 	return 0;
 }
 
+static int
+gtp_bpf_teid_bytes(gtp_bpf_opts_t *opts, gtp_teid_t *t, uint64_t *bytes)
+{
+	int direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
+	struct bpf_map *map = opts->bpf_maps[direction].map;
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct ip_rt_key key = { 0 };
+	struct gtp_rt_rule *r;
+	int err = 0, i;
+	size_t sz;
+
+	/* Allocate temp rule */
+	r = gtp_bpf_rt_rule_alloc(&sz);
+	if (!r)
+		return -1;
+
+	gtp_bpf_rt_key_set(t, &key);
+	err = bpf_map__lookup_elem(map, &key, sizeof(struct ip_rt_key), r, sz, 0);
+	if (err)
+		goto end;
+
+	for (i = 0; i < nr_cpus; i++)
+		*bytes += r[i].bytes;
+
+  end:
+	free(r);
+	return 0;
+}
+
 int
 gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
 {
@@ -417,6 +446,37 @@ gtp_bpf_rt_vty(vty_t *vty)
 
 	return 0;
 }
+
+int
+gtp_bpf_rt_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
+{
+	list_head_t *l = &daemon_data->xdp_gtp_route;
+	gtp_bpf_opts_t *opts;
+	gtp_session_t *s;
+	gtp_apn_t *apn;
+
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
+		return -1;
+
+	s = t->session;
+	apn = s->apn;
+
+	list_for_each_entry(opts, l, next) {
+		/* PPPoE vrf ? */
+		if (apn->vrf && (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags) ||
+				 __test_bit(IP_VRF_FL_PPPOE_BUNDLE_BIT, &apn->vrf->flags))) {
+			gtp_bpf_ppp_teid_bytes(t, opts->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map
+						, opts->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map
+						, bytes);
+			continue;
+		}
+
+		gtp_bpf_teid_bytes(opts, t, bytes);
+	}
+
+	return 0;
+}
+
 
 /*
  *	IP Tunneling related

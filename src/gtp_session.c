@@ -386,6 +386,8 @@ __gtp_session_destroy(gtp_session_t *s)
 	pthread_mutex_lock(&c->session_mutex);
 
 	/* Generate CDR */
+	gtp_teid_foreach_entry(&s->gtpu_teid, s->cdr,
+			       gtp_cdr_bpf_volumes_update);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
 
 	/* Send Delete-Bearer-Request if needed */
