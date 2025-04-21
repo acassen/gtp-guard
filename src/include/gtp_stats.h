@@ -22,6 +22,9 @@
 #ifndef _GTP_STATS_H
 #define _GTP_STATS_H
 
+/* Defines */
+#define GTP_STATS_MAX_MSG	(1 << 8)
+
 /* Statistics */
 typedef struct _gtp_counter {
 	uint32_t		count;
@@ -29,12 +32,12 @@ typedef struct _gtp_counter {
 } gtp_counter_t;
 
 typedef struct _gtp_stats_msg {
-	gtp_counter_t		rx[0xff];
-	gtp_counter_t		tx[0xff];
+	gtp_counter_t		rx[GTP_STATS_MAX_MSG];
+	gtp_counter_t		tx[GTP_STATS_MAX_MSG];
 } gtp_stats_msg_t;
 
 typedef struct _gtp_stats_cause {
-	uint32_t		cause[0xff];
+	uint32_t		cause[GTP_STATS_MAX_MSG];
 } gtp_stats_cause_t;
 
 typedef struct _gtp_stats_pkt {

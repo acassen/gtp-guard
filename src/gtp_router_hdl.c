@@ -569,7 +569,7 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 	gtp_apn_t *apn = s->apn;
 	int err = 0, len;
 
-	if (!teid)
+	if (!teid || !teid->bearer_teid)
 		return 1;
 	teid = teid->bearer_teid;
 
@@ -579,7 +579,7 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 	bearer_ctx = (gtp_ie_bearer_context_t *) pbuff->data;
 	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_bearer_context_t));
 
-	err = err ? : gtpc_pkt_put_eps_bearer_id(pbuff, apn->eps_bearer_id);
+	err = err ? : gtpc_pkt_put_eps_bearer_id(pbuff, (apn->eps_bearer_id) ? : teid->bearer_id);
 	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
 	err = err ? : gtpc_pkt_put_f_teid(pbuff, teid, 2, GTP_TEID_INTERFACE_TYPE_SGW_GTPU);
 	err = err ? : gtpc_pkt_put_charging_id(pbuff, s->charging_id);
