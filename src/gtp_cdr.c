@@ -308,12 +308,31 @@ cdr_delete_session_response(gtp_cdr_t *cdr, gtp_msg_t *msg)
 	return 0;
 }
 
+static int
+cdr_modify_bearer_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
+{
+	gtp_msg_ie_t *msg_ie;
+
+	msg_ie = gtp_msg_ie_get(msg, GTP_IE_ULI_TYPE);
+	if (!msg_ie)
+		return -1;
+
+	FREE_PTR(cdr->uli);
+	cdr->uli_len = ntohs(msg_ie->h->length);
+	cdr->uli = MALLOC(cdr->uli_len);
+	memcpy(cdr->uli, msg_ie->data, cdr->uli_len);
+	gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_ULI_TAG
+					  , cdr->uli, cdr->uli_len);
+	return 0;
+}
+
 static const struct {
 	int (*update) (gtp_cdr_t *, gtp_msg_t *);
 } cdr_msg_hdl[0xff + 1] = {
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { cdr_create_session_request },
 	[GTP_CREATE_SESSION_RESPONSE_TYPE]	= { cdr_create_session_response },
 	[GTP_DELETE_SESSION_RESPONSE_TYPE]	= { cdr_delete_session_response },
+	[GTP_MODIFY_BEARER_REQUEST_TYPE]	= { cdr_modify_bearer_request },
 };
 
 int

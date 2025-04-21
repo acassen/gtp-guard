@@ -1232,6 +1232,9 @@ gtpc_modify_bearer_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *
 	if (vrf && __test_bit(IP_VRF_FL_PPPOE_BIT, &vrf->flags))
 		gtp_session_gtpu_teid_xdp_add(s);
 
+	/* CDR Update */
+	gtp_cdr_update(w->pbuff, msg, s->cdr);
+
   accept:
 	rc = gtpc_build_errmsg(w->pbuff, teid->peer_teid, GTP_MODIFY_BEARER_RESPONSE_TYPE
 							, GTP_CAUSE_REQUEST_ACCEPTED);
