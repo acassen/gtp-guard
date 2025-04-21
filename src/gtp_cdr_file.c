@@ -215,6 +215,7 @@ int
 gtp_cdr_file_close(gtp_cdr_file_t *f)
 {
 	map_file_t *map_file = f->file;
+	gtp_cdr_spool_t *s = f->spool;
 	gtp_cdr_file_header_t *h;
 	time_t t;
 	int err;
@@ -232,9 +233,14 @@ gtp_cdr_file_close(gtp_cdr_file_t *f)
 	}
 
 	/* Resize, Close & Move to final dst */
+	log_message(LOG_INFO, "%s(): Closing cdr-file:%s (%ldBytes)"
+			    , __FUNCTION__
+			    , f->dst_path, ntohl(h->flen));
 	gtp_disk_resize(map_file, ntohl(h->flen));
 	gtp_disk_close(map_file);
 	gtp_disk_mv(map_file->path, f->dst_path);
+	if (__test_bit(GTP_CDR_SPOOL_FL_OWNER_BIT, &s->flags))
+		gtp_disk_chown(f->dst_path, s->user, s->group);
 end:
 	FREE(map_file);
 	f->file = NULL;

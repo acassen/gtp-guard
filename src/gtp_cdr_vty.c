@@ -142,7 +142,7 @@ DEFUN(cdr_archive_root,
 
 DEFUN(cdr_file_prefix,
       cdr_file_prefix_cmd,
-      "file-prefix STRING",
+      "file prefix STRING",
       "Configure CDR File prefix\n"
       "Prefix name")
 {
@@ -159,7 +159,7 @@ DEFUN(cdr_file_prefix,
 
 DEFUN(cdr_file_roll_period,
       cdr_file_roll_period_cmd,
-      "file-roll-period <60-14400>",
+      "file roll-period <60-14400>",
       "Configure CDR File Roll period\n"
       "Number of seconds")
 {
@@ -178,7 +178,7 @@ DEFUN(cdr_file_roll_period,
 
 DEFUN(cdr_file_size,
       cdr_file_size_cmd,
-      "file-size <10-1000>",
+      "file size <10-1000>",
       "Configure CDR File size\n"
       "Number of MBytes")
 {
@@ -191,18 +191,57 @@ DEFUN(cdr_file_size,
 	}
 
 	VTY_GET_INTEGER_RANGE("Number of MBytes", size, argv[0], 10, 1000);
-	s->cdr_file_size = size;
+	s->cdr_file_size = size*1024*1024;
 	return CMD_SUCCESS;
 }
 
 DEFUN(cdr_file_async_io,
       cdr_file_async_io_cmd,
-      "file-async-io",
+      "file async-io",
       "Configure CDR File Async I/O mode\n")
 {
 	gtp_cdr_spool_t *s = vty->index;
 
 	__set_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(cdr_file_owner,
+      cdr_file_owner_cmd,
+      "file owner uid INTEGER gid INTEGER",
+      "Configure CDR File Ownership\n"
+      "file owner"
+      "User ID"
+      "Integer"
+      "Group ID"
+      "Integer")
+{
+	gtp_cdr_spool_t *s = vty->index;
+	char *endptr = NULL;
+	int value;
+
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	value = strtol(argv[0], &endptr, 10);
+	if (value < 0 || *endptr != '\0') {
+		vty_out(vty, "%% uid is malformed%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+	s->user = value;
+
+	value = strtol(argv[1], &endptr, 10);
+	if (value < 0 || *endptr != '\0') {
+		vty_out(vty, "%% gid is malformed%s", VTY_NEWLINE);
+		s->user = 0;
+		return CMD_WARNING;
+	}
+	s->group = value;
+
+	if (s->user && s->group)
+		__set_bit(GTP_CDR_SPOOL_FL_OWNER_BIT, &s->flags);
 	return CMD_SUCCESS;
 }
 
@@ -309,13 +348,16 @@ gtp_config_cdr_write(vty_t *vty)
 		if (s->archive_root[0])
 			vty_out(vty, " archive-root %s%s", s->archive_root, VTY_NEWLINE);
 		if (s->prefix[0])
-			vty_out(vty, " prefix %s%s", s->prefix, VTY_NEWLINE);
+			vty_out(vty, " file prefix %s%s", s->prefix, VTY_NEWLINE);
 		if (s->roll_period != GTP_CDR_DEFAULT_ROLLPERIOD)
-			vty_out(vty, " roll-period %d%s", s->roll_period, VTY_NEWLINE);
+			vty_out(vty, " file roll-period %d%s", s->roll_period, VTY_NEWLINE);
 		if (__test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags))
-			vty_out(vty, " async-io%s", VTY_NEWLINE);
+			vty_out(vty, " file async-io%s", VTY_NEWLINE);
+		if (__test_bit(GTP_CDR_SPOOL_FL_OWNER_BIT, &s->flags))
+			vty_out(vty, " file owner uid %d gid %d%s"
+				   , s->user, s->group, VTY_NEWLINE);
 		if (s->q_max_size)
-			vty_out(vty, " max-queue-size %d%s", s->q_max_size, VTY_NEWLINE);
+			vty_out(vty, " file max-queue-size %d%s", s->q_max_size, VTY_NEWLINE);
 		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags) ? "" : "no "
 			   , VTY_NEWLINE);
@@ -344,6 +386,8 @@ gtp_cdr_vty_init(void)
 	install_element(CDR_NODE, &cdr_file_roll_period_cmd);
 	install_element(CDR_NODE, &cdr_file_size_cmd);
 	install_element(CDR_NODE, &cdr_file_async_io_cmd);
+	install_element(CDR_NODE, &cdr_file_owner_cmd);
+	install_element(CDR_NODE, &cdr_max_queue_size_cmd);
 	install_element(CDR_NODE, &cdr_shutdown_cmd);
 	install_element(CDR_NODE, &cdr_no_shutdown_cmd);
 

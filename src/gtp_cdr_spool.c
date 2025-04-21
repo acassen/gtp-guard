@@ -50,6 +50,7 @@ gtp_cdr_spool_commit(gtp_cdr_spool_t *s, gtp_cdr_t *c)
 	size_t bsize;
 	int err;
 
+	gtp_cdr_close(c);
 	bsize = gtp_cdr_asn1_pgw_record_encode(c, s->q_buf, GTP_BUFFER_SIZE);
 	gtp_cdr_destroy(c);
 	err = gtp_cdr_file_write(f, s->q_buf, bsize);
@@ -252,18 +253,7 @@ gtp_cdr_spool_alloc(const char *name)
 int
 gtp_cdr_spool_start(gtp_cdr_spool_t *s)
 {
-	int err;
-
-	err = gtp_cdr_file_create(s->cdr_file);
-	if (err) {
-		log_message(LOG_INFO, "%s(): Cant create cdr_file for spool:%s (%m)"
-				    , __FUNCTION__
-				    , s->name);
-		return -1;
-	}
-
-	pthread_create(&s->task, NULL, gtp_cdr_spool_q_task, s);
-	return 0;
+	return pthread_create(&s->task, NULL, gtp_cdr_spool_q_task, s);
 }
 
 int

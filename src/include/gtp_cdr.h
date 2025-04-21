@@ -80,6 +80,7 @@ typedef struct _gtp_cdr {
 /* Prototypes */
 extern int gtp_cdr_volumes_update(gtp_cdr_t *, uint64_t, uint64_t);
 extern int gtp_cdr_update(pkt_buffer_t *, gtp_msg_t *, gtp_cdr_t *);
+extern int gtp_cdr_close(gtp_cdr_t *);
 extern gtp_cdr_t *gtp_cdr_alloc(void);
 extern void gtp_cdr_destroy(gtp_cdr_t *);
 

@@ -148,6 +148,12 @@ gtp_disk_mv(char *src, char *dst)
 	return rename(src, dst);
 }
 
+int
+gtp_disk_chown(const char *path, uid_t uid, gid_t gid)
+{
+	return chown(path, uid, gid);
+}
+
 static void *
 gtp_disk_mmap(int fd, size_t size)
 {
@@ -159,20 +165,6 @@ gtp_disk_mmap(int fd, size_t size)
 	}
 
 	return map;
-}
-
-static void *
-gtp_disk_mremap(int fd, void *map, size_t old_size, size_t new_size, int flags)
-{
-	void *map_new = mremap(map, old_size, new_size, flags, fd, 0);
-	if (map_new == MAP_FAILED) {
-		log_message(LOG_INFO, "%s(): Error mremap file with fd:%d old_size:%llu new_size:%llu (%m)"
-				    , __FUNCTION__, fd
-				    , (unsigned long long) old_size, (unsigned long long) new_size);
-		return NULL;
-	}
-
-	return map_new;
 }
 
 static int
@@ -296,20 +288,7 @@ gtp_disk_resize(map_file_t *map_file, size_t new_size)
 		return -1;
 	}
 
-	err = ftruncate(map_file->fd, new_size);
-	if (err)
-		goto end;
-
-	map_file->map = gtp_disk_mremap(map_file->fd, map_file->map,
-					map_file->fstat.st_size, new_size, MREMAP_MAYMOVE);
-	if (!map_file->map) {
-		err = -1;
-		goto end;
-	}
-
-	map_file->fstat.st_size = new_size;
-end:
-	return err;
+	return ftruncate(map_file->fd, new_size);
 }
 
 int

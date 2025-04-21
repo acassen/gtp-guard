@@ -348,6 +348,12 @@ gtp_cdr_volumes_update(gtp_cdr_t *cdr, uint64_t up, uint64_t down)
 	return 0;
 }
 
+int
+gtp_cdr_close(gtp_cdr_t *cdr)
+{
+	return cdr_delete_session_response(cdr, NULL);
+}
+
 gtp_cdr_t *
 gtp_cdr_alloc(void)
 {

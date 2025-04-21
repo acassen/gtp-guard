@@ -25,6 +25,7 @@
 /* Flags */
 enum gtp_cdr_file_flags {
 	GTP_CDR_SPOOL_FL_ASYNC_BIT,
+	GTP_CDR_SPOOL_FL_OWNER_BIT,
 	GTP_CDR_SPOOL_FL_SHUTDOWN_BIT,
 	GTP_CDR_SPOOL_FL_STOP_BIT,
 };
@@ -36,6 +37,8 @@ typedef struct _gtp_cdr_spool {
 	char			archive_root[GTP_PATH_MAX_LEN];
 	char			prefix[GTP_NAME_MAX_LEN];
 	int			roll_period;
+	uid_t			user;
+	gid_t			group;
 
 	gtp_cdr_file_t		*cdr_file;
 	size_t			cdr_file_size;
