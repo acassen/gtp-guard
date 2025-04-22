@@ -368,10 +368,14 @@ gtp_cdr_volumes_update(gtp_cdr_t *cdr, uint64_t up, uint64_t down)
 }
 
 int
-gtp_cdr_bpf_volumes_update(gtp_teid_t *t, void *arg)
+gtp_cdr_volumes_update_from_bpf(gtp_teid_t *t)
 {
-	gtp_cdr_t *cdr = arg;
+	gtp_session_t *s = t->session;
+	gtp_cdr_t *cdr = s->cdr;
 	uint64_t bytes = 0;
+
+	if (!cdr)
+		return -1;
 
 	if (__test_bit(GTP_TEID_FL_FWD, &t->flags))
 		gtp_bpf_fwd_teid_bytes(t, &bytes);

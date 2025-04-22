@@ -320,6 +320,10 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 	if (!__test_bit(GTP_TEID_FL_XDP_SET, &teid->flags))
 		goto end;
 
+	/* cdr volume update from bpf counters */
+	gtp_cdr_volumes_update_from_bpf(teid);
+
+	/* release bpf ruleset */
 	if (__test_bit(GTP_TEID_FL_FWD, &teid->flags))
 		gtp_bpf_fwd_teid_action(RULE_DEL, teid);
 	else if (__test_bit(GTP_TEID_FL_RT, &teid->flags))
@@ -385,17 +389,15 @@ __gtp_session_destroy(gtp_session_t *s)
 
 	pthread_mutex_lock(&c->session_mutex);
 
-	/* Generate CDR */
-	gtp_teid_foreach_entry(&s->gtpu_teid, s->cdr,
-			       gtp_cdr_bpf_volumes_update);
-	gtp_apn_cdr_commit(s->apn, s->cdr);
-
 	/* Send Delete-Bearer-Request if needed */
 	if (s->action == GTP_ACTION_SEND_DELETE_BEARER_REQUEST)
 		__gtp_session_send_delete_bearer(s);
 
 	/* Release teid */
 	__gtp_session_teid_destroy(s);
+
+	/* Generate CDR */
+	gtp_apn_cdr_commit(s->apn, s->cdr);
 
 	/* Release PPPoE related */
 	__spppoe_destroy(s->s_pppoe);
