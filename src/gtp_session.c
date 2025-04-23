@@ -44,23 +44,6 @@ static timer_thread_t gtp_session_timer;
 /*
  *	Session handling
  */
-gtp_session_t *
-gtp_session_get_by_ptype(gtp_conn_t *c, uint8_t ptype)
-{
-	gtp_session_t *s;
-
-	pthread_mutex_lock(&c->session_mutex);
-	list_for_each_entry(s, &c->gtp_sessions, next) {
-		if (s->ptype == ptype) {
-			pthread_mutex_unlock(&c->session_mutex);
-			return s;
-		}
-	}
-	pthread_mutex_unlock(&c->session_mutex);
-
-	return NULL;
-}
-
 gtp_teid_t *
 gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 {
@@ -383,6 +366,17 @@ __gtp_session_send_delete_bearer(gtp_session_t *s)
 }
 
 static int
+__gtp_session_free(gtp_session_t *s)
+{
+	__gtp_session_teid_destroy(s);
+	gtp_apn_cdr_commit(s->apn, s->cdr);
+	__spppoe_destroy(s->s_pppoe);
+	list_head_del(&s->next);
+	FREE(s);
+	return 0;
+}
+
+static int
 __gtp_session_destroy(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
@@ -393,19 +387,7 @@ __gtp_session_destroy(gtp_session_t *s)
 	if (s->action == GTP_ACTION_SEND_DELETE_BEARER_REQUEST)
 		__gtp_session_send_delete_bearer(s);
 
-	/* Release teid */
-	__gtp_session_teid_destroy(s);
-
-	/* Generate CDR */
-	gtp_apn_cdr_commit(s->apn, s->cdr);
-
-	/* Release PPPoE related */
-	__spppoe_destroy(s->s_pppoe);
-
-	/* Release session */
-	list_head_del(&s->next);
-	gtp_cdr_destroy(s->cdr);
-	FREE(s);
+	__gtp_session_free(s);
 
 	pthread_mutex_unlock(&c->session_mutex);
 
@@ -496,6 +478,26 @@ gtp_session_destroy_teid(gtp_teid_t *teid)
 	return 0;
 }
 
+int
+gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
+{
+	gtp_session_t *s;
+	int err = 0;
+
+	pthread_mutex_lock(&c->session_mutex);
+	list_for_each_entry(s, &c->gtp_sessions, next) {
+		if (s->ptype != ptype)
+			continue;
+
+		s->action = GTP_ACTION_SEND_DELETE_BEARER_REQUEST;
+		gtp_session_destroy(s);
+		err = -1;
+	}
+	pthread_mutex_unlock(&c->session_mutex);
+
+	return err;
+}
+
 
 /*
  *	Session expiration handling
@@ -526,9 +528,8 @@ gtp_sessions_release(gtp_conn_t *c)
 
 	/* Release sessions */
 	pthread_mutex_lock(&c->session_mutex);
-	list_for_each_entry_safe(s, _s, l, next) {
+	list_for_each_entry_safe(s, _s, l, next)
 		gtp_session_expire_now(s);
-	}
 	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
@@ -541,12 +542,8 @@ gtp_sessions_free(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	pthread_mutex_lock(&c->session_mutex);
-	list_for_each_entry_safe(s, _s, l, next) {
-		__gtp_session_teid_destroy(s);
-		list_head_del(&s->next);
-		gtp_cdr_destroy(s->cdr);
-		FREE(s);
-	}
+	list_for_each_entry_safe(s, _s, l, next)
+		__gtp_session_free(s);
 	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;

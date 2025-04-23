@@ -292,12 +292,12 @@ free_daemon_data(void)
 		gtp_bpf_mirror_unload(&daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
 		gtp_bpf_opts_destroy(&daemon_data->xdp_gtp_route, gtp_bpf_rt_unload);
+	gtp_sessions_destroy();
 	gtp_proxy_server_destroy();
 	gtp_router_server_destroy();
 	gtp_request_destroy();
 	gtp_pppoe_bundle_destroy();
 	gtp_pppoe_destroy();
-	gtp_sessions_destroy();
 	gtp_conn_destroy();
 	gtp_proxy_destroy();
 	gtp_router_destroy();

@@ -75,7 +75,6 @@ typedef struct _gtp_session {
 
 /* Prototypes */
 extern void gtp_session_dump(gtp_session_t *s);
-extern gtp_session_t *gtp_session_get_by_ptype(gtp_conn_t *, uint8_t);
 extern gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
 extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
 extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *);
@@ -92,6 +91,7 @@ extern int gtp_session_destroy(gtp_session_t *);
 extern int gtp_session_set_delete_bearer(gtp_session_t *, gtp_ie_eps_bearer_id_t *);
 extern int gtp_session_destroy_bearer(gtp_session_t *);
 extern int gtp_session_destroy_teid(gtp_teid_t *);
+extern int gtp_session_uniq_ptype(gtp_conn_t *, uint8_t);
 extern int gtp_session_expire_now(gtp_session_t *);
 extern int gtp_sessions_free(gtp_conn_t *);
 extern int gtp_sessions_init(void);

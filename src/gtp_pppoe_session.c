@@ -304,10 +304,8 @@ void
 spppoe_free(spppoe_t *s)
 {
 	sppp_destroy(s->s_ppp);
-	if (s->ac_cookie)
-		FREE(s->ac_cookie);
-	if (s->relay_sid)
-		FREE(s->relay_sid);
+	FREE_PTR(s->ac_cookie);
+	FREE_PTR(s->relay_sid);
 	FREE(s);
 }
 

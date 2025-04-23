@@ -983,11 +983,10 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 
 	ptype = (uint8_t *) msg_ie->data;
 	if (__test_bit(GTP_APN_FL_SESSION_UNIQ_PTYPE, &apn->flags)) {
-		s = gtp_session_get_by_ptype(c, *ptype);
-		if (s) {
-			spppoe_disconnect(s->s_pppoe);
-			s->action = GTP_ACTION_SEND_DELETE_BEARER_REQUEST;
-			gtp_session_destroy(s);
+		ret = gtp_session_uniq_ptype(c, *ptype);
+		if (ret) {
+			rc = gtpc_build_errmsg(w->pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
+						       , GTP_CAUSE_REQUEST_REJECTED);
 			goto end;
 		}
 	}
