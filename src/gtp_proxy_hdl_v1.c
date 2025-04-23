@@ -105,8 +105,9 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t
 		gtp_session_gtpu_teid_add(s, teid);
 
   masq:
-	/* Keep sqn track */
-	gtp_sqn_update(w, teid);
+	/* exclusive sqn tracking for ingress messages */
+	if (direction == GTP_INGRESS)
+		gtp_sqn_update(w, teid);
 
 	/* TEID masquarade */
 	srv = srv_gtpu;

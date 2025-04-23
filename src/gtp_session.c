@@ -404,6 +404,7 @@ __gtp_session_destroy(gtp_session_t *s)
 
 	/* Release session */
 	list_head_del(&s->next);
+	gtp_cdr_destroy(s->cdr);
 	FREE(s);
 
 	pthread_mutex_unlock(&c->session_mutex);
@@ -543,6 +544,7 @@ gtp_sessions_free(gtp_conn_t *c)
 	list_for_each_entry_safe(s, _s, l, next) {
 		__gtp_session_teid_destroy(s);
 		list_head_del(&s->next);
+		gtp_cdr_destroy(s->cdr);
 		FREE(s);
 	}
 	pthread_mutex_unlock(&c->session_mutex);

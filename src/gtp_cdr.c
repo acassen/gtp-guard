@@ -415,6 +415,9 @@ gtp_cdr_alloc(void)
 void
 gtp_cdr_destroy(gtp_cdr_t *cdr)
 {
+	if (!cdr)
+		return;
+
 	FREE_PTR(cdr->served_msisdn);
 	FREE_PTR(cdr->apn_ni);
 	FREE_PTR(cdr->uli);
