@@ -80,6 +80,10 @@
 	(unsigned char)__eth_addr[4],		\
 	(unsigned char)__eth_addr[5]
 
+#define ETHER_IS_BROADCAST(__eth_addr)					\
+	(((__eth_addr)[0] & (__eth_addr)[1] & (__eth_addr)[2] &		\
+	  (__eth_addr)[3] & (__eth_addr)[4] & (__eth_addr)[5]) == 0xff)
+
 /* ASM related */
 static inline void cpu_relax(void)
 {

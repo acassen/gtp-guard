@@ -602,6 +602,7 @@ breakbreak:
 	 * session init */
 	if (s && s->pppoe->bundle &&
 	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &s->pppoe->bundle->flags) &&
+	    ETHER_IS_BROADCAST(eh->ether_dhost) &&
 	    (s->pppoe->ifindex != pppoe->ifindex)) {
 		PPPDEBUG(("%s: pppoe brd filtering..."
 			  " s->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
