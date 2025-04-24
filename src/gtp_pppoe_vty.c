@@ -200,7 +200,19 @@ DEFUN(pppoe_ac_name,
 		return CMD_WARNING;
 	}
 
-	bsd_strlcpy(pppoe->ac_name, argv[0], PPPOE_NAMELEN);
+	pppoe->ac_name_len = bsd_strlcpy(pppoe->ac_name, argv[0], PPPOE_NAMELEN);
+	return CMD_SUCCESS;
+}
+
+
+DEFUN(pppoe_strict_ac_name,
+      pppoe_strict_ac_name_cmd,
+      "strict-ac-name",
+      "Discard incoming PPPoE packet if ac_name miss-match our\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	__set_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
 
@@ -231,7 +243,6 @@ DEFUN(pppoe_vendor_specific_bbf,
 	__set_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }
-
 
 DEFUN(pppoe_mru,
       pppoe_mru_cmd,
@@ -689,6 +700,8 @@ gtp_config_pppoe_write(vty_t *vty)
 			vty_out(vty, " monitor-vrrp %ld%s", pppoe->credit / TIMER_HZ, VTY_NEWLINE);
 		if (pppoe->ac_name[0])
 			vty_out(vty, " access-concentrator-name %s%s", pppoe->ac_name, VTY_NEWLINE);
+		if (__test_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags))
+			vty_out(vty, " strict-ac-name%s", VTY_NEWLINE);
 		if (pppoe->service_name[0])
 			vty_out(vty, " service-name %s%s", pppoe->service_name, VTY_NEWLINE);
 		if (pppoe->mru)
@@ -697,47 +710,44 @@ gtp_config_pppoe_write(vty_t *vty)
 			vty_out(vty, " vmac-hbits %d%s", pppoe->vmac_hbits, VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags))
 			vty_out(vty, " authentication pap gtp-username imsi+mei@apn%s"
-					, VTY_NEWLINE);
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_1_BIT, &pppoe->flags))
 			vty_out(vty, " authentication pap gtp-username imsi@apn%s"
-					, VTY_NEWLINE);
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags))
-			vty_out(vty, " vendor-specific-bbf%s"
-					, VTY_NEWLINE);
+			vty_out(vty, " vendor-specific-bbf%s", VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags))
 			vty_out(vty, " authentication pap username %s%s"
-					, pppoe->pap_username
-					, VTY_NEWLINE);
+				   , pppoe->pap_username
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_STATIC_PASSWD_BIT, &pppoe->flags))
 			vty_out(vty, " authentication pap password %s%s"
-					, pppoe->pap_passwd
-					, VTY_NEWLINE);
+				   , pppoe->pap_passwd
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
-			vty_out(vty, " ipv6cp disable%s"
-					, VTY_NEWLINE);
+			vty_out(vty, " ipv6cp disable%s", VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags))
 			vty_out(vty, " keepalive %d%s"
-					, pppoe->keepalive
-					, VTY_NEWLINE);
+				   , pppoe->keepalive
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
-			vty_out(vty, " padi-fast-retry%s"
-					, VTY_NEWLINE);
+			vty_out(vty, " padi-fast-retry%s", VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_LCP_TIMEOUT_BIT, &pppoe->flags))
 			vty_out(vty, " lcp-timeout %d%s"
-					, pppoe->lcp_timeout
-					, VTY_NEWLINE);
+				   , pppoe->lcp_timeout
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_LCP_MAX_TERMINATE_BIT, &pppoe->flags))
 			vty_out(vty, " lcp-max-terminate %d%s"
-					, pppoe->lcp_max_terminate
-					, VTY_NEWLINE);
+				   , pppoe->lcp_max_terminate
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_LCP_MAX_CONFIGURE_BIT, &pppoe->flags))
 			vty_out(vty, " lcp-max-configure %d%s"
-					, pppoe->lcp_max_configure
-					, VTY_NEWLINE);
+				   , pppoe->lcp_max_configure
+				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_LCP_MAX_FAILURE_BIT, &pppoe->flags))
 			vty_out(vty, " lcp-max-failture %d%s"
-					, pppoe->lcp_max_failure
-					, VTY_NEWLINE);
+				   , pppoe->lcp_max_failure
+				   , VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -784,6 +794,7 @@ gtp_pppoe_vty_init(void)
 	install_element(PPPOE_NODE, &pppoe_ac_name_cmd);
 	install_element(PPPOE_NODE, &pppoe_service_name_cmd);
 	install_element(PPPOE_NODE, &pppoe_vendor_specific_bbf_cmd);
+	install_element(PPPOE_NODE, &pppoe_strict_ac_name_cmd);
 	install_element(PPPOE_NODE, &pppoe_mru_cmd);
 	install_element(PPPOE_NODE, &pppoe_vmac_hbits_cmd);
 	install_element(PPPOE_NODE, &pppoe_auth_pap_gtp_username_tpl0_cmd);

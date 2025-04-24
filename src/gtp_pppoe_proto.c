@@ -475,12 +475,14 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	struct ether_header *eh;
 	pppoe_tag_t *pt;
 	const char *err_msg = NULL;
+	size_t ac_name_len = 0;
 	size_t ac_cookie_len = 0;
 	size_t relay_sid_len = 0;
 	int i, off = 0, errortag = 0, max_payloadtag = 0, ret;
 	uint16_t max_payload = 0;
 	uint16_t tag = 0, len = 0;
 	uint16_t session = 0, plen = 0;
+	uint8_t *ac_name = NULL;
 	uint8_t *ac_cookie = NULL;
 	uint8_t *relay_sid = NULL;
 	uint32_t *hunique;
@@ -515,7 +517,11 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		case PPPOE_TAG_SNAME:
 			break;	/* ignored */
 		case PPPOE_TAG_ACNAME:
-			break;	/* ignored */
+			if (ac_name == NULL) {
+				ac_name_len = len;
+				ac_name = (uint8_t *) (pkt->pbuff->head + off);
+			}
+			break;
 		case PPPOE_TAG_HUNIQUE:
 			/* Keep the first hunique */
 			if (s != NULL)
@@ -578,6 +584,18 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		off += len;
 	}
 breakbreak:
+	/* We are an hybrid access concentrator. If there is more than one
+	 * PPPoE access concentrator present on the same layer2 segment, then
+	 * we need to filter out any PPPoE broadcast messages according to
+	 * locally configured AC_NAME. */
+	if (ac_name && __test_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags)) {
+		if (ac_name_len != pppoe->ac_name_len)
+			return;
+
+		if (strncmp((char *)ac_name, pppoe->ac_name, ac_name_len))
+			return;
+	}
+
 	/* Using PPPoE bundle, PPP frames could be broadcasted to every interfaces
 	 * part of the bundle. if "ignore-ingress-ppp-brd" feature is used then
 	 * only take care of pkt on the same interface as the one used during
