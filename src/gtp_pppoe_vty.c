@@ -212,6 +212,11 @@ DEFUN(pppoe_strict_ac_name,
 {
 	gtp_pppoe_t *pppoe = vty->index;
 
+	if (!pppoe->ac_name[0]) {
+		vty_out(vty, "%% access-concentrator-name not configured%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	__set_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
 }

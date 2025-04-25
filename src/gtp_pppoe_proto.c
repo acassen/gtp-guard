@@ -478,7 +478,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	size_t ac_name_len = 0;
 	size_t ac_cookie_len = 0;
 	size_t relay_sid_len = 0;
-	int i, off = 0, errortag = 0, max_payloadtag = 0, ret;
+	int off = 0, errortag = 0, max_payloadtag = 0, ret;
 	uint16_t max_payload = 0;
 	uint16_t tag = 0, len = 0;
 	uint16_t session = 0, plen = 0;
@@ -487,7 +487,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	uint8_t *relay_sid = NULL;
 	uint32_t *hunique;
 	uint8_t code = 0;
-	uint8_t tmp[PPPOE_BUFSIZE];
+	char tmp[PPPOE_BUFSIZE];
 	gtp_htab_t *session_tab, *unique_tab;
 	timer_thread_t *session_timer;
 	int retry_wait = 2;
@@ -572,41 +572,26 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		if (err_msg) {
 			if (errortag && len) {
 				uint8_t *cp = (uint8_t *) (pkt->pbuff->head + off);
-				for (i = 0; i < len && i < PPPOE_BUFSIZE - 1; i++)
-					tmp[i] = *cp++;
-				tmp[i] = '\0';
 				log_message(LOG_INFO, "%s(): %s: %s: %s"
 						, __FUNCTION__, pppoe->ifname
-						, err_msg, tmp);
+						, err_msg
+						, memcpy2str(tmp, PPPOE_BUFSIZE, cp, len));
 			}
 			return;
 		}
 		off += len;
 	}
 breakbreak:
-	/* We are an hybrid access concentrator. If there is more than one
-	 * PPPoE access concentrator present on the same layer2 segment, then
-	 * we need to filter out any PPPoE broadcast messages according to
-	 * locally configured AC_NAME. */
-	if (ac_name && __test_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags)) {
-		if (ac_name_len != pppoe->ac_name_len)
-			return;
-
-		if (strncmp((char *)ac_name, pppoe->ac_name, ac_name_len))
-			return;
-	}
-
 	/* Using PPPoE bundle, PPP frames could be broadcasted to every interfaces
 	 * part of the bundle. if "ignore-ingress-ppp-brd" feature is used then
 	 * only take care of pkt on the same interface as the one used during
 	 * session init */
 	if (s && s->pppoe->bundle &&
 	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &s->pppoe->bundle->flags) &&
-	    ETHER_IS_BROADCAST(eh->ether_dhost) &&
 	    (s->pppoe->ifindex != pppoe->ifindex)) {
 		PPPDEBUG(("%s: pppoe brd filtering..."
 			  " s->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
-			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x\n",
+			  " for " ETHER_FMT " session = 0x%.4x\n",
 			  pppoe->ifname, s->pppoe->ifindex, pppoe->ifindex,
 			  ETHER_BYTES(eh->ether_dhost), session));
 		return;
@@ -615,9 +600,30 @@ breakbreak:
 	switch (code) {
 	case PPPOE_CODE_PADI:
 	case PPPOE_CODE_PADR:
-		/* ignore, we are no access concentrator */
+		/* ignore, we are not access concentrator */
 		return;
 	case PPPOE_CODE_PADO:
+		if (__test_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags)) {
+			if (!ac_name) {
+				log_message(LOG_INFO, "%s(): %s: ignoring PADO with no AC_NAME"
+						    , pppoe->ifname
+						    , __FUNCTION__);
+				return;
+			}
+
+			/* If there is more than one PPPoE access concentrator present on the
+			 * same layer2 segment, then we need to filter out any PPPoE broadcast
+			 * messages according to locally configured AC_NAME. */
+			if (ac_name_len != pppoe->ac_name_len ||
+			    strncmp((char *)ac_name, pppoe->ac_name, ac_name_len)) {
+				log_message(LOG_INFO, "%s(): %s: ignoring PADO for AC_NAME=%s"
+						    , __FUNCTION__
+						    , pppoe->ifname
+						    , memcpy2str(tmp, PPPOE_BUFSIZE, ac_name, ac_name_len));
+				return;
+			}
+		}
+
 		if (s == NULL) {
 			log_message(LOG_INFO, "%s(): %s: received PADO but could not find request for it"
 					    , __FUNCTION__, pppoe->ifname);
@@ -730,7 +736,7 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	sp = spppoe_get_by_session(session_tab, (struct ether_addr *) eh->ether_dhost, session);
 	if (!sp) {
 		log_message(LOG_INFO, "%s(): %s: unknown pppoe session for "
-				      "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x"
+				      ETHER_FMT " session = 0x%.4x"
 				    , __FUNCTION__, pppoe->ifname
 				    , ETHER_BYTES(eh->ether_shost), session);
 		return;
@@ -738,8 +744,8 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 
 	if (code) {
 		log_message(LOG_INFO, "%s(): %s: pppoe session invalid code:0x..2x for "
-				      "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x"
-				    , __FUNCTION__, pppoe->ifname
+				      ETHER_FMT " session = 0x%.4x"
+				    , __FUNCTION__, pppoe->ifname, code
 				    , ETHER_BYTES(eh->ether_shost), session);
 		return;
 	}
@@ -755,7 +761,7 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 	    (sp->pppoe->ifindex != pppoe->ifindex)) {
 		PPPDEBUG(("%s: pppoe brd filtering..."
 			  " sp->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
-			  " for %.2x:%.2x:%.2x:%.2x:%.2x:%.2x session = 0x%.4x\n",
+			  " for " ETHER_FMT " session = 0x%.4x\n",
 			  pppoe->ifname, sp->pppoe->ifindex, pppoe->ifindex,
 			  ETHER_BYTES(eh->ether_dhost), session));
 		return;

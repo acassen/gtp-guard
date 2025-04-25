@@ -708,6 +708,18 @@ bsd_strlcat(char *dst, const char *src, size_t dsize)
 	return(dlen + (src - osrc));	/* count does not include NUL */
 }
 
+char *
+memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize)
+{
+	uint8_t *cp = (uint8_t *) src;
+	size_t i;
+
+	for (i = 0; i < ssize && i < dsize - 1; i++)
+		dst[i] = *cp++;
+	dst[i] = '\0';
+	return dst;
+}
+
 /*
  *	Stringify fd infos
  */

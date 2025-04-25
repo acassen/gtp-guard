@@ -104,6 +104,7 @@ static inline void pkt_buffer_put_end(pkt_buffer_t *b, unsigned int offset)
 /* Prototypes */
 extern ssize_t pkt_send(int fd, pkt_queue_t *, pkt_t *);
 extern ssize_t pkt_recv(int fd, pkt_t *);
+extern int mpkt_dump(mpkt_t *, int);
 extern int mpkt_recv(int, mpkt_t *);
 extern void pkt_queue_run(pkt_queue_t *, int (*run) (pkt_t *, void *), void *);
 extern pkt_t *pkt_queue_get(pkt_queue_t *);

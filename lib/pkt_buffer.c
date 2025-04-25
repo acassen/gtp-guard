@@ -31,6 +31,7 @@
 
 /* local includes */
 #include "memory.h"
+#include "utils.h"
 #include "list_head.h"
 #include "pkt_buffer.h"
 
@@ -170,6 +171,21 @@ pkt_queue_destroy(pkt_queue_t *q)
 /*
  *	mpkt helpers
  */
+int
+mpkt_dump(mpkt_t *mpkt, int count)
+{
+	int i;
+
+	for (i = 0; i < count; i++) {
+		printf("-=[ pkt #%d (%d) ]=-\n",
+			i, pkt_buffer_len(mpkt->pkt[i]->pbuff));
+		dump_buffer(" ", (char *) mpkt->pkt[i]->pbuff->head
+			       , pkt_buffer_len(mpkt->pkt[i]->pbuff));
+	}
+
+	return 0;
+}
+
 int
 mpkt_recv(int fd, mpkt_t *mpkt)
 {

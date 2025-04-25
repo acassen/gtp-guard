@@ -226,6 +226,7 @@ gtp_disk_open(map_file_t *map_file, size_t size)
 
 	gtp_disk_close_fd(&map_file->fd);
 end:
+	/* FIXME: sanitize file before mapping & unlink if bogus... */
 	return gtp_disk_map(map_file);
 }
 

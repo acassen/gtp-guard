@@ -163,6 +163,7 @@ extern uint32_t poor_prng(unsigned int *);
 extern uint32_t xorshift_prng(uint64_t *);
 extern size_t bsd_strlcpy(char *, const char *, size_t);
 extern size_t bsd_strlcat(char *, const char *, size_t);
+extern char *memcpy2str(char *, size_t, const void *, size_t);
 extern char *fd2str(int, char *, size_t);
 
 #endif
