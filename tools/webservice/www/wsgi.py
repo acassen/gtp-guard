@@ -59,4 +59,5 @@ if __name__ == "__main__":
 #	cmd.parse(sys.argv[1:])
 #	app.run(host=cmd.server, port=cmd.port, debug=cmd.debug)
 #	app.run(host="127.0.0.1", port=9200, debug=True)
-	app.run(debug=True)
+#	app.run(debug=True)
+	app.run()
