@@ -461,7 +461,7 @@ pppoe_sanitize_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt,
 		log_message(LOG_INFO, "%s(): %s: packet content does not fit: "
 				      "data available = %d, packet size = %u"
 				    , __FUNCTION__, pppoe->ifname
-				    , pkt_buffer_len(pkt->pbuff) - *off, plen);
+				    , pkt_buffer_len(pkt->pbuff) - *off, *plen);
 		return -1;
 	}
 

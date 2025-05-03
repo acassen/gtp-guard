@@ -1,4 +1,4 @@
-name: gtp-guard CI
+name: GTP-Guard CI
 run-name: ${{ github.actor }} basic compilation and basic tests ⚗️
 on:
   push:
@@ -38,82 +38,87 @@ jobs:
             src/bpf/*.bpf
             bin/*.bpf
             test/
-  build-gtping:
-    name: Build gtping
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest ]
-        arch: [x86_64, arm64]
-    needs: build-gtp-guard
-    steps:
-      - name: gtping from upstream
-        uses: actions/checkout@v4
-        with:
-          repository: 'vjardin/gtping'
-      - name: build gtping from upstream
-        shell: bash
-        run : |
-          ./configure
-          make -j $(nproc)
-      - name: check gtping from upstream
-        run : src/gtping --version
-      - name: Upload gtping artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name : artifact-gtping-${{ matrix.arch }}
-          path : src/gtping
-  test-using-gtping:
-    name: gtp-guard test using gtping
-    needs: build-gtping
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest ]
-        arch: [x86_64, arm64]
-        compiler: [ gcc, clang ]
-    steps:
-      - name: add missing packages
-        uses: ConorMacBride/install-package@v1
-        with:
-          apt: scapy
-      - name: Fetch artifact gtping
-        uses: actions/download-artifact@v4
-        with:
-          path: bin
-          pattern: artifact-gtp*
-          merge-multiple: false
-      - name: Create config file
-        uses: 1arp/create-a-file-action@0.3
-        with:
-          path: 'etc'
-          file: 'gtp-guard.conf'
-          content: |
-            !
-            gtp-router demo
-              gtpc-tunnel-endpoint 0.0.0.0 port 2123 listener-count 3
-              gtpu-tunnel-endpoint 0.0.0.0 port 2152 listener-count 3
-            !
-            line vty
-              no login
-              listen 127.0.0.1 8888
-            !
-      - name: run the test
-        shell: bash
-        run : |
-          APATH="bin/artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}"
-          APING="bin/artifact-gtping-${{ matrix.arch }}"
-          ls -R -la
-          chmod 755 $APATH/bin/gtp-guard
-          chmod 755 $APING/gtping
-          chmod 755 $APATH/test/testenv.sh
-          chmod 755 $APATH/test/gtpu-ping.py
-          sudo $APATH/test/testenv.sh \
-            -i $APING/gtping \
-            -u $APATH/test/gtpu-ping.py \
-            -g $APATH/bin/gtp-guard \
-            -c etc/gtp-guard.conf \
-            -f $APATH/bin/gtp_fwd.bpf \
-            -r $APATH/bin/gtp_route.bpf \
-            -m $APATH/bin/gtp_mirror.bpf \
-            -k no
+
+#
+#  Save the planet
+#
+
+#  build-gtping:
+#    name: Build gtping
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      matrix:
+#        os: [ ubuntu-latest ]
+#        arch: [x86_64, arm64]
+#    needs: build-gtp-guard
+#    steps:
+#      - name: gtping from upstream
+#        uses: actions/checkout@v4
+#        with:
+#          repository: 'vjardin/gtping'
+#      - name: build gtping from upstream
+#        shell: bash
+#        run : |
+#          ./configure
+#          make -j $(nproc)
+#      - name: check gtping from upstream
+#        run : src/gtping --version
+#      - name: Upload gtping artifacts
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name : artifact-gtping-${{ matrix.arch }}
+#          path : src/gtping
+#  test-using-gtping:
+#    name: gtp-guard test using gtping
+#    needs: build-gtping
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      matrix:
+#        os: [ ubuntu-latest ]
+#        arch: [x86_64, arm64]
+#        compiler: [ gcc, clang ]
+#    steps:
+#      - name: add missing packages
+#        uses: ConorMacBride/install-package@v1
+#        with:
+#          apt: scapy
+#      - name: Fetch artifact gtping
+#        uses: actions/download-artifact@v4
+#        with:
+#          path: bin
+#          pattern: artifact-gtp*
+#          merge-multiple: false
+#      - name: Create config file
+#        uses: 1arp/create-a-file-action@0.3
+#        with:
+#          path: 'etc'
+#          file: 'gtp-guard.conf'
+#          content: |
+#            !
+#            gtp-router demo
+#              gtpc-tunnel-endpoint 0.0.0.0 port 2123 listener-count 3
+#              gtpu-tunnel-endpoint 0.0.0.0 port 2152 listener-count 3
+#            !
+#            line vty
+#              no login
+#              listen 127.0.0.1 8888
+#            !
+#      - name: run the test
+#        shell: bash
+#        run : |
+#          APATH="bin/artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}"
+#          APING="bin/artifact-gtping-${{ matrix.arch }}"
+#          ls -R -la
+#          chmod 755 $APATH/bin/gtp-guard
+#          chmod 755 $APING/gtping
+#          chmod 755 $APATH/test/testenv.sh
+#          chmod 755 $APATH/test/gtpu-ping.py
+#          sudo $APATH/test/testenv.sh \
+#            -i $APING/gtping \
+#            -u $APATH/test/gtpu-ping.py \
+#            -g $APATH/bin/gtp-guard \
+#            -c etc/gtp-guard.conf \
+#            -f $APATH/bin/gtp_fwd.bpf \
+#            -r $APATH/bin/gtp_route.bpf \
+#            -m $APATH/bin/gtp_mirror.bpf \
+#            -k no

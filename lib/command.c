@@ -18,6 +18,7 @@
 #include "command.h"
 #include "timer.h"
 #include "logger.h"
+#include "utils.h"
 
 /* Command vector which includes some level of command lists. Normally
  * each daemon maintains its own cmdvec. */
@@ -2016,7 +2017,7 @@ DEFUN(config_write_file,
       "Write to configuration file\n")
 {
 	unsigned int i;
-	int fd;
+	int fd, len;
 	cmd_node_t *node;
 	char *config_file;
 	char *config_file_tmp = NULL;
@@ -2034,9 +2035,10 @@ DEFUN(config_write_file,
 	/* Get filename. */
 	config_file = host.config;
   
-	config_file_sav = MALLOC(strlen(config_file) + strlen(CONF_BACKUP_EXT) + 1);
-	strcpy(config_file_sav, config_file);
-	strcat(config_file_sav, CONF_BACKUP_EXT);
+	len = strlen(config_file) + strlen(CONF_BACKUP_EXT) + 1;
+	config_file_sav = MALLOC(len);
+	bsd_strlcpy(config_file_sav, config_file, len);
+	bsd_strlcat(config_file_sav, CONF_BACKUP_EXT, len);
 
 	config_file_tmp = MALLOC(strlen(config_file) + 8);
 	sprintf(config_file_tmp, "%s.XXXXXX", config_file);
@@ -2049,6 +2051,12 @@ DEFUN(config_write_file,
 		goto finished;
 	}
   
+	if (fchmod(fd, 0600) != 0) {
+		vty_out(vty, "Can't chmod temp configuration file %s: %s (%d).%s" 
+			   , config_file_tmp, strerror(errno), errno, VTY_NEWLINE);
+		goto finished;
+	}
+
 	/* Make vty for configuration file. */
 	file_vty = vty_new();
 	file_vty->fd = fd;
@@ -2066,7 +2074,7 @@ DEFUN(config_write_file,
 		}
 	}
 
-	vty_close (file_vty);
+	vty_close(file_vty);
 
 	if (unlink(config_file_sav) != 0) {
 		if (errno != ENOENT) {
@@ -2098,12 +2106,6 @@ DEFUN(config_write_file,
 
 	sync();
   
-	if (chmod(config_file, 0600) != 0) {
-		vty_out(vty, "Can't chmod configuration file %s: %s (%d).%s" 
-			   , config_file, strerror(errno), errno, VTY_NEWLINE);
-		goto finished;
-	}
-
 	vty_out(vty, "Configuration saved to %s%s", config_file, VTY_NEWLINE);
 	ret = CMD_SUCCESS;
 

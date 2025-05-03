@@ -1,23 +1,28 @@
-name: "CodeQL Advanced"
+name: GTP-Guard CodeQL
 
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - 'doc/**'
+      - 'test/**'
+      - 'tools/**'
+      - 'libbpf/**'
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - 'doc/**'
+      - 'test/**'
+      - 'tools/**'
+      - 'libbpf/**'
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    name: Analyze
+    runs-on: ubuntu-latest
     permissions:
-      # required for all workflows
       security-events: write
-
-      # required to fetch internal or private CodeQL packs
       packages: read
-
-      # only required for workflows in private repositories
       actions: read
       contents: read
 
@@ -38,6 +43,9 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
+        config: |
+          paths-ignore:
+            - 'libbpf/**'
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:

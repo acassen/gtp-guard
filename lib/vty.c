@@ -1664,19 +1664,20 @@ vty_use_backup_config(char *fullpath)
 {
 	char *fullpath_sav, *fullpath_tmp;
 	FILE *ret = NULL;
-	struct stat buf;
 	int tmp, sav;
-	int c, retval;
+	int c, retval, len;
 	char buffer[512];
   
-	fullpath_sav = MALLOC(strlen(fullpath) + strlen (CONF_BACKUP_EXT) + 1);
-	strcpy(fullpath_sav, fullpath);
-	strcat(fullpath_sav, CONF_BACKUP_EXT);
-	if (stat (fullpath_sav, &buf) == -1) {
+	len = strlen(fullpath) + strlen(CONF_BACKUP_EXT) + 1;
+	fullpath_sav = MALLOC(len);
+	bsd_strlcpy(fullpath_sav, fullpath, len);
+	bsd_strlcat(fullpath_sav, CONF_BACKUP_EXT, len);
+	sav = open(fullpath_sav, O_RDONLY);
+	if (sav < 0) {
 		FREE(fullpath_sav);
 		return NULL;
 	}
-
+  
 	fullpath_tmp = MALLOC(strlen(fullpath) + 8);
 	sprintf(fullpath_tmp, "%s.XXXXXX", fullpath);
   
@@ -1685,17 +1686,10 @@ vty_use_backup_config(char *fullpath)
 	if (tmp < 0) {
 		FREE(fullpath_sav);
 		FREE(fullpath_tmp);
+		close(sav);
 		return NULL;
 	}
 
-	sav = open(fullpath_sav, O_RDONLY);
-	if (sav < 0) {
-		unlink(fullpath_tmp);
-		FREE(fullpath_sav);
-		FREE(fullpath_tmp);
-		return NULL;
-	}
-  
 	while((c = read(sav, buffer, 512)) > 0) {
 		retval = write(tmp, buffer, c);
 		if (retval < 0) {

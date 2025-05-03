@@ -641,7 +641,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 			catastrophic++;
 
 		if (catastrophic)
-			log_message(LOG_INFO, "%s: RXJ%c (%s) for proto 0x%x (%s/%s)\n"
+			log_message(LOG_INFO, "%s: %s: RXJ%c (%s) for proto 0x%x (%s/%s)\n"
 					    , pppoe->ifname, cp->name, catastrophic ? '-' : '+'
 					    , sppp_cp_type_name(h->type), proto
 					    , upper ? upper->name : "unknown"
