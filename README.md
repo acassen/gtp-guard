@@ -1,7 +1,7 @@
 # GTP Guard: GPRS Tunneling Protocol Routing software
 
-
-[![gtp-guard CI](https://github.com/acassen/gtp-guard/actions/workflows/actions-compile.yml/badge.svg)](https://github.com/acassen/gtp-guard/actions/workflows/actions-compile.yml)
+[![GTP-Guard CI](https://github.com/acassen/gtp-guard/actions/workflows/actions-compile.yml/badge.svg)](https://github.com/acassen/gtp-guard/actions/workflows/actions-compile.yml)
+[![GTP-Guard CodeQL](https://github.com/acassen/gtp-guard/actions/workflows/codeql.yml/badge.svg)](https://github.com/acassen/gtp-guard/actions/workflows/codeql.yml)
 
 <img width="30%" src="https://www.gtp-guard.org/assets/logo.png" align="left"/>
 

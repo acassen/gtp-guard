@@ -96,35 +96,6 @@ typedef struct _gtp_req_session {
 	unsigned long		flags;
 } gtp_req_session_t;
 
-/* Protocol defines */
-#define GTP_IMSI_REQUEST	0x50
-
-#define GTP_ACCESS_ACCEPT	0x01
-#define GTP_UNKNOWN_IMSI	0x05
-#define GTP_ACCESS_DENY		0x0f
-typedef struct __attribute__ ((packed)) _gtp_request_header {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-	unsigned int    hl:4;
-	unsigned int    version:4;
-#elif __BYTE_ORDER == __BIG_ENDIAN
-	unsigned int    version:4;
-	unsigned int    hl:4;
-#else
-# error "Please fix <bits/endian.h>"
-#endif
-	union {
-		uint8_t	command;
-		uint8_t err_code;
-	};
-	uint16_t	size;
-	uint32_t	request_id;
-} gtp_request_header_t;
-
-typedef struct __attribute__ ((packed)) _gtp_imsi_request {
-	gtp_request_header_t	header;
-	uint64_t		imsi;
-	uint32_t		sgsn_ip;
-} gtp_imsi_request_t;
 
 /* Prototypes */
 extern int gtp_request_worker_start(void);

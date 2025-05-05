@@ -46,7 +46,7 @@ static const char *pin_basedir = "/sys/fs/bpf";
 
 
 /*
- *	XDP common helpers
+ *	BPF common helpers
  */
 static struct port_mac_address *
 gtp_bpf_port_mac_address_alloc(size_t *sz)
@@ -96,7 +96,7 @@ gtp_bpf_mac_learning_vty(vty_t *vty, struct bpf_map *map)
 
 
 /*
- *	XDP related
+ *	BPF related
  */
 static int
 gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list args)
@@ -318,7 +318,7 @@ gtp_bpf_unload(gtp_bpf_opts_t *opts)
 
 
 /*
- *	XDP init
+ *	BPF init
  */
 int
 gtp_bpf_init(void)
