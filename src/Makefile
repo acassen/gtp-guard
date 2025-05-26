@@ -26,7 +26,7 @@ CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes -D
 DEFS	 =
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 
-%.o : %.c
+%.o: %.c
 	@echo "  CC" $@
 	@$(COMPILE) -c $<
 

@@ -54,7 +54,7 @@ $(OBJDIR)/libbpf.a:
 
 clean:
 	@$(MAKE) -C $(LIBBPF)/src clean
-	@rm -vf $(OBJDIR)/uapi
+	@rm -f $(OBJDIR)/uapi
 	@set -e; \
 	for i in $(SUBDIRS); do \
 	$(MAKE) -C $$i clean; done

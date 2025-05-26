@@ -21,12 +21,12 @@
 
 CC	 ?= gcc
 INCLUDES = -I.
-CFLAGS	 = -g -O2 $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes -MMD
+CFLAGS	 = -g -O2 $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes -D_GNU_SOURCE -MMD
 #DEFS	 = -D_DEBUG_
-DEFS	 = -D_GNU_SOURCE
+DEFS	 =
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 
-%.o : %.c
+%.o: %.c
 	@echo "  CC" $@
 	@$(COMPILE) -c $<
 

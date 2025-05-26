@@ -96,6 +96,7 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_worker_t *w, gtp_htab_t
 	teid->type = type;
 	__set_bit(direction ? GTP_TEID_FL_EGRESS : GTP_TEID_FL_INGRESS, &teid->flags);
 	teid->session = s;
+	__set_bit(GTP_TEID_FL_FWD, &teid->flags);
 	gtp_vteid_alloc(vh, teid, &w->seed);
 
 	/* Add to list */
