@@ -384,11 +384,11 @@ gtp_cdr_volumes_update_from_bpf(gtp_teid_t *t)
 		gtp_bpf_rt_teid_bytes(t, &bytes);
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
-		cdr->volume_down += bytes;
+		cdr->volume_up += bytes;
 		return 0;
 	}
 
-	cdr->volume_up += bytes;
+	cdr->volume_down += bytes;
 	return 0;
 }
 
