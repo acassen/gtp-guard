@@ -22,6 +22,10 @@
 #ifndef _GTP_H
 #define _GTP_H
 
+/* Global vars */
+const volatile int nr_cpus;
+
+
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
@@ -158,9 +162,6 @@ struct gtp_rt_rule {
 #define GTP_RT_FL_PPPOE		(1 << 1)
 #define GTP_RT_FL_DIRECT_TX	(1 << 2)
 #define GTP_RT_FL_UDP_LEARNING	(1 << 3)
-
-/* FIXME: How can we fetch cpu_num in BPF context ? */
-const volatile int nr_cpus = 48;
 
 struct rt_percpu_ctx {
 	/* ingress */

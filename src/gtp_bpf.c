@@ -33,6 +33,7 @@
 #include <linux/if_link.h>
 #include <linux/if_ether.h>
 #include <libbpf.h>
+#include <btf.h>
 
 /* local includes */
 #include "gtp_guard.h"
@@ -92,6 +93,122 @@ gtp_bpf_mac_learning_vty(vty_t *vty, struct bpf_map *map)
 		   , VTY_NEWLINE);
 	free(pma);
 	return 0;
+}
+
+
+/*
+ *	BPF Object variable update.
+ *
+ *  This only apply to global variables as present in .rodata section,
+ *  without using generated skeleton from libbpf.
+ *  They can be modified *only* before program is loaded into kernel.
+ *  it should be the same for variables in .data or .bss sections.
+ */
+static const char *
+gtp_bpf_obj_get_rodata_name(struct bpf_object *obj)
+{
+	struct bpf_map *map;
+
+	bpf_object__for_each_map(map, obj) {
+		if (strstr(bpf_map__name(map), ".rodata"))
+			return bpf_map__name(map);
+	}
+
+	return NULL;
+}
+
+static int
+gtp_bpf_obj_update_var(struct bpf_object *obj, const char *varname, uint32_t value)
+{
+	struct bpf_map *map;
+	const char *name;
+	void *rodata;
+	bool found = false;
+
+	name = gtp_bpf_obj_get_rodata_name(obj);
+	if (!name) {
+		log_message(LOG_INFO, "%s(): cant find rodata !!!", __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* this open() subskeleton is only here to retrieve map's mmap address
+	 * libbpf doesn't provide other way to get this address */
+	struct bpf_map_skeleton ms[1] = { {
+		.name = name,
+		.map = &map,
+		.mmaped = &rodata,
+	} };
+	struct bpf_object_subskeleton ss = {
+		.sz = sizeof (struct bpf_object_subskeleton),
+		.obj = obj,
+		.map_cnt = 1,
+		.map_skel_sz = sizeof (struct bpf_map_skeleton),
+		.maps = ms,
+	};
+	if (bpf_object__open_subskeleton(&ss) < 0) {
+		log_message(LOG_INFO, "%s(): cant open subskeleton !!!", __FUNCTION__);
+		errno = EINVAL;
+		return -1;
+	}
+
+	/* now use btf info to find this variable */
+	struct btf *btf;
+	const struct btf_type *sec;
+	struct btf_var_secinfo *secinfo;
+	int sec_id, i;
+
+	btf = bpf_object__btf(obj);
+	if (btf == NULL) {
+		log_message(LOG_INFO, "%s(): cant get BTF handler !!!", __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* get secdata id */
+	sec_id = btf__find_by_name(btf, ".rodata");
+	if (sec_id < 0) {
+		log_message(LOG_INFO, "%s(): cant get .rodata section !!!", __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* get the actual BTF type from the ID */
+	sec = btf__type_by_id(btf, sec_id);
+	if (sec == NULL) {
+		log_message(LOG_INFO, "%s(): cant get BTF type from section ID !!!"
+				    , __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* Get all secinfos, each of which will be a global variable */
+	secinfo = btf_var_secinfos(sec);
+	for (i = 0; i < btf_vlen(sec); i++) {
+		const struct btf_type *t = btf__type_by_id(btf, secinfo[i].type);
+		const char *name = btf__name_by_offset(btf, t->name_off);
+
+		if (!strncmp(name, varname, strlen(name))) {
+			*((uint32_t *)(rodata + secinfo[i].offset)) = value;
+			found = true;
+		}
+	}
+
+	if (!found) {
+		log_message(LOG_INFO, "%s(): unknown varname:%s !!!"
+				, __FUNCTION__, varname);
+		errno = ESRCH;
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+gtp_bpf_obj_update_global_vars(struct bpf_object *obj)
+{
+	/* Update global variables */
+	return gtp_bpf_obj_update_var(obj, "nr_cpus", bpf_num_possible_cpus());
 }
 
 
@@ -184,6 +301,9 @@ gtp_bpf_load_file(gtp_bpf_opts_t *opts)
 			   , errno, errmsg, VTY_NEWLINE);
 		return NULL;
 	}
+
+	/* Global vars update */
+	gtp_bpf_obj_update_global_vars(bpf_obj);
 
 	/* Release previously stalled maps. Our lazzy strategy here is to
 	 * simply erase previous maps during startup. Maybe if we want to
