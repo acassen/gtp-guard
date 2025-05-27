@@ -84,7 +84,7 @@ DEFUN(no_gtp_proxy,
 	/* Already existing ? */
 	ctx = gtp_proxy_get(argv[0]);
 	if (!ctx) {
-		vty_out(vty, "%% unknown gtp-switch %s%s", argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% unknown gtp-proxy %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -653,7 +653,7 @@ gtp_config_write(vty_t *vty)
         gtp_proxy_t *ctx;
 
         list_for_each_entry(ctx, l, next) {
-        	vty_out(vty, "gtp-switch %s%s", ctx->name, VTY_NEWLINE);
+		vty_out(vty, "gtp-proxy %s%s", ctx->name, VTY_NEWLINE);
 		if (__test_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags))
 			vty_out(vty, " direct-tx%s", VTY_NEWLINE);
 		if (__test_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags))
