@@ -104,7 +104,7 @@ ns_log_error(const char *dn, int error)
 }
 
 static int
-ns_bind_connect(gtp_apn_t *apn)
+ns_bind_connect(gtp_apn_t *apn, int type)
 {
 	struct sockaddr_storage *addr = &apn->nameserver_bind;
 	socklen_t addrlen;
@@ -114,12 +114,13 @@ ns_bind_connect(gtp_apn_t *apn)
 		return -1;
 
 	/* Create UDP Client socket */
-	fd = socket(addr->ss_family, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+	fd = socket(addr->ss_family, type | SOCK_CLOEXEC, 0);
 	fd = (fd < 0) ? fd : if_setsockopt_reuseaddr(fd, 1);
+	fd = (fd < 0) ? fd : if_setsockopt_nolinger(fd, 1);
 	fd = (fd < 0) ? fd : if_setsockopt_rcvtimeo(fd, 2000);
 	fd = (fd < 0) ? fd : if_setsockopt_sndtimeo(fd, 2000);
 	if (fd < 0) {
-		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
+		log_message(LOG_INFO, "%s(): error creating TCP [%s]:%d socket"
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
@@ -159,7 +160,7 @@ ns_ctx_init(gtp_resolv_ctx_t *ctx)
 	struct sockaddr_storage *addr;
 	int fd;
 
-	fd = ns_bind_connect(apn);
+	fd = ns_bind_connect(apn, SOCK_STREAM);
 	if (fd < 0)
 		return -1;
 
@@ -169,6 +170,9 @@ ns_ctx_init(gtp_resolv_ctx_t *ctx)
 	 * We are using this facility to set pre-allocated/pre-initialized
 	 * socket connection to remote nameserver. Specially useful when you
 	 * want to bind the connection to a local IP Address. */
+	ctx->ns_rs._vcsock = fd;
+	ctx->ns_rs._flags |= 0x00000003;	/* RES_F_VC|RES_F_CONN */
+	ctx->ns_rs.options |= RES_USEVC|RES_STAYOPEN;
 	ctx->ns_rs._u._ext.nssocks[0] = fd;
 	ctx->ns_rs._u._ext.nsaddrs[0] = MALLOC(sizeof(struct sockaddr_in6));
 	*ctx->ns_rs._u._ext.nsaddrs[0] = *((struct sockaddr_in6 *) addr);
