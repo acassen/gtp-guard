@@ -196,7 +196,7 @@ bpf_rps_filter_init(gtp_pppoe_worker_t *w, int fd, const char *filename)
 		return NULL;
 	}
 
-	err = if_setsockopt_attach_bpf(fd, bpf_program__fd(bpf_prog));
+	err = inet_setsockopt_attach_bpf(fd, bpf_program__fd(bpf_prog));
 	if (err < 0) {
 		bpf_object__close(bpf_obj);
 		return NULL;
@@ -291,8 +291,8 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 	sll.sll_ifindex = if_nametoindex(pppoe->ifname);
 
 	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(proto));
-	fd = if_setsockopt_broadcast(fd);
-	fd = if_setsockopt_promisc(fd, sll.sll_ifindex, true);
+	fd = inet_setsockopt_broadcast(fd);
+	fd = inet_setsockopt_promisc(fd, sll.sll_ifindex, true);
 	if (fd < 0) {
 		log_message(LOG_INFO, "%s(): #%d : Error creating pppoe channel on interface %s (%m)"
 				    , __FUNCTION__, id

@@ -115,10 +115,10 @@ ns_bind_connect(gtp_apn_t *apn, int type)
 
 	/* Create UDP Client socket */
 	fd = socket(addr->ss_family, type | SOCK_CLOEXEC, 0);
-	fd = (fd < 0) ? fd : if_setsockopt_reuseaddr(fd, 1);
-	fd = (fd < 0) ? fd : if_setsockopt_nolinger(fd, 1);
-	fd = (fd < 0) ? fd : if_setsockopt_rcvtimeo(fd, 2000);
-	fd = (fd < 0) ? fd : if_setsockopt_sndtimeo(fd, 2000);
+	fd = (fd < 0) ? fd : inet_setsockopt_reuseaddr(fd, 1);
+	fd = (fd < 0) ? fd : inet_setsockopt_nolinger(fd, 1);
+	fd = (fd < 0) ? fd : inet_setsockopt_rcvtimeo(fd, 2000);
+	fd = (fd < 0) ? fd : inet_setsockopt_sndtimeo(fd, 2000);
 	if (fd < 0) {
 		log_message(LOG_INFO, "%s(): error creating TCP [%s]:%d socket"
 				    , __FUNCTION__

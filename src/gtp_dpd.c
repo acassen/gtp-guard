@@ -227,9 +227,9 @@ gtp_dpd_egress_socket_init(void)
 	fd = socket(AF_INET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, IPPROTO_IPIP);
 	if (fd < 0)
 		return -1;
-	if_setsockopt_hdrincl(fd);
-	if_setsockopt_priority(&fd, AF_INET);
-	if_setsockopt_no_receive(&fd);
+	inet_setsockopt_hdrincl(fd);
+	inet_setsockopt_priority(&fd, AF_INET);
+	inet_setsockopt_no_receive(&fd);
 	return fd;
 }
 

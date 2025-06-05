@@ -200,8 +200,8 @@ gtp_request_tcp_thread(void *arg)
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &old_type);
 
 	/* Set timeout on session fd */
-	s->fd = if_setsockopt_rcvtimeo(s->fd, 2000);
-	s->fd = if_setsockopt_sndtimeo(s->fd, 2000);
+	s->fd = inet_setsockopt_rcvtimeo(s->fd, 2000);
+	s->fd = inet_setsockopt_sndtimeo(s->fd, 2000);
 	if (s->fd < 0)
 		goto end;
 
@@ -276,8 +276,8 @@ gtp_request_tcp_accept(thread_ref_t thread)
 	}
 
         /* Register reader on accept_sd */
-        if_setsockopt_nodelay(s->fd, 1);
-	if_setsockopt_nolinger(s->fd, 1);
+        inet_setsockopt_nodelay(s->fd, 1);
+	inet_setsockopt_nolinger(s->fd, 1);
 
 	/* Spawn a dedicated pthread per client. Dont really need performance here,
 	 * simply handle requests synchronously */
@@ -337,7 +337,7 @@ gtp_request_tcp_listen(gtp_req_worker_t *w)
 
         /* Create socket */
         fd = socket(addr->ss_family, SOCK_STREAM, 0);
-        fd = if_setsockopt_reuseaddr(fd, 1);
+        fd = inet_setsockopt_reuseaddr(fd, 1);
         if (fd < 0) {
                 log_message(LOG_INFO, "%s(): error creating [%s]:%d socket"
                                     , __FUNCTION__
@@ -347,7 +347,7 @@ gtp_request_tcp_listen(gtp_req_worker_t *w)
         }
 
         /* Reuseport: ingress loadbalancing */
-        if_setsockopt_reuseport(fd, 1);
+        inet_setsockopt_reuseport(fd, 1);
 
         /* Bind listening channel */
         addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :

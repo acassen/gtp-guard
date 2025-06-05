@@ -35,6 +35,10 @@
 #include <stdbool.h>
 
 /* defines */
+#define INET_DEFAULT_CONNECTION_KEEPIDLE	20
+#define INET_DEFAULT_CONNECTION_KEEPCNT		2
+#define INET_DEFAULT_CONNECTION_KEEPINTVL	10
+
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define NIPQUAD(__addr)                         \
 	((unsigned char *)&(__addr))[0],        \
@@ -85,14 +89,14 @@ sockstorage_equal(const struct sockaddr_storage *s1, const struct sockaddr_stora
 		const struct sockaddr_in6 *a2 = (const struct sockaddr_in6 *) s2;
 
 		if (__ip6_addr_equal(&a1->sin6_addr, &a2->sin6_addr) &&
-		(a1->sin6_port == a2->sin6_port))
+		    (a1->sin6_port == a2->sin6_port))
 			return true;
 	} else if (s1->ss_family == AF_INET) {
 		const struct sockaddr_in *a1 = (const struct sockaddr_in *) s1;
 		const struct sockaddr_in *a2 = (const struct sockaddr_in *) s2;
 
 		if ((a1->sin_addr.s_addr == a2->sin_addr.s_addr) &&
-		(a1->sin_port == a2->sin_port))
+		    (a1->sin_port == a2->sin_port))
 			return true;
 	} else if (s1->ss_family == AF_UNSPEC)
 		return true;
@@ -116,8 +120,27 @@ extern uint32_t inet_sockaddrip4(struct sockaddr_storage *);
 extern int inet_sockaddrip6(struct sockaddr_storage *, struct in6_addr *);
 extern int inet_sockaddrifindex(struct sockaddr_storage *);
 extern int inet_ston(const char *, uint32_t *);
-uint32_t inet_broadcast(uint32_t, uint32_t);
-uint32_t inet_cidrtomask(uint8_t);
+extern uint32_t inet_broadcast(uint32_t, uint32_t);
+extern uint32_t inet_cidrtomask(uint8_t);
 extern char *inet_fd2str(int, char *, size_t);
+extern int inet_setsockopt_reuseaddr(int, int);
+extern int inet_setsockopt_nolinger(int, int);
+extern int inet_setsockopt_tcpcork(int, int);
+extern int inet_setsockopt_nodelay(int, int);
+extern int inet_setsockopt_keepalive(int, int);
+extern int inet_setsockopt_tcp_keepidle(int, int);
+extern int inet_setsockopt_tcp_keepcnt(int, int);
+extern int inet_setsockopt_tcp_keepintvl(int, int);
+extern int inet_setsockopt_rcvtimeo(int, int);
+extern int inet_setsockopt_sndtimeo(int, int);
+extern int inet_setsockopt_reuseport(int, int);
+extern int inet_setsockopt_hdrincl(int);
+extern int inet_setsockopt_broadcast(int);
+extern int inet_setsockopt_promisc(int, int, bool);
+extern int inet_setsockopt_attach_bpf(int, int);
+extern int inet_setsockopt_no_receive(int *);
+extern int inet_setsockopt_rcvbuf(int *, int);
+extern int inet_setsockopt_bindtodevice(int *, const char *);
+extern int inet_setsockopt_priority(int *, int);
 
 #endif
