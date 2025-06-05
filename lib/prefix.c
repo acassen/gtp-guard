@@ -7,7 +7,7 @@
 #include <ctype.h>
 #include <syslog.h>
 #include "memory.h"
-#include "utils.h"
+#include "inet_utils.h"
 #include "prefix.h"
 
 /* Maskbit. */

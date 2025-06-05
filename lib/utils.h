@@ -54,108 +54,18 @@
            !!__builtin_types_compatible_p(typeof(arr), \
                  typeof(&arr[0]))])) * 0)
 
-/* defines */
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define NIPQUAD(__addr)                         \
-	((unsigned char *)&(__addr))[0],        \
-	((unsigned char *)&(__addr))[1],        \
-	((unsigned char *)&(__addr))[2],        \
-	((unsigned char *)&(__addr))[3]
-#elif __BYTE_ORDER == __BIG_ENDIAN
-#define NIPQUAD(__addr)                         \
-	((unsigned char *)&(__addr))[3],        \
-	((unsigned char *)&(__addr))[2],        \
-	((unsigned char *)&(__addr))[1],        \
-	((unsigned char *)&(__addr))[0]
-#else
-#error "Please fix <bits/endian.h>"
-#endif
-
-#define ETHER_FMT "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x"
-#define ETHER_BYTES(__eth_addr)			\
-	(unsigned char)__eth_addr[0],		\
-	(unsigned char)__eth_addr[1],		\
-	(unsigned char)__eth_addr[2],		\
-	(unsigned char)__eth_addr[3],		\
-	(unsigned char)__eth_addr[4],		\
-	(unsigned char)__eth_addr[5]
-
-#define ETHER_IS_BROADCAST(__eth_addr)					\
-	(((__eth_addr)[0] & (__eth_addr)[1] & (__eth_addr)[2] &		\
-	  (__eth_addr)[3] & (__eth_addr)[4] & (__eth_addr)[5]) == 0xff)
-
-/* ASM related */
-static inline void cpu_relax(void)
-{
-	asm volatile("rep; nop" ::: "memory");
-}
-
-/* inline stuff */
-static inline int __ip6_addr_equal(const struct in6_addr *a1,
-                                   const struct in6_addr *a2)
-{
-        return (((a1->s6_addr32[0] ^ a2->s6_addr32[0]) |
-                 (a1->s6_addr32[1] ^ a2->s6_addr32[1]) |
-                 (a1->s6_addr32[2] ^ a2->s6_addr32[2]) |
-                 (a1->s6_addr32[3] ^ a2->s6_addr32[3])) == 0);
-}
-
-static inline bool __attribute__((pure))
-sockstorage_equal(const struct sockaddr_storage *s1, const struct sockaddr_storage *s2)
-{
-        if (s1->ss_family != s2->ss_family)
-                return false;
-
-        if (s1->ss_family == AF_INET6) {
-                const struct sockaddr_in6 *a1 = (const struct sockaddr_in6 *) s1;
-                const struct sockaddr_in6 *a2 = (const struct sockaddr_in6 *) s2;
-
-                if (__ip6_addr_equal(&a1->sin6_addr, &a2->sin6_addr) &&
-                    (a1->sin6_port == a2->sin6_port))
-                        return true;
-        } else if (s1->ss_family == AF_INET) {
-                const struct sockaddr_in *a1 = (const struct sockaddr_in *) s1;
-                const struct sockaddr_in *a2 = (const struct sockaddr_in *) s2;
-
-                if ((a1->sin_addr.s_addr == a2->sin_addr.s_addr) &&
-                    (a1->sin_port == a2->sin_port))
-                        return true;
-        } else if (s1->ss_family == AF_UNSPEC)
-                return true;
-
-        return false;
-}
-
 /* global vars exported */
 extern unsigned long debug;
 
 /* Prototypes defs */
 extern void dump_buffer(const char *, char *, int);
 extern void buffer_to_c_array(const char *, char *, size_t);
-extern uint16_t in_csum(uint16_t *, int, uint16_t);
-extern uint16_t udp_csum(const void *, size_t, uint32_t, uint32_t);
-extern char *inet_ntop2(uint32_t);
-extern char *inet_ntoa2(uint32_t, char *);
-extern uint8_t inet_stom(char *);
-extern uint8_t inet_stor(char *);
-extern int inet_stosockaddr(const char *, const uint16_t, struct sockaddr_storage *);
-extern int inet_ip4tosockaddr(uint32_t, struct sockaddr_storage *);
-extern char *inet_sockaddrtos(struct sockaddr_storage *);
-extern char *inet_sockaddrtos2(struct sockaddr_storage *, char *);
-extern uint16_t inet_sockaddrport(struct sockaddr_storage *);
-extern uint32_t inet_sockaddrip4(struct sockaddr_storage *);
-extern int inet_sockaddrip6(struct sockaddr_storage *, struct in6_addr *);
-extern int inet_sockaddrifindex(struct sockaddr_storage *);
-extern int inet_ston(const char *, uint32_t *);
-uint32_t inet_broadcast(uint32_t, uint32_t);
-uint32_t inet_cidrtomask(uint8_t);
 extern char *get_local_name(void);
 extern int string_equal(const char *, const char *);
 extern char hextochar(char);
 extern int hextostring(char *, int, char *);
 extern int stringtohex(const char *, int, char *, int);
 extern int swapbuffer(uint8_t *, int, uint8_t *);
-extern int __set_nonblock(int);
 extern uint32_t adler_crc32(uint8_t *, size_t);
 extern uint32_t fletcher_crc32(uint8_t *, size_t);
 extern int integer_to_string(const int, char *, size_t);
@@ -164,6 +74,5 @@ extern uint32_t xorshift_prng(uint64_t *);
 extern size_t bsd_strlcpy(char *, const char *, size_t);
 extern size_t bsd_strlcat(char *, const char *, size_t);
 extern char *memcpy2str(char *, size_t, const void *, size_t);
-extern char *fd2str(int, char *, size_t);
 
 #endif

@@ -22,6 +22,7 @@
 #include "vty.h"
 #include "timer.h"
 #include "utils.h"
+#include "inet_utils.h"
 #include "command.h"
 #include "memory.h"
 #include "logger.h"

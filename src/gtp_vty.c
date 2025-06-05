@@ -820,7 +820,7 @@ vty_request_worker(gtp_req_worker_t *w, void *arg)
 		       "    flags:%s%s"
 		     , w->id
 		     , w->task
-		     , w->fd, (w->fd < 0) ? "none" : fd2str(w->fd, fdpath, PATH_MAX)
+		     , w->fd, (w->fd < 0) ? "none" : inet_fd2str(w->fd, fdpath, PATH_MAX)
 		     , VTY_NEWLINE
 		     , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
 		     , VTY_NEWLINE);
