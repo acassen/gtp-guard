@@ -479,7 +479,7 @@ DEFUN(request_channel,
       "listening TCP Port\n"
       "Number\n")
 {
-	gtp_req_channel_t *srv = &daemon_data->request_channel;
+	inet_server_t *srv = &daemon_data->request_channel;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, err = 0;
 
@@ -498,9 +498,8 @@ DEFUN(request_channel,
 	}
 
 
-        srv->thread_cnt = GTP_REQUEST_THREAD_CNT_DEFAULT;
+        srv->thread_cnt = INET_SRV_THREAD_CNT_DEFAULT;
         gtp_request_init();
-        gtp_request_worker_start();
         return CMD_SUCCESS;
 }
 
@@ -810,7 +809,7 @@ DEFUN(gtp_send_echo_request_extended,
 }
 
 static int
-vty_request_worker(gtp_req_worker_t *w, void *arg)
+vty_request_worker(inet_worker_t *w, void *arg)
 {
 	vty_t *vty = (vty_t *) arg;
 	char flags2str[BUFSIZ];
@@ -834,7 +833,7 @@ DEFUN(show_workers_request_channel,
       "workers tasks\n"
       "pdn request-channel workers\n")
 {
-	gtp_req_channel_t *srv = &daemon_data->request_channel;
+	inet_server_t *srv = &daemon_data->request_channel;
 	char addr_str[INET6_ADDRSTRLEN];
 	char flags2str[BUFSIZ];
 
@@ -852,7 +851,7 @@ DEFUN(show_workers_request_channel,
 		     , VTY_NEWLINE
 		     , gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
 		     , VTY_NEWLINE);
-	gtp_request_for_each_worker(srv, vty_request_worker, vty);
+	inet_server_for_each_worker(srv, vty_request_worker, vty);
 
 	return CMD_SUCCESS;
 }

@@ -72,7 +72,7 @@ typedef struct _gtp_mirror_rule {
 typedef struct _data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
-	gtp_req_channel_t	request_channel;
+	inet_server_t		request_channel;
 	list_head_t		xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtp_forward;
 	gtp_bpf_opts_t		xdp_mirror;
