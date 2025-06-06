@@ -110,7 +110,7 @@ gtp_request_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 /*
  *	Request listener init
  */
-static int
+int
 gtp_request_cnx_process(inet_cnx_t *c)
 {
 	json_node_t *json;
@@ -128,7 +128,7 @@ gtp_request_cnx_process(inet_cnx_t *c)
 	return 0;
 }
 
-static int
+int
 gtp_request_cnx_init(inet_cnx_t *c)
 {
 	json_writer_t *jwriter = jsonw_new(c->fp);
@@ -136,7 +136,7 @@ gtp_request_cnx_init(inet_cnx_t *c)
 	return 0;
 }
 
-static int
+int
 gtp_request_cnx_destroy(inet_cnx_t *c)
 {
 	json_writer_t *jwriter = c->arg;
@@ -153,11 +153,12 @@ gtp_request_init(void)
 {
 	inet_server_t *srv = &daemon_data->request_channel;
 
-	srv->cnx_init = gtp_request_cnx_init;
-	srv->cnx_destroy = gtp_request_cnx_destroy;
-	srv->cnx_rcv = inet_http_read;
-	srv->cnx_process = gtp_request_cnx_process;
+	srv->cnx_init = &gtp_request_cnx_init;
+	srv->cnx_destroy = &gtp_request_cnx_destroy;
+	srv->cnx_rcv = &inet_http_read;
+	srv->cnx_process = &gtp_request_cnx_process;
 
+	inet_server_init(srv);
 	return inet_server_worker_start(srv);
 }
 

@@ -57,6 +57,7 @@ inet_http_read(inet_cnx_t *c)
 	ssize_t nbytes, offset = 0;
 
 	memset(buffer, 0, INET_BUFFER_SIZE);
+	c->buffer_in_size = 0;
 
 next_rcv:
 	if (__test_bit(INET_FL_STOP_BIT, &w->flags))
@@ -74,12 +75,15 @@ next_rcv:
 
 	offset += nbytes;
 
-	if (buffer[offset-2] == '\r' && buffer[offset-1] == '\n')
+	if (buffer[offset-2] == '\r' && buffer[offset-1] == '\n') {
+		c->buffer_in_size = offset;
 		return offset;
+	}
 
 	if (offset < INET_BUFFER_SIZE)
 		goto next_rcv;
 
+	c->buffer_in_size = INET_BUFFER_SIZE;
 	return INET_BUFFER_SIZE;
 }
 
@@ -137,15 +141,15 @@ inet_server_tcp_thread(void *arg)
 static void
 inet_server_tcp_accept(thread_ref_t thread)
 {
-        struct sockaddr_storage addr;
-        socklen_t addrlen = sizeof(addr);
+	struct sockaddr_storage addr;
+	socklen_t addrlen = sizeof(addr);
 	inet_worker_t *w;
-        inet_cnx_t *c;
-        int fd, accept_fd, ret;
+	inet_cnx_t *c;
+	int fd, accept_fd, ret;
 
-        /* Fetch thread elements */
-        fd = THREAD_FD(thread);
-        w = THREAD_ARG(thread);
+	/* Fetch thread elements */
+	fd = THREAD_FD(thread);
+	w = THREAD_ARG(thread);
 
 	/* Terminate event */
 	if (__test_bit(INET_FL_STOP_BIT, &w->flags)) {
@@ -153,26 +157,26 @@ inet_server_tcp_accept(thread_ref_t thread)
 		return;
 	}
 
-        /* Wait until accept event */
-        if (thread->type == THREAD_READ_TIMEOUT)
-                goto next_accept;
+	/* Wait until accept event */
+	if (thread->type == THREAD_READ_TIMEOUT)
+		goto next_accept;
 
-        /* Accept incoming connection */
-        accept_fd = accept(fd, (struct sockaddr *) &addr, &addrlen);
-        if (accept_fd < 0) {
-                log_message(LOG_INFO, "%s(): #%d Error accepting connection from peer [%s]:%d (%m)"
-                                    , __FUNCTION__
-                                    , w->id
-                                    , inet_sockaddrtos(&addr)
-                                    , ntohs(inet_sockaddrport(&addr)));
-                goto next_accept;
-        }
+	/* Accept incoming connection */
+	accept_fd = accept(fd, (struct sockaddr *) &addr, &addrlen);
+	if (accept_fd < 0) {
+		log_message(LOG_INFO, "%s(): #%d Error accepting connection from peer [%s]:%d (%m)"
+				    , __FUNCTION__
+				    , w->id
+				    , inet_sockaddrtos(&addr)
+				    , ntohs(inet_sockaddrport(&addr)));
+		goto next_accept;
+	}
 
-        /* remote client session allocation */
+	/* remote client session allocation */
 	PMALLOC(c);
-        c->fd = accept_fd;
-        c->addr = addr;
-        c->worker = w;
+	c->fd = accept_fd;
+	c->addr = addr;
+	c->worker = w;
 	c->fp = fdopen(accept_fd, "w");
 	if (!c->fp) {
 		log_message(LOG_INFO, "%s(): #%d cant fdopen on accept socket with peer [%s]:%d (%m)"
@@ -184,12 +188,12 @@ inet_server_tcp_accept(thread_ref_t thread)
 		goto next_accept;
 	}
 
-        /* Register reader on accept_sd */
-        inet_setsockopt_nodelay(c->fd, 1);
+	/* Register reader on accept_sd */
+	inet_setsockopt_nodelay(c->fd, 1);
 	inet_setsockopt_nolinger(c->fd, 1);
 
 	/* Spawn a dedicated pthread per client. Dont really need performance here,
-	 * simply handle requests synchronously */
+	* simply handle requests synchronously */
 	ret = pthread_attr_init(&c->task_attr);
 	if (ret != 0) {
 		log_message(LOG_INFO, "%s(): #%d cant init pthread_attr for session with peer [%s]:%d (%m)"
@@ -222,10 +226,10 @@ inet_server_tcp_accept(thread_ref_t thread)
 		inet_cnx_destroy(c);
 	}
 
-  next_accept:
-        /* Register read thread on listen fd */
-        w->r_thread = thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
-                                      INET_TCP_LISTENER_TIMER, 0);
+next_accept:
+	/* Register read thread on listen fd */
+	w->r_thread = thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
+				      INET_TCP_LISTENER_TIMER, 0);
 }
 
 
@@ -235,63 +239,63 @@ inet_server_tcp_accept(thread_ref_t thread)
 static int
 inet_server_tcp_listen(inet_worker_t *w)
 {
-        mode_t old_mask;
-        inet_server_t *srv = w->server;
-        struct sockaddr_storage *addr = &srv->addr;
-        socklen_t addrlen;
-        int err, fd = -1;
+	mode_t old_mask;
+	inet_server_t *srv = w->server;
+	struct sockaddr_storage *addr = &srv->addr;
+	socklen_t addrlen;
+	int err, fd = -1;
 
-        /* Mask */
-        old_mask = umask(0077);
+	/* Mask */
+	old_mask = umask(0077);
 
-        /* Create socket */
-        fd = socket(addr->ss_family, SOCK_STREAM, 0);
-        fd = inet_setsockopt_reuseaddr(fd, 1);
-        if (fd < 0) {
-                log_message(LOG_INFO, "%s(): error creating [%s]:%d socket"
-                                    , __FUNCTION__
-                                    , inet_sockaddrtos(addr)
-                                    , ntohs(inet_sockaddrport(addr)));
-                return -1;
-        }
+	/* Create socket */
+	fd = socket(addr->ss_family, SOCK_STREAM, 0);
+	fd = inet_setsockopt_reuseaddr(fd, 1);
+	if (fd < 0) {
+		log_message(LOG_INFO, "%s(): error creating [%s]:%d socket"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , ntohs(inet_sockaddrport(addr)));
+		return -1;
+	}
 
-        /* Reuseport: ingress loadbalancing */
-        inet_setsockopt_reuseport(fd, 1);
+	/* Reuseport: ingress loadbalancing */
+	inet_setsockopt_reuseport(fd, 1);
 
-        /* Bind listening channel */
-        addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
-                                                 sizeof(struct sockaddr_in6);
-        err = bind(fd, (struct sockaddr *) addr, addrlen);
-        if (err < 0) {
-                log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
-                                    , __FUNCTION__
-                                    , inet_sockaddrtos(addr)
-                                    , ntohs(inet_sockaddrport(addr)));
-                goto error;
-        }
+	/* Bind listening channel */
+	addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
+						sizeof(struct sockaddr_in6);
+	err = bind(fd, (struct sockaddr *) addr, addrlen);
+	if (err < 0) {
+		log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , ntohs(inet_sockaddrport(addr)));
+		goto error;
+	}
 
-        /* Init listening channel */
-        err = listen(fd, 5);
-        if (err < 0) {
-                log_message(LOG_INFO, "%s(): Error listening on [%s]:%d (%m)"
-                                    , __FUNCTION__
-                                    , inet_sockaddrtos(addr)
-                                    , ntohs(inet_sockaddrport(addr)));
-                goto error;
-        }
+	/* Init listening channel */
+	err = listen(fd, 5);
+	if (err < 0) {
+		log_message(LOG_INFO, "%s(): Error listening on [%s]:%d (%m)"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , ntohs(inet_sockaddrport(addr)));
+		goto error;
+	}
 
-        /* Restore old mask */
-        umask(old_mask);
+	/* Restore old mask */
+	umask(old_mask);
 
-        /* Register acceptor thread */
-        w->r_thread = thread_add_read(w->master, inet_server_tcp_accept, w, fd,
-                                      INET_TCP_LISTENER_TIMER, 0);
-        w->fd = fd;
-        return fd;
+	/* Register acceptor thread */
+	w->r_thread = thread_add_read(w->master, inet_server_tcp_accept, w, fd,
+				      INET_TCP_LISTENER_TIMER, 0);
+	w->fd = fd;
+	return fd;
 
-  error:
-        close(fd);
-        return -1;
+error:
+	close(fd);
+	return -1;
 }
 
 static void *
@@ -354,7 +358,7 @@ int
 inet_server_worker_start(inet_server_t *srv)
 {
 	if (!(__test_bit(INET_FL_RUNNING_BIT, &srv->flags)))
-	    return -1;
+		return -1;
 
 	return inet_server_worker_launch(srv);
 }
