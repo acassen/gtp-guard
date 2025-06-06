@@ -647,13 +647,14 @@ DEFUN(apn_nameserver,
 
 DEFUN(apn_nameserver_bind,
       apn_nameserver_bind_cmd,
-      "nameserver-bind (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "nameserver-bind (A.B.C.D|X:X:X:X) port <1024-65535> [peristent]",
       "Set Global PDN nameserver binding Address\n"
       "IP Address\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
       "UDP Port\n"
-      "Number\n")
+      "Number\n"
+      "Persistent connection\n")
 {
 	gtp_apn_t *apn = vty->index;
 	struct sockaddr_storage *addr = &apn->nameserver_bind;
@@ -671,6 +672,11 @@ DEFUN(apn_nameserver_bind,
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
+	}
+
+	if (argc == 3) {
+		if (strstr(argv[2], "persistent"))
+			__set_bit(GTP_RESOLV_FL_CNX_PERSISTENT, &apn->flags);
 	}
 
 	return CMD_SUCCESS;
@@ -1548,9 +1554,11 @@ apn_config_write(vty_t *vty)
 				   , inet_sockaddrtos(&apn->nameserver)
 				   , VTY_NEWLINE);
 		if (apn->nameserver_bind.ss_family)
-			vty_out(vty, " nameserver-bind %s port %d%s"
+			vty_out(vty, " nameserver-bind %s port %d %s%s"
 				   , inet_sockaddrtos(&apn->nameserver_bind)
 				   , ntohs(inet_sockaddrport(&apn->nameserver_bind))
+				   , __test_bit(GTP_RESOLV_FL_CNX_PERSISTENT, &apn->flags) ?
+				     "persistent" : ""
 				   , VTY_NEWLINE);
 		if (apn->nameserver_timeout)
 			vty_out(vty, " nameserver-timeout %d%s"

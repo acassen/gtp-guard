@@ -142,15 +142,22 @@ ns_bind_connect(gtp_apn_t *apn, int type)
 
 	err = connect(fd, (struct sockaddr *) &apn->nameserver, addrlen);
 	if (err) {
-		log_message(LOG_INFO, "%s(): Error connecting to [%s]:%d (%m)"
+		if (__test_bit(GTP_RESOLV_FL_CNX_PERSISTENT, &apn->flags) &&
+		    errno == EADDRNOTAVAIL)
+			goto err;
+
+		log_message(LOG_INFO, "%s(): Error(%d) connecting to [%s]:%d (%m)"
 				    , __FUNCTION__
+				    , errno
 				    , inet_sockaddrtos(&apn->nameserver)
 				    , ntohs(inet_sockaddrport(&apn->nameserver)));
-		close(fd);
-		return -1;
+		goto err;
 	}
 
 	return fd;
+  err:
+	close(fd);
+	return -1;
 }
 
 static int
@@ -172,7 +179,9 @@ ns_ctx_init(gtp_resolv_ctx_t *ctx)
 	 * want to bind the connection to a local IP Address. */
 	ctx->ns_rs._vcsock = fd;
 	ctx->ns_rs._flags |= 0x00000003;	/* RES_F_VC|RES_F_CONN */
-	ctx->ns_rs.options |= RES_USEVC|RES_STAYOPEN;
+	ctx->ns_rs.options |= RES_USEVC;
+	if (__test_bit(GTP_RESOLV_FL_CNX_PERSISTENT, &apn->flags))
+		ctx->ns_rs.options |= RES_STAYOPEN;
 	ctx->ns_rs._u._ext.nssocks[0] = fd;
 	ctx->ns_rs._u._ext.nsaddrs[0] = MALLOC(sizeof(struct sockaddr_in6));
 	*ctx->ns_rs._u._ext.nsaddrs[0] = *((struct sockaddr_in6 *) addr);
