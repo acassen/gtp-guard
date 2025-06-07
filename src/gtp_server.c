@@ -90,19 +90,20 @@ gtp_server_udp_init(gtp_server_t *srv)
 {
 	struct sockaddr_storage *addr = &srv->addr;
 	socklen_t addrlen;
-	int fd, err;
+	int fd, err = 0;
 
 	/* Create UDP Listener */
 	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
-	fd = (fd < 0) ? fd : inet_setsockopt_reuseaddr(fd, 1);
-	fd = (fd < 0) ? fd : inet_setsockopt_reuseport(fd, 1);
-	fd = (fd < 0) ? fd : inet_setsockopt_rcvtimeo(fd, 1000);
-	fd = (fd < 0) ? fd : inet_setsockopt_sndtimeo(fd, 1000);
-	if (fd < 0) {
+	err = (err) ? : inet_setsockopt_reuseaddr(fd, 1);
+	err = (err) ? : inet_setsockopt_reuseport(fd, 1);
+	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 1000);
+	err = (err) ? : inet_setsockopt_sndtimeo(fd, 1000);
+	if (err) {
 		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
+		close(fd);
 		return -1;
 	}
 

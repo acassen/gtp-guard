@@ -197,7 +197,8 @@ bpf_rps_filter_init(gtp_pppoe_worker_t *w, int fd, const char *filename)
 	}
 
 	err = inet_setsockopt_attach_bpf(fd, bpf_program__fd(bpf_prog));
-	if (err < 0) {
+	if (err) {
+		close(fd);
 		bpf_object__close(bpf_obj);
 		return NULL;
 	}
@@ -282,7 +283,7 @@ static int
 gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 {
 	struct sockaddr_ll sll;
-	int fd, ret;
+	int fd, err = 0;
 
 	/* PPPoE Discovery channel init */
 	memset(&sll, 0, sizeof(struct sockaddr_ll));
@@ -291,17 +292,18 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 	sll.sll_ifindex = if_nametoindex(pppoe->ifname);
 
 	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(proto));
-	fd = inet_setsockopt_broadcast(fd);
-	fd = inet_setsockopt_promisc(fd, sll.sll_ifindex, true);
-	if (fd < 0) {
+	err = (err) ? : inet_setsockopt_broadcast(fd);
+	err = (err) ? : inet_setsockopt_promisc(fd, sll.sll_ifindex, true);
+	if (err) {
 		log_message(LOG_INFO, "%s(): #%d : Error creating pppoe channel on interface %s (%m)"
 				    , __FUNCTION__, id
 				    , pppoe->ifname);
+		close(fd);
 		return -1;
 	}
 
-	ret = bind(fd, (struct sockaddr *) &sll, sizeof(sll));
-	if (ret < 0) {
+	err = bind(fd, (struct sockaddr *) &sll, sizeof(sll));
+	if (err) {
 		log_message(LOG_INFO, "%s(): #%d : Error binding pppoe channel on interface %s (%m)"
 				    , __FUNCTION__, id
 				    , pppoe->ifname);

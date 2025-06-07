@@ -474,328 +474,232 @@ inet_fd2str(int fd, char *dst, size_t dsize)
 
  /* Set Reuse addr option */
 int
-inet_setsockopt_reuseaddr(int sd, int onoff)
+inet_setsockopt_reuseaddr(int fd, int onoff)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &onoff, sizeof (onoff));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &onoff, sizeof (onoff));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do SO_REUSEADDR (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-
-	return sd;
+	return fd;
 }
 
 /* Set so_linger option */
 int
-inet_setsockopt_nolinger(int sd, int onoff)
+inet_setsockopt_nolinger(int fd, int onoff)
 {
-	int ret;
 	struct linger opt;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
 	memset(&opt, 0, sizeof (struct linger));
 	opt.l_onoff = onoff;
 	opt.l_linger = 0;
-	ret = setsockopt(sd, SOL_SOCKET, SO_LINGER, (struct linger *) &opt, sizeof (struct linger));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &opt, sizeof (struct linger));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do SO_LINGER (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set TCP_CORK option */
 int
-inet_setsockopt_tcpcork(int sd, int onoff)
+inet_setsockopt_tcpcork(int fd, int onoff)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, IPPROTO_TCP, TCP_CORK, &onoff, sizeof(onoff));
-	if (ret < 0) {
+	err = setsockopt(fd, IPPROTO_TCP, TCP_CORK, &onoff, sizeof(onoff));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant set TCP_CORK (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set TCP_NODELAY option */
 int
-inet_setsockopt_nodelay(int sd, int onoff)
+inet_setsockopt_nodelay(int fd, int onoff)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, &onoff, sizeof(onoff));
-	if (ret < 0) {
+	err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &onoff, sizeof(onoff));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant set TCP_NODELAY (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set so_keepalive option */
 int
-inet_setsockopt_keepalive(int sd, int onoff)
+inet_setsockopt_keepalive(int fd, int onoff)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &onoff, sizeof (onoff));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &onoff, sizeof (onoff));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do SO_KEEPALIVE (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set TCP Keepalive IDLE Timer */
 int
-inet_setsockopt_tcp_keepidle(int sd, int optval)
+inet_setsockopt_tcp_keepidle(int fd, int optval)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof (optval));
-	if (ret < 0) {
+	err = setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof (optval));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do TCP_KEEPIDLE (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set maximum number of TCP keepalive probes */
 int
-inet_setsockopt_tcp_keepcnt(int sd, int optval)
+inet_setsockopt_tcp_keepcnt(int fd, int optval)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof (optval));
-	if (ret < 0) {
+	err = setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof (optval));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do TCP_KEEPCNT (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set keepalive interval between 2 TCP keepalive probes */
 int
-inet_setsockopt_tcp_keepintvl(int sd, int optval)
+inet_setsockopt_tcp_keepintvl(int fd, int optval)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, &optval, sizeof (optval));
-	if (ret < 0) {
+	err = setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &optval, sizeof (optval));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do TCP_KEEPINTVL (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-	return sd;
+	return err;
 }
 
 /* Set SO_RCVTIMEO option */
 int
-inet_setsockopt_rcvtimeo(int sd, int timeout)
+inet_setsockopt_rcvtimeo(int fd, int timeout)
 {
 	struct timeval tv;
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* Set timeval */
 	tv.tv_sec = timeout / 1000;
 	tv.tv_usec = (timeout % 1000) * 1000;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do SO_RCVTIMEO (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-
-	return sd;
+	return err;
 }
 
 /* Set SO_SNDTIMEO option */
 int
-inet_setsockopt_sndtimeo(int sd, int timeout)
+inet_setsockopt_sndtimeo(int fd, int timeout)
 {
 	struct timeval tv;
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* Set timeval */
 	tv.tv_sec = timeout / 1000;
 	tv.tv_usec = (timeout % 1000) * 1000;
 
 	/* reuseaddr option */
-	ret = setsockopt(sd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant do SO_RCVTIMEO (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		sd = -1;
-	}
-
-	return sd;
+	return err;
 }
 
 /* Set SO_REUSEPORT option */
 int
-inet_setsockopt_reuseport(int sd, int onoff)
+inet_setsockopt_reuseport(int fd, int onoff)
 {
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	int err;
 
 	/* reuseport option */
-	ret = setsockopt(sd, SOL_SOCKET, SO_REUSEPORT, &onoff, sizeof(onoff));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &onoff, sizeof(onoff));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant set SO_REUSEPORT (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		return -1;
-	}
-
-	return sd;
+	return err;
 }
 
 /* Include IP Header */
 int
-inet_setsockopt_hdrincl(int sd)
+inet_setsockopt_hdrincl(int fd)
 {
-	int ret, on = 1;
-
-	if (sd < 0)
-		return sd;
+	int err, on = 1;
 
 	/* Include IP header into RAW protocol packet */
-	ret = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on));
-	if (ret < 0) {
+	err = setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant set IP_HDRINCL (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		return -1;
-	}
-
-
-	return sd;
+	return err;
 }
 
 /* Enable Broadcast */
 int
-inet_setsockopt_broadcast(int sd)
+inet_setsockopt_broadcast(int fd)
 {
-	int ret, on = 1;
-
-	if (sd < 0)
-		return sd;
+	int err, on = 1;
 
 	/* Enable broadcast sending */
-	ret = setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
+	if (err)
 		log_message(LOG_INFO, "%s(): cant set SO_BROADCAST (%m)"
 				    , __FUNCTION__);
-		close(sd);
-		return -1;
-	}
-
-	return sd;
+	return err;
 }
 
 /* Set Promiscuous mode */
 int
-inet_setsockopt_promisc(int sd, int ifindex, bool enable)
+inet_setsockopt_promisc(int fd, int ifindex, bool enable)
 {
-	struct packet_mreq mreq = {0};
-	int ret;
-
-	if (sd < 0)
-		return sd;
+	struct packet_mreq mreq = {};
+	int err;
 
 	mreq.mr_ifindex = ifindex;
 	mreq.mr_type = PACKET_MR_PROMISC;
 
 	/* Enable promiscuous mode */
-	ret = setsockopt(sd, SOL_PACKET
+	err = setsockopt(fd, SOL_PACKET
 			   , enable ? PACKET_ADD_MEMBERSHIP : PACKET_DROP_MEMBERSHIP
 			   , &mreq, sizeof(mreq));
-	if (ret < 0) {
+	if (err)
 		log_message(LOG_INFO, "%s(): cant %s PROMISC mode (%m)"
 				    , __FUNCTION__
 				    , enable ? "set" : "unset");
-		close(sd);
-		return -1;
-	}
-
-	return sd;
+	return err;
 }
 
 /* Attach BPF program fd */
 int
-inet_setsockopt_attach_bpf(int sd, int prog_fd)
+inet_setsockopt_attach_bpf(int fd, int prog_fd)
 {
-	int ret;
+	int err;
 
-	ret = setsockopt(sd, SOL_SOCKET, SO_ATTACH_BPF, &prog_fd, sizeof(prog_fd));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_ATTACH_BPF, &prog_fd, sizeof(prog_fd));
+	if (err)
 		log_message(LOG_INFO, "%s(): Error attaching eBPF program to socket (%m)\n"
 				    , __FUNCTION__);
-		close(sd);
-		return -1;
-	}
-
-	return sd;
+	return err;
 }
 
 /*
@@ -810,9 +714,9 @@ inet_setsockopt_attach_bpf(int sd, int prog_fd)
  *	(005) ret      #0
  */
 int
-inet_bpf_filter_socket(int sd, const unsigned long ip_src)
+inet_bpf_filter_socket(int fd, const unsigned long ip_src)
 {
-	int ret;
+	int err;
 	struct sock_filter bpfcode[6] = {
 		{ 0x28, 0, 0, 0x0000000c },
 		{ 0x15, 0, 3, 0x00000800 },
@@ -826,61 +730,46 @@ inet_bpf_filter_socket(int sd, const unsigned long ip_src)
 	/* Set ip_src into BPF filter */
 	bpfcode[3].k = ip_src;
 
-	ret = setsockopt(sd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));
-	if (ret < 0)
+	err = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));
+	if (err)
 		log_message(LOG_INFO, "%s(): failed to attach filter. (%m)"
 				    , __FUNCTION__);
-	return ret;
+	return err;
 }
 
 int
-inet_setsockopt_no_receive(int *sd)
+inet_setsockopt_no_receive(int fd)
 {
-	int ret;
+	int err;
 	struct sock_filter bpfcode[1] = {
 		{0x06, 0, 0, 0},        /* ret #0 - means that all packets will be filtered out */
 	};
 	struct sock_fprog bpf = {1, bpfcode};
 
-	if (*sd < 0)
-		return -1;
-
-	ret = setsockopt(*sd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf));
+	if (err)
 		log_message(LOG_INFO, "Can't set SO_ATTACH_FILTER option. errno=%d (%m)", errno);
-		close(*sd);
-		*sd = -1;
-	}
 
-	return *sd;
+	return err;
 }
 
 int
-inet_setsockopt_rcvbuf(int *sd, int val)
+inet_setsockopt_rcvbuf(int fd, int val)
 {
-	int ret;
-
-	if (*sd < 0)
-		return -1;
+	int err;
 
 	/* rcvbuf option */
-	ret = setsockopt(*sd, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
+	if (err)
 		log_message(LOG_INFO, "cant set SO_RCVBUF IP option. errno=%d (%m)", errno);
-		close(*sd);
-		*sd = -1;
-	}
 
-	return *sd;
+	return err;
 }
 
 int
-inet_setsockopt_bindtodevice(int *sd, const char *ifname)
+inet_setsockopt_bindtodevice(int fd, const char *ifname)
 {
-	int ret;
-
-	if (*sd < 0)
-		return -1;
+	int err;
 
 	/* -> inbound processing option
 	 * Specify the bound_dev_if.
@@ -891,42 +780,33 @@ inet_setsockopt_bindtodevice(int *sd, const char *ifname)
 	 * -- If you read this !!! and know the answer to the question
 	 *    please feel free to answer me ! :)
 	 */
-	ret = setsockopt(*sd, SOL_SOCKET, SO_BINDTODEVICE, ifname, (socklen_t)strlen(ifname) + 1);
-	if (ret < 0) {
+	err = setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, ifname, (socklen_t)strlen(ifname) + 1);
+	if (err)
 		log_message(LOG_INFO, "can't bind to device %s. errno=%d. (try to run it as root)"
 				    , ifname, errno);
-		close(*sd);
-		*sd = -1;
-	}
 
-	return *sd;
+	return err;
 }
 
 int
-inet_setsockopt_priority(int *sd, int family)
+inet_setsockopt_priority(int fd, int family)
 {
-	int ret, val;
-
-	if (*sd < 0)
-		return -1;
+	int err, val;
 
 	/* Set PRIORITY traffic */
 	if (family == AF_INET) {
 		val = IPTOS_PREC_INTERNETCONTROL;
-		ret = setsockopt(*sd, IPPROTO_IP, IP_TOS, &val, sizeof(val));
+		err = setsockopt(fd, IPPROTO_IP, IP_TOS, &val, sizeof(val));
 	} else {
 		/* set tos to internet network control */
 		val = 0xc0;     /* 192, which translates to DCSP value 48, or cs6 */
-		ret = setsockopt(*sd, IPPROTO_IPV6, IPV6_TCLASS, &val, sizeof(val));
+		err = setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &val, sizeof(val));
 	}
 
-	if (ret < 0) {
+	if (err)
 		log_message(LOG_INFO, "can't set %s option. errno=%d (%m)"
 				    , (family == AF_INET) ? "IP_TOS" : "IPV6_TCLASS"
 				    ,  errno);
-		close(*sd);
-		*sd = -1;
-	}
 
-	return *sd;
+	return err;
 }

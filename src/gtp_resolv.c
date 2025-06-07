@@ -108,22 +108,23 @@ ns_bind_connect(gtp_apn_t *apn, int type)
 {
 	struct sockaddr_storage *addr = &apn->nameserver_bind;
 	socklen_t addrlen;
-	int fd, err;
+	int fd, err = 0;
 
 	if (!apn->nameserver_bind.ss_family)
 		return -1;
 
 	/* Create UDP Client socket */
 	fd = socket(addr->ss_family, type | SOCK_CLOEXEC, 0);
-	fd = (fd < 0) ? fd : inet_setsockopt_reuseaddr(fd, 1);
-	fd = (fd < 0) ? fd : inet_setsockopt_nolinger(fd, 1);
-	fd = (fd < 0) ? fd : inet_setsockopt_rcvtimeo(fd, 2000);
-	fd = (fd < 0) ? fd : inet_setsockopt_sndtimeo(fd, 2000);
-	if (fd < 0) {
+	err = (err) ? : inet_setsockopt_reuseaddr(fd, 1);
+	err = (err) ? : inet_setsockopt_nolinger(fd, 1);
+	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 2000);
+	err = (err) ? : inet_setsockopt_sndtimeo(fd, 2000);
+	if (err) {
 		log_message(LOG_INFO, "%s(): error creating TCP [%s]:%d socket"
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
+		close(fd);
 		return -1;
 	}
 
