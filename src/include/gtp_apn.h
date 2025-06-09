@@ -127,12 +127,23 @@ typedef struct _gtp_apn {
 
 
 /* Prototypes */
+extern gtp_rewrite_rule_t *gtp_rewrite_rule_alloc(gtp_apn_t *, list_head_t *);
+extern int apn_resolv_cache_realloc(gtp_apn_t *);
+extern void *apn_resolv_cache_task(void *);
+extern int apn_resolv_cache_signal(gtp_apn_t *);
+extern gtp_ip_pool_t *gtp_ip_pool_alloc(uint32_t, uint32_t);
+extern void gtp_ip_pool_destroy(gtp_ip_pool_t *);
 extern uint32_t gtp_ip_pool_get(gtp_apn_t *);
-extern int gtp_apn_cdr_commit(gtp_apn_t *, gtp_cdr_t *);
 extern int gtp_ip_pool_put(gtp_apn_t *, uint32_t);
-extern gtp_plmn_t *__gtp_apn_hplmn_get(gtp_apn_t *, uint8_t *);
-extern gtp_apn_t *gtp_apn_get(const char *);
+extern gtp_plmn_t *gtp_apn_hplmn_alloc(gtp_apn_t *, uint8_t *);
+extern void gtp_apn_hplmn_del(gtp_apn_t *, gtp_plmn_t *);
+extern void gtp_apn_hplmn_destroy(gtp_apn_t *);
+extern gtp_plmn_t *gtp_apn_hplmn_get(gtp_apn_t *, uint8_t *);
+extern gtp_apn_t *gtp_apn_alloc(const char *);
+extern gtp_pco_t *gtp_apn_pco(gtp_apn_t *);
 extern int gtp_apn_destroy(void);
-extern int gtp_apn_vty_init(void);
+extern gtp_apn_t *gtp_apn_get(const char *);
+extern int gtp_apn_for_each_vty(vty_t *, void (*hdl) (vty_t *, gtp_apn_t *));
+extern int gtp_apn_cdr_commit(gtp_apn_t *, gtp_cdr_t *);
 
 #endif

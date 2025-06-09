@@ -222,13 +222,13 @@ gtp_dpd_timer_thread(thread_ref_t thread)
 static int
 gtp_dpd_egress_socket_init(void)
 {
-	int fd, err = 0;
+	int fd, err;
 
 	fd = socket(AF_INET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, IPPROTO_IPIP);
 	if (fd < 0)
 		return -1;
 
-	err = (err) ? : inet_setsockopt_hdrincl(fd);
+	err = inet_setsockopt_hdrincl(fd);
 	err = (err) ? : inet_setsockopt_priority(fd, AF_INET);
 	err = (err) ? : inet_setsockopt_no_receive(fd);
 	if (err)

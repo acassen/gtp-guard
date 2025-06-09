@@ -83,6 +83,8 @@ typedef struct _gtp_resolv_ctx {
 
 
 /* Prototypes */
+extern gtp_service_t *gtp_service_alloc(gtp_apn_t *, const char *, int);
+extern int gtp_service_destroy(gtp_apn_t *);
 extern int gtp_naptr_destroy(list_head_t *);
 extern int gtp_naptr_show(vty_t *vty, gtp_apn_t *);
 extern int gtp_naptr_dump(list_head_t *);

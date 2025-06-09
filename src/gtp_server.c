@@ -90,11 +90,11 @@ gtp_server_udp_init(gtp_server_t *srv)
 {
 	struct sockaddr_storage *addr = &srv->addr;
 	socklen_t addrlen;
-	int fd, err = 0;
+	int fd, err;
 
 	/* Create UDP Listener */
 	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
-	err = (err) ? : inet_setsockopt_reuseaddr(fd, 1);
+	err = inet_setsockopt_reuseaddr(fd, 1);
 	err = (err) ? : inet_setsockopt_reuseport(fd, 1);
 	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 1000);
 	err = (err) ? : inet_setsockopt_sndtimeo(fd, 1000);

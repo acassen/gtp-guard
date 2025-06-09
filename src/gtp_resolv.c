@@ -41,6 +41,55 @@ extern thread_master_t *master;
 
 
 /*
+ *	Service selection related
+ */
+static int
+gtp_service_cmp(list_head_t *a, list_head_t *b)
+{
+	gtp_service_t *sa, *sb;
+
+	sa = container_of(a, gtp_service_t, next);
+	sb = container_of(b, gtp_service_t, next);
+
+	return sa->prio - sb->prio;
+}
+
+gtp_service_t *
+gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
+{
+	gtp_service_t *new;
+
+	PMALLOC(new);
+	INIT_LIST_HEAD(&new->next);
+	new->prio = prio;
+	if (str)
+		bsd_strlcpy(new->str, str, GTP_APN_MAX_LEN);
+
+	pthread_mutex_lock(&apn->mutex);
+	list_add_tail(&new->next, &apn->service_selection);
+	/* Just a few elements to be added so that is ok */
+	list_sort(&apn->service_selection, gtp_service_cmp);
+	pthread_mutex_unlock(&apn->mutex);
+
+	return new;
+}
+
+int
+gtp_service_destroy(gtp_apn_t *apn)
+{
+	gtp_service_t *s, *_s;
+
+	pthread_mutex_lock(&apn->mutex);
+	list_for_each_entry_safe(s, _s, &apn->service_selection, next) {
+		list_head_del(&s->next);
+		FREE(s);
+	}
+	pthread_mutex_unlock(&apn->mutex);
+	return 0;
+}
+
+
+/*
  *	Resolver helpers
  */
 static int8_t
@@ -108,14 +157,14 @@ ns_bind_connect(gtp_apn_t *apn, int type)
 {
 	struct sockaddr_storage *addr = &apn->nameserver_bind;
 	socklen_t addrlen;
-	int fd, err = 0;
+	int fd, err;
 
 	if (!apn->nameserver_bind.ss_family)
 		return -1;
 
 	/* Create UDP Client socket */
 	fd = socket(addr->ss_family, type | SOCK_CLOEXEC, 0);
-	err = (err) ? : inet_setsockopt_reuseaddr(fd, 1);
+	err = inet_setsockopt_reuseaddr(fd, 1);
 	err = (err) ? : inet_setsockopt_nolinger(fd, 1);
 	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 2000);
 	err = (err) ? : inet_setsockopt_sndtimeo(fd, 2000);

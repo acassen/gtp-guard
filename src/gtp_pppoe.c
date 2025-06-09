@@ -283,7 +283,7 @@ static int
 gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 {
 	struct sockaddr_ll sll;
-	int fd, err = 0;
+	int fd, err;
 
 	/* PPPoE Discovery channel init */
 	memset(&sll, 0, sizeof(struct sockaddr_ll));
@@ -292,7 +292,7 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 	sll.sll_ifindex = if_nametoindex(pppoe->ifname);
 
 	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(proto));
-	err = (err) ? : inet_setsockopt_broadcast(fd);
+	err = inet_setsockopt_broadcast(fd);
 	err = (err) ? : inet_setsockopt_promisc(fd, sll.sll_ifindex, true);
 	if (err) {
 		log_message(LOG_INFO, "%s(): #%d : Error creating pppoe channel on interface %s (%m)"

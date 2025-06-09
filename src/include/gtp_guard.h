@@ -72,6 +72,7 @@
 #include "gtp_cdr_vty.h"
 #include "gtp_vrf.h"
 #include "gtp_apn.h"
+#include "gtp_apn_vty.h"
 #include "gtp_session.h"
 #include "gtp_dpd.h"
 #include "gtp_resolv.h"

@@ -44,7 +44,7 @@
 static int
 inet_cnx_destroy(inet_cnx_t *c)
 {
-	fclose(c->fp);	/* Also close s->fd */
+	fclose(c->fp);	/* Also close c->fd */
 	FREE(c);
 	return 0;
 }
@@ -145,7 +145,7 @@ inet_server_tcp_accept(thread_ref_t thread)
 	socklen_t addrlen = sizeof(addr);
 	inet_worker_t *w;
 	inet_cnx_t *c;
-	int fd, accept_fd, ret;
+	int fd, accept_fd, err;
 
 	/* Fetch thread elements */
 	fd = THREAD_FD(thread);
@@ -189,13 +189,21 @@ inet_server_tcp_accept(thread_ref_t thread)
 	}
 
 	/* Register reader on accept_sd */
-	inet_setsockopt_nodelay(c->fd, 1);
-	inet_setsockopt_nolinger(c->fd, 1);
+	err = inet_setsockopt_nodelay(c->fd, 1);
+	err = (err) ? : inet_setsockopt_nolinger(c->fd, 1);
+	if (err) {
+		log_message(LOG_INFO, "%s(): error creating TCP connection with [%s]:%d"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(&addr)
+				    , ntohs(inet_sockaddrport(&addr)));
+		inet_cnx_destroy(c);
+		goto next_accept;
+	}
 
 	/* Spawn a dedicated pthread per client. Dont really need performance here,
 	* simply handle requests synchronously */
-	ret = pthread_attr_init(&c->task_attr);
-	if (ret != 0) {
+	err = pthread_attr_init(&c->task_attr);
+	if (err) {
 		log_message(LOG_INFO, "%s(): #%d cant init pthread_attr for session with peer [%s]:%d (%m)"
 				    , __FUNCTION__
 				    , w->id
@@ -205,8 +213,8 @@ inet_server_tcp_accept(thread_ref_t thread)
 		goto next_accept;
 	}
 
-	ret = pthread_attr_setdetachstate(&c->task_attr, PTHREAD_CREATE_DETACHED);
-	if (ret != 0) {
+	err = pthread_attr_setdetachstate(&c->task_attr, PTHREAD_CREATE_DETACHED);
+	if (err) {
 		log_message(LOG_INFO, "%s(): #%d cant set pthread detached for session with peer [%s]:%d (%m)"
 				    , __FUNCTION__
 				    , w->id
@@ -216,8 +224,8 @@ inet_server_tcp_accept(thread_ref_t thread)
 		goto next_accept;
 	}
 
-	ret = pthread_create(&c->task, &c->task_attr, inet_server_tcp_thread, c);
-	if (ret != 0) {
+	err = pthread_create(&c->task, &c->task_attr, inet_server_tcp_thread, c);
+	if (err) {
 		log_message(LOG_INFO, "%s(): #%d cant create pthread for session with peer [%s]:%d (%m)"
 				    , __FUNCTION__
 				    , w->id
@@ -264,7 +272,7 @@ inet_server_tcp_listen(inet_worker_t *w)
 
 	/* Bind listening channel */
 	addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
-						sizeof(struct sockaddr_in6);
+						 sizeof(struct sockaddr_in6);
 	err = bind(fd, (struct sockaddr *) addr, addrlen);
 	if (err < 0) {
 		log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"

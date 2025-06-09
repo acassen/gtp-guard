@@ -333,13 +333,13 @@ gtp_cmd_write_thread(thread_ref_t thread)
 static int
 gtp_cmd_cbpf_egress_init(void)
 {
-	int fd, err = 0;
+	int fd, err;
 
 	fd = socket(AF_INET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, IPPROTO_RAW);
 	if (fd < 0)
 		return -1;
 
-	err = (err) ? : inet_setsockopt_hdrincl(fd);
+	err = inet_setsockopt_hdrincl(fd);
 	err = (err) ? : inet_setsockopt_priority(fd, AF_INET);
 	err = (err) ? : inet_setsockopt_no_receive(fd);
 	if (err)
