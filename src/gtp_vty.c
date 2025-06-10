@@ -939,7 +939,7 @@ gtp_vty_init(void)
 	gtp_apn_vty_init();
 	gtp_proxy_vty_init();
 	gtp_router_vty_init();
-	gtp_sessions_vty_init();
+	gtp_session_vty_init();
 
 	return 0;
 }

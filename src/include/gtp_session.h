@@ -93,9 +93,9 @@ extern int gtp_session_destroy_bearer(gtp_session_t *);
 extern int gtp_session_destroy_teid(gtp_teid_t *);
 extern int gtp_session_uniq_ptype(gtp_conn_t *, uint8_t);
 extern int gtp_session_expire_now(gtp_session_t *);
+extern int gtp_sessions_release(gtp_conn_t *);
 extern int gtp_sessions_free(gtp_conn_t *);
 extern int gtp_sessions_init(void);
 extern int gtp_sessions_destroy(void);
-extern int gtp_sessions_vty_init(void);
 
 #endif
