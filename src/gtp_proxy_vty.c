@@ -304,10 +304,9 @@ DEFUN(gtpu_proxy_egress_tunnel_endpoint,
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 2152, ret = 0;
 
-	vty_out(vty, "%% feature not implemented... ignoring%s", VTY_NEWLINE);
-	return CMD_SUCCESS;
-
 	/* TODO: split Ingress / Egress at GTP-U and GTP-C */
+	vty_out(vty, "%% feature not implemented... ignoring%s", VTY_NEWLINE);
+
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;

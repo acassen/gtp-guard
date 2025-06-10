@@ -41,6 +41,28 @@ extern gtp_teid_t dummy_teid;
 
 
 static int
+gtp1_gsn_address_get(pkt_buffer_t *pbuff, uint32_t **gsn_c, uint32_t **gsn_u)
+{
+	gtp1_ie_t *ie;
+	uint8_t *cp;
+
+	/* GSN Address for Control-Plane & Data-Plane */
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, pbuff);
+	if (!cp)
+		return -1;
+
+	*gsn_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+	ie = (gtp1_ie_t *) cp;
+	cp = gtp1_get_ie_offset(GTP1_IE_GSN_ADDRESS_TYPE, cp+sizeof(gtp1_ie_t)+ntohs(ie->length)
+							, pkt_buffer_end(pbuff));
+	if (!cp)
+		return -1;
+
+	*gsn_u = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+	return 0;
+}
+
+static int
 gtp1_gsn_address_masq(gtp_server_worker_t *w, int direction)
 {
 	gtp_proxy_t *ctx = w->srv->ctx;
@@ -55,11 +77,11 @@ gtp1_gsn_address_masq(gtp_server_worker_t *w, int direction)
 		srv = srv_gtpc_egress;
 
 	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
-	if (cp) {
-		gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
-		*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
-	}
+	if (!cp)
+		return -1;
 
+	gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
+	*gsn_address_c = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
 	return 0;
 }
 
@@ -146,7 +168,6 @@ gtp1_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 	gtp_f_teid_t f_teid_c, f_teid_u;
 	gtp1_ie_teid_t *teid_c = NULL, *teid_u = NULL;
 	uint32_t *gsn_address_c = NULL, *gsn_address_u = NULL;
-	gtp1_ie_t *ie;
 	uint8_t *cp;
 
 	gtp1_session_xlat_recovery(w);
@@ -167,16 +188,7 @@ gtp1_session_xlat(gtp_server_worker_t *w, gtp_session_t *s, int direction)
 	}
 
 	/* GSN Address for Control-Plane & Data-Plane */
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
-	if (cp) {
-		gsn_address_c = (uint32_t *) (cp + sizeof(gtp1_ie_t));
-		ie = (gtp1_ie_t *) cp;
-		cp = gtp1_get_ie_offset(GTP1_IE_GSN_ADDRESS_TYPE, cp+sizeof(gtp1_ie_t)+ntohs(ie->length)
-								, pkt_buffer_end(w->pbuff));
-		if (cp) {
-			gsn_address_u = (uint32_t *) (cp + sizeof(gtp1_ie_t));
-		}
-	}
+	gtp1_gsn_address_get(w->pbuff, &gsn_address_c, &gsn_address_u);
 
 	/* Control-Plane */
 	if (teid_c && gsn_address_c) {
@@ -470,6 +482,37 @@ gtp1_create_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 	return teid;
 }
 
+static int
+gtp1_update_bearer(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t)
+{
+	gtp1_hdr_t *h = (gtp1_hdr_t *) pbuff->head;
+	gtp_teid_t *t_u = NULL, *t_u_old;
+	uint32_t *gsn_c = NULL, *gsn_u = NULL;
+	int err;
+
+	if (!t)
+		return -1;
+
+	err = gtp1_gsn_address_get(pbuff, &gsn_c, &gsn_u);
+	if (err) {
+		log_message(LOG_INFO, "%s(): missing GSN Address...ignoring..."
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	t_u_old = t->bearer_teid;
+	if (!(t_u_old && t_u_old->ipv4 != *gsn_u))
+		return -1;
+
+	t_u = gtp_session_gtpu_teid_get_by_sqn(s, h->sqn);
+	if (t_u) {
+		t->bearer_teid = t_u;
+		t_u->old_teid = t_u_old;
+	}
+
+	return 0;
+}
+
 static gtp_teid_t *
 gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
@@ -557,6 +600,9 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 	/* Performing session translation */
 	t = gtp1_session_xlat(w, s, GTP_INGRESS);
 	if (!t) {
+		/* GTP-U may has changed */
+		gtp1_update_bearer(w->pbuff, s, teid->peer_teid);
+
 		/* No GTP-C IE, if related GSN Address is present then xlat it */
 		gtp1_gsn_address_masq(w, GTP_INGRESS);
 
@@ -564,8 +610,12 @@ gtp1_update_pdp_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *add
 		return teid;
 	}
 
-	if (t->peer_teid)
+	if (t->peer_teid) {
+		/* GTP-U may has changed */
+		gtp1_update_bearer(w->pbuff, s, t->peer_teid);
+
 		goto end;
+	}
 
 	/* No peer teid so new teid */
 	/* Set tunnel endpoint */
@@ -661,6 +711,7 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 		gtp_session_gtpc_teid_destroy(oteid);
 	}
 
+  end:
 	/* Bearer cause handling */
 	teid_u = teid->bearer_teid;
 	if (teid_u && teid_u->old_teid) {
@@ -670,7 +721,6 @@ gtp1_update_pdp_response_hdl(gtp_server_worker_t *w, struct sockaddr_storage *ad
 		gtp_session_gtpu_teid_destroy(oteid);
 	}
 
-  end:
 	/* SQN masq */
 	gtp_sqn_restore(w, teid->peer_teid);
 

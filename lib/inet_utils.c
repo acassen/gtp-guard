@@ -483,7 +483,7 @@ inet_setsockopt_reuseaddr(int fd, int onoff)
 	if (err)
 		log_message(LOG_INFO, "%s(): cant do SO_REUSEADDR (%m)"
 				    , __FUNCTION__);
-	return fd;
+	return err;
 }
 
 /* Set so_linger option */
