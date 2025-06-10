@@ -733,11 +733,13 @@ DEFUN(gtp_send_echo_request_standard,
 
 DEFUN(gtp_send_echo_request_extended,
       gtp_send_echo_request_extended_cmd,
-      "gtp send echo-request extended version (1|2) ip-src (A.B.C.D|X:X:X:X) port-src <1024-65535> ip-dst (A.B.C.D|X:X:X:X) port-dst <1024-65535> [count <1-20>]",
+      "gtp send echo-request extended interface STRING version (1|2) ip-src (A.B.C.D|X:X:X:X) port-src <1024-65535> ip-dst (A.B.C.D|X:X:X:X) port-dst <1024-65535> [count <1-20>]",
       "Tool to send GTP-C or GTP-U Echo-Request Protocol messages\n"
       "Send Action\n"
       "Echo Request message\n"
       "Expert mode\n"
+      "System Interface\n"
+      "interface name\n"
       "GTP Protocol Version\n"
       "Version 1\n"
       "Version 2\n"
@@ -757,45 +759,44 @@ DEFUN(gtp_send_echo_request_extended,
 	gtp_cmd_args_t *gtp_cmd_args;
 	int version, port, err = 0, count = 3, ifindex;
 
-	if (argc < 5) {
+	if (argc < 6) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ifindex = if_nametoindex(argv[0]);
+	if (!ifindex) {
+		vty_out(vty, "%% interface %s not found on local system%s"
+			   , argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
 	PMALLOC(gtp_cmd_args);
 
-	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[0], 1, 2);
+	VTY_GET_INTEGER_RANGE("Protocol Version", version, argv[1], 1, 2);
 	if (version) {} ; /* Dummy test */
 
-	VTY_GET_INTEGER_RANGE("port-src", port, argv[2], 1024, 65535);
+	VTY_GET_INTEGER_RANGE("port-src", port, argv[3], 1024, 65535);
 
-	err = inet_stosockaddr(argv[1], port, &gtp_cmd_args->src_addr);
+	err = inet_stosockaddr(argv[2], port, &gtp_cmd_args->src_addr);
 	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		vty_out(vty, "%% malformed IP address %s%s", argv[2], VTY_NEWLINE);
 		FREE(gtp_cmd_args);
 		return CMD_WARNING;
 	}
 
-	VTY_GET_INTEGER_RANGE("port-dst", port, argv[4], 1024, 65535);
+	VTY_GET_INTEGER_RANGE("port-dst", port, argv[5], 1024, 65535);
 
-	err = inet_stosockaddr(argv[3], port, &gtp_cmd_args->dst_addr);
+	err = inet_stosockaddr(argv[4], port, &gtp_cmd_args->dst_addr);
 	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		vty_out(vty, "%% malformed IP address %s%s", argv[4], VTY_NEWLINE);
 		FREE(gtp_cmd_args);
 		return CMD_WARNING;
 	}
 
-	if (argc > 5) {
-		VTY_GET_INTEGER_RANGE("count", count, argv[4], 1, 20);
+	if (argc > 6) {
+		VTY_GET_INTEGER_RANGE("count", count, argv[7], 1, 20);
 		if (count) {} ; /* Dummy test */
-	}
-
-	ifindex = inet_sockaddrifindex(&gtp_cmd_args->src_addr);
-	if (ifindex < 0) {
-		vty_out(vty, "%% IP address %s not found on local system%s"
-			   , argv[1], VTY_NEWLINE);
-		FREE(gtp_cmd_args);
-		return CMD_WARNING;
 	}
 
 	gtp_cmd_args->type = GTP_CMD_ECHO_REQUEST_EXTENDED;
