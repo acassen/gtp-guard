@@ -86,6 +86,8 @@ typedef struct _inet_server {
 	list_head_t		workers;
 
 	/* Call-back */
+	int (*init) (struct _inet_server *);
+	int (*destroy) (struct _inet_server *);
 	int (*cnx_init) (inet_cnx_t *);
 	int (*cnx_destroy) (inet_cnx_t *);
 	ssize_t (*cnx_rcv) (inet_cnx_t *);

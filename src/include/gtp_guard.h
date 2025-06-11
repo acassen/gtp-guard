@@ -50,6 +50,7 @@
 #include "gtp.h"
 #include "gtp_msg.h"
 #include "gtp_request.h"
+#include "gtp_metrics.h"
 #include "gtp_data.h"
 #include "gtp_htab.h"
 #include "gtp_teid.h"

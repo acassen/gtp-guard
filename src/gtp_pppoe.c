@@ -343,7 +343,7 @@ gtp_pppoe_worker_task(void *arg)
 			goto end;
 	}
 
-	signal_noignore_sig(SIGUSR1);
+	signal_noignore_sig(SIGPIPE);
 
 	/* Set Cancellation before a blocking syscall such as recvmmsg() */
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -388,7 +388,7 @@ gtp_pppoe_worker_task(void *arg)
 static int
 gtp_pppoe_worker_init(gtp_pppoe_t *pppoe, gtp_pppoe_worker_t *w, int id, uint16_t proto)
 {
-	int ret;
+	int err;
 
 	w->pppoe = pppoe;
 	w->id = id;
@@ -396,9 +396,9 @@ gtp_pppoe_worker_init(gtp_pppoe_t *pppoe, gtp_pppoe_worker_t *w, int id, uint16_
 
 	/* Packet queue Init */
 	pkt_queue_init(&w->pkt_q);
-	ret = mpkt_init(&w->mpkt, PPPOE_MPKT);
-	ret = (ret) ? : __pkt_queue_mget(&w->pkt_q, &w->mpkt);
-	if (ret < 0) {
+	err = mpkt_init(&w->mpkt, PPPOE_MPKT);
+	err = (err) ? : __pkt_queue_mget(&w->pkt_q, &w->mpkt);
+	if (err) {
 		log_message(LOG_INFO, "%s(): Error creating mpkt for Worker %d/%d"
 				    , __FUNCTION__, proto, id);
 		return -1;

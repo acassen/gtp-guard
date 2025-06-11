@@ -470,38 +470,80 @@ DEFUN(restart_counter_file,
         return CMD_SUCCESS;
 }
 
-DEFUN(request_channel,
-      request_channel_cmd,
-      "request-channel (A.B.C.D|X:X:X:X) port <1024-65535>",
-      "GTP-Proxy request channel\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "listening TCP Port\n"
-      "Number\n")
+static int
+pdn_channel_prepare(int argc, const char **argv, vty_t *vty, inet_server_t *srv)
 {
-	inet_server_t *srv = &daemon_data->request_channel;
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, err = 0;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* UNIX socket */
+	if (*argv[0] == '/')
+		goto end;
 
 	if (argc < 2) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-        VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
+	VTY_GET_INTEGER_RANGE("TCP Port", port, argv[1], 1024, 65535);
 
-        err = inet_stosockaddr(argv[0], port, addr);
+  end:
+	err = inet_stosockaddr(argv[0], port, addr);
 	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% malformed address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
 	}
 
-
-        srv->thread_cnt = INET_SRV_THREAD_CNT_DEFAULT;
-        gtp_request_init();
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
+
+DEFUN(request_channel,
+      request_channel_cmd,
+      "request-channel (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "JSON Request channel\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "listening TCP Port\n"
+      "Number\n")
+{
+	inet_server_t *srv = &daemon_data->request_channel;
+	int err = pdn_channel_prepare(argc, argv, vty, srv);
+
+	if (err != CMD_SUCCESS)
+		return err;
+
+	srv->thread_cnt = INET_SRV_THREAD_CNT_DEFAULT;
+	gtp_request_init();
+	return CMD_SUCCESS;
+}
+
+DEFUN(metrics_channel,
+      metrics_channel_cmd,
+      "metrics-channel (A.B.C.D|X:X:X:X|STRING) [port <1024-65535>]",
+      "Prometheus metrics channel\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n"
+      "Filesystem path\n"
+      "listening TCP Port\n"
+      "Number\n")
+{
+	inet_server_t *srv = &daemon_data->metrics_channel;
+	int err = pdn_channel_prepare(argc, argv, vty, srv);
+
+	if (err != CMD_SUCCESS)
+		return err;
+
+	srv->thread_cnt = 1;
+	gtp_metrics_init();
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	Show
@@ -910,6 +952,7 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &no_pdn_mirror_cmd);
 	install_element(PDN_NODE, &restart_counter_file_cmd);
 	install_element(PDN_NODE, &request_channel_cmd);
+	install_element(PDN_NODE, &metrics_channel_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_xdp_forwarding_cmd);

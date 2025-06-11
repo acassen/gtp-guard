@@ -501,7 +501,7 @@ gtp1_update_bearer(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t)
 	}
 
 	t_u_old = t->bearer_teid;
-	if (!(t_u_old && t_u_old->ipv4 != *gsn_u))
+	if (!t_u_old || t_u_old->ipv4 == *gsn_u)
 		return -1;
 
 	t_u = gtp_session_gtpu_teid_get_by_sqn(s, h->sqn);

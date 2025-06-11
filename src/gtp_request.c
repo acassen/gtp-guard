@@ -151,15 +151,15 @@ gtp_request_cnx_destroy(inet_cnx_t *c)
 int
 gtp_request_init(void)
 {
-	inet_server_t *srv = &daemon_data->request_channel;
+	inet_server_t *s = &daemon_data->request_channel;
 
-	srv->cnx_init = &gtp_request_cnx_init;
-	srv->cnx_destroy = &gtp_request_cnx_destroy;
-	srv->cnx_rcv = &inet_http_read;
-	srv->cnx_process = &gtp_request_cnx_process;
+	s->cnx_init = &gtp_request_cnx_init;
+	s->cnx_destroy = &gtp_request_cnx_destroy;
+	s->cnx_rcv = &inet_http_read;
+	s->cnx_process = &gtp_request_cnx_process;
 
-	inet_server_init(srv);
-	return inet_server_worker_start(srv);
+	inet_server_init(s);
+	return inet_server_worker_start(s);
 }
 
 int

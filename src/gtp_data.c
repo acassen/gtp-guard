@@ -295,6 +295,7 @@ free_daemon_data(void)
 	gtp_proxy_server_destroy();
 	gtp_router_server_destroy();
 	gtp_request_destroy();
+	gtp_metrics_destroy();
 	gtp_pppoe_bundle_destroy();
 	gtp_pppoe_destroy();
 	gtp_conn_destroy();

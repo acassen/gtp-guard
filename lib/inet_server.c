@@ -27,6 +27,7 @@
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <errno.h>
 
 /* local includes */
@@ -34,6 +35,7 @@
 #include "logger.h"
 #include "bitops.h"
 #include "memory.h"
+#include "signals.h"
 #include "inet_utils.h"
 #include "inet_server.h"
 
@@ -105,14 +107,15 @@ inet_server_tcp_thread(void *arg)
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &old_type);
 
 	/* Set timeout on session fd */
-	c->fd = inet_setsockopt_rcvtimeo(c->fd, 2000);
-	c->fd = inet_setsockopt_sndtimeo(c->fd, 2000);
-	if (c->fd < 0)
+	err = inet_setsockopt_rcvtimeo(c->fd, 2000);
+	err = (err) ? : inet_setsockopt_sndtimeo(c->fd, 2000);
+	if (err) {
+		close(c->fd);
 		goto end;
+	}
 
 	/* initialize */
-	err = (*s->cnx_init) (c);
-	if (err)
+	if (*s->cnx_init && (*s->cnx_init) (c))
 		goto end;
 
 	/* receive */
@@ -142,7 +145,7 @@ static void
 inet_server_tcp_accept(thread_ref_t thread)
 {
 	struct sockaddr_storage addr;
-	socklen_t addrlen = sizeof(addr);
+	socklen_t addrlen;
 	inet_worker_t *w;
 	inet_cnx_t *c;
 	int fd, accept_fd, err;
@@ -248,8 +251,8 @@ static int
 inet_server_tcp_listen(inet_worker_t *w)
 {
 	mode_t old_mask;
-	inet_server_t *srv = w->server;
-	struct sockaddr_storage *addr = &srv->addr;
+	inet_server_t *s = w->server;
+	struct sockaddr_storage *addr = &s->addr;
 	socklen_t addrlen;
 	int err, fd = -1;
 
@@ -258,21 +261,35 @@ inet_server_tcp_listen(inet_worker_t *w)
 
 	/* Create socket */
 	fd = socket(addr->ss_family, SOCK_STREAM, 0);
-	fd = inet_setsockopt_reuseaddr(fd, 1);
-	if (fd < 0) {
+	err = inet_setsockopt_reuseaddr(fd, 1);
+	err = (err) ? : inet_setsockopt_reuseport(fd, 1);
+	if (err) {
 		log_message(LOG_INFO, "%s(): error creating [%s]:%d socket"
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
+		close(fd);
 		return -1;
 	}
 
-	/* Reuseport: ingress loadbalancing */
-	inet_setsockopt_reuseport(fd, 1);
-
 	/* Bind listening channel */
-	addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
-						 sizeof(struct sockaddr_in6);
+	switch (addr->ss_family) {
+	case AF_UNIX:
+		addrlen = SUN_LEN((struct sockaddr_un *) addr);
+		break;
+	case AF_INET:
+		addrlen = sizeof(struct sockaddr_in);
+		break;
+	case AF_INET6:
+		addrlen = sizeof(struct sockaddr_in6);
+		break;
+	default:
+		log_message(LOG_INFO, "%s(): unknown socket family %d"
+				    , __FUNCTION__
+				    , addr->ss_family);
+		goto error;
+	}
+
 	err = bind(fd, (struct sockaddr *) addr, addrlen);
 	if (err < 0) {
 		log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
@@ -310,7 +327,7 @@ static void *
 inet_server_worker_task(void *arg)
 {
 	inet_worker_t *w = arg;
-	inet_server_t *srv = w->server;
+	inet_server_t *s = w->server;
 	char pname[128];
 
 	/* Create Process Name */
@@ -320,8 +337,8 @@ inet_server_worker_task(void *arg)
         /* Welcome message */
         log_message(LOG_INFO, "%s(): Starting Listener Server[%s:%d]/Worker[%d]"
                             , __FUNCTION__
-                            , inet_sockaddrtos(&srv->addr)
-                            , ntohs(inet_sockaddrport(&srv->addr))
+                            , inet_sockaddrtos(&s->addr)
+                            , ntohs(inet_sockaddrport(&s->addr))
                             , w->id);
 	__set_bit(INET_FL_RUNNING_BIT, &w->flags);
 
@@ -337,8 +354,8 @@ inet_server_worker_task(void *arg)
         /* Release Master stuff */
         log_message(LOG_INFO, "%s(): Stopping Listener Server[%s:%d]/Worker[%d]"
                             , __FUNCTION__
-                            , inet_sockaddrtos(&srv->addr)
-                            , ntohs(inet_sockaddrport(&srv->addr))
+                            , inet_sockaddrtos(&s->addr)
+                            , ntohs(inet_sockaddrport(&s->addr))
                             , w->id);
 	__clear_bit(INET_FL_RUNNING_BIT, &w->flags);
 	return NULL;
@@ -349,41 +366,41 @@ inet_server_worker_task(void *arg)
  *	INET Server start
  */
 int
-inet_server_worker_launch(inet_server_t *srv)
+inet_server_worker_launch(inet_server_t *s)
 {
 	inet_worker_t *worker;
 
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry(worker, &srv->workers, next) {
+	pthread_mutex_lock(&s->workers_mutex);
+	list_for_each_entry(worker, &s->workers, next) {
 		pthread_create(&worker->task, NULL, inet_server_worker_task, worker);
 	}
-	pthread_mutex_unlock(&srv->workers_mutex);
+	pthread_mutex_unlock(&s->workers_mutex);
 
 	return 0;
 }
 
 int
-inet_server_worker_start(inet_server_t *srv)
+inet_server_worker_start(inet_server_t *s)
 {
-	if (!(__test_bit(INET_FL_RUNNING_BIT, &srv->flags)))
+	if (!(__test_bit(INET_FL_RUNNING_BIT, &s->flags)))
 		return -1;
 
-	return inet_server_worker_launch(srv);
+	return inet_server_worker_launch(s);
 }
 
 static int
-inet_server_worker_alloc(inet_server_t *srv, int id)
+inet_server_worker_alloc(inet_server_t *s, int id)
 {
 	inet_worker_t *worker;
 
 	PMALLOC(worker);
 	INIT_LIST_HEAD(&worker->next);
-	worker->server = srv;
+	worker->server = s;
 	worker->id = id;
 
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_add_tail(&worker->next, &srv->workers);
-	pthread_mutex_unlock(&srv->workers_mutex);
+	pthread_mutex_lock(&s->workers_mutex);
+	list_add_tail(&worker->next, &s->workers);
+	pthread_mutex_unlock(&s->workers_mutex);
 
 	return 0;
 }
@@ -397,14 +414,14 @@ inet_server_worker_release(inet_worker_t *w)
 }
 
 int
-inet_server_for_each_worker(inet_server_t *srv, int (*cb) (inet_worker_t *, void *), void *arg)
+inet_server_for_each_worker(inet_server_t *s, int (*cb) (inet_worker_t *, void *), void *arg)
 {
 	inet_worker_t *w;
 
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry(w, &srv->workers, next)
+	pthread_mutex_lock(&s->workers_mutex);
+	list_for_each_entry(w, &s->workers, next)
 		(*cb) (w, arg);
-	pthread_mutex_unlock(&srv->workers_mutex);
+	pthread_mutex_unlock(&s->workers_mutex);
 	return 0;
 }
 
@@ -413,38 +430,51 @@ inet_server_for_each_worker(inet_server_t *srv, int (*cb) (inet_worker_t *, void
  *	INET Server init
  */
 int
-inet_server_init(inet_server_t *srv)
+inet_server_init(inet_server_t *s)
 {
-	int i;
+	int i, err;
+
+	err = (s->init) ? (*s->init) (s) : 0;
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error initializing inet-server..."
+				    , __FUNCTION__);
+		return -1;
+	}
 
 	/* Init worker related */
-	INIT_LIST_HEAD(&srv->workers);
-	for (i = 0; i < srv->thread_cnt; i++)
-		inet_server_worker_alloc(srv, i);
+	INIT_LIST_HEAD(&s->workers);
+	for (i = 0; i < s->thread_cnt; i++)
+		inet_server_worker_alloc(s, i);
 
-	__set_bit(INET_FL_RUNNING_BIT, &srv->flags);
+	__set_bit(INET_FL_RUNNING_BIT, &s->flags);
 
 	return 0;
 }
 
 int
-inet_server_destroy(inet_server_t *srv)
+inet_server_destroy(inet_server_t *s)
 {
 	inet_worker_t *w, *_w;
+	int err;
 
-	if (!__test_bit(INET_FL_RUNNING_BIT, &srv->flags))
+	if (!__test_bit(INET_FL_RUNNING_BIT, &s->flags))
 		return -1;
 
-	pthread_mutex_lock(&srv->workers_mutex);
-	list_for_each_entry_safe(w, _w, &srv->workers, next) {
+	pthread_mutex_lock(&s->workers_mutex);
+	list_for_each_entry_safe(w, _w, &s->workers, next) {
 		__set_bit(INET_FL_STOP_BIT, &w->flags);
 		pthread_join(w->task, NULL);
 		inet_server_worker_release(w);
 		list_head_del(&w->next);
 		FREE(w);
 	}
-	pthread_mutex_unlock(&srv->workers_mutex);
+	pthread_mutex_unlock(&s->workers_mutex);
 
-	__clear_bit(INET_FL_RUNNING_BIT, &srv->flags);
+	err = (s->destroy) ? (*s->destroy) (s) : 0;
+	if (err)
+		log_message(LOG_INFO, "%s(): Error initializing inet-server..."
+				    , __FUNCTION__);
+
+	__clear_bit(INET_FL_RUNNING_BIT, &s->flags);
 	return 0;
 }
