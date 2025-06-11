@@ -345,10 +345,6 @@ gtp_pppoe_worker_task(void *arg)
 
 	signal_noignore_sig(SIGPIPE);
 
-	/* Set Cancellation before a blocking syscall such as recvmmsg() */
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
 	log_message(LOG_INFO, "%s(): Starting PPPoE Worker %s"
 			    , __FUNCTION__, pname);
 
@@ -414,9 +410,7 @@ gtp_pppoe_worker_release(gtp_pppoe_worker_t *w)
 	if (!w->task)
 		return;
 	
-	pthread_kill(w->task, SIGUSR1);
-	sched_yield(); /* yield to handle the SIGUSR1 */
-	pthread_cancel(w->task); /* stop all the blocking syscalls, recvmmsg() */
+	pthread_kill(w->task, SIGPIPE);
 	pthread_join(w->task, NULL);
 	mpkt_destroy(&w->mpkt);
 	pkt_queue_destroy(&w->pkt_q);
