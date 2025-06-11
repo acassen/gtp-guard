@@ -172,6 +172,8 @@ inet_stor(char *addr)
 int
 inet_stosockaddr(const char *str, const uint16_t port, struct sockaddr_storage *addr)
 {
+	struct sockaddr_in6 *addr6;
+	struct sockaddr_in *addr4;
 	void *addr_ip;
 
 	if (*str == '/') {
@@ -184,13 +186,13 @@ inet_stosockaddr(const char *str, const uint16_t port, struct sockaddr_storage *
 	addr->ss_family = (strchr(str, ':')) ? AF_INET6 : AF_INET;
 	switch (addr->ss_family) {
 	case AF_INET6:
-		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) addr;
+		addr6 = (struct sockaddr_in6 *) addr;
 		if (port)
 			addr6->sin6_port = htons(port);
 		addr_ip = &addr6->sin6_addr;
 		break;
 	case AF_INET:
-		struct sockaddr_in *addr4 = (struct sockaddr_in *) addr;
+		addr4 = (struct sockaddr_in *) addr;
 		if (port)
 			addr4->sin_port = htons(port);
 		addr_ip = &addr4->sin_addr;
@@ -217,18 +219,19 @@ inet_ip4tosockaddr(uint32_t addr_ip, struct sockaddr_storage *addr)
 char *
 inet_sockaddrtos2(struct sockaddr_storage *addr, char *addr_str)
 {
+	struct sockaddr_in6 *addr6;
+	struct sockaddr_in *addr4;
 	void *addr_ip;
 
 	switch (addr->ss_family) {
 	case AF_UNIX:
 		return ((struct sockaddr_un *) addr)->sun_path;
-		break;
 	case AF_INET:
-		struct sockaddr_in *addr4 = (struct sockaddr_in *) addr;
+		addr4 = (struct sockaddr_in *) addr;
 		addr_ip = &addr4->sin_addr;
 		break;
 	case AF_INET6:
-		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) addr;
+		addr6 = (struct sockaddr_in6 *) addr;
 		addr_ip = &addr6->sin6_addr;
 		break;
 	default:

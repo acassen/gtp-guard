@@ -370,3 +370,13 @@ memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize)
 	dst[i] = '\0';
 	return dst;
 }
+
+int
+open_pipe(int pipe_arr[2])
+{
+	/* Open pipe */
+	if (pipe2(pipe_arr, O_CLOEXEC | O_NONBLOCK) == -1)
+		return -1;
+
+	return 0;
+}

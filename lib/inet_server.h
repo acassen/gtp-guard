@@ -41,6 +41,7 @@
 enum inet_server_flags {
 	INET_FL_RUNNING_BIT,
 	INET_FL_STOP_BIT,
+	INET_FL_PIPE_BIT,
 };
 
 /* Server */
@@ -68,10 +69,12 @@ typedef struct _inet_worker {
 	pthread_t		task;
 	int			fd;
 	struct _inet_server	*server;	/* backpointer */
+	int			event_pipe[2];
 
 	/* I/O MUX related */
 	thread_master_t		*master;
 	thread_ref_t		r_thread;
+	thread_ref_t		r_pipe_thread;
 
 	list_head_t		next;
 

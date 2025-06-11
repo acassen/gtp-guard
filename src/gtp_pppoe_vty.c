@@ -712,7 +712,7 @@ gtp_config_pppoe_write(vty_t *vty)
 		if (pppoe->mru)
 			vty_out(vty, " maximum-receive-unit %d%s", pppoe->mru, VTY_NEWLINE);
 		if (pppoe->vmac_hbits)
-			vty_out(vty, " vmac-hbits %d%s", pppoe->vmac_hbits, VTY_NEWLINE);
+			vty_out(vty, " vmac-hbits %d%s", pppoe->vmac_hbits >> 4, VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_GTP_USERNAME_TEMPLATE_0_BIT, &pppoe->flags))
 			vty_out(vty, " authentication pap gtp-username imsi+mei@apn%s"
 				   , VTY_NEWLINE);

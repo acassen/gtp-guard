@@ -518,7 +518,7 @@ DEFUN(request_channel,
 	if (err != CMD_SUCCESS)
 		return err;
 
-	srv->thread_cnt = INET_SRV_THREAD_CNT_DEFAULT;
+	srv->thread_cnt = 1;
 	gtp_request_init();
 	return CMD_SUCCESS;
 }

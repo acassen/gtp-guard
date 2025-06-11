@@ -36,6 +36,7 @@
 #include "bitops.h"
 #include "memory.h"
 #include "signals.h"
+#include "utils.h"
 #include "inet_utils.h"
 #include "inet_server.h"
 
@@ -323,6 +324,28 @@ error:
 	return -1;
 }
 
+/*
+ *	Event thread
+ */
+static void
+inet_server_event_read(thread_ref_t thread)
+{
+	inet_worker_t *w = THREAD_ARG(thread);
+	int fd = THREAD_FD(thread);
+
+	/* Register read thread on listen fd */
+	w->r_thread = thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
+				      INET_TCP_LISTENER_TIMER, 0);
+}
+
+static int
+inet_server_event_init(inet_worker_t *w)
+{
+	w->r_thread = thread_add_read(w->master, inet_server_event_read, w, w->event_pipe[0],
+				      INET_SRV_TIMER, 0);
+	return 0;
+}
+
 static void *
 inet_server_worker_task(void *arg)
 {
@@ -344,6 +367,9 @@ inet_server_worker_task(void *arg)
 
         /* I/O MUX init */
         w->master = thread_make_master(true);
+
+	/* Register event pipe */
+	inet_server_event_init(w);
 
         /* Register listener */
         inet_server_tcp_listen(w);
@@ -397,6 +423,8 @@ inet_server_worker_alloc(inet_server_t *s, int id)
 	INIT_LIST_HEAD(&worker->next);
 	worker->server = s;
 	worker->id = id;
+	if (!open_pipe(worker->event_pipe))
+		__set_bit(INET_FL_PIPE_BIT, &worker->flags);
 
 	pthread_mutex_lock(&s->workers_mutex);
 	list_add_tail(&worker->next, &s->workers);
@@ -410,6 +438,10 @@ inet_server_worker_release(inet_worker_t *w)
 {
 	thread_destroy_master(w->master);
 	close(w->fd);
+	if (__test_bit(INET_FL_PIPE_BIT, &w->flags)) {
+		close(w->event_pipe[0]);
+		close(w->event_pipe[1]);
+	}
 	return 0;
 }
 
@@ -463,6 +495,8 @@ inet_server_destroy(inet_server_t *s)
 	pthread_mutex_lock(&s->workers_mutex);
 	list_for_each_entry_safe(w, _w, &s->workers, next) {
 		__set_bit(INET_FL_STOP_BIT, &w->flags);
+		if (__test_bit(INET_FL_PIPE_BIT, &w->flags))
+			err = write(w->event_pipe[1], "end", 3);
 		pthread_join(w->task, NULL);
 		inet_server_worker_release(w);
 		list_head_del(&w->next);
