@@ -333,16 +333,16 @@ inet_server_event_read(thread_ref_t thread)
 	inet_worker_t *w = THREAD_ARG(thread);
 	int fd = THREAD_FD(thread);
 
-	/* Register read thread on listen fd */
-	w->r_thread = thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
-				      INET_TCP_LISTENER_TIMER, 0);
+	/* Register read thread on pipe fd */
+	thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
+			INET_TCP_LISTENER_TIMER, 0);
 }
 
 static int
 inet_server_event_init(inet_worker_t *w)
 {
-	w->r_thread = thread_add_read(w->master, inet_server_event_read, w, w->event_pipe[0],
-				      INET_SRV_TIMER, 0);
+	thread_add_read(w->master, inet_server_event_read, w, w->event_pipe[0],
+			INET_SRV_TIMER, 0);
 	return 0;
 }
 

@@ -74,7 +74,6 @@ typedef struct _inet_worker {
 	/* I/O MUX related */
 	thread_master_t		*master;
 	thread_ref_t		r_thread;
-	thread_ref_t		r_pipe_thread;
 
 	list_head_t		next;
 
