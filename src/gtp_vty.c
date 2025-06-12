@@ -525,7 +525,7 @@ DEFUN(request_channel,
 
 DEFUN(metrics_channel,
       metrics_channel_cmd,
-      "metrics-channel (A.B.C.D|X:X:X:X|STRING) [port <1024-65535>]",
+      "metrics-channel (A.B.C.D|X:X:X:X) port <1024-65535>",
       "Prometheus metrics channel\n"
       "IPv4 Address\n"
       "IPv6 Address\n"

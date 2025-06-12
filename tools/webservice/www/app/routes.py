@@ -62,6 +62,43 @@ class gtpguard:
 			self.sd.close()
 			return json_data
 
+class CommandClient:
+	def __init__(self, host='localhost', port=2665):
+		self.fd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.fd.settimeout(10)
+		self.host = host
+		self.port = port
+
+	def _send_command(self, cmd, **kwargs):
+		try:
+			self.fd.connect((self.host, self.port))
+		except socket.error as msg:
+			return 'Error Connecting metrics service'
+
+		message_dict = {"cmd": cmd}
+		message_dict.update(kwargs)
+		message = json.dumps(message_dict) + "\r\n"
+		self.fd.sendall(message.encode('utf-8'))
+
+		response_chunks = []
+		try:
+			while True:
+				chunk = self.fd.recv(4096)
+				if not chunk:
+					break
+				response_chunks.append(chunk)
+		except socket.error as msg:
+			self.fd.close()
+		finally:
+			response = b''.join(response_chunks).decode('utf-8')
+			self.fd.close()
+			return response
+
+class GtpGuardMetrics(CommandClient):
+	def metrics(self):
+		return self._send_command('metrics')
+
+
 #
 #	Routes declarations
 #
@@ -91,3 +128,9 @@ def gtpWS():
 	gtp.sendJSON(gtp_addr_ip, gtp_addr_port, json_obj)
 	json_data = gtp.recvJSON()
 	return jsonify(json_data)
+
+@app.route("/metrics", methods=['GET'])
+def metricsWS():
+	client = GtpGuardMetrics(host='localhost', port=2665)
+	response_str = client.metrics()
+	return response_str

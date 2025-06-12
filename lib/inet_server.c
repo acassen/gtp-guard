@@ -149,11 +149,12 @@ inet_server_tcp_accept(thread_ref_t thread)
 	socklen_t addrlen;
 	inet_worker_t *w;
 	inet_cnx_t *c;
-	int fd, accept_fd, err;
+	int fd, accept_fd, err = 0, family;
 
 	/* Fetch thread elements */
 	fd = THREAD_FD(thread);
 	w = THREAD_ARG(thread);
+	family = w->server->addr.ss_family;
 
 	/* Terminate event */
 	if (__test_bit(INET_FL_STOP_BIT, &w->flags)) {
@@ -193,8 +194,10 @@ inet_server_tcp_accept(thread_ref_t thread)
 	}
 
 	/* Register reader on accept_sd */
-	err = inet_setsockopt_nodelay(c->fd, 1);
-	err = (err) ? : inet_setsockopt_nolinger(c->fd, 1);
+	if (family == AF_INET || family == AF_INET6) {
+		err = inet_setsockopt_nodelay(c->fd, 1);
+		err = (err) ? : inet_setsockopt_nolinger(c->fd, 1);
+	}
 	if (err) {
 		log_message(LOG_INFO, "%s(): error creating TCP connection with [%s]:%d"
 				    , __FUNCTION__
@@ -333,9 +336,15 @@ inet_server_event_read(thread_ref_t thread)
 	inet_worker_t *w = THREAD_ARG(thread);
 	int fd = THREAD_FD(thread);
 
+	/* Terminate event */
+	if (__test_bit(INET_FL_STOP_BIT, &w->flags)) {
+		thread_add_terminate_event(thread->master);
+		return;
+	}
+
 	/* Register read thread on pipe fd */
-	thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
-			INET_TCP_LISTENER_TIMER, 0);
+	thread_add_read(thread->master, inet_server_event_read, w, fd,
+			INET_SRV_TIMER, 0);
 }
 
 static int

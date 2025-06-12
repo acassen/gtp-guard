@@ -57,6 +57,7 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 	}
 
 	/* TODO: Add metrics txt output */
+	fprintf(c->fp, "[OK]\n");
 
   end:
 	return 0;
@@ -87,9 +88,11 @@ gtp_metrics_cnx_process(inet_cnx_t *c)
 int
 gtp_metrics_srv_prepare(inet_server_t *s)
 {
-	struct sockaddr_un *un = (struct sockaddr_un *) &s->addr;
+	struct sockaddr_storage	*addr = &s->addr;
 
-	unlink(un->sun_path);
+	if (addr->ss_family == AF_UNIX)
+		unlink(((struct sockaddr_un *) addr)->sun_path);
+
 	return 0;
 }
 
