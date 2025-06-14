@@ -80,9 +80,55 @@ struct {
 	__type(value, struct port_mac_address);
 } mac_learning SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(max_entries, 32);
+	__type(key, struct metrics_key);		/* ifindex + type + dir */
+	__type(value, struct metrics);
+} if_info SEC(".maps");
+
 
 /*
- *	Checksum related
+ *	Statistics
+ */
+static __always_inline void
+gtp_rt_rule_stats_update(struct gtp_rt_rule *rule, int bytes)
+{
+	rule->packets++;
+	rule->bytes += bytes;
+}
+
+static __always_inline int
+if_metrics_update(int action, __u32 ifindex, __u8 type, __u8 direction, int bytes)
+{
+	struct metrics *metrics;
+	struct metrics_key mkey;
+
+	mkey.ifindex = ifindex;
+	mkey.type = type;
+	mkey.direction = direction;
+
+	metrics = bpf_map_lookup_elem(&if_info, &mkey);
+	if (!metrics)
+		return -1;
+
+	switch (action) {
+	case XDP_PASS:
+	case XDP_TX:
+	case XDP_REDIRECT:
+		metrics->packets++;
+		metrics->bytes += bytes;
+		break;
+	default:
+		metrics->dropped_packets++;
+		metrics->dropped_bytes += bytes;
+	}
+	return 0;
+}
+
+
+/*
+ *	Checksum
  */
 static __always_inline __u16 csum_fold_helper(__u32 csum)
 {
@@ -130,16 +176,6 @@ gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
 }
 
 /*
- *	Stats
- */
-static __always_inline void
-gtp_route_stats_update(struct gtp_rt_rule *rule, int bytes)
-{
-	rule->packets++;
-	rule->bytes += bytes;
-}
-
-/*
  *	IPIP
  */
 static __always_inline int
@@ -148,6 +184,7 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	struct xdp_md *ctx = pkt->ctx;
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
+	int nbytes = data_end - data;
 	struct bpf_fib_lookup fib_params;
 	struct gtp_iptnl_rule *iptnl_rule;
 	struct ethhdr *new_eth;
@@ -157,6 +194,7 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	int headroom = sizeof(struct udphdr) + sizeof(struct gtphdr);
 	__u16 payload_len;
 	__u32 csum = 0;
+	int ret;
 
 	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &rt_rule->dst_key);
 	if (!iptnl_rule)
@@ -170,23 +208,35 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 		headroom -= sizeof(struct _vlan_hdr);
 
 	/* Phase 1 : decap GTP-U */
-	if (bpf_xdp_adjust_head(ctx, headroom))
+	if (bpf_xdp_adjust_head(ctx, headroom)) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	/* Phase 2 : IPIP Encapsulation */
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 
 	new_eth = data;
-	if (new_eth + 1 > data_end)
+	if (new_eth + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
 
 	if (iptnl_rule->flags & IPTNL_FL_TAG_VLAN) {
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > data_end) {
+			if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+					  IF_METRICS_GTP, IF_DIRECTION_RX,
+					  nbytes);
 			return XDP_DROP;
+		}
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->encap_vlan_id);
 		offset += sizeof(struct _vlan_hdr);
@@ -194,15 +244,22 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 
 	/* IPIP Encapsulation header */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	offset += sizeof(struct iphdr);
 	iph_inner = data + offset;
-	if (iph_inner + 1 > data_end)
+	if (iph_inner + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	payload_len = bpf_ntohs(iph_inner->tot_len);
-	gtp_route_stats_update(rt_rule, bpf_ntohs(iph_inner->tot_len));
 
 	iph->version = 4;
 	iph->ihl = sizeof(*iph) >> 2;
@@ -217,12 +274,21 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	ipv4_csum(iph, sizeof(struct iphdr), &csum);
 	iph->check = csum;
 
+	/* Statistics */
+	gtp_rt_rule_stats_update(rt_rule, data_end - data);
+	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_GTP, IF_DIRECTION_RX,
+			  nbytes);
+
 	/* We need to perform a fib lookup to resolv {s,d}mac properly
 	 * and not re-invent the wheel by storing it locally in ruleset
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
+	ret = gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
+	if_metrics_update(ret, fib_params.ifindex,
+			  IF_METRICS_IPIP, IF_DIRECTION_TX,
+			  data_end - data);
+	return ret;
 }
 
 static __always_inline int
@@ -231,6 +297,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	struct xdp_md *ctx = pkt->ctx;
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
+	int nbytes = data_end - data;
 	struct bpf_fib_lookup fib_params;
 	struct gtp_iptnl_rule *iptnl_rule;
 	struct gtp_rt_rule *rt_rule = NULL;
@@ -241,7 +308,7 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	struct udphdr *udph;
 	struct gtphdr *gtph;
 	int offset = pkt->l3_offset;
-	int headroom, use_vlan = 0;
+	int headroom, use_vlan = 0, ret;
 	__u16 payload_len;
 	__u32 csum = 0;
 
@@ -263,7 +330,6 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	rt_rule = bpf_map_lookup_elem(&teid_ingress, &rt_key);
 	if (!rt_rule)
 		return XDP_PASS;
-	gtp_route_stats_update(rt_rule, bpf_ntohs(iph_inner->tot_len));
 
 	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &rt_rule->dst_key);
 	if (!iptnl_rule)
@@ -279,14 +345,22 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 		use_vlan = 1;
 		headroom += sizeof(struct _vlan_hdr);
 	}
-	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
+	if (bpf_xdp_adjust_head(ctx, 0 - headroom)) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_IPIP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 	new_eth = data;
-	if (new_eth + 1 > data_end)
+	if (new_eth + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_IPIP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	offset = sizeof(struct ethhdr);
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
@@ -294,8 +368,12 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + sizeof(*new_eth);
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > data_end) {
+			if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+					  IF_METRICS_IPIP, IF_DIRECTION_RX,
+					  nbytes);
 			return XDP_DROP;
+		}
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->decap_vlan_id);
 		offset += sizeof(*vlanh);
@@ -303,8 +381,12 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 
 	/* Build GTP-U IP Header */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_IPIP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	iph->version = 4;
 	iph->ihl = sizeof(*iph) >> 2;
 	iph->frag_off =	0;
@@ -322,8 +404,12 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 
 	/* Build GTP-U UDP Header */
 	udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_IPIP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	udph->dest = bpf_htons(GTPU_PORT);
 	udph->source= bpf_htons(65000);
 	udph->len = bpf_htons(payload_len + sizeof(*udph) + sizeof(*gtph));
@@ -333,19 +419,32 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 
 	/* Build GTP-U GTP Header */
 	gtph = data + offset;
-	if (gtph + 1 > data_end)
+	if (gtph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_IPIP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	gtph->flags = GTPU_FLAGS;		/* GTP Release 99 + GTP */
 	gtph->type = GTPU_TPDU;
 	gtph->teid = rt_rule->teid;
 	gtph->length = bpf_htons(payload_len);	/* gtph not part of it !? */
+
+	/* Statistics */
+	gtp_rt_rule_stats_update(rt_rule, data_end - data);
+	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_IPIP, IF_DIRECTION_RX,
+			  nbytes);
 
 	/* We need to perform a fib lookup to resolv {s,d}mac properly
 	 * and not re-invent the wheel by storing it locally in ruleset
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
+	ret = gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
+	if_metrics_update(ret, fib_params.ifindex,
+			  IF_METRICS_GTP, IF_DIRECTION_TX,
+			  data_end - data);
+	return ret;
 }
 
 
@@ -404,6 +503,7 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	struct xdp_md *ctx = pkt->ctx;
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
+	int nbytes = data_end - data;
 	struct ethhdr *ethh;
 	struct _vlan_hdr *vlanh = NULL;
 	struct pppoehdr *pppoeh;
@@ -434,16 +534,25 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	headroom -= sizeof(struct pppoehdr) + 2;
 
 	/* Phase 2 : GTP-U decap */
-	if (bpf_xdp_adjust_head(ctx, headroom))
+	if (bpf_xdp_adjust_head(ctx, headroom)) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 
 	/* Phase 3 : Layer2 */
 	ethh = data;
-	if (ethh + 1 > data_end)
+	if (ethh + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
+
 	__builtin_memcpy(ethh->h_dest, rt_rule->h_dst, ETH_ALEN);
 	__builtin_memcpy(ethh->h_source, rt_rule->h_src, ETH_ALEN);
 	ethh->h_proto = bpf_htons(ETH_P_PPP_SES);
@@ -451,8 +560,12 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	if (rt_rule->vlan_id != 0) {
 		ethh->h_proto = bpf_htons(ETH_P_8021Q);
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > data_end) {
+			if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+					  IF_METRICS_GTP, IF_DIRECTION_RX,
+					  nbytes);
 			return XDP_DROP;
+		}
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_PPP_SES);
 		vlanh->hvlan_TCI = bpf_htons(rt_rule->vlan_id);
 		offset += sizeof(struct _vlan_hdr);
@@ -460,8 +573,12 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	/* Phase 4 : PPPoE */
 	pppoeh = data + offset;
-	if (pppoeh + 1 > data_end)
+	if (pppoeh + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	pppoeh->vertype = PPPOE_VERTYPE;
 	pppoeh->code = PPPOE_CODE_SESSION;
 	pppoeh->session = bpf_htons(rt_rule->session_id);
@@ -469,34 +586,65 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	/* Phase 5 : PPP */
 	ppph = data + offset;
-	if (ppph + 1 > data_end)
+	if (ppph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	offset += 2;
 
 	/* Phase 6 : Complete PPPoE & PPP header according to L3 */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	if (iph->version == 4) {
 		*ppph = bpf_htons(PPP_IP);
 	} else if (iph->version == 6) {
 		*ppph = bpf_htons(PPP_IPV6);
 		ipv6h = data + offset;
-		if (ipv6h + 1 > data_end)
+		if (ipv6h + 1 > data_end) {
+			if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+					  IF_METRICS_GTP, IF_DIRECTION_RX,
+					  nbytes);
 			return XDP_DROP;
-	} else
+		}
+	} else {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP; /* only IPv4 & IPv6 */
+	}
 
 	pppoeh->plen = bpf_htons(payload_len);
-	gtp_route_stats_update(rt_rule, length);
 
-	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX)
+	/* Statistics */
+	gtp_rt_rule_stats_update(rt_rule, data_end - data);
+	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_GTP, IF_DIRECTION_RX,
+			  nbytes);
+
+	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX) {
+		if_metrics_update(XDP_TX, ctx->ingress_ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_TX,
+				  data_end - data);
 		return XDP_TX;
+	}
 
-	if (ctx->ingress_ifindex != rt_rule->ifindex)
+	if (ctx->ingress_ifindex != rt_rule->ifindex) {
+		if_metrics_update(XDP_REDIRECT, rt_rule->ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_TX,
+				  data_end - data);
 		return bpf_redirect(rt_rule->ifindex, 0);
+	}
 
+	if_metrics_update(XDP_TX, ctx->ingress_ifindex,
+			  IF_METRICS_PPP, IF_DIRECTION_TX,
+			  data_end - data);
 	return XDP_TX;
 }
 
@@ -506,6 +654,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	struct xdp_md *ctx = pkt->ctx;
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
+	int nbytes = data_end - data;
 	struct bpf_fib_lookup fib_params;
 	struct gtp_rt_rule *rt_rule;
 	struct ppp_key ppp_k;
@@ -521,7 +670,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	__u16 payload_len;
 	__u32 csum = 0;
 	__u32 key = 0;
-	int headroom;
+	int headroom, ret;
 
 	ethh = data;
 	if (ethh + 1 > data_end)
@@ -549,9 +698,12 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	 * userland overflow while restarting. Only PPP-LCP are punt
 	 * to the userland. */
 	rt_rule = bpf_map_lookup_elem(&ppp_ingress, &ppp_k);
-	if (!rt_rule)
+	if (!rt_rule) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
-	gtp_route_stats_update(rt_rule, payload_len);
+	}
 
 	/* Phase 0 : Got it ! perform GTP-U encapsulation, prepare headroom */
 	headroom = sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(struct gtphdr);
@@ -560,23 +712,35 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 		headroom -= sizeof(struct _vlan_hdr);
 	else if (pkt->vlan_id == 0 && rt_rule->vlan_id != 0)
 		headroom += sizeof(struct _vlan_hdr);
-	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
+	if (bpf_xdp_adjust_head(ctx, 0 - headroom)) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 
 	/* Phase 1 : Layer2 */
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 	ethh = data;
-	if (ethh + 1 > data_end)
+	if (ethh + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	offset = sizeof(*ethh);
 	ethh->h_proto = bpf_htons(ETH_P_IP);
 	if (rt_rule->vlan_id != 0) {
 		ethh->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		if (vlanh + 1 > data_end) {
+			if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+					  IF_METRICS_PPP, IF_DIRECTION_RX,
+					  nbytes);
 			return XDP_DROP;
+		}
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		vlanh->hvlan_TCI = bpf_htons(rt_rule->vlan_id);
 		offset += sizeof(*vlanh);
@@ -584,8 +748,12 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 
 	/* Phase 2 : Layer3 */
 	iph = data + offset;
-	if (iph + 1 > data_end)
+	if (iph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	iph->version = 4;
 	iph->ihl = sizeof(*iph) >> 2;
 	iph->frag_off =	0;
@@ -603,8 +771,12 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 
 	/* Phase 3 : Layer4 */
 	udph = data + offset;
-	if (udph + 1 > data_end)
+	if (udph + 1 > data_end) {
+		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
+				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  nbytes);
 		return XDP_DROP;
+	}
 	udph->source = bpf_htons(GTPU_PORT);
 	udph->dest = bpf_htons(GTPU_PORT);
 	udph->len = bpf_htons(payload_len + sizeof(*udph) + sizeof(*gtph));
@@ -628,12 +800,22 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	gtph->teid = rt_rule->teid;
 	gtph->length = bpf_htons(payload_len);
 
+	/* Statistics */
+	gtp_rt_rule_stats_update(rt_rule, data_end - data);
+	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_PPP, IF_DIRECTION_RX,
+			  nbytes);
+
 	/* In direct-tx mode we are using mac learning */
 	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX) {
 		pma = bpf_map_lookup_elem(&mac_learning, &key);
 		if (pma) {
 			__builtin_memcpy(ethh->h_dest, pma->remote, ETH_ALEN);
 			__builtin_memcpy(ethh->h_source, pma->local, ETH_ALEN);
+
+			/* TODO: for perfs, try to avoid this 2nd lookup */
+			if_metrics_update(XDP_TX, ctx->ingress_ifindex,
+					  IF_METRICS_GTP, IF_DIRECTION_TX,
+					  data_end - data);
 			return XDP_TX;
 		}
 	}
@@ -643,7 +825,11 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtp_route_fib_lookup(ctx, ethh, iph, &fib_params);
+	ret = gtp_route_fib_lookup(ctx, ethh, iph, &fib_params);
+	if_metrics_update(ret, fib_params.ifindex,
+			  IF_METRICS_GTP, IF_DIRECTION_TX,
+			  data_end - data);
+	return ret;
 }
 
 /*

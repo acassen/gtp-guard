@@ -36,15 +36,15 @@ const volatile int nr_cpus;
  *      @h_vlan_encapsulated_proto: packet type ID or len
  */
 struct _vlan_hdr {
-        __be16  hvlan_TCI;
-        __be16  h_vlan_encapsulated_proto;
+        __be16		hvlan_TCI;
+        __be16		h_vlan_encapsulated_proto;
 };
 
 struct pppoehdr {
-	__u8	vertype;
-	__u8	code;
-	__u16	session;
-	__u16	plen;
+	__u8		vertype;
+	__u8		code;
+	__u16		session;
+	__u16		plen;
 } __attribute__ ((__packed__));
 #define PPPOE_VERTYPE		0x11		/* VER=1, TYPE = 1 */
 #define PPPOE_CODE_SESSION	0x00		/* Session */
@@ -52,10 +52,10 @@ struct pppoehdr {
 #define PPP_IPV6		0x0057		/* Internet Protocol v6 */
 
 struct gtphdr {
-        __u8    flags;
-        __u8    type;
-        __be16  length;
-        __be32  teid;
+        __u8		flags;
+        __u8		type;
+        __be16		length;
+        __be32		teid;
 } __attribute__ ((__packed__));
 #define GTPU_TPDU		0xff
 #define GTPU_FLAGS		0x30
@@ -65,20 +65,20 @@ struct gtphdr {
 
 struct parse_pkt {
 	struct xdp_md	*ctx;
-	__u16	vlan_id;
-	__u16   l3_proto;
-	__u16   l3_offset;
+	__u16		vlan_id;
+	__u16		l3_proto;
+	__u16		l3_offset;
 };
 
 struct gtp_teid_rule {
-	__be32  vteid;
-	__be32  teid;
-	__be32  dst_addr;
+	__be32		vteid;
+	__be32		teid;
+	__be32		dst_addr;
 
 	/* Some stats */
-	__u64   packets;
-	__u64   bytes;
-	__u8	flags;
+	__u64 		packets;
+	__u64 		bytes;
+	__u8		flags;
 } __attribute__ ((__aligned__(8)));
 #define GTP_FWD_FL_INGRESS	(1 << 0)
 #define GTP_FWD_FL_EGRESS	(1 << 1)
@@ -104,12 +104,12 @@ struct gtp_teid_frag {
 
 /* IPIP Tunnel related */
 struct gtp_iptnl_rule {
-	__be32	selector_addr;
-	__be32	local_addr;
-	__be32	remote_addr;
-	__be16	encap_vlan_id;
-	__be16	decap_vlan_id;
-	__u8	flags;
+	__be32		selector_addr;
+	__be32		local_addr;
+	__be32		remote_addr;
+	__be16		encap_vlan_id;
+	__be16		decap_vlan_id;
+	__u8		flags;
 } __attribute__ ((__aligned__(8)));
 #define MAX_IPTNL_ENTRIES 256U
 #define IPTNL_FL_TRANSPARENT_INGRESS_ENCAP	(1 << 0)
@@ -121,10 +121,10 @@ struct gtp_iptnl_rule {
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
 struct gtp_mirror_rule {
-	__be32	addr;
-	__be16	port;
-	__u8	protocol;
-	int	ifindex;
+	__be32		addr;
+	__be16		port;
+	__u8		protocol;
+	int		ifindex;
 } __attribute__ ((__aligned__(8)));
 #define MAX_MIRROR_ENTRIES 100U
 
@@ -135,27 +135,27 @@ struct ip_rt_key {
 } __attribute__ ((__aligned__(8)));
 
 struct ppp_key {
-	__u8	hw[6];
-	__u16	session_id;
+	__u8		hw[6];
+	__u16		session_id;
 } __attribute__ ((__aligned__(8)));
 
 struct gtp_rt_rule {
-	__u8	h_src[6];
-	__u8	h_dst[6];
-	__u16	session_id;
-	__be32  teid;
-	__be32  saddr;
-	__be32  daddr;
-	__be32  dst_key;
-	__u8	ifindex;
-	__u16	vlan_id;
-	__be16	gtp_udp_port;
+	__u8		h_src[6];
+	__u8		h_dst[6];
+	__u16		session_id;
+	__be32 		teid;
+	__be32 		saddr;
+	__be32 		daddr;
+	__be32 		dst_key;
+	__u8		ifindex;
+	__u16		vlan_id;
+	__be16		gtp_udp_port;
 
 	/* Some stats */
-	__u64   packets;
-	__u64   bytes;
+	__u64		packets;
+	__u64		bytes;
 
-	__u8	flags;
+	__u8		flags;
 } __attribute__ ((__aligned__(8)));
 
 #define GTP_RT_FL_IPIP		(1 << 0)
@@ -165,32 +165,52 @@ struct gtp_rt_rule {
 
 struct rt_percpu_ctx {
 	/* ingress */
-	__u8 hw[6];
-	__u16 session_id;
+	__u8		hw[6];
+	__u16		session_id;
 	/* egress */
-	__be32 addr;
-	__be32 id;
+	__be32		addr;
+	__be32		id;
 
-	__u16 dst_port;
+	__u16		dst_port;
 };
 
 /* MAC Address learning */
 struct port_mac_address {
-	__u8 local[6];
-	__u8 remote[6];
-	__u8 state;
+	__u8		local[6];
+	__u8		remote[6];
+	__u8		state;
 } __attribute__ ((__aligned__(8)));
 
 struct eth_percpu_ctx {
-	__u8 source[6];
-	__u8 dest[6];
+	__u8		source[6];
+	__u8		dest[6];
 };
 
-/* Receive Packet Steering related */
+/* Receive Packet Steering */
 struct rps_opts {
-	__u16 id;
-	__u16 max_id;
+	__u16		id;
+	__u16		max_id;
 } __attribute__ ((__aligned__(8)));
 
+/* Statistics */
+#define IF_METRICS_FWD		0
+#define IF_METRICS_GTP		1
+#define IF_METRICS_PPP		2
+#define IF_METRICS_IPIP		3
+
+#define IF_DIRECTION_RX		0
+#define IF_DIRECTION_TX		1
+struct metrics_key {
+	__u32		ifindex;
+	__u8		type;
+	__u8		direction;
+} __attribute__ ((__aligned__(8)));
+
+struct metrics {
+	__u64		packets;
+	__u64		bytes;
+	__u64		dropped_packets;
+	__u64		dropped_bytes;
+} __attribute__ ((__aligned__(8)));
 
 #endif

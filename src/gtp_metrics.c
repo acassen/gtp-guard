@@ -52,7 +52,7 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 	}
 
 	if (strncmp(cmd_str, "metrics", 7)) {
-		fprintf(c->fp, "ERROR\n");
+		fprintf(c->fp, "Unknown command:'%s'\n", cmd_str);
 		goto end;
 	}
 
