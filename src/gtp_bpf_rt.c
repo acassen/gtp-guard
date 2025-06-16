@@ -41,6 +41,7 @@
 /* Extern data */
 extern data_t *daemon_data;
 
+
 /*
  *	XDP RT BPF related
  */
@@ -91,6 +92,13 @@ gtp_bpf_rt_load(gtp_bpf_opts_t *opts)
 	}
 	opts->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map = map;
 
+	map = gtp_bpf_load_map(opts->bpf_obj, "if_stats");
+	if (!map) {
+		gtp_bpf_unload(opts);
+		return -1;
+	}
+	opts->bpf_maps[XDP_RT_MAP_IF_STATS].map = map;
+
 	return 0;
 }
 
@@ -100,6 +108,146 @@ gtp_bpf_rt_unload(gtp_bpf_opts_t *opts)
 	gtp_bpf_unload(opts);
 }
 
+/*
+ *	Statistics
+ */
+static struct metrics *
+gtp_bpf_rt_metrics_alloc(size_t *sz)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct metrics *new;
+
+	new = calloc(nr_cpus, sizeof(*new));
+	if (!new)
+		return NULL;
+
+	*sz = nr_cpus * sizeof(struct metrics);
+	memset(new, 0, *sz);
+	return new;
+}
+
+static int
+gtp_bpf_rt_metrics_add(struct bpf_map *map, __u32 ifindex, __u8 type, __u8 direction)
+{
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	struct metrics_key mkey;
+	struct metrics *new;
+	size_t sz;
+	int err;
+
+	mkey.ifindex = ifindex;
+	mkey.type = type;
+	mkey.direction = direction;
+
+	new = gtp_bpf_rt_metrics_alloc(&sz);
+	if (!new) {
+		log_message(LOG_INFO, "%s(): Cant allocate metrics !!!"
+					, __FUNCTION__);
+		err = -1;
+		goto end;
+	}
+
+	err = bpf_map__update_elem(map, &mkey, sizeof(struct metrics), new, sz, BPF_NOEXIST);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Unable to init XDP routing metrics (%s)"
+				    , __FUNCTION__
+				    , errmsg);
+		goto end;
+	}
+
+  end:
+	if (new)
+		free(new);
+	return err;
+}
+
+int
+gtp_bpf_rt_stats_init(gtp_bpf_opts_t *opts)
+{
+	struct bpf_map *map = opts->bpf_maps[XDP_RT_MAP_IF_STATS].map;
+	int i, err;
+
+	/* TODO: activating all metrics, later can choose to selectively
+	 * activate metrics type per vty config */
+	for (i = 0; i < IF_METRICS_CNT; i++) {
+		err = gtp_bpf_rt_metrics_add(map, opts->ifindex, i, IF_DIRECTION_RX);
+		err = (err) ? : gtp_bpf_rt_metrics_add(map, opts->ifindex, i, IF_DIRECTION_TX);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
+
+
+static int
+gtp_bpf_rt_metrics_dump(struct bpf_map *map,
+			int (*dump) (void *, __u32, __u8, __u8, struct metrics *), void *arg,
+			__u32 ifindex, __u8 type, __u8 direction)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	struct metrics_key mkey;
+	struct metrics *m;
+	size_t sz;
+	int err, i;
+
+	mkey.ifindex = ifindex;
+	mkey.type = type;
+	mkey.direction = direction;
+
+	m = gtp_bpf_rt_metrics_alloc(&sz);
+	if (!m) {
+		log_message(LOG_INFO, "%s(): Cant allocate metrics !!!"
+					, __FUNCTION__);
+		err = -1;
+		goto end;
+	}
+
+	err = bpf_map__lookup_elem(map, &mkey, sizeof(struct metrics), m, sz, 0);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Unable to lookup XDP routing metrics (%s)"
+				    , __FUNCTION__
+				    , errmsg);
+		goto end;
+	}
+
+	/* first element accumulation */
+	for (i = 1; i < nr_cpus; i++) {
+		m[0].packets += m[i].packets;
+		m[0].bytes += m[i].bytes;
+		m[0].dropped_packets += m[i].dropped_packets;
+		m[0].dropped_bytes += m[i].dropped_bytes;
+	}
+
+	err = (*(dump)) (arg, ifindex, type, direction, &m[0]);
+  end:
+	if (m)
+		free(m);
+	return err;
+}
+
+int
+gtp_bpf_rt_stats_dump(gtp_bpf_opts_t *opts,
+		      int (*dump) (void *, __u32, __u8, __u8, struct metrics *),
+		      void *arg)
+{
+	struct bpf_map *map = opts->bpf_maps[XDP_RT_MAP_IF_STATS].map;
+	int i, err;
+
+	for (i = 0; i < IF_METRICS_CNT; i++) {
+		err = gtp_bpf_rt_metrics_dump(map, dump, arg
+						 , opts->ifindex, i, IF_DIRECTION_RX);
+		err = (err) ? : gtp_bpf_rt_metrics_dump(map, dump, arg
+							   , opts->ifindex, i, IF_DIRECTION_TX);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
 
 /*
  *	TEID Routing handling
@@ -235,7 +383,6 @@ gtp_bpf_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, in
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char addr_ip[16];
 	int err = 0, i;
-	uint64_t packets, bytes;
 	size_t sz;
 
 	/* Allocate temp rule */
@@ -254,15 +401,14 @@ gtp_bpf_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, in
 			goto end;
 		}
 
-		packets = bytes = 0;
-		for (i = 0; i < nr_cpus; i++) {
-			packets += r[i].packets;
-			bytes += r[i].bytes;
+		for (i = 1; i < nr_cpus; i++) {
+			r[0].packets += r[i].packets;
+			r[0].bytes += r[i].bytes;
 		}
 
-		vty_out(vty, "       %.7s pkts:%ld bytes:%ld (ifindex:%d)%s"
+		vty_out(vty, "       %.7s pkts:%lld bytes:%lld (ifindex:%d)%s"
 			   , __test_bit(GTP_TEID_FL_EGRESS, &t->flags) ? "egress" : "ingress"
-			   , packets, bytes, ifindex, VTY_NEWLINE);
+			   , r[0].packets, r[0].bytes, ifindex, VTY_NEWLINE);
 
 		goto end;
 	}
@@ -278,19 +424,18 @@ gtp_bpf_teid_vty(gtp_bpf_opts_t *opts, int map_id, vty_t *vty, gtp_teid_t *t, in
 			continue;
 		}
 
-		packets = bytes = 0;
-		for (i = 0; i < nr_cpus; i++) {
-			packets += r[i].packets;
-			bytes += r[i].bytes;
+		for (i = 1; i < nr_cpus; i++) {
+			r[0].packets += r[i].packets;
+			r[0].bytes += r[i].bytes;
 		}
 
 		if (map_id == XDP_RT_MAP_TEID_EGRESS)
 			direction_str = "egress";
-		vty_out(vty, "| 0x%.8x | %16s | %9s | %12ld | %19ld |%s"
+		vty_out(vty, "| 0x%.8x | %16s | %9s | %12lld | %19lld |%s"
 			   , ntohl(r[0].teid)
 			   , inet_ntoa2(r[0].daddr, addr_ip)
 			   , direction_str
-			   , packets, bytes
+			   , r[0].packets, r[0].bytes
 			   , VTY_NEWLINE);
 	}
 

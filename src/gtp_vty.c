@@ -125,6 +125,7 @@ DEFUN(pdn_xdp_gtp_route,
 	}
 
 	gtp_bpf_opts_add(opts, l);
+	gtp_bpf_rt_stats_init(opts);
 	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }

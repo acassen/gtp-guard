@@ -85,7 +85,7 @@ struct {
 	__uint(max_entries, 32);
 	__type(key, struct metrics_key);		/* ifindex + type + dir */
 	__type(value, struct metrics);
-} if_info SEC(".maps");
+} if_stats SEC(".maps");
 
 
 /*
@@ -108,7 +108,7 @@ if_metrics_update(int action, __u32 ifindex, __u8 type, __u8 direction, int byte
 	mkey.type = type;
 	mkey.direction = direction;
 
-	metrics = bpf_map_lookup_elem(&if_info, &mkey);
+	metrics = bpf_map_lookup_elem(&if_stats, &mkey);
 	if (!metrics)
 		return -1;
 
@@ -630,20 +630,20 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 
 	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX) {
 		if_metrics_update(XDP_TX, ctx->ingress_ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_TX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_TX,
 				  data_end - data);
 		return XDP_TX;
 	}
 
 	if (ctx->ingress_ifindex != rt_rule->ifindex) {
 		if_metrics_update(XDP_REDIRECT, rt_rule->ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_TX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_TX,
 				  data_end - data);
 		return bpf_redirect(rt_rule->ifindex, 0);
 	}
 
 	if_metrics_update(XDP_TX, ctx->ingress_ifindex,
-			  IF_METRICS_PPP, IF_DIRECTION_TX,
+			  IF_METRICS_PPPOE, IF_DIRECTION_TX,
 			  data_end - data);
 	return XDP_TX;
 }
@@ -700,7 +700,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	rt_rule = bpf_map_lookup_elem(&ppp_ingress, &ppp_k);
 	if (!rt_rule) {
 		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_RX,
 				  nbytes);
 		return XDP_DROP;
 	}
@@ -714,7 +714,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 		headroom += sizeof(struct _vlan_hdr);
 	if (bpf_xdp_adjust_head(ctx, 0 - headroom)) {
 		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_RX,
 				  nbytes);
 		return XDP_DROP;
 	}
@@ -725,7 +725,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	ethh = data;
 	if (ethh + 1 > data_end) {
 		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_RX,
 				  nbytes);
 		return XDP_DROP;
 	}
@@ -737,7 +737,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 		vlanh = data + offset;
 		if (vlanh + 1 > data_end) {
 			if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
-					  IF_METRICS_PPP, IF_DIRECTION_RX,
+					  IF_METRICS_PPPOE, IF_DIRECTION_RX,
 					  nbytes);
 			return XDP_DROP;
 		}
@@ -750,7 +750,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	iph = data + offset;
 	if (iph + 1 > data_end) {
 		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_RX,
 				  nbytes);
 		return XDP_DROP;
 	}
@@ -773,7 +773,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	udph = data + offset;
 	if (udph + 1 > data_end) {
 		if_metrics_update(XDP_DROP, ctx->ingress_ifindex,
-				  IF_METRICS_PPP, IF_DIRECTION_RX,
+				  IF_METRICS_PPPOE, IF_DIRECTION_RX,
 				  nbytes);
 		return XDP_DROP;
 	}
@@ -802,7 +802,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 
 	/* Statistics */
 	gtp_rt_rule_stats_update(rt_rule, data_end - data);
-	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_PPP, IF_DIRECTION_RX,
+	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_PPPOE, IF_DIRECTION_RX,
 			  nbytes);
 
 	/* In direct-tx mode we are using mac learning */

@@ -28,6 +28,7 @@ enum {
 	XDP_RT_MAP_PPP_INGRESS,
 	XDP_RT_MAP_IPTNL,
 	XDP_RT_MAP_MAC_LEARNING,
+	XDP_RT_MAP_IF_STATS,
 	XDP_RT_MAP_CNT
 };
 
@@ -66,10 +67,37 @@ struct port_mac_address {
 	__u8 state;
 } __attribute__ ((__aligned__(8)));
 
+/* Statistics */
+enum {
+	IF_METRICS_GTP = 0,
+	IF_METRICS_PPPOE,
+	IF_METRICS_IPIP,
+	IF_METRICS_CNT
+};
+
+#define IF_DIRECTION_RX		0
+#define IF_DIRECTION_TX		1
+struct metrics_key {
+	__u32		ifindex;
+	__u8		type;
+	__u8		direction;
+} __attribute__ ((__aligned__(8)));
+
+struct metrics {
+	__u64		packets;
+	__u64		bytes;
+	__u64		dropped_packets;
+	__u64		dropped_bytes;
+} __attribute__ ((__aligned__(8)));
+
 
 /* Prototypes */
 extern int gtp_bpf_rt_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_rt_unload(gtp_bpf_opts_t *);
+extern int gtp_bpf_rt_stats_init(gtp_bpf_opts_t *);
+extern int gtp_bpf_rt_stats_dump(gtp_bpf_opts_t *,
+				 int (*dump) (void *, __u32, __u8, __u8, struct metrics *),
+				 void *);
 extern int gtp_bpf_rt_key_set(gtp_teid_t *, struct ip_rt_key *);
 extern int gtp_bpf_rt_teid_action(int, gtp_teid_t *);
 extern int gtp_bpf_rt_teid_vty(vty_t *, gtp_teid_t *);

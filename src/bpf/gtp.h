@@ -193,10 +193,9 @@ struct rps_opts {
 } __attribute__ ((__aligned__(8)));
 
 /* Statistics */
-#define IF_METRICS_FWD		0
-#define IF_METRICS_GTP		1
-#define IF_METRICS_PPP		2
-#define IF_METRICS_IPIP		3
+#define IF_METRICS_GTP		0
+#define IF_METRICS_PPPOE	1
+#define IF_METRICS_IPIP		2
 
 #define IF_DIRECTION_RX		0
 #define IF_DIRECTION_TX		1
