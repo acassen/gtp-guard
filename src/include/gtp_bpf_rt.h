@@ -94,6 +94,9 @@ struct metrics {
 /* Prototypes */
 extern int gtp_bpf_rt_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_rt_unload(gtp_bpf_opts_t *);
+
+extern int gtp_bpf_rt_load_maps(gtp_bpf_prog_t *);
+extern void gtp_bpf_rt_unload_maps(gtp_bpf_prog_t *);
 extern int gtp_bpf_rt_stats_init(gtp_bpf_opts_t *);
 extern int gtp_bpf_rt_stats_dump(gtp_bpf_opts_t *,
 				 int (*dump) (void *, __u32, __u8, __u8, struct metrics *),

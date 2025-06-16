@@ -46,6 +46,12 @@ extern data_t *daemon_data;
  *	XDP FWD BPF related
  */
 int
+gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p)
+{
+	return -1;
+}
+
+int
 gtp_bpf_fwd_load(gtp_bpf_opts_t *opts)
 {
 	struct bpf_map *map;

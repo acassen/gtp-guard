@@ -145,8 +145,8 @@ DEFUN(no_pdn_xdp_gtp_route,
 
 	gtp_bpf_opts_destroy(l, gtp_bpf_rt_unload);
 
-        vty_out(vty, "Success unloading eBPF xdp-gtp-route programs%s"
-                   , VTY_NEWLINE);
+	vty_out(vty, "Success unloading eBPF xdp-gtp-route programs%s"
+		   , VTY_NEWLINE);
 	__clear_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
@@ -979,6 +979,7 @@ gtp_vty_init(void)
 
 	/* Install other VTY */
 	gtp_pppoe_vty_init();
+	gtp_bpf_prog_vty_init();
 	gtp_vrf_vty_init();
 	gtp_cdr_vty_init();
 	gtp_apn_vty_init();

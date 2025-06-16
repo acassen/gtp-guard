@@ -108,6 +108,51 @@ gtp_bpf_rt_unload(gtp_bpf_opts_t *opts)
 	gtp_bpf_unload(opts);
 }
 
+int
+gtp_bpf_rt_load_maps(gtp_bpf_prog_t *p)
+{
+	struct bpf_map *map;
+
+	/* MAP ref for faster access */
+	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_RT_MAP_CNT);
+	map = gtp_bpf_load_map(p->bpf_obj, "teid_ingress");
+	if (!map)
+		return -1;
+	p->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map = map;
+
+	map = gtp_bpf_load_map(p->bpf_obj, "teid_egress");
+	if (!map)
+		return -1;
+	p->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
+
+	map = gtp_bpf_load_map(p->bpf_obj, "ppp_ingress");
+	if (!map)
+		return -1;
+	p->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
+
+	map = gtp_bpf_load_map(p->bpf_obj, "iptnl_info");
+	if (!map)
+		return -1;
+	p->bpf_maps[XDP_RT_MAP_IPTNL].map = map;
+
+	map = gtp_bpf_load_map(p->bpf_obj, "mac_learning");
+	if (!map)
+		return -1;
+	p->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map = map;
+
+	map = gtp_bpf_load_map(p->bpf_obj, "if_stats");
+	if (!map)
+		return -1;
+	p->bpf_maps[XDP_RT_MAP_IF_STATS].map = map;
+	return 0;
+}
+
+void
+gtp_bpf_rt_unload_maps(gtp_bpf_prog_t *p)
+{
+	FREE_PTR(p->bpf_maps);
+}
+
 /*
  *	Statistics
  */
@@ -147,7 +192,7 @@ gtp_bpf_rt_metrics_add(struct bpf_map *map, __u32 ifindex, __u8 type, __u8 direc
 		goto end;
 	}
 
-	err = bpf_map__update_elem(map, &mkey, sizeof(struct metrics), new, sz, BPF_NOEXIST);
+	err = bpf_map__update_elem(map, &mkey, sizeof(struct metrics_key), new, sz, BPF_NOEXIST);
 	if (err) {
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "%s(): Unable to init XDP routing metrics (%s)"
@@ -205,7 +250,7 @@ gtp_bpf_rt_metrics_dump(struct bpf_map *map,
 		goto end;
 	}
 
-	err = bpf_map__lookup_elem(map, &mkey, sizeof(struct metrics), m, sz, 0);
+	err = bpf_map__lookup_elem(map, &mkey, sizeof(struct metrics_key), m, sz, 0);
 	if (err) {
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "%s(): Unable to lookup XDP routing metrics (%s)"

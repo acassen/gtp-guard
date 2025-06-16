@@ -85,6 +85,7 @@ typedef struct _data {
 	list_head_t		pppoe;
 	list_head_t		pppoe_bundle;
 	list_head_t		ip_vrf;
+	list_head_t		bpf_progs;
 	list_head_t		interfaces;
 	list_head_t		gtp_apn;
 	list_head_t		gtp_cdr;

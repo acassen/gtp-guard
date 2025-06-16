@@ -47,6 +47,7 @@ typedef enum _node_type {
 	CFG_LOG_NODE,					/* Configure the logging */
 
 	PDN_NODE,					/* PDN daemon commands. */
+	BPF_PROG_NODE,					/* BPF prog commands. */
 	PPPOE_NODE,					/* PPPoE commands. */
 	PPPOE_BUNDLE_NODE,				/* PPPoE Bundle commands. */
 	IP_VRF_NODE,					/* IP VRF commands. */

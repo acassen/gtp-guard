@@ -46,6 +46,7 @@ struct gtp_teid_rule {
 } __attribute__ ((__aligned__(8)));
 
 /* Prototypes */
+extern int gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *);
 extern int gtp_bpf_fwd_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_fwd_unload(gtp_bpf_opts_t *);
 extern int gtp_bpf_fwd_teid_action(int, gtp_teid_t *);

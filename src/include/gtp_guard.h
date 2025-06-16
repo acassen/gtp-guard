@@ -95,6 +95,8 @@
 #ifndef _WITHOUT_BPF_
  #include "gtp_bpf_utils.h"
  #include "gtp_bpf.h"
+ #include "gtp_bpf_prog.h"
+ #include "gtp_bpf_prog_vty.h"
  #include "gtp_bpf_ppp.h"
  #include "gtp_bpf_iptnl.h"
  #include "gtp_bpf_fwd.h"

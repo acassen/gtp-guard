@@ -97,7 +97,7 @@ DEFUN(apn,
       "access-point-name STRING",
       "Configure Access Point Name data\n")
 {
-        gtp_apn_t *new;
+	gtp_apn_t *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -131,7 +131,7 @@ DEFUN(apn_realm,
 		return CMD_WARNING;
 	}
 
-	strncpy(apn->realm, argv[0], GTP_REALM_LEN-1);
+	bsd_strlcpy(apn->realm, argv[0], GTP_REALM_LEN - 1);
 	apn_resolv_cache_realloc(apn);
 
 	return CMD_SUCCESS;

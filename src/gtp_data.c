@@ -187,7 +187,7 @@ gtp_bpf_opts_destroy(list_head_t *l, void (*bpf_unload) (gtp_bpf_opts_t *))
 
 int
 gtp_bpf_opts_load(gtp_bpf_opts_t *opts, vty_t *vty, int argc, const char **argv,
-		     int (*bpf_load) (gtp_bpf_opts_t *))
+		  int (*bpf_load) (gtp_bpf_opts_t *))
 {
 	int err, ifindex;
 
@@ -273,6 +273,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->xdp_gtp_route);
 	INIT_LIST_HEAD(&new->mirror_rules);
 	INIT_LIST_HEAD(&new->ip_vrf);
+	INIT_LIST_HEAD(&new->bpf_progs);
 	INIT_LIST_HEAD(&new->pppoe);
 	INIT_LIST_HEAD(&new->pppoe_bundle);
 	INIT_LIST_HEAD(&new->gtp_apn);
@@ -306,6 +307,7 @@ free_daemon_data(void)
 	gtp_teid_destroy();
 	gtp_mirror_destroy();
 	gtp_vrf_destroy();
+	gtp_bpf_progs_destroy();
 	gtp_cdr_spool_destroy(NULL);
 	gtp_apn_destroy();
 	FREE(daemon_data);

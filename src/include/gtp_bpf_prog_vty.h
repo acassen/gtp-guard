@@ -19,28 +19,10 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_BPF_H
-#define _GTP_BPF_H
-
-enum {
-	RULE_ADD = 0,
-	RULE_UPDATE,
-	RULE_DEL,
-	RULE_LIST
-};
-
-#define GTP_XDP_STRERR_BUFSIZE	128
-#define GTP_INGRESS	0
-#define GTP_EGRESS	1
+#ifndef _GTP_BPF_PROG_VTY_H
+#define _GTP_BPF_PROG_VTY_H
 
 /* Prototypes */
-extern int gtp_bpf_mac_learning_vty(vty_t *, struct bpf_map *);
-extern int gtp_bpf_obj_update_global_vars(struct bpf_object *);
-extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
-extern struct bpf_program *gtp_bpf_load_prog(gtp_bpf_opts_t *);
-extern int gtp_bpf_load(gtp_bpf_opts_t *);
-extern void gtp_bpf_unload(gtp_bpf_opts_t *);
-extern int gtp_bpf_init(void);
-extern int gtp_bpf_destroy(void);
+extern int gtp_bpf_prog_vty_init(void);
 
 #endif
