@@ -34,10 +34,16 @@ enum {
 #define GTP_INGRESS	0
 #define GTP_EGRESS	1
 
-typedef struct _xdp_exported_maps {
-	struct bpf_map	*map;
-} xdp_exported_maps_t;
+typedef struct _gtp_bpf_prog {
+	char			name[GTP_STR_MAX_LEN];
+	char			path[GTP_PATH_MAX_LEN];
+	char			progname[GTP_STR_MAX_LEN];
+	struct bpf_object	*bpf_obj;
+	struct bpf_program	*bpf_prog;
+	gtp_bpf_maps_t		*bpf_maps;
 
+	list_head_t		next;
+} gtp_bpf_prog_t;
 
 /* Prototypes */
 extern int gtp_bpf_mac_learning_vty(vty_t *, struct bpf_map *);
@@ -45,6 +51,10 @@ extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
 extern struct bpf_program *gtp_bpf_load_prog(gtp_bpf_opts_t *);
 extern int gtp_bpf_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_unload(gtp_bpf_opts_t *);
+extern int gtp_bpf_prog_deattach(struct bpf_link *);
+extern struct bpf_link *gtp_bpf_prog_attach(gtp_bpf_prog_t *, int);
+extern int gtp_bpf_prog_load(gtp_bpf_prog_t *);
+extern void gtp_bpf_prog_unload(gtp_bpf_prog_t *p);
 extern int gtp_bpf_init(void);
 extern int gtp_bpf_destroy(void);
 

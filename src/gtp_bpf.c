@@ -213,7 +213,7 @@ gtp_bpf_obj_update_global_vars(struct bpf_object *obj)
 
 
 /*
- *	BPF related
+ *	BPF Global OPTS related
  */
 static int
 gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list args)
@@ -434,6 +434,125 @@ gtp_bpf_unload(gtp_bpf_opts_t *opts)
 		FREE(opts->bpf_maps);
 	bpf_link__destroy(opts->bpf_lnk);
 	bpf_object__close(opts->bpf_obj);
+}
+
+
+/*
+ *	BPF Prog related
+ */
+int
+gtp_bpf_prog_deattach(struct bpf_link *link)
+{
+	return bpf_link__destroy(link);
+}
+
+struct bpf_link *
+gtp_bpf_prog_attach(gtp_bpf_prog_t *p, int ifindex)
+{
+	struct bpf_link *link;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err;
+
+	/* Detach previously stalled XDP programm */
+	err = bpf_xdp_detach(ifindex, XDP_FLAGS_DRV_MODE, NULL);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant detach previous XDP programm (%s)"
+				    , __FUNCTION__
+				    , errmsg);
+	}
+
+	/* Attach XDP */
+	link = bpf_program__attach_xdp(p->bpf_prog, ifindex);
+	if (link)
+		return link;
+
+	libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
+	log_message(LOG_INFO, "%s(): XDP: error attaching program:%s to ifindex:%d err:%d (%s)"
+			    , __FUNCTION__
+			    , bpf_program__name(p->bpf_prog)
+			    , ifindex
+			    , errno, errmsg);
+	return NULL;
+}
+
+static struct bpf_object *
+gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
+{
+	struct bpf_object *bpf_obj;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err;
+
+	/* open eBPF file */
+	bpf_obj = bpf_object__open(p->path);
+	if (!bpf_obj) {
+		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%% eBPF: error opening bpf file err:%d (%s)"
+				    , errno, errmsg);
+		return NULL;
+	}
+
+	/* Global vars update */
+	gtp_bpf_obj_update_global_vars(bpf_obj);
+
+	/* Finally load it */
+	err = bpf_object__load(bpf_obj);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%% eBPF: error loading bpf_object err:%d (%s)"
+				    , err, errmsg);
+		bpf_object__close(bpf_obj);
+		return NULL;
+	}
+
+	return bpf_obj;
+}
+
+int
+gtp_bpf_prog_load(gtp_bpf_prog_t *p)
+{
+	struct bpf_program *bpf_prog = NULL;
+	struct bpf_object *bpf_obj;
+
+	/* Load object */
+	bpf_obj = gtp_bpf_prog_load_file(p);
+	if (!bpf_obj)
+		return -1;
+
+	/* prog lookup */
+	if (p->progname[0]) {
+		bpf_prog = bpf_object__find_program_by_name(bpf_obj, p->progname);
+		if (!bpf_prog) {
+			log_message(LOG_INFO, "%s(): eBPF: unknown program:%s (fallback to first one)"
+					    , __FUNCTION__
+					    , p->progname);
+		}
+	}
+
+	if (bpf_prog)
+		goto end;
+	
+	bpf_prog = bpf_object__next_program(bpf_obj, NULL);
+	if (!bpf_prog) {
+		log_message(LOG_INFO, "%s(): eBPF: no program found in file:%s"
+				    , __FUNCTION__
+				    , p->path);
+		bpf_object__close(bpf_obj);
+		return -1;
+	}
+
+  end:
+	p->bpf_obj = bpf_obj;
+	p->bpf_prog = bpf_prog;
+	return 0;
+}
+
+void
+gtp_bpf_prog_unload(gtp_bpf_prog_t *p)
+{
+	if (p->bpf_maps)
+		FREE(p->bpf_maps);
+	bpf_object__close(p->bpf_obj);
 }
 
 
