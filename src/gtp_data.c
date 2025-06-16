@@ -274,6 +274,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->mirror_rules);
 	INIT_LIST_HEAD(&new->ip_vrf);
 	INIT_LIST_HEAD(&new->bpf_progs);
+	INIT_LIST_HEAD(&new->interfaces);
 	INIT_LIST_HEAD(&new->pppoe);
 	INIT_LIST_HEAD(&new->pppoe_bundle);
 	INIT_LIST_HEAD(&new->gtp_apn);
@@ -307,6 +308,7 @@ free_daemon_data(void)
 	gtp_teid_destroy();
 	gtp_mirror_destroy();
 	gtp_vrf_destroy();
+	gtp_interfaces_destroy();
 	gtp_bpf_progs_destroy();
 	gtp_cdr_spool_destroy(NULL);
 	gtp_apn_destroy();

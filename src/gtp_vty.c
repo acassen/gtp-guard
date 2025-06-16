@@ -933,7 +933,6 @@ pdn_config_write(vty_t *vty)
 int
 gtp_vty_init(void)
 {
-
 	/* Install PDN commands. */
 	install_node(&pdn_node);
 	install_element(CONFIG_NODE, &pdn_cmd);
@@ -978,14 +977,14 @@ gtp_vty_init(void)
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
 
 	/* Install other VTY */
-	gtp_pppoe_vty_init();
 	gtp_bpf_prog_vty_init();
+	gtp_interface_vty_init();
+	gtp_pppoe_vty_init();
 	gtp_vrf_vty_init();
 	gtp_cdr_vty_init();
 	gtp_apn_vty_init();
 	gtp_proxy_vty_init();
 	gtp_router_vty_init();
 	gtp_session_vty_init();
-
 	return 0;
 }

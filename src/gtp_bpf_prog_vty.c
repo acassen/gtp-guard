@@ -270,7 +270,7 @@ DEFUN(bpf_prog_no_shutdown,
 		return CMD_WARNING;
 	}
 
-	vty_out(vty, "Success loading bpf-programs:'%s'%s"
+	vty_out(vty, "Success loading bpf-program:'%s'%s"
 		   , p->name, VTY_NEWLINE);
 	__clear_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
 	return CMD_SUCCESS;
@@ -289,7 +289,7 @@ DEFUN(show_bpf_prog,
 	if (argc >= 1) {
 		p = gtp_bpf_prog_get(argv[0]);
 		if (!p) {
-			vty_out(vty, "%% Unknown bpf-program:%s%s", argv[0], VTY_NEWLINE);
+			vty_out(vty, "%% Unknown bpf-program:'%s'%s", argv[0], VTY_NEWLINE);
 			return CMD_WARNING;
 		}
 
@@ -301,8 +301,6 @@ DEFUN(show_bpf_prog,
 	gtp_bpf_prog_foreach_prog(gtp_bpf_prog_show, vty);
 	return CMD_SUCCESS;
 }
-
-
 
 
 /* Configuration writer */
@@ -350,6 +348,7 @@ gtp_bpf_prog_vty_init(void)
 	install_element(BPF_PROG_NODE, &bpf_prog_progname_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_mode_rt_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_mode_proxy_cmd);
+	install_element(BPF_PROG_NODE, &bpf_prog_shutdown_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_no_shutdown_cmd);
 
 	/* Install show commands */

@@ -23,6 +23,7 @@
 #define _GTP_GUARD_H
 
 #include <net/ethernet.h>
+#include <net/if.h>
 #include <resolv.h>
 
 #include "daemon.h"
@@ -103,5 +104,8 @@
  #include "gtp_bpf_mirror.h"
  #include "gtp_bpf_rt.h"
 #endif
+
+#include "gtp_interface.h"
+#include "gtp_interface_vty.h"
 
 #endif

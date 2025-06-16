@@ -162,6 +162,9 @@ gtp_bpf_prog_load(gtp_bpf_prog_t *p)
 void
 gtp_bpf_prog_unload(gtp_bpf_prog_t *p)
 {
+	if (__sync_add_and_fetch(&p->refcnt, 0))
+		return;
+
 	FREE_PTR(p->bpf_maps);
 	bpf_object__close(p->bpf_obj);
 }
