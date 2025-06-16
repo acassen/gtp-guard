@@ -270,7 +270,6 @@ alloc_daemon_data(void)
 	data_t *new;
 
 	PMALLOC(new);
-	INIT_LIST_HEAD(&new->xdp_gtp_route);
 	INIT_LIST_HEAD(&new->mirror_rules);
 	INIT_LIST_HEAD(&new->ip_vrf);
 	INIT_LIST_HEAD(&new->bpf_progs);
@@ -292,8 +291,6 @@ free_daemon_data(void)
 		gtp_bpf_fwd_unload(&daemon_data->xdp_gtp_forward);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_bpf_mirror_unload(&daemon_data->xdp_mirror);
-	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
-		gtp_bpf_opts_destroy(&daemon_data->xdp_gtp_route, gtp_bpf_rt_unload);
 	gtp_proxy_server_destroy();
 	gtp_router_server_destroy();
 	gtp_request_destroy();

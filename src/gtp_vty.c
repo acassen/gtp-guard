@@ -97,60 +97,6 @@ DEFUN(pdn_nameserver,
         return CMD_SUCCESS;
 }
 
-DEFUN(pdn_xdp_gtp_route,
-      pdn_xdp_gtp_route_cmd,
-      "xdp-gtp-route STRING interface STRING [xdp-prog STRING]",
-      "GTP Routing channel XDP program\n"
-      "path to BPF file\n"
-      "Interface name\n"
-      "Name"
-      "XDP Program Name"
-      "Name")
-{
-	list_head_t *l = &daemon_data->xdp_gtp_route;
-	gtp_bpf_opts_t *opts;
-	int err;
-
-	if (gtp_bpf_opts_exist(l, argc, argv)) {
-		vty_out(vty, "%% GTP-ROUTE XDP program already loaded !!!%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	opts = gtp_bpf_opts_alloc();
-	err = gtp_bpf_opts_load(opts, vty, argc, argv, gtp_bpf_rt_load);
-	if (err) {
-		FREE(opts);
-		return CMD_WARNING;
-	}
-
-	gtp_bpf_opts_add(opts, l);
-	gtp_bpf_rt_stats_init(opts);
-	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(no_pdn_xdp_gtp_route,
-      no_pdn_xdp_gtp_route_cmd,
-      "no xdp-gtp-route",
-      "GTP Routing channel XDP program\n")
-{
-	list_head_t *l = &daemon_data->xdp_gtp_route;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% No GTP-ROUTE XDP program is currently configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	gtp_bpf_opts_destroy(l, gtp_bpf_rt_unload);
-
-	vty_out(vty, "Success unloading eBPF xdp-gtp-route programs%s"
-		   , VTY_NEWLINE);
-	__clear_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
-
 DEFUN(pdn_xdp_gtp_forward,
       pdn_xdp_gtp_forward_cmd,
       "xdp-gtp-forward STRING interface STRING [xdp-prog STRING]",
@@ -910,8 +856,6 @@ pdn_config_write(vty_t *vty)
 		vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
 	if (daemon_data->realm[0])
 		vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
-	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
-		gtp_bpf_opts_list_config_write(vty, " xdp-gtp-route", &daemon_data->xdp_gtp_route);
 	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
 		gtp_bpf_opts_config_write(vty, " xdp-gtp-forward", &daemon_data->xdp_gtp_forward);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
@@ -940,8 +884,6 @@ gtp_vty_init(void)
 	install_default(PDN_NODE);
 	install_element(PDN_NODE, &pdn_nameserver_cmd);
 	install_element(PDN_NODE, &pdn_realm_cmd);
-	install_element(PDN_NODE, &pdn_xdp_gtp_route_cmd);
-	install_element(PDN_NODE, &no_pdn_xdp_gtp_route_cmd);
 	install_element(PDN_NODE, &pdn_xdp_gtp_forward_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_gtp_forward_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);

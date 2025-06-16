@@ -113,7 +113,7 @@ gtp_bpf_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
 }
 
 static int
-gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifindex)
+gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 {
 	gtp_session_t *s = t->session;
 	spppoe_t *spppoe = s->s_pppoe;
@@ -164,11 +164,11 @@ gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifind
 		goto end;
 	}
 
-	log_message(LOG_INFO, "%s(): %s %s XDP PPP rule {teid:0x%.8x, dst_addr:%u.%u.%u.%u} (ifindex:%d)"
+	log_message(LOG_INFO, "%s(): %s %s XDP PPP rule {teid:0x%.8x, dst_addr:%u.%u.%u.%u}"
 			    , __FUNCTION__
 			    , (action) ? "deleting" : "adding"
 			    , (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) ? "egress" : "ingress"
-			    , ntohl(t->id), NIPQUAD(t->ipv4), ifindex);
+			    , ntohl(t->id), NIPQUAD(t->ipv4));
   end:
 	if (new)
 		free(new);
@@ -176,7 +176,7 @@ gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t, int ifind
 }
 
 static int
-gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
+gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key rt_k = { 0 };
@@ -223,9 +223,9 @@ gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t, int ifindex)
 			bytes += r[i].bytes;
 		}
 
-		vty_out(vty, "       %.7s pkts:%ld bytes:%ld (ifindex:%d)%s"
+		vty_out(vty, "       %.7s pkts:%ld bytes:%ld%s"
 			, __test_bit(GTP_TEID_FL_EGRESS, &t->flags) ? "egress" : "ingress"
-			, packets, bytes, ifindex, VTY_NEWLINE);
+			, packets, bytes, VTY_NEWLINE);
 		goto end;
 	}
 
@@ -298,7 +298,7 @@ gtp_bpf_teid_bytes(struct bpf_map *map, gtp_teid_t *t, uint64_t *bytes)
 }
 
 int
-gtp_bpf_ppp_action(int action, gtp_teid_t *t, int ifindex,
+gtp_bpf_ppp_action(int action, gtp_teid_t *t,
 		   struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
 	/* If daemon is currently stopping, we simply skip action on ruleset.
@@ -308,27 +308,27 @@ gtp_bpf_ppp_action(int action, gtp_teid_t *t, int ifindex,
 		return 0;
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
-		return gtp_bpf_ppp_map_action(map_egress, action, t, ifindex);
+		return gtp_bpf_ppp_map_action(map_egress, action, t);
 
-	return gtp_bpf_ppp_map_action(map_ingress, action, t, ifindex);
+	return gtp_bpf_ppp_map_action(map_ingress, action, t);
 }
 
 int
-gtp_bpf_ppp_teid_vty(vty_t *vty, gtp_teid_t *t, int ifindex,
+gtp_bpf_ppp_teid_vty(vty_t *vty, gtp_teid_t *t,
 		     struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
 	int err = 0;
 
 	if (!t) {
-		err = (map_ingress) ? gtp_bpf_teid_vty(map_ingress, vty, NULL, ifindex) : 0;
-		err = (err) ? : (map_egress) ? gtp_bpf_teid_vty(map_egress, vty, NULL, ifindex) : 0;
+		err = (map_ingress) ? gtp_bpf_teid_vty(map_ingress, vty, NULL) : 0;
+		err = (err) ? : (map_egress) ? gtp_bpf_teid_vty(map_egress, vty, NULL) : 0;
 		return err;
 	}
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
-		return gtp_bpf_teid_vty(map_egress, vty, t, ifindex);
+		return gtp_bpf_teid_vty(map_egress, vty, t);
 
-	return gtp_bpf_teid_vty(map_ingress, vty, t, ifindex);
+	return gtp_bpf_teid_vty(map_ingress, vty, t);
 }
 
 int

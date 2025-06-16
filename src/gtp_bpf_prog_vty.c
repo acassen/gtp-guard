@@ -191,7 +191,15 @@ DEFUN(bpf_prog_mode_rt,
 		return CMD_WARNING;
 	}
 
+	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% bpf-program already in 'mode-gtp-route'%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	daemon_data->xdp_gtp_route = p;
 	__set_bit(GTP_BPF_PROG_FL_RT_BIT, &p->flags);
+	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
 
@@ -208,7 +216,14 @@ DEFUN(bpf_prog_mode_proxy,
 		return CMD_WARNING;
 	}
 
+	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+		vty_out(vty, "%% bpf-program already in 'mode-gtp-forward'%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	__set_bit(GTP_BPF_PROG_FL_FWD_BIT, &p->flags);
+	__set_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
 

@@ -84,8 +84,6 @@
 #include "gtp_proxy_hdl.h"
 #include "gtp_proxy_hdl_v1.h"
 #include "gtp_proxy_hdl_v2.h"
-#include "gtp_router.h"
-#include "gtp_router_hdl.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
 #include "gtp_utils_uli.h"
@@ -107,5 +105,7 @@
 
 #include "gtp_interface.h"
 #include "gtp_interface_vty.h"
+#include "gtp_router.h"
+#include "gtp_router_hdl.h"
 
 #endif

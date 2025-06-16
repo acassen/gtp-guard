@@ -74,7 +74,7 @@ typedef struct _data {
 	struct sockaddr_storage	nameserver;
 	inet_server_t		request_channel;
 	inet_server_t		metrics_channel;
-	list_head_t		xdp_gtp_route;
+	void			*xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtp_forward;
 	gtp_bpf_opts_t		xdp_mirror;
 	gtp_bpf_opts_t		bpf_ppp_rps;

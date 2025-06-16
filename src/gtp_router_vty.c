@@ -216,7 +216,7 @@ gtp_config_write(vty_t *vty)
 			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
 				vty_out(vty, " listener-count %d"
 					   , srv->thread_cnt);
-			vty_out(vty, "%s" , VTY_NEWLINE);
+			vty_out(vty, "%s", VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}

@@ -261,6 +261,7 @@ DEFUN(interface_no_shutdown,
 {
 	gtp_interface_t *iface = vty->index;
 	struct bpf_link *lnk;
+	int err = 0;
 
 	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
 		vty_out(vty, "%% interface:'%s' is already running%s"
@@ -285,6 +286,22 @@ DEFUN(interface_no_shutdown,
 	iface->bpf_lnk = lnk;
 	vty_out(vty, "Success attaching bpf-program:'%s' to interface:'%s'%s"
 		   , iface->bpf_prog->name, iface->ifname, VTY_NEWLINE);
+
+	/* Metrics init */
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
+		err = (err) ? : gtp_bpf_rt_metrics_init(iface->bpf_prog,
+							iface->ifindex, IF_METRICS_GTP);
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
+		err = (err) ? : gtp_bpf_rt_metrics_init(iface->bpf_prog,
+							iface->ifindex, IF_METRICS_PPPOE);
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
+		err = (err) ? : gtp_bpf_rt_metrics_init(iface->bpf_prog,
+							iface->ifindex, IF_METRICS_IPIP);
+	if (err) {
+		vty_out(vty, "%% !!!Warning!!! error initializing metrics for interface:'%s'%s"
+			   , iface->ifname
+			   , VTY_NEWLINE);
+	}
 
   end:
 	__clear_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);

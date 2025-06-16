@@ -92,13 +92,10 @@ struct metrics {
 
 
 /* Prototypes */
-extern int gtp_bpf_rt_load(gtp_bpf_opts_t *);
-extern void gtp_bpf_rt_unload(gtp_bpf_opts_t *);
-
 extern int gtp_bpf_rt_load_maps(gtp_bpf_prog_t *);
 extern void gtp_bpf_rt_unload_maps(gtp_bpf_prog_t *);
-extern int gtp_bpf_rt_stats_init(gtp_bpf_opts_t *);
-extern int gtp_bpf_rt_stats_dump(gtp_bpf_opts_t *,
+extern int gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *, int, int);
+extern int gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *, int,
 				 int (*dump) (void *, __u32, __u8, __u8, struct metrics *),
 				 void *);
 extern int gtp_bpf_rt_key_set(gtp_teid_t *, struct ip_rt_key *);
