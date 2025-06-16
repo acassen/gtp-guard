@@ -66,6 +66,7 @@ DEFUN(cdr_spool,
 	if (new) {
 		vty->node = CDR_NODE;
 		vty->index = new;
+		gtp_cdr_spool_put(new);
 		return CMD_SUCCESS;
 	}
 
@@ -96,6 +97,7 @@ DEFUN(no_cdr_spool,
 		return CMD_WARNING;
 	}
 
+	gtp_cdr_spool_put(s);
 	err = gtp_cdr_spool_destroy(s);
 	if (err) {
 		vty_out(vty, "%% cdr-spool is used by at least one APN%s", VTY_NEWLINE);
@@ -332,6 +334,7 @@ DEFUN(show_cdr,
 	vty_out(vty, " Pending in Queue : %d%s", s->q_len, VTY_NEWLINE);
 	vty_out(vty, "        CDR count : %ld%s", s->cdr_count, VTY_NEWLINE);
 	vty_out(vty, "        CDR bytes : %ld%s", s->cdr_bytes, VTY_NEWLINE);
+	gtp_cdr_spool_put(s);
 	return CMD_SUCCESS;
 }
 

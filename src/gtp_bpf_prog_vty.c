@@ -85,6 +85,7 @@ DEFUN(bpf_prog,
 	if (new) {
 		vty->node = APN_NODE;
 		vty->index = new;
+		gtp_bpf_prog_put(new);
 		return CMD_SUCCESS;
 	}
 
@@ -102,6 +103,7 @@ DEFUN(no_bpf_prog,
       "Program name\n")
 {
 	gtp_bpf_prog_t *p;
+	int err;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -114,7 +116,14 @@ DEFUN(no_bpf_prog,
 		return CMD_WARNING;
 	}
 
-	gtp_bpf_prog_destroy(p);
+	gtp_bpf_prog_put(p);
+	err = gtp_bpf_prog_destroy(p);
+	if (err) {
+		vty_out(vty, "%% bpf-program:'%s' is used by at least one interface%s"
+			   , p->name, VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	return CMD_SUCCESS;
 }
 
@@ -283,6 +292,10 @@ DEFUN(show_bpf_prog,
 			vty_out(vty, "%% Unknown bpf-program:%s%s", argv[0], VTY_NEWLINE);
 			return CMD_WARNING;
 		}
+
+		gtp_bpf_prog_show(p, vty);
+		gtp_bpf_prog_put(p);
+		return CMD_SUCCESS;
 	}
 
 	gtp_bpf_prog_foreach_prog(gtp_bpf_prog_show, vty);

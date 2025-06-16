@@ -166,14 +166,18 @@ gtp_bpf_prog_unload(gtp_bpf_prog_t *p)
 	bpf_object__close(p->bpf_obj);
 }
 
-void
+int
 gtp_bpf_prog_destroy(gtp_bpf_prog_t *p)
 {
+	if (__sync_add_and_fetch(&p->refcnt, 0))
+		return -1;
+
 	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	gtp_bpf_prog_unload(p);
 	list_head_del(&p->next);
 	FREE(p);
 	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
+	return 0;
 }
 
 
@@ -187,7 +191,9 @@ gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg)
 
 	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
+		__sync_add_and_fetch(&p->refcnt, 1);
 		(*(hdl)) (p, arg);
+		__sync_sub_and_fetch(&p->refcnt, 1);
 	}
 	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 }
@@ -201,12 +207,20 @@ gtp_bpf_prog_get(const char *name)
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
 		if (!strncmp(p->name, name, strlen(name))) {
 			pthread_mutex_unlock(&gtp_bpf_progs_mutex);
+			__sync_add_and_fetch(&p->refcnt, 1);
 			return p;
 		}
 	}
 	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 
 	return NULL;
+}
+
+int
+gtp_bpf_prog_put(gtp_bpf_prog_t *p)
+{
+	__sync_sub_and_fetch(&p->refcnt, 1);
+	return 0;
 }
 
 gtp_bpf_prog_t *

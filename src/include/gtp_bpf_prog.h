@@ -50,9 +50,10 @@ extern struct bpf_link *gtp_bpf_prog_attach(gtp_bpf_prog_t *, int);
 extern int gtp_bpf_prog_deattach(struct bpf_link *);
 extern int gtp_bpf_prog_load(gtp_bpf_prog_t *);
 extern void gtp_bpf_prog_unload(gtp_bpf_prog_t *);
-extern void gtp_bpf_prog_destroy(gtp_bpf_prog_t *p);
+extern int gtp_bpf_prog_destroy(gtp_bpf_prog_t *p);
 extern void gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *);
 extern gtp_bpf_prog_t *gtp_bpf_prog_get(const char *);
+extern int gtp_bpf_prog_put(gtp_bpf_prog_t *);
 extern gtp_bpf_prog_t *gtp_bpf_prog_alloc(const char *);
 extern int gtp_bpf_progs_destroy(void);
 
