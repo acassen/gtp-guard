@@ -90,6 +90,7 @@
 #include "gtp_disk.h"
 #include "gtp_vty.h"
 #include "gtp_cmd.h"
+#include "gtp_netlink.h"
 
 #ifndef _WITHOUT_BPF_
  #include "gtp_bpf_utils.h"

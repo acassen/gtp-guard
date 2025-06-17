@@ -56,8 +56,11 @@ gtp_interface_show(gtp_interface_t *iface, void *arg)
 {
 	vty_t *vty = arg;
 
-	vty_out(vty, "interface '%s'%s"
+	vty_out(vty, "interface %s%s"
 		   , iface->ifname
+		   , VTY_NEWLINE);
+	vty_out(vty, " ll_addr:" ETHER_FMT "%s"
+		   , ETHER_BYTES(iface->hw_addr)
 		   , VTY_NEWLINE);
 	return 0;
 }
@@ -95,8 +98,7 @@ DEFUN(interface,
 		return CMD_WARNING;
 	}
 
-	new = gtp_interface_alloc(argv[0]);
-	new->ifindex = ifindex;
+	new = gtp_interface_alloc(argv[0], ifindex);
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
 	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &new->flags);

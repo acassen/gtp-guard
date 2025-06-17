@@ -80,6 +80,7 @@ typedef struct _data {
 	gtp_bpf_opts_t		bpf_ppp_rps;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
+	unsigned		nl_rcvbuf_size;
 
 	list_head_t		mirror_rules;
 	list_head_t		pppoe;

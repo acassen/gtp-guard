@@ -52,6 +52,7 @@ stop_gtp(void)
 	/* Just cleanup memory & exit */
 	vty_terminate();
 	cmd_terminate();
+	gtp_netlink_destroy();
 	free_daemon_data();
 	thread_destroy_master(master);
 
@@ -84,7 +85,10 @@ start_gtp(void)
 	ret = vty_read_config(conf_file, default_conf_file);
 	if (ret < 0) {
 		stop_gtp();
+		return;
 	}
+
+	gtp_netlink_init();
 }
 
 /* Terminate handler */

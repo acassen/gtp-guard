@@ -33,6 +33,8 @@ enum gtp_interface_flags {
 /* BPF prog structure */
 typedef struct _gtp_interface {
 	char			ifname[IF_NAMESIZE];
+	uint8_t			hw_addr[ETH_ALEN];
+	uint8_t			hw_addr_len;
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
 	gtp_bpf_prog_t		*bpf_prog;
@@ -49,8 +51,9 @@ extern int gtp_interface_unload_bpf(gtp_interface_t *);
 extern int gtp_interface_destroy(gtp_interface_t *);
 extern void gtp_interface_foreach_interface(int (*hdl) (gtp_interface_t *, void *), void *);
 extern gtp_interface_t *gtp_interface_get(const char *);
+extern gtp_interface_t *gtp_interface_get_by_ifindex(int);
 extern int gtp_interface_put(gtp_interface_t *);
-extern gtp_interface_t *gtp_interface_alloc(const char *);
+extern gtp_interface_t *gtp_interface_alloc(const char *, int);
 extern int gtp_interfaces_destroy(void);
 
 #endif

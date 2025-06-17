@@ -38,6 +38,18 @@
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
 #define less_equal_greater_than(a,b)    ({ typeof(a) _a = (a); typeof(b) _b = (b); (_a) < (_b) ? -1 : (_a) == (_b) ? 0 : 1; })
 
+/* Functions that can return EAGAIN also document that they can return
+ * EWOULDBLOCK, and that both should be checked. If they are the same
+ * value, that is unnecessary. */
+#if EAGAIN == EWOULDBLOCK
+#define check_EAGAIN(xx)        ((xx) == EAGAIN)
+#else
+#define check_EAGAIN(xx)        ((xx) == EAGAIN || (xx) == EWOULDBLOCK)
+#endif
+
+/* Used in functions returning a string matching a defined value */
+#define switch_define_str(x) case x: return #x
+
 /* Some library functions that take pointer parameters should have them
  * specified as const pointers, but don't. We need to cast away the constness,
  * but also want to avoid compiler warnings for doing so. The following "trick"
