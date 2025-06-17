@@ -77,13 +77,6 @@ gtp_bpf_fwd_load(gtp_bpf_opts_t *opts)
 	}
 	opts->bpf_maps[XDP_FWD_MAP_IPTNL].map = map;
 
-	map = gtp_bpf_load_map(opts->bpf_obj, "mac_learning");
-	if (!map) {
-		gtp_bpf_unload(opts);
-		return -1;
-	}
-	opts->bpf_maps[XDP_FWD_MAP_MAC_LEARNING].map = map;
-
 	return 0;
 }
 
@@ -364,21 +357,4 @@ gtp_bpf_fwd_iptnl_vty(vty_t *vty)
 		return -1;
 
 	return gtp_bpf_iptnl_vty(vty, bpf_opts->bpf_maps[XDP_FWD_MAP_IPTNL].map);
-}
-
-/*
- *	MAC learning related
- */
-int
-gtp_bpf_fwd_mac_learning_vty(vty_t *vty)
-{
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_forward;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
-		return -1;
-
-	vty_out(vty, "XDP ruleset on ifindex:%d:%s", opts->ifindex, VTY_NEWLINE);
-	gtp_bpf_mac_learning_vty(vty, opts->bpf_maps[XDP_FWD_MAP_MAC_LEARNING].map);
-
-	return 0;
 }

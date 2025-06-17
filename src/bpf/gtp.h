@@ -174,8 +174,8 @@ struct rt_percpu_ctx {
 	__u16		dst_port;
 };
 
-/* MAC Address learning */
-struct port_mac_address {
+/* link-layer related */
+struct ll_addr {
 	__u8		local[6];
 	__u8		remote[6];
 	__u8		state;

@@ -64,13 +64,6 @@ struct {
 	__type(value, struct gtp_iptnl_rule);
 } iptnl_info SEC(".maps");
 
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-	__uint(max_entries, 8);
-	__type(key, __u32);
-	__type(value, struct port_mac_address);
-} mac_learning SEC(".maps");
-
 
 /* Packet rewrite */
 static __always_inline void swap_src_dst_mac(struct ethhdr *eth)
@@ -502,58 +495,6 @@ gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
 	return 0;
 }
 
-#if 0
-/*
- *	MAC Address learning
- */
-static __always_inline int
-gtp_port_mac_set(struct eth_percpu_ctx *ctx, struct port_mac_address *pma)
-{
-	__builtin_memcpy(pma->local, ctx->dest, ETH_ALEN);
-	__builtin_memcpy(pma->remote, ctx->source, ETH_ALEN);
-	pma->state = 1;
-	return 0;
-}
-
-static int
-gtp_port_mac_update(__u32 index, struct eth_percpu_ctx *ctx)
-{
-	struct port_mac_address *pma;
-	__u32 key = 0;
-
-	pma = bpf_map_lookup_percpu_elem(&mac_learning, &key, index);
-	if (!pma)
-		return 0;
-
-	return gtp_port_mac_set(ctx, pma);
-}
-
-static __always_inline int
-gtp_port_mac_learning(struct ethhdr *ethh)
-{
-	struct port_mac_address *pma;
-	struct eth_percpu_ctx ctx;
-	__u32 key = 0;
-
-	pma = bpf_map_lookup_elem(&mac_learning, &key);
-	if (!pma)
-		return -1;
-
-	if (pma->state)
-		return 0;
-
-	__builtin_memset(&ctx, 0, sizeof(struct eth_percpu_ctx));
-	__builtin_memcpy(ctx.dest, ethh->h_dest, ETH_ALEN);
-	__builtin_memcpy(ctx.source, ethh->h_source, ETH_ALEN);
-
-	/* Verifier prevent passing ethh as arg so we need to replicate
-	 * pieces of interest. */
-	bpf_loop(nr_cpus, gtp_port_mac_update, &ctx, 0);
-	return 0;
-}
-#endif
-
-
 /*
  *	GTP-U traffic selector
  */
@@ -624,12 +565,6 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	/* Prevent from GTP-U netstack flooding */
 	if (!rule)
 		return XDP_DROP;
-
-#if 0
-	/* In direct-tx mode we are enabling mac learning */
-	if (rule->flags & GTP_FWD_FL_DIRECT_TX)
-		gtp_port_mac_learning(ethh);
-#endif
 
 	/* First fragment detected and handled only if related
 	 * to an existing F-TEID */

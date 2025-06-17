@@ -34,7 +34,6 @@ enum {
 #define GTP_EGRESS	1
 
 /* Prototypes */
-extern int gtp_bpf_mac_learning_vty(vty_t *, struct bpf_map *);
 extern int gtp_bpf_obj_update_global_vars(struct bpf_object *);
 extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
 extern struct bpf_program *gtp_bpf_load_prog(gtp_bpf_opts_t *);

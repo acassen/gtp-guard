@@ -26,7 +26,6 @@ enum {
 	XDP_FWD_MAP_TEID = 0,
 	XDP_FWD_MAP_IPFRAG,
 	XDP_FWD_MAP_IPTNL,
-	XDP_FWD_MAP_MAC_LEARNING,
 	XDP_FWD_MAP_CNT
 };
 
@@ -55,6 +54,5 @@ extern int gtp_bpf_fwd_vty(vty_t *);
 extern int gtp_bpf_fwd_teid_bytes(gtp_teid_t *, uint64_t *);
 extern int gtp_bpf_fwd_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_bpf_fwd_iptnl_vty(vty_t *);
-extern int gtp_bpf_fwd_mac_learning_vty(vty_t *);
 
 #endif

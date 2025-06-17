@@ -72,10 +72,10 @@ gtp_bpf_rt_load_maps(gtp_bpf_prog_t *p)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_IPTNL].map = map;
 
-	map = gtp_bpf_load_map(p->bpf_obj, "mac_learning");
+	map = gtp_bpf_load_map(p->bpf_obj, "if_lladdr");
 	if (!map)
 		return -1;
-	p->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map = map;
+	p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map = map;
 
 	map = gtp_bpf_load_map(p->bpf_obj, "if_stats");
 	if (!map)
@@ -584,17 +584,108 @@ gtp_bpf_rt_iptnl_vty(vty_t *vty)
 	return 0;
 }
 
+
 /*
- *	MAC learning related
+ *	link-layer Address
  */
+static struct ll_addr *
+gtp_bpf_rt_lladdr_alloc(size_t *sz)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct ll_addr *new;
+
+	new = calloc(nr_cpus, sizeof(*new));
+	if (!new)
+		return NULL;
+
+	*sz = nr_cpus * sizeof(*new);
+	return new;
+}
+
+static int
+gtp_bpf_rt_lladdr_set(struct ll_addr *ll, gtp_interface_t *iface)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	int i;
+
+	for (i = 0; i < nr_cpus; i++) {
+		memcpy(ll[i].local, iface->hw_addr, ETH_ALEN);
+		memcpy(ll[i].remote, iface->direct_tx_hw_addr, ETH_ALEN);
+	}
+
+	return 0;
+}
+
 int
-gtp_bpf_rt_mac_learning_vty(vty_t *vty)
+gtp_bpf_rt_update_lladdr(void *arg)
+{
+	gtp_interface_t *iface = arg;
+	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
+	struct ll_addr *new = NULL;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err = 0;
+	size_t sz;
+
+	new = gtp_bpf_rt_lladdr_alloc(&sz);
+	if (!new) {
+		log_message(LOG_INFO, "%s(): Cant allocate temp ll_addr%s"
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	gtp_bpf_rt_lladdr_set(new, iface);
+	err = bpf_map__update_elem(map, &iface->ifindex, sizeof(__u32), new, sz, 0);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant update XDP lladdr for interface:'%s' (%s)"
+				    , __FUNCTION__
+				    , iface->ifname
+				    , errmsg);
+		free(new);
+		return -1;
+	}
+
+	free(new);
+	return 0;
+}
+
+int
+gtp_bpf_rt_lladdr_vty(vty_t *vty)
 {
 	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
+	struct ll_addr *ll;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	__u32 key = 0, next_key = 0;
+	size_t sz;
+	int err;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	ll = gtp_bpf_rt_lladdr_alloc(&sz);
+	if (!ll) {
+		vty_out(vty, "%% Cant allocate temp ll_addr%s", VTY_NEWLINE);
 		return -1;
+	}
 
-	gtp_bpf_mac_learning_vty(vty, p->bpf_maps[XDP_RT_MAP_MAC_LEARNING].map);
+	/* Walk hashtab */
+	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(__u32)) == 0) {
+		key = next_key;
+		err = bpf_map__lookup_elem(map, &key, sizeof(__u32), ll, sz, 0);
+		if (err) {
+			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+			vty_out(vty, "%% error fetching value for key:%d (%s)%s"
+				   , key, errmsg, VTY_NEWLINE);
+			continue;
+		}
+
+		vty_out(vty, "interface %s%s"
+			   , if_indextoname(key, errmsg), VTY_NEWLINE);
+		vty_out(vty, " local:" ETHER_FMT " remote:" ETHER_FMT "%s"
+			   , ETHER_BYTES(ll[0].local)
+			   , ETHER_BYTES(ll[0].remote)
+			   , VTY_NEWLINE);
+	}
+
+	free(ll);
 	return 0;
 }

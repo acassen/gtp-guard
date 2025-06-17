@@ -543,30 +543,6 @@ DEFUN(show_xdp_forwarding_iptnl,
 	return CMD_SUCCESS;
 }
 
-DEFUN(show_xdp_forwarding_mac_learning,
-      show_xdp_forwarding_mac_learning_cmd,
-      "show xdp forwarding mac-learning",
-      SHOW_STR
-      "GTP XDP Forwarding MAC Address Learning\n")
-{
-	int err;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_fwd_mac_learning_vty(vty);
-	if (err) {
-		vty_out(vty, "%% Error displaying XDP ruleset%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	return CMD_SUCCESS;
-}
-
 DEFUN(show_xdp_routing,
       show_xdp_routing_cmd,
       "show xdp routing",
@@ -615,11 +591,11 @@ DEFUN(show_xdp_routing_iptnl,
 	return CMD_SUCCESS;
 }
 
-DEFUN(show_xdp_routing_mac_learning,
-      show_xdp_routing_mac_learning_cmd,
-      "show xdp routing mac-learning",
+DEFUN(show_xdp_routing_lladdr,
+      show_xdp_routing_lladdr_cmd,
+      "show xdp routing lladdr",
       SHOW_STR
-      "GTP XDP Routing MAC Address Learning\n")
+      "GTP XDP Routing link-layer Address\n")
 {
 	int err;
 
@@ -629,7 +605,7 @@ DEFUN(show_xdp_routing_mac_learning,
 		return CMD_WARNING;
 	}
 
-	err = gtp_bpf_rt_mac_learning_vty(vty);
+	err = gtp_bpf_rt_lladdr_vty(vty);
 	if (err) {
 		vty_out(vty, "%% Error displaying XDP ruleset%s"
 			   , VTY_NEWLINE);
@@ -899,20 +875,18 @@ gtp_vty_init(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_xdp_forwarding_cmd);
 	install_element(VIEW_NODE, &show_xdp_forwarding_iptnl_cmd);
-	install_element(VIEW_NODE, &show_xdp_forwarding_mac_learning_cmd);
 	install_element(VIEW_NODE, &show_xdp_routing_cmd);
 	install_element(VIEW_NODE, &show_xdp_routing_iptnl_cmd);
-	install_element(VIEW_NODE, &show_xdp_routing_mac_learning_cmd);
+	install_element(VIEW_NODE, &show_xdp_routing_lladdr_cmd);
 	install_element(VIEW_NODE, &show_xdp_mirror_cmd);
 	install_element(VIEW_NODE, &show_workers_request_channel_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
 	install_element(ENABLE_NODE, &show_xdp_forwarding_cmd);
 	install_element(ENABLE_NODE, &show_xdp_forwarding_iptnl_cmd);
-	install_element(ENABLE_NODE, &show_xdp_forwarding_mac_learning_cmd);
 	install_element(ENABLE_NODE, &show_xdp_routing_cmd);
 	install_element(ENABLE_NODE, &show_xdp_routing_iptnl_cmd);
-	install_element(ENABLE_NODE, &show_xdp_routing_mac_learning_cmd);
+	install_element(ENABLE_NODE, &show_xdp_routing_lladdr_cmd);
 	install_element(ENABLE_NODE, &show_xdp_mirror_cmd);
 	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);

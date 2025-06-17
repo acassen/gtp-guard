@@ -74,11 +74,11 @@ struct {
 } iptnl_info SEC(".maps");
 
 struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(max_entries, 8);
-	__type(key, __u32);
-	__type(value, struct port_mac_address);
-} mac_learning SEC(".maps");
+	__type(key, __u32);				/* ifindex */
+	__type(value, struct ll_addr);
+} if_lladdr SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
@@ -452,52 +452,6 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
  *	PPPoE
  */
 static __always_inline int
-gtp_port_mac_set(struct eth_percpu_ctx *ctx, struct port_mac_address *pma)
-{
-	__builtin_memcpy(pma->local, ctx->dest, ETH_ALEN);
-	__builtin_memcpy(pma->remote, ctx->source, ETH_ALEN);
-	pma->state = 1;
-	return 0;
-}
-
-static int
-gtp_port_mac_update(__u32 index, struct eth_percpu_ctx *ctx)
-{
-	struct port_mac_address *pma;
-	__u32 key = 0;
-
-	pma = bpf_map_lookup_percpu_elem(&mac_learning, &key, index);
-	if (!pma)
-		return 0;
-
-	return gtp_port_mac_set(ctx, pma);
-}
-
-static __always_inline int
-gtp_port_mac_learning(struct ethhdr *ethh)
-{
-	struct port_mac_address *pma;
-	struct eth_percpu_ctx ctx;
-	__u32 key = 0;
-
-	pma = bpf_map_lookup_elem(&mac_learning, &key);
-	if (!pma)
-		return -1;
-
-	if (pma->state)
-		return 0;
-
-	__builtin_memset(&ctx, 0, sizeof(struct eth_percpu_ctx));
-	__builtin_memcpy(ctx.dest, ethh->h_dest, ETH_ALEN);
-	__builtin_memcpy(ctx.source, ethh->h_source, ETH_ALEN);
-
-	/* Verifier prevent passing ethh as arg so we need to replicate
-	 * pieces of interest. */
-	bpf_loop(nr_cpus, gtp_port_mac_update, &ctx, 0);
-	return 0;
-}
-
-static __always_inline int
 gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 length)
 {
 	struct xdp_md *ctx = pkt->ctx;
@@ -516,10 +470,6 @@ gtp_route_ppp_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule, __u16 le
 	ethh = data;
 	if (ethh + 1 > data_end)
 		return XDP_PASS;
-
-	/* In direct-tx mode we are enabling mac learning */
-	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX)
-		gtp_port_mac_learning(ethh);
 
 	/* Phase 0 : Build payload len */
 	payload_len = length + 2;
@@ -652,6 +602,7 @@ static __always_inline int
 gtp_route_ppp_decap(struct parse_pkt *pkt)
 {
 	struct xdp_md *ctx = pkt->ctx;
+	__u32 key = ctx->ingress_ifindex;
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
 	int nbytes = data_end - data;
@@ -661,7 +612,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	int offset = pkt->l3_offset;
 	struct _vlan_hdr *vlanh = NULL;
 	struct ethhdr *ethh;
-	struct port_mac_address *pma;
+	struct ll_addr *ll;
 	struct pppoehdr *pppoeh;
 	struct iphdr *iph;
 	struct udphdr *udph;
@@ -669,7 +620,6 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	__u16 *ppph;
 	__u16 payload_len;
 	__u32 csum = 0;
-	__u32 key = 0;
 	int headroom, ret;
 
 	ethh = data;
@@ -805,12 +755,12 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	if_metrics_update(XDP_PASS, ctx->ingress_ifindex, IF_METRICS_PPPOE, IF_DIRECTION_RX,
 			  nbytes);
 
-	/* In direct-tx mode we are using mac learning */
+	/* In direct-tx mode we are using pre-configured lladdr */
 	if (rt_rule->flags & GTP_RT_FL_DIRECT_TX) {
-		pma = bpf_map_lookup_elem(&mac_learning, &key);
-		if (pma) {
-			__builtin_memcpy(ethh->h_dest, pma->remote, ETH_ALEN);
-			__builtin_memcpy(ethh->h_source, pma->local, ETH_ALEN);
+		ll = bpf_map_lookup_elem(&if_lladdr, &key);
+		if (ll) {
+			__builtin_memcpy(ethh->h_dest, ll->remote, ETH_ALEN);
+			__builtin_memcpy(ethh->h_source, ll->local, ETH_ALEN);
 
 			/* TODO: for perfs, try to avoid this 2nd lookup */
 			if_metrics_update(XDP_TX, ctx->ingress_ifindex,

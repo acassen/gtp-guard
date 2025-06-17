@@ -346,6 +346,9 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 	ip_address_t *addr;
 	int len = h->nlmsg_len;
 
+	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+		return 0;
+
 	if (h->nlmsg_type != RTM_NEWNEIGH && h->nlmsg_type != RTM_GETNEIGH)
 		return 0;
 
@@ -382,7 +385,8 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 
 	memcpy(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN);
 
-	/* TODO: Update BPF prog accordingly */
+	/* Update BPF prog accordingly */
+	gtp_bpf_rt_update_lladdr(iface);
 
   end:
 	FREE(addr);
