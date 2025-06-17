@@ -109,7 +109,7 @@ DEFUN(gtpc_router_tunnel_endpoint,
         gtp_router_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->addr;
-	int port = 2123, ret = 0;
+	int port = 2123, err = 0;
 
         if (argc < 1) {
                 vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -124,8 +124,8 @@ DEFUN(gtpc_router_tunnel_endpoint,
         if (argc == 2)
                 VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
-	ret = inet_stosockaddr(argv[0], port, addr);
-	if (ret < 0) {
+	err = inet_stosockaddr(argv[0], port, addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;

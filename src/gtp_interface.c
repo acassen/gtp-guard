@@ -126,6 +126,45 @@ gtp_interface_get_by_ifindex(int ifindex)
 	return NULL;
 }
 
+gtp_interface_t *
+gtp_interface_get_by_direct_tx(ip_address_t *addr)
+{
+	list_head_t *l = &daemon_data->interfaces;
+	gtp_interface_t *iface;
+	ip_address_t *addr_iface;
+	bool addr_equal = false;
+
+	pthread_mutex_lock(&gtp_interfaces_mutex);
+	list_for_each_entry(iface, l, next) {
+		addr_iface = &iface->direct_tx_gw;
+		if (!addr_iface->family)
+			continue;
+
+		if (addr_iface->family != addr->family)
+			continue;
+
+		switch (addr->family) {
+		case AF_INET:
+			addr_equal = __ip4_addr_equal(&addr_iface->u.sin_addr,
+						      &addr->u.sin_addr);
+			break;
+		case AF_INET6:
+			addr_equal = __ip6_addr_equal(&addr_iface->u.sin6_addr,
+						      &addr->u.sin6_addr);
+			break;
+		}
+
+		if (addr_equal) {
+			pthread_mutex_unlock(&gtp_interfaces_mutex);
+			__sync_add_and_fetch(&iface->refcnt, 1);
+			return iface;
+		}
+	}
+	pthread_mutex_unlock(&gtp_interfaces_mutex);
+
+	return NULL;
+}
+
 
 int
 gtp_interface_put(gtp_interface_t *iface)

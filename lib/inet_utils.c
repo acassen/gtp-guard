@@ -168,6 +168,51 @@ inet_stor(char *addr)
 	return 0;
 }
 
+/* IP string to ip_address_t */
+int
+inet_stoipaddress(const char *str, ip_address_t *addr)
+{
+	void *addr_ip;
+	int family = (strchr(str, ':')) ? AF_INET6 : AF_INET;
+
+	switch (family) {
+	case AF_INET6:
+		addr_ip = &addr->u.sin6_addr;
+		break;
+	case AF_INET:
+		addr_ip = &addr->u.sin_addr;
+		break;
+	}
+
+	if (!inet_pton(family, str, addr_ip))
+		return -1;
+
+	addr->family = family;
+	return 0;
+}
+
+char *
+inet_ipaddresstos(ip_address_t *addr, char *addr_str)
+{
+	void *addr_ip;
+
+	switch (addr->family) {
+	case AF_INET:
+		addr_ip = &addr->u.sin_addr;
+		break;
+	case AF_INET6:
+		addr_ip = &addr->u.sin6_addr;
+		break;
+	default:
+		return NULL;
+	}
+
+	if (!inet_ntop(addr->family, addr_ip, addr_str, INET6_ADDRSTRLEN))
+		return NULL;
+
+	return addr_str;
+}
+
 /* IP string to sockaddr_storage */
 int
 inet_stosockaddr(const char *str, const uint16_t port, struct sockaddr_storage *addr)

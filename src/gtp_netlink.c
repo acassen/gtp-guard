@@ -216,14 +216,6 @@ netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *),
 				return -1;
 			}
 
-			/* Only take care of XFRM Policy msg */
-			if (h->nlmsg_type != XFRM_MSG_NEWPOLICY &&
-			    h->nlmsg_type != XFRM_MSG_DELPOLICY &&
-			    h->nlmsg_type !=  XFRM_MSG_UPDPOLICY&&
-			    h->nlmsg_type != XFRM_MSG_POLEXPIRE &&
-			    nl != &nl_cmd && h->nlmsg_pid == nl_cmd.nl_pid)
-				continue;
-
 			error = (*filter) (&snl, h);
 			if (error < 0) {
 				log_message(LOG_INFO, "Netlink: filter function error");
@@ -350,8 +342,9 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 {
 	struct ndmsg *r = NLMSG_DATA(h);
 	struct rtattr *tb[NDA_MAX + 1];
+	gtp_interface_t *iface;
+	ip_address_t *addr;
 	int len = h->nlmsg_len;
-	int err = 0;
 
 	if (h->nlmsg_type != RTM_NEWNEIGH && h->nlmsg_type != RTM_GETNEIGH)
 		return 0;
@@ -362,22 +355,38 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 
 	parse_rtattr(tb, NDA_MAX, NDA_RTA(r), len);
 
-	if (tb[NDA_DST]) {
-		uint32_t *addr = (uint32_t *) RTA_DATA(tb[NDA_DST]);
-		if (r->ndm_family == AF_INET) {
-			printf("#### NDA_DST %u.%u.%u.%u\n", NIPQUAD(*addr));
-		}
+	/* Only netlink broadcast related to IP Address matter */
+	if (!tb[NDA_DST] || !tb[NDA_LLADDR])
+		return -1;
+
+	PMALLOC(addr);
+	addr->family = r->ndm_family;
+	switch (r->ndm_family) {
+	case AF_INET:
+		addr->u.sin_addr.s_addr = *(uint32_t *) RTA_DATA(tb[NDA_DST]);
+		break;
+	case AF_INET6:
+		memcpy(&addr->u.sin6_addr, RTA_DATA(tb[NDA_DST]), RTA_PAYLOAD(tb[NDA_DST]));
+		break;
 	}
 
-	if (tb[NDA_LLADDR]) {
-		char str[64];
-		if (RTA_PAYLOAD(tb[NDA_LLADDR]) == ETH_ALEN) {
-			memcpy(str, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN);
-			printf("#### LL_ADDR:" ETHER_FMT "\n", ETHER_BYTES(str));
-		}
-	}
+	iface = gtp_interface_get_by_direct_tx(addr);
+	if (!iface)
+		goto end;
 
-	return err;
+	if (RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
+		goto end;
+
+	if (!memcmp(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN))
+		goto end;
+
+	memcpy(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN);
+
+	/* TODO: Update BPF prog accordingly */
+
+  end:
+	FREE(addr);
+	return 0;
 }
 
 static int
@@ -422,13 +431,10 @@ netlink_neigh_lookup(void)
 		return -1;
 	}
 
-	if (netlink_neigh_request(&nl_cmd, AF_UNSPEC, RTM_GETNEIGH) < 0) {
-		err = -1;
-		goto end;
-	}
+	err = netlink_neigh_request(&nl_cmd, AF_UNSPEC, RTM_GETNEIGH);
+	if (!err)
+		netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, false);
 
-	netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, false);
-  end:
 	netlink_close(&nl_cmd);
 	return err;
 }
@@ -524,7 +530,7 @@ netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type)
 	};
 	__u32 filt_mask = RTEXT_FILTER_SKIP_STATS;
 
-	addattr_l(&req.nlh, sizeof req, IFLA_EXT_MASK, &filt_mask, sizeof(uint32_t));
+	addattr_l(&req.nlh, sizeof(req), IFLA_EXT_MASK, &filt_mask, sizeof(uint32_t));
 
 	status = sendto(nl->fd, (void *) &req, sizeof (req), 0
 			      , (struct sockaddr *) &snl, sizeof(snl));

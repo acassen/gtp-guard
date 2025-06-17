@@ -55,6 +55,7 @@ static int
 gtp_interface_show(gtp_interface_t *iface, void *arg)
 {
 	vty_t *vty = arg;
+	char addr_str[INET6_ADDRSTRLEN];
 
 	vty_out(vty, "interface %s%s"
 		   , iface->ifname
@@ -62,6 +63,11 @@ gtp_interface_show(gtp_interface_t *iface, void *arg)
 	vty_out(vty, " ll_addr:" ETHER_FMT "%s"
 		   , ETHER_BYTES(iface->hw_addr)
 		   , VTY_NEWLINE);
+	vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
+		   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+		   , ETHER_BYTES(iface->direct_tx_hw_addr)
+		   , VTY_NEWLINE);
+	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
 }
 
@@ -150,6 +156,33 @@ DEFUN(interface_bpf_prog,
 	}
 
 	iface->bpf_prog = p;
+	return CMD_SUCCESS;
+}
+
+DEFUN(interface_direct_tx_gw,
+      interface_direct_tx_gw_cmd,
+      "direct-tx-gw (A.B.C.D|X:X:X:X)",
+      "Direct TX mode Gateway IP Address\n"
+      "IPv4 Address\n"
+      "IPv6 Address\n")
+{
+	gtp_interface_t *iface = vty->index;
+	ip_address_t *ip_addr =&iface->direct_tx_gw;
+	int err;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	err = inet_stoipaddress(argv[0], ip_addr);
+	if (err) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		memset(ip_addr, 0, sizeof(ip_address_t));
+		return CMD_WARNING;
+	}
+
+	__set_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags);
 	return CMD_SUCCESS;
 }
 
@@ -343,6 +376,7 @@ static int
 interface_config_write(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->interfaces;
+	char addr_str[INET6_ADDRSTRLEN];
 	gtp_interface_t *iface;
 
 	list_for_each_entry(iface, l, next) {
@@ -351,6 +385,10 @@ interface_config_write(vty_t *vty)
 			vty_out(vty, " description %s%s", iface->description, VTY_NEWLINE);
 		if (iface->bpf_prog)
 			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
+		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
+			vty_out(vty, " direct-tx-gw %s%s"
+				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+				   , VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
 			vty_out(vty, " metrics gtp%s", VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
@@ -381,6 +419,7 @@ gtp_interface_vty_init(void)
 	install_default(INTERFACE_NODE);
 	install_element(INTERFACE_NODE, &interface_description_cmd);
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
+	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_pppoe_cmd);

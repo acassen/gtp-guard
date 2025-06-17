@@ -68,7 +68,23 @@
 	(((__eth_addr)[0] & (__eth_addr)[1] & (__eth_addr)[2] &		\
 	  (__eth_addr)[3] & (__eth_addr)[4] & (__eth_addr)[5]) == 0xff)
 
-/* inline stuff */
+/* struct */
+typedef struct _ip_address {
+	uint16_t		family;
+	union {
+		struct in_addr	sin_addr;
+		struct in6_addr	sin6_addr;
+	} u;
+} ip_address_t;
+
+
+/* inlined stuff */
+static inline int __ip4_addr_equal(const struct in_addr *a1,
+				   const struct in_addr *a2)
+{
+	return (a1->s_addr == a2->s_addr);
+}
+
 static inline int __ip6_addr_equal(const struct in6_addr *a1,
                                    const struct in6_addr *a2)
 {
@@ -111,6 +127,8 @@ extern char *inet_ntop2(uint32_t);
 extern char *inet_ntoa2(uint32_t, char *);
 extern uint8_t inet_stom(char *);
 extern uint8_t inet_stor(char *);
+extern int inet_stoipaddress(const char *, ip_address_t *);
+extern char *inet_ipaddresstos(ip_address_t *, char *);
 extern int inet_stosockaddr(const char *, const uint16_t, struct sockaddr_storage *);
 extern int inet_ip4tosockaddr(uint32_t, struct sockaddr_storage *);
 extern char *inet_sockaddrtos(struct sockaddr_storage *);
