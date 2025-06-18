@@ -50,14 +50,15 @@ typedef struct _gtp_interface {
 } gtp_interface_t;
 
 /* Prototypes */
-extern int gtp_interface_unload_bpf(gtp_interface_t *);
-extern int gtp_interface_destroy(gtp_interface_t *);
+extern int gtp_interface_metrics_dump(FILE *);
 extern void gtp_interface_foreach_interface(int (*hdl) (gtp_interface_t *, void *), void *);
 extern gtp_interface_t *gtp_interface_get(const char *);
 extern gtp_interface_t *gtp_interface_get_by_ifindex(int);
 extern gtp_interface_t *gtp_interface_get_by_direct_tx(ip_address_t *);
 extern int gtp_interface_put(gtp_interface_t *);
 extern gtp_interface_t *gtp_interface_alloc(const char *, int);
+extern int gtp_interface_unload_bpf(gtp_interface_t *);
+extern int gtp_interface_destroy(gtp_interface_t *);
 extern int gtp_interfaces_destroy(void);
 
 #endif

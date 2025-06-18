@@ -22,6 +22,10 @@
 #ifndef _GTP_METRICS_H
 #define _GTP_METRICS_H
 
+/* defines */
+#define METRIC_PACKET	0
+#define METRIC_BYTE	1
+
 /* Prototypes */
 extern int gtp_metrics_init(void);
 extern int gtp_metrics_destroy(void);

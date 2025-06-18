@@ -93,6 +93,18 @@ gtp_bpf_rt_unload_maps(gtp_bpf_prog_t *p)
 /*
  *	Statistics
  */
+const char *
+gtp_rt_stats_metrics_str(int type)
+{
+	switch (type) {
+		switch_define_str(IF_METRICS_GTP);
+		switch_define_str(IF_METRICS_PPPOE);
+		switch_define_str(IF_METRICS_IPIP);
+	}
+
+	return "unknown";
+}
+
 static struct metrics *
 gtp_bpf_rt_metrics_alloc(size_t *sz)
 {
@@ -150,11 +162,12 @@ gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *p, int ifindex, int type)
 	return (err) ? : gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_TX);
 }
 
-static int
-gtp_bpf_rt_metrics_dump(struct bpf_map *map,
+int
+gtp_bpf_rt_metrics_dump(gtp_bpf_prog_t *p,
 			int (*dump) (void *, __u8, __u8, struct metrics *), void *arg,
 			__u32 ifindex, __u8 type, __u8 direction)
 {
+	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct metrics_key mkey;
 	struct metrics *m;
@@ -188,45 +201,26 @@ gtp_bpf_rt_metrics_dump(struct bpf_map *map,
 }
 
 int
-gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *p, int ifindex,
+gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *p, int ifindex, int type,
 		      int (*dump) (void *, __u8, __u8, struct metrics *),
 		      void *arg)
 {
-	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
-	int i, err;
+	int err;
 
-	for (i = 0; i < IF_METRICS_CNT; i++) {
-		err = gtp_bpf_rt_metrics_dump(map, dump, arg
-						 , ifindex, i, IF_DIRECTION_RX);
-		err = (err) ? : gtp_bpf_rt_metrics_dump(map, dump, arg
-							   , ifindex, i, IF_DIRECTION_TX);
-	}
-
-	return 0;
+	err = gtp_bpf_rt_metrics_dump(p, dump, arg
+				       , ifindex, type, IF_DIRECTION_RX);
+	err = (err) ? : gtp_bpf_rt_metrics_dump(p, dump, arg
+						 , ifindex, type, IF_DIRECTION_TX);
+	return err;
 }
-
-static const char *metrics_str[IF_METRICS_CNT] = {
-	"GTP metrics",
-	"PPPoE metrics",
-	"IPIP metrics"
-};
 
 int
 gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *p, int ifindex, int type,
 		     int (*dump) (void *, __u8, __u8, struct metrics *),
 		     vty_t *vty)
 {
-	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
-	const char *mstr;
-	int err;
-
-	mstr = (type < IF_METRICS_CNT) ? metrics_str[type] : "unknown metrics";
-	vty_out(vty, " %s:%s", mstr, VTY_NEWLINE);
-	err = gtp_bpf_rt_metrics_dump(map, dump, vty
-					 , ifindex, type, IF_DIRECTION_RX);
-	err = (err) ? : gtp_bpf_rt_metrics_dump(map, dump, vty
-						   , ifindex, type, IF_DIRECTION_TX);
-	return err;
+	vty_out(vty, " %s:%s", gtp_rt_stats_metrics_str(type), VTY_NEWLINE);
+	return gtp_bpf_rt_stats_dump(p, ifindex, type, dump, vty);
 }
 
 
