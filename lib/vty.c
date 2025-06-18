@@ -74,14 +74,16 @@ vty_out(vty_t *vty, const char *format, ...)
 		va_start(args, format);
 		vprintf(format, args);
 		va_end(args);
-	} else {
-		/* Try to write to initial buffer.  */
-		va_start(args, format);
-		len = vsnprintf(buf, sizeof buf, format, args);
-		va_end(args);
+		return len;
+	}
 
-		/* Initial buffer is not enough.  */
-		if (len < 0 || len >= size) {
+	/* Try to write to initial buffer.  */
+	va_start(args, format);
+	len = vsnprintf(buf, sizeof buf, format, args);
+	va_end(args);
+
+	/* Initial buffer is not enough.  */
+	if (len < 0 || len >= size) {
 		for (;;) {
 			if (len > -1)
 				size = len + 1;
@@ -89,7 +91,7 @@ vty_out(vty_t *vty, const char *format, ...)
 				size = size * 2;
 
 			tmp = REALLOC(p, size);
-			if (! tmp) {
+			if (!tmp) {
 				FREE(p);
 				return -1;
 			}
@@ -114,7 +116,6 @@ vty_out(vty_t *vty, const char *format, ...)
 	/* If p is not different with buf, it is allocated buffer.  */
 	if (p != buf)
 		FREE(p);
-	}
 
 	return len;
 }

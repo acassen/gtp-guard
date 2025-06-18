@@ -52,8 +52,24 @@ cmd_node_t interface_node = {
  *	VTY helpers
  */
 static int
+gtp_interface_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics *m)
+{
+	vty_t *vty = arg;
+
+	vty_out(vty, "   %s: packets:%lld bytes:%lld%s"
+		   , (direction) ? "TX" : "RX"
+		   , m->packets, m->bytes
+		   , VTY_NEWLINE);
+	vty_out(vty, "       dropped_packets:%lld dropped_bytes:%lld%s"
+		   , m->dropped_packets, m->dropped_bytes
+		   , VTY_NEWLINE);
+	return 0;
+}
+
+static int
 gtp_interface_show(gtp_interface_t *iface, void *arg)
 {
+	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
 	vty_t *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
 
@@ -67,6 +83,15 @@ gtp_interface_show(gtp_interface_t *iface, void *arg)
 		   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
 		   , ETHER_BYTES(iface->direct_tx_hw_addr)
 		   , VTY_NEWLINE);
+	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_GTP
+			      , gtp_interface_metrics_show
+			      , vty);
+	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_PPPOE
+			      , gtp_interface_metrics_show
+			      , vty);
+	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_IPIP
+			      , gtp_interface_metrics_show
+			      , vty);
 	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
 }

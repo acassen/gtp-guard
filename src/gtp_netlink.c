@@ -378,16 +378,17 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 		goto end;
 
 	if (RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
-		goto end;
+		goto put;
 
 	if (!memcmp(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN))
-		goto end;
+		goto put;
 
 	memcpy(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN);
 
 	/* Update BPF prog accordingly */
-	gtp_bpf_rt_update_lladdr(iface);
-
+	gtp_bpf_rt_lladdr_update(iface);
+  put:
+	gtp_interface_put(iface);
   end:
 	FREE(addr);
 	return 0;

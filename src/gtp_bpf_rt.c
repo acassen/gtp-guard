@@ -124,9 +124,8 @@ gtp_bpf_rt_metrics_add(struct bpf_map *map, __u32 ifindex, __u8 type, __u8 direc
 	new = gtp_bpf_rt_metrics_alloc(&sz);
 	if (!new) {
 		log_message(LOG_INFO, "%s(): Cant allocate metrics !!!"
-					, __FUNCTION__);
-		err = -1;
-		goto end;
+				    , __FUNCTION__);
+		return -1;
 	}
 
 	err = bpf_map__update_elem(map, &mkey, sizeof(struct metrics_key), new, sz, BPF_NOEXIST);
@@ -135,12 +134,9 @@ gtp_bpf_rt_metrics_add(struct bpf_map *map, __u32 ifindex, __u8 type, __u8 direc
 		log_message(LOG_INFO, "%s(): Unable to init XDP routing metrics (%s)"
 				    , __FUNCTION__
 				    , errmsg);
-		goto end;
 	}
 
-  end:
-	if (new)
-		free(new);
+	free(new);
 	return err;
 }
 
@@ -156,11 +152,10 @@ gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *p, int ifindex, int type)
 
 static int
 gtp_bpf_rt_metrics_dump(struct bpf_map *map,
-			int (*dump) (void *, __u32, __u8, __u8, struct metrics *), void *arg,
+			int (*dump) (void *, __u8, __u8, struct metrics *), void *arg,
 			__u32 ifindex, __u8 type, __u8 direction)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
-	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	struct metrics_key mkey;
 	struct metrics *m;
 	size_t sz;
@@ -171,21 +166,12 @@ gtp_bpf_rt_metrics_dump(struct bpf_map *map,
 	mkey.direction = direction;
 
 	m = gtp_bpf_rt_metrics_alloc(&sz);
-	if (!m) {
-		log_message(LOG_INFO, "%s(): Cant allocate metrics !!!"
-					, __FUNCTION__);
-		err = -1;
-		goto end;
-	}
+	if (!m)
+		return -1;
 
 	err = bpf_map__lookup_elem(map, &mkey, sizeof(struct metrics_key), m, sz, 0);
-	if (err) {
-		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Unable to lookup XDP routing metrics (%s)"
-				    , __FUNCTION__
-				    , errmsg);
+	if (err)
 		goto end;
-	}
 
 	/* first element accumulation */
 	for (i = 1; i < nr_cpus; i++) {
@@ -195,16 +181,15 @@ gtp_bpf_rt_metrics_dump(struct bpf_map *map,
 		m[0].dropped_bytes += m[i].dropped_bytes;
 	}
 
-	err = (*(dump)) (arg, ifindex, type, direction, &m[0]);
+	err = (*(dump)) (arg, type, direction, &m[0]);
   end:
-	if (m)
-		free(m);
+	free(m);
 	return err;
 }
 
 int
 gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *p, int ifindex,
-		      int (*dump) (void *, __u32, __u8, __u8, struct metrics *),
+		      int (*dump) (void *, __u8, __u8, struct metrics *),
 		      void *arg)
 {
 	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
@@ -215,12 +200,35 @@ gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *p, int ifindex,
 						 , ifindex, i, IF_DIRECTION_RX);
 		err = (err) ? : gtp_bpf_rt_metrics_dump(map, dump, arg
 							   , ifindex, i, IF_DIRECTION_TX);
-		if (err)
-			return -1;
 	}
 
 	return 0;
 }
+
+static const char *metrics_str[IF_METRICS_CNT] = {
+	"GTP metrics",
+	"PPPoE metrics",
+	"IPIP metrics"
+};
+
+int
+gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *p, int ifindex, int type,
+		     int (*dump) (void *, __u8, __u8, struct metrics *),
+		     vty_t *vty)
+{
+	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
+	const char *mstr;
+	int err;
+
+	mstr = (type < IF_METRICS_CNT) ? metrics_str[type] : "unknown metrics";
+	vty_out(vty, " %s:%s", mstr, VTY_NEWLINE);
+	err = gtp_bpf_rt_metrics_dump(map, dump, vty
+					 , ifindex, type, IF_DIRECTION_RX);
+	err = (err) ? : gtp_bpf_rt_metrics_dump(map, dump, vty
+						   , ifindex, type, IF_DIRECTION_TX);
+	return err;
+}
+
 
 /*
  *	TEID Routing handling
@@ -617,7 +625,7 @@ gtp_bpf_rt_lladdr_set(struct ll_addr *ll, gtp_interface_t *iface)
 }
 
 int
-gtp_bpf_rt_update_lladdr(void *arg)
+gtp_bpf_rt_lladdr_update(void *arg)
 {
 	gtp_interface_t *iface = arg;
 	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
