@@ -133,6 +133,7 @@ enum pppoe_flags {
 	PPPOE_FL_LCP_MAX_FAILURE_BIT,
 	PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT,
 	PPPOE_FL_STRICT_AC_NAME_BIT,
+	PPPOE_FL_METRIC_VRRP_BIT,
 };
 
 struct rps_opts {
@@ -208,12 +209,17 @@ typedef struct _gtp_pppoe {
 	unsigned long		expire;
 	thread_ref_t		r_thread;
 
+	/* metrics */
+	uint64_t		vrrp_pkt_rx;
+
 	list_head_t		next;
 
 	unsigned long		flags;
 } gtp_pppoe_t;
 
 /* Prototypes */
+extern int gtp_vrrp_metrics_dump(FILE *);
+extern void gtp_pppoe_foreach(int (*hdl) (gtp_pppoe_t *, void *), void *);
 extern gtp_htab_t *gtp_pppoe_get_session_tab(gtp_pppoe_t *);
 extern gtp_htab_t *gtp_pppoe_get_unique_tab(gtp_pppoe_t *);
 extern timer_thread_t *gtp_pppoe_get_session_timer(gtp_pppoe_t *);

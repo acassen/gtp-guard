@@ -393,7 +393,7 @@ DEFUN(show_interface,
 		return CMD_SUCCESS;
 	}
 
-	gtp_interface_foreach_interface(gtp_interface_show, vty);
+	gtp_interface_foreach(gtp_interface_show, vty);
 	return CMD_SUCCESS;
 }
 

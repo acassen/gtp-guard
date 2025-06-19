@@ -74,10 +74,9 @@ gtp_interface_metric_inuse(gtp_interface_t *iface, void *arg)
 }
 
 static void
-gtp_interface_metrics_foreach_interface(int (*hdl) (gtp_interface_t *, void *,
-						    const char *, int, __u8, __u8),
-					void *arg, const char *var, int var_type,
-					__u8 type, __u8 direction)
+gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
+			      void *arg, const char *var, int var_type,
+			      __u8 type, __u8 direction)
 {
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;
@@ -118,7 +117,12 @@ gtp_interface_metrics_var_dump(gtp_interface_t *iface, void *arg,
 			       __u8 type, __u8 direction)
 {
 	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	__u16 inuse = type << 8;
 	FILE *fp = arg;
+
+	gtp_interface_metric_inuse(iface, &inuse);
+	if (!(inuse & 0xff))
+		return -1;
 
 	fprintf(fp, "%s{interface=\"%s\"} "
 		  , var, iface->description);
@@ -140,13 +144,14 @@ gtp_interface_metrics_tmpl_dump(FILE *fp, const char *var, int var_type,
 {
 	__u16 inuse = metric_type << 8;
 
-	gtp_interface_foreach_interface(gtp_interface_metric_inuse, &inuse);
+	/* at least one interface is using this metric ? */
+	gtp_interface_foreach(gtp_interface_metric_inuse, &inuse);
 	if (!(inuse & 0xff))
 		return -1;
 
 	fprintf(fp, "#HELP %s %s\n#TYPE %s %s\n", var, desc, var, type);
-	gtp_interface_metrics_foreach_interface(gtp_interface_metrics_var_dump,
-						fp, var, var_type, metric_type, direction);
+	gtp_interface_metrics_foreach(gtp_interface_metrics_var_dump,
+				      fp, var, var_type, metric_type, direction);
 	fprintf(fp, "\n");
 	return 0;
 }
@@ -212,8 +217,7 @@ gtp_interface_metrics_dump(FILE *fp)
  *	Interface helpers
  */
 void
-gtp_interface_foreach_interface(int (*hdl) (gtp_interface_t *, void *),
-				void *arg)
+gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *arg)
 {
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;

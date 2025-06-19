@@ -81,6 +81,9 @@ gtp_pppoe_vrrp_read_thread(thread_ref_t thread)
 		goto end;
 	}
 
+	/* update metrics */
+	pppoe->vrrp_pkt_rx++;
+
 	/* Update expiration */
 	pppoe->expire = timer_long(time_now) + pppoe->credit;
 

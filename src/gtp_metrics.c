@@ -62,6 +62,7 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 
 	/* TODO: Add metrics txt output */
 	gtp_interface_metrics_dump(c->fp);
+	gtp_vrrp_metrics_dump(c->fp);
 
   end:
 	return 0;

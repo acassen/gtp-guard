@@ -479,6 +479,18 @@ DEFUN(pppoe_lcp_max_failure,
 	return CMD_SUCCESS;
 }
 
+DEFUN(pppoe_metric_vrrp,
+      pppoe_metric_vrrp_cmd,
+      "metric vrrp",
+      "Enable VRRP incoming packet monitor metric\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	__set_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
+
 /*
  *	PPPoE Bundle Commands
  */
@@ -753,6 +765,8 @@ gtp_config_pppoe_write(vty_t *vty)
 			vty_out(vty, " lcp-max-failture %d%s"
 				   , pppoe->lcp_max_failure
 				   , VTY_NEWLINE);
+		if (__test_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags))
+			vty_out(vty, " metric vrrp%s", VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -813,6 +827,7 @@ gtp_pppoe_vty_init(void)
 	install_element(PPPOE_NODE, &pppoe_lcp_max_terminate_cmd);
 	install_element(PPPOE_NODE, &pppoe_lcp_max_configure_cmd);
 	install_element(PPPOE_NODE, &pppoe_lcp_max_failure_cmd);
+	install_element(PPPOE_NODE, &pppoe_metric_vrrp_cmd);
 
 	/* Install PPPoE Bundle commands. */
 	install_node(&pppoe_bundle_node);
