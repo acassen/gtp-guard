@@ -104,7 +104,6 @@ if_metrics_update(int action, __u32 ifindex, __u8 type, __u8 direction, int byte
 	struct metrics *metrics;
 	struct metrics_key m_k;
 
-	__builtin_memset(&m_k, 0, sizeof(struct metrics_key));
 	m_k.ifindex = ifindex;
 	m_k.type = type;
 	m_k.direction = direction;
@@ -324,7 +323,6 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	payload_len = bpf_ntohs(iph_inner->tot_len);
 
 	/* Ingress lookup */
-	__builtin_memset(&rt_key, 0, sizeof(struct ip_rt_key));
 	rt_key.id = iph_outer->daddr;
 	rt_key.addr = iph_inner->daddr;
 
@@ -642,7 +640,6 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 		return XDP_PASS;
 
 	/* Ingress lookup */
-	__builtin_memset(&ppp_k, 0, sizeof(struct ppp_key));
 	__builtin_memcpy(ppp_k.hw, ethh->h_dest, ETH_ALEN);
 	ppp_k.session_id = bpf_ntohs(pppoeh->session);
 
@@ -794,7 +791,6 @@ gtp_rt_rule_update_ingress(__u32 index, struct rt_percpu_ctx *ctx)
 	struct ppp_key ppp_k;
 
 	/* Update ingress */
-	__builtin_memset(&ppp_k, 0, sizeof(struct ppp_key));
 	__builtin_memcpy(ppp_k.hw, ctx->hw, ETH_ALEN);
 	ppp_k.session_id = ctx->session_id;
 
@@ -813,7 +809,6 @@ gtp_rt_rule_update_egress(__u32 index, struct rt_percpu_ctx *ctx)
 	struct ip_rt_key rt_k;
 
 	/* Update egress */
-	__builtin_memset(&rt_k, 0, sizeof(struct ip_rt_key));
 	rt_k.addr = ctx->addr;
 	rt_k.id = ctx->id;
 
@@ -885,7 +880,6 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 		return XDP_DROP;
 
 	/* UDP Traffic to GTP-U UDP port : Egress lookup */
-	__builtin_memset(&rt_key, 0, sizeof(struct ip_rt_key));
 	rt_key.id = gtph->teid;
 	rt_key.addr = iph->daddr;
 

@@ -132,12 +132,12 @@ struct gtp_mirror_rule {
 struct ip_rt_key {
 	__u32		id;
 	__u32		addr;
-} __attribute__ ((__aligned__(8)));
+};
 
 struct ppp_key {
 	__u8		hw[6];
 	__u16		session_id;
-} __attribute__ ((__aligned__(8)));
+};
 
 struct gtp_rt_rule {
 	__u8		h_src[6];
@@ -203,7 +203,7 @@ struct metrics_key {
 	__u32		ifindex;
 	__u8		type;
 	__u8		direction;
-} __attribute__ ((__aligned__(8)));
+} __attribute__ ((packed));
 
 struct metrics {
 	__u64		packets;

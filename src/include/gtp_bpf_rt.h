@@ -40,7 +40,7 @@ enum {
 struct ip_rt_key {
 	__u32	id;
 	__u32	addr;
-} __attribute__ ((__aligned__(8)));
+};
 
 struct gtp_rt_rule {
 	__u8	h_src[6];
@@ -81,7 +81,7 @@ struct metrics_key {
 	__u32		ifindex;
 	__u8		type;
 	__u8		direction;
-} __attribute__ ((__aligned__(8)));
+} __attribute__ ((packed));
 
 struct metrics {
 	__u64		packets;

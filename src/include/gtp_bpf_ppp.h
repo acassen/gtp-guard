@@ -25,7 +25,7 @@
 struct ppp_key {
 	__u8	hw[6];
 	__u16	session_id;
-} __attribute__ ((__aligned__(8)));
+};
 
 /* Prototypes */
 extern int gtp_bpf_ppp_action(int, gtp_teid_t *, struct bpf_map *, struct bpf_map *);
