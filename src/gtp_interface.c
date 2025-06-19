@@ -99,11 +99,13 @@ gtp_interface_metrics_var_dump(gtp_interface_t *iface, void *arg,
 
 	fprintf(fp, "%s{interface=\"%s\"} "
 		  , var, iface->description);
-	gtp_bpf_rt_metrics_dump(p, (var_type == METRIC_PACKET) ? gtp_pkt_dump : gtp_bytes_dump
+	gtp_bpf_rt_metrics_dump(p, (var_type == METRIC_PACKET) ? gtp_pkt_dump :
+								 gtp_bytes_dump
 				 , fp, iface->ifindex, type, direction);
 	fprintf(fp, "%s{interface=\"%s\",type=\"dropped\"} "
 		  , var, iface->description);
-	gtp_bpf_rt_metrics_dump(p, (var_type == METRIC_PACKET) ? gtp_pkt_dropped_dump : gtp_bytes_dropped_dump
+	gtp_bpf_rt_metrics_dump(p, (var_type == METRIC_PACKET) ? gtp_pkt_dropped_dump :
+								 gtp_bytes_dropped_dump
 				 , fp, iface->ifindex, type, direction);
 	return 0;
 }

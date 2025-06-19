@@ -102,13 +102,14 @@ static __always_inline int
 if_metrics_update(int action, __u32 ifindex, __u8 type, __u8 direction, int bytes)
 {
 	struct metrics *metrics;
-	struct metrics_key mkey;
+	struct metrics_key m_k;
 
-	mkey.ifindex = ifindex;
-	mkey.type = type;
-	mkey.direction = direction;
+	__builtin_memset(&m_k, 0, sizeof(struct metrics_key));
+	m_k.ifindex = ifindex;
+	m_k.type = type;
+	m_k.direction = direction;
 
-	metrics = bpf_map_lookup_elem(&if_stats, &mkey);
+	metrics = bpf_map_lookup_elem(&if_stats, &m_k);
 	if (!metrics)
 		return -1;
 
@@ -641,6 +642,7 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 		return XDP_PASS;
 
 	/* Ingress lookup */
+	__builtin_memset(&ppp_k, 0, sizeof(struct ppp_key));
 	__builtin_memcpy(ppp_k.hw, ethh->h_dest, ETH_ALEN);
 	ppp_k.session_id = bpf_ntohs(pppoeh->session);
 
@@ -891,8 +893,12 @@ gtp_route_traffic_selector(struct parse_pkt *pkt)
 	 * userland overflow while restarting. Only GTP-U bound to an
 	 * existing session are kept into account. */
 	rule = bpf_map_lookup_elem(&teid_egress, &rt_key);
-	if (!rule)
+	if (!rule) {
+		if_metrics_update(XDP_DROP, pkt->ctx->ingress_ifindex,
+				  IF_METRICS_GTP, IF_DIRECTION_RX,
+				  data_end - data);
 		return XDP_DROP;
+	}
 
 	/* remote GTP-U udp port learning */
 	if (rule->flags & GTP_RT_FL_UDP_LEARNING && rule->gtp_udp_port == 0)

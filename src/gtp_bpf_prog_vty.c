@@ -287,6 +287,8 @@ DEFUN(bpf_prog_no_shutdown,
 
 	vty_out(vty, "Success loading bpf-program:'%s'%s"
 		   , p->name, VTY_NEWLINE);
+	log_message(LOG_INFO, "Success loading bpf-program:'%s'"
+			    , p->name);
 	__clear_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
 	return CMD_SUCCESS;
 }

@@ -346,6 +346,8 @@ DEFUN(interface_no_shutdown,
 	iface->bpf_lnk = lnk;
 	vty_out(vty, "Success attaching bpf-program:'%s' to interface:'%s'%s"
 		   , iface->bpf_prog->name, iface->ifname, VTY_NEWLINE);
+	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
+			    , iface->bpf_prog->name, iface->ifname);
 
 	/* Metrics init */
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
