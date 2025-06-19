@@ -294,6 +294,7 @@ gtp_pppoe_socket_init(gtp_pppoe_t *pppoe, uint16_t proto, int id)
 	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(proto));
 	err = inet_setsockopt_broadcast(fd);
 	err = (err) ? : inet_setsockopt_promisc(fd, sll.sll_ifindex, true);
+	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 1000);
 	if (err) {
 		log_message(LOG_INFO, "%s(): #%d : Error creating pppoe channel on interface %s (%m)"
 				    , __FUNCTION__, id

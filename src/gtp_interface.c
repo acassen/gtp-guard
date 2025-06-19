@@ -50,6 +50,29 @@ extern data_t *daemon_data;
  * We are supporting Prometheus text-based-format:
  * https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
  */
+static int
+gtp_interface_metric_inuse(gtp_interface_t *iface, void *arg)
+{
+	__u16 *type = arg;
+
+	switch (*type >> 8) {
+	case IF_METRICS_GTP:
+		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
+			*type |= 1;
+		break;
+	case IF_METRICS_PPPOE:
+		if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
+			*type |= 1;
+		break;
+	case IF_METRICS_IPIP:
+		if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
+			*type |= 1;
+		break;
+	}
+
+	return 0;
+}
+
 static void
 gtp_interface_metrics_foreach_interface(int (*hdl) (gtp_interface_t *, void *,
 						    const char *, int, __u8, __u8),
@@ -115,6 +138,12 @@ gtp_interface_metrics_tmpl_dump(FILE *fp, const char *var, int var_type,
 				const char *desc, const char *type,
 				__u8 metric_type, __u8 direction)
 {
+	__u16 inuse = metric_type << 8;
+
+	gtp_interface_foreach_interface(gtp_interface_metric_inuse, &inuse);
+	if (!(inuse & 0xff))
+		return -1;
+
 	fprintf(fp, "#HELP %s %s\n#TYPE %s %s\n", var, desc, var, type);
 	gtp_interface_metrics_foreach_interface(gtp_interface_metrics_var_dump,
 						fp, var, var_type, metric_type, direction);
@@ -132,27 +161,30 @@ static const struct {
 } gtp_interface_metrics_set[] = {
 	{ "gtpguard_gtp_in_packet_total", METRIC_PACKET,
 	  "Count of received GTP packets", "counter", IF_METRICS_GTP, IF_DIRECTION_RX },
-
 	{ "gtpguard_gtp_in_byte_total",	METRIC_BYTE,
 	  "Count of received GTP bytes", "counter", IF_METRICS_GTP, IF_DIRECTION_RX},
-
 	{ "gtpguard_gtp_out_packet_total", METRIC_PACKET,
 	  "Count of transmitted GTP packets", "counter", IF_METRICS_GTP, IF_DIRECTION_TX },
-
 	{ "gtpguard_gtp_out_byte_total", METRIC_BYTE,
 	  "Count of transmitted GTP bytes", "counter", IF_METRICS_GTP, IF_DIRECTION_TX},
 
 	{ "gtpguard_pppoe_in_packet_total", METRIC_PACKET,
 	  "Count of received PPPoE packets", "counter", IF_METRICS_PPPOE, IF_DIRECTION_RX},
-
 	{ "gtpguard_pppoe_in_byte_total", METRIC_BYTE,
 	  "Count of received PPPoE bytes", "counter", IF_METRICS_PPPOE, IF_DIRECTION_RX},
-
 	{ "gtpguard_pppoe_out_packet_total", METRIC_PACKET,
 	  "Count of transmitted PPPoE packets", "counter", IF_METRICS_PPPOE, IF_DIRECTION_TX},
-
 	{ "gtpguard_pppoe_out_byte_total", METRIC_BYTE,
 	  "Count of transmitted PPPoE bytes", "counter", IF_METRICS_PPPOE, IF_DIRECTION_TX},
+
+	{ "gtpguard_ipip_in_packet_total", METRIC_PACKET,
+	  "Count of received IPIP packets", "counter", IF_METRICS_IPIP, IF_DIRECTION_RX},
+	{ "gtpguard_ipip_in_byte_total", METRIC_BYTE,
+	  "Count of received IPIP bytes", "counter", IF_METRICS_IPIP, IF_DIRECTION_RX},
+	{ "gtpguard_ipip_out_packet_total", METRIC_PACKET,
+	  "Count of transmitted IPIP packets", "counter", IF_METRICS_IPIP, IF_DIRECTION_TX},
+	{ "gtpguard_ipip_out_byte_total", METRIC_BYTE,
+	  "Count of transmitted IPIP bytes", "counter", IF_METRICS_IPIP, IF_DIRECTION_TX},
 
 	{ NULL, 0, NULL, NULL, 0, 0}
 };
