@@ -47,6 +47,19 @@ pthread_mutex_t gtp_pppoe_mutex = PTHREAD_MUTEX_INITIALIZER;
  *	PPPoE utilities
  */
 void
+gtp_pppoe_metrics_foreach(int (*hdl) (gtp_pppoe_t *, void *, const char *, int),
+				      void *arg, const char *var, int direction)
+{
+	list_head_t *l = &daemon_data->pppoe;
+	gtp_pppoe_t *pppoe;
+
+	pthread_mutex_lock(&gtp_pppoe_mutex);
+	list_for_each_entry(pppoe, l, next)
+		(*(hdl)) (pppoe, arg, var, direction);
+	pthread_mutex_unlock(&gtp_pppoe_mutex);
+}
+
+void
 gtp_pppoe_foreach(int (*hdl) (gtp_pppoe_t *, void *), void *arg)
 {
 	list_head_t *l = &daemon_data->pppoe;
@@ -556,6 +569,7 @@ __gtp_pppoe_release(gtp_pppoe_t *pppoe)
 	gtp_htab_destroy(&pppoe->unique_tab);
 	pkt_queue_destroy(&pppoe->pkt_q);
 	gtp_pppoe_monitor_vrrp_destroy(pppoe);
+	pppoe_metrics_destroy(pppoe);
 	FREE(pppoe);
 	return 0;
 }

@@ -73,7 +73,7 @@ class CommandClient:
 		try:
 			self.fd.connect((self.host, self.port))
 		except socket.error as msg:
-			return 'Error Connecting metrics service'
+			return 'Error Connecting to metrics service'
 
 		message_dict = {"cmd": cmd}
 		message_dict.update(kwargs)

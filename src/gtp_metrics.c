@@ -60,9 +60,10 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 		goto end;
 	}
 
-	/* TODO: Add metrics txt output */
+	/* metrics */
 	gtp_interface_metrics_dump(c->fp);
 	vrrp_metrics_dump(c->fp);
+	pppoe_metrics_dump(c->fp);
 
   end:
 	return 0;

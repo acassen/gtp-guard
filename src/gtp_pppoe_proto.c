@@ -208,7 +208,7 @@ pppoe_send_padi(spppoe_t *s)
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* metrics */
-	pppoe_metric_update(pppoe, PPPOE_METRIC_PADI);
+	pppoe_metric_update(pppoe, METRICS_DIR_OUT, PPPOE_METRIC_PADI);
 
 	/* send pkt */
 	return gtp_pppoe_disc_send(pppoe, pkt);
@@ -278,7 +278,7 @@ pppoe_send_padr(spppoe_t *s)
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* metrics */
-	pppoe_metric_update(pppoe, PPPOE_METRIC_PADR);
+	pppoe_metric_update(pppoe, METRICS_DIR_OUT, PPPOE_METRIC_PADR);
 
 	/* send pkt */
 	return gtp_pppoe_disc_send(pppoe, pkt);
@@ -302,7 +302,7 @@ pppoe_send_padt(spppoe_t *s)
 	pppoe_eth_pkt_pad(pkt->pbuff, p);
 
 	/* metrics */
-	pppoe_metric_update(pppoe, PPPOE_METRIC_PADT);
+	pppoe_metric_update(pppoe, METRICS_DIR_OUT, PPPOE_METRIC_PADT);
 
 	/* send pkt */
 	return gtp_pppoe_disc_send(pppoe, pkt);
@@ -503,7 +503,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 
 	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
 	if (ret < 0) {
-		pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 		return;
 	}
 	eh = (struct ether_header *) pkt->pbuff->head;
@@ -517,7 +517,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		len = ntohs(pt->len);
 		off += sizeof(*pt);
 		if (off + len > pkt_buffer_len(pkt->pbuff)) {
-			pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+			pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 			log_message(LOG_INFO, "%s(): %s: tag 0x%.4x len 0x%.4x is too long\n"
 					    , __FUNCTION__, pppoe->ifname
 					    , tag, len);
@@ -541,7 +541,7 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 
 			/* Make it 32bit strict parsing */
 			if (len != sizeof(*hunique)) {
-				pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				log_message(LOG_INFO, "%s(): %s: hunique len 0x%.4x is too long\n"
 						, __FUNCTION__, pppoe->ifname
 						, len);
@@ -602,7 +602,7 @@ breakbreak:
 	if (s && s->pppoe->bundle &&
 	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &s->pppoe->bundle->flags) &&
 	    (s->pppoe->ifindex != pppoe->ifindex)) {
-		pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 		PPPDEBUG(("%s: pppoe brd filtering..."
 			  " s->pppoe->ifindex(%d)!=pppoe->ifindex(%d)"
 			  " for " ETHER_FMT " session = 0x%.4x\n",
@@ -613,13 +613,20 @@ breakbreak:
 
 	switch (code) {
 	case PPPOE_CODE_PADI:
+		/* ignore, we are not access concentrator */
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADI);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
+		return;
 	case PPPOE_CODE_PADR:
 		/* ignore, we are not access concentrator */
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADR);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 		return;
 	case PPPOE_CODE_PADO:
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADO);
 		if (__test_bit(PPPOE_FL_STRICT_AC_NAME_BIT, &pppoe->flags)) {
 			if (!ac_name) {
-				pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				log_message(LOG_INFO, "%s(): %s: ignoring PADO with no AC_NAME"
 						    , pppoe->ifname
 						    , __FUNCTION__);
@@ -631,7 +638,7 @@ breakbreak:
 			 * messages according to locally configured AC_NAME. */
 			if (ac_name_len != pppoe->ac_name_len ||
 			    strncmp((char *)ac_name, pppoe->ac_name, ac_name_len)) {
-				pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				log_message(LOG_INFO, "%s(): %s: ignoring PADO for AC_NAME=%s"
 						    , __FUNCTION__
 						    , pppoe->ifname
@@ -641,13 +648,13 @@ breakbreak:
 		}
 
 		if (s == NULL) {
-			pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+			pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 			log_message(LOG_INFO, "%s(): %s: received PADO but could not find request for it"
 					    , __FUNCTION__, pppoe->ifname);
 			return;
 		}
 		if (s->state != PPPOE_STATE_PADI_SENT) {
-			pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+			pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 			log_message(LOG_INFO, "%s(): %s: received unexpected PADO (state:%d)"
 					    , __FUNCTION__, pppoe->ifname, s->state);
 			return;
@@ -657,7 +664,7 @@ breakbreak:
 				FREE(s->ac_cookie);
 			s->ac_cookie = MALLOC(ac_cookie_len);
 			if (s->ac_cookie == NULL) {
-				pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				s->ac_cookie_len = 0;
 				return;
 			}
@@ -673,7 +680,7 @@ breakbreak:
 				FREE(s->relay_sid);
 			s->relay_sid = MALLOC(relay_sid_len);
 			if (s->relay_sid == NULL) {
-				pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				s->relay_sid_len = 0;
 				return;
 			}
@@ -695,11 +702,11 @@ breakbreak:
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padr_retried);
 		timer_node_add(session_timer, &s->t_node, retry_wait);
-		pppoe_metric_update(pppoe, PPPOE_METRIC_PADO);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADO);
 		break;
 	case PPPOE_CODE_PADS:
 		if (s == NULL) {
-			pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+			pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 			return;
 		}
 
@@ -714,7 +721,7 @@ breakbreak:
 
 		/* Notify ppp layer */
 		sppp_up(s);
-		pppoe_metric_update(pppoe, PPPOE_METRIC_PADS);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADS);
 		break;
 	case PPPOE_CODE_PADT:
 		if (s == NULL) {
@@ -724,7 +731,7 @@ breakbreak:
 			s = spppoe_get_by_session(session_tab,
 						  (struct ether_addr *) eh->ether_dhost, session);
 			if (s == NULL) {
-				pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				return;
 			}
 		}
@@ -735,10 +742,10 @@ breakbreak:
 			 pppoe->ifname, s->unique, session));
 
 		sppp_down(s);
-		pppoe_metric_update(pppoe, PPPOE_METRIC_PADT);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADT);
 		break;
 	default:
-		pppoe_metric_update(pppoe, PPPOE_METRIC_DROPPED);
+		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 		log_message(LOG_INFO, "%s(): %s: unknown code (0x%04x) session = 0x%.4x"
 				    , __FUNCTION__, pppoe->ifname
 				    , code, session);

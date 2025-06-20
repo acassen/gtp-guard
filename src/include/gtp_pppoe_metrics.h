@@ -22,6 +22,12 @@
 #ifndef _GTP_PPPOE_METRICS_H
 #define _GTP_PPPOE_METRICS_H
 
+enum metrics_direction {
+	METRICS_DIR_IN = 0,
+	METRICS_DIR_OUT,
+	METRICS_DIR_MAX,
+};
+
 enum pppoe_metrics {
 	PPPOE_METRIC_TOTAL = 0,
 	PPPOE_METRIC_DROPPED,
@@ -44,12 +50,16 @@ enum ppp_metrics {
 	PPP_METRIC_MAX,
 };
 
+typedef struct _pppoe_metrics {
+	uint64_t	m[METRICS_DIR_MAX][PPPOE_METRIC_MAX];
+} pppoe_metrics_t;
+
 typedef struct _ppp_metrics {
-	uint64_t	dropped;
-	uint64_t	lcp[PPP_METRIC_MAX];
-	uint64_t	pap[PPP_METRIC_MAX];
-	uint64_t	ipcp[PPP_METRIC_MAX];
-	uint64_t	ipv6cp[PPP_METRIC_MAX];
+	uint64_t	dropped[METRICS_DIR_MAX];
+	uint64_t	lcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
+	uint64_t	pap[METRICS_DIR_MAX][PPP_METRIC_MAX];
+	uint64_t	ipcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
+	uint64_t	ipv6cp[METRICS_DIR_MAX][PPP_METRIC_MAX];
 } ppp_metrics_t;
 
 #endif

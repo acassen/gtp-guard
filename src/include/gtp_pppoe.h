@@ -135,7 +135,6 @@ enum pppoe_flags {
 	PPPOE_FL_STRICT_AC_NAME_BIT,
 	PPPOE_FL_METRIC_VRRP_BIT,
 	PPPOE_FL_METRIC_PPPOE_BIT,
-	PPPOE_FL_METRIC_PPP_BIT,
 };
 
 struct rps_opts {
@@ -213,8 +212,8 @@ typedef struct _gtp_pppoe {
 
 	/* metrics */
 	uint64_t		vrrp_pkt_rx;
-	uint64_t		pppoe_metrics[PPPOE_METRIC_MAX];
-	ppp_metrics_t		ppp_metrics;
+	pppoe_metrics_t		*pppoe_metrics;
+	ppp_metrics_t		*ppp_metrics;
 
 	list_head_t		next;
 
@@ -224,13 +223,18 @@ typedef struct _gtp_pppoe {
 /* Prototypes */
 extern int vrrp_metrics_dump(FILE *);
 extern int vrrp_metrics_reset(gtp_pppoe_t *);
-extern int pppoe_metric_update(gtp_pppoe_t *, int);
-extern int pppoe_metrics_reset(gtp_pppoe_t *);
-extern int ppp_metric_update(gtp_pppoe_t *, uint16_t, int);
-extern int ppp_metric_update_total(gtp_pppoe_t *, uint16_t);
-extern int ppp_metric_update_dropped(gtp_pppoe_t *);
+extern int ppp_metric_update(gtp_pppoe_t *, uint16_t, int, int);
+extern int ppp_metric_update_total(gtp_pppoe_t *, uint16_t, int);
+extern int ppp_metric_update_dropped(gtp_pppoe_t *, int);
 extern int ppp_metrics_reset(gtp_pppoe_t *);
+extern int pppoe_metric_update(gtp_pppoe_t *, int, int);
+extern int pppoe_metrics_reset(gtp_pppoe_t *);
+extern int pppoe_metrics_dump(FILE *);
+extern int pppoe_metrics_alloc(gtp_pppoe_t *);
+extern int pppoe_metrics_destroy(gtp_pppoe_t *);
 
+extern void gtp_pppoe_metrics_foreach(int (*hdl) (gtp_pppoe_t *, void *, const char *, int),
+				      void *, const char *, int);
 extern void gtp_pppoe_foreach(int (*hdl) (gtp_pppoe_t *, void *), void *);
 extern gtp_htab_t *gtp_pppoe_get_session_tab(gtp_pppoe_t *);
 extern gtp_htab_t *gtp_pppoe_get_unique_tab(gtp_pppoe_t *);

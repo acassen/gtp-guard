@@ -51,6 +51,8 @@ typedef struct _gtp_interface {
 
 /* Prototypes */
 extern int gtp_interface_metrics_dump(FILE *);
+extern void gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
+					  void *, const char *, int, __u8, __u8);
 extern void gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *);
 extern gtp_interface_t *gtp_interface_get(const char *);
 extern gtp_interface_t *gtp_interface_get_by_ifindex(int);
