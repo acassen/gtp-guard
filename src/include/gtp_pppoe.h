@@ -134,6 +134,8 @@ enum pppoe_flags {
 	PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT,
 	PPPOE_FL_STRICT_AC_NAME_BIT,
 	PPPOE_FL_METRIC_VRRP_BIT,
+	PPPOE_FL_METRIC_PPPOE_BIT,
+	PPPOE_FL_METRIC_PPP_BIT,
 };
 
 struct rps_opts {
@@ -211,6 +213,8 @@ typedef struct _gtp_pppoe {
 
 	/* metrics */
 	uint64_t		vrrp_pkt_rx;
+	uint64_t		pppoe_metrics[PPPOE_METRIC_MAX];
+	ppp_metrics_t		ppp_metrics;
 
 	list_head_t		next;
 

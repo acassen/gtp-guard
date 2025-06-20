@@ -395,11 +395,45 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 /*
  * Handle incoming PPP control protocol packets.
  */
+static int
+sppp_metric_update(gtp_pppoe_t *pppoe, uint16_t protocol, int metric)
+{
+	if (!__test_bit(PPPOE_FL_METRIC_PPP_BIT, &pppoe->flags) ||
+	    metric >= PPP_METRIC_MAX)
+		return -1;
+
+	switch (protocol) {
+	case PPP_LCP:
+		pppoe->ppp_metrics.lcp[PPP_METRIC_TOTAL]++;
+		pppoe->ppp_metrics.lcp[metric]++;
+		break;
+	case PPP_PAP:
+		pppoe->ppp_metrics.pap[PPP_METRIC_TOTAL]++;
+		pppoe->ppp_metrics.pap[metric]++;
+		break;
+	case PPP_IPCP:
+		pppoe->ppp_metrics.ipcp[PPP_METRIC_TOTAL]++;
+		pppoe->ppp_metrics.ipcp[metric]++;
+		break;
+	case PPP_IPV6CP:
+		pppoe->ppp_metrics.ipv6cp[PPP_METRIC_TOTAL]++;
+		pppoe->ppp_metrics.ipv6cp[metric]++;
+		break;
+	default:
+		if (!metric)
+			pppoe->ppp_metrics.dropped++;
+		break;
+	}
+
+	return 0;
+}
+
 static void
 sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	pkt_buffer_t *pbuff = pkt->pbuff;
+	uint16_t protocol = ntohs(*(uint16_t *) pbuff->data);
 	int rv, len = pbuff->end - pbuff->data;
 	lcp_hdr_t *h;
 	uint32_t nmagic;
@@ -474,6 +508,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		}
 		break;
 	case CONF_ACK:
+		sppp_metric_update(pppoe, protocol, PPP_METRIC_CONF_ACK);
 		if (h->ident != sp->confid[cp->protoidx]) {
 			PPPDEBUG(("%s: %s id mismatch 0x%x != 0x%x\n",
 				 pppoe->ifname, cp->name,
@@ -516,6 +551,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		break;
 	case CONF_NAK:
 	case CONF_REJ:
+		sppp_metric_update(pppoe, protocol, PPP_METRIC_CONF_NAK);
 		if (h->ident != sp->confid[cp->protoidx]) {
 			PPPDEBUG(("%s: %s id mismatch 0x%x != 0x%x\n",
 				 pppoe->ifname, cp->name,
@@ -766,17 +802,21 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 
 	switch (ntohs(ht.protocol)) {
 	case PPP_LCP:
+		sppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_TOTAL);
 		sppp_cp_input(&lcp, sp, pkt);
 		break;
 	case PPP_PAP:
+		sppp_metric_update(pppoe, PPP_PAP, PPP_METRIC_TOTAL);
 		if (sp->pp_phase >= PHASE_AUTHENTICATE)
 			sppp_pap_input(sp, pkt);
 		break;
 	case PPP_IPCP:
+		sppp_metric_update(pppoe, PPP_IPCP, PPP_METRIC_TOTAL);
 		if (sp->pp_phase == PHASE_NETWORK)
 			sppp_cp_input(&ipcp, sp, pkt);
 		break;
 	case PPP_IPV6CP:
+		sppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_TOTAL);
 		if (sp->pp_phase == PHASE_NETWORK)
 			sppp_cp_input(&ipv6cp, sp, pkt);
 		return;
@@ -785,6 +825,7 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 		/* data-plane offloaded: if not: ignore */
 		break;
 	default:
+		sppp_metric_update(pppoe, 0, 0);
 		if (sp->state[IDX_LCP] == STATE_OPENED)
 			sppp_cp_send(sp, PPP_LCP, PROTO_REJ,
 				     ++sp->pp_seq, 2, &ht.protocol);

@@ -59,6 +59,7 @@
 #include "gtp_conn.h"
 #include "gtp_stats.h"
 #include "gtp_server.h"
+#include "gtp_pppoe_metrics.h"
 #include "gtp_pppoe.h"
 #include "gtp_pppoe_session.h"
 #include "gtp_pppoe_proto.h"
