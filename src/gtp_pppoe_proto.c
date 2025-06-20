@@ -151,19 +151,6 @@ pppoe_eth_pkt_pad(pkt_buffer_t *b, uint8_t *p)
 	return 0;
 }
 
-/* metrics */
-static int
-pppoe_metric_update(gtp_pppoe_t *pppoe, int metric)
-{
-	if (!__test_bit(PPPOE_FL_METRIC_PPPOE_BIT, &pppoe->flags) ||
-	    metric >= PPPOE_METRIC_MAX)
-		return -1;
-
-	pppoe->pppoe_metrics[PPPOE_METRIC_TOTAL]++;
-	pppoe->pppoe_metrics[metric]++;
-	return 0;
-}
-
 int
 pppoe_send_padi(spppoe_t *s)
 {

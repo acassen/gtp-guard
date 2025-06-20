@@ -395,39 +395,6 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 /*
  * Handle incoming PPP control protocol packets.
  */
-static int
-sppp_metric_update(gtp_pppoe_t *pppoe, uint16_t protocol, int metric)
-{
-	if (!__test_bit(PPPOE_FL_METRIC_PPP_BIT, &pppoe->flags) ||
-	    metric >= PPP_METRIC_MAX)
-		return -1;
-
-	switch (protocol) {
-	case PPP_LCP:
-		pppoe->ppp_metrics.lcp[PPP_METRIC_TOTAL]++;
-		pppoe->ppp_metrics.lcp[metric]++;
-		break;
-	case PPP_PAP:
-		pppoe->ppp_metrics.pap[PPP_METRIC_TOTAL]++;
-		pppoe->ppp_metrics.pap[metric]++;
-		break;
-	case PPP_IPCP:
-		pppoe->ppp_metrics.ipcp[PPP_METRIC_TOTAL]++;
-		pppoe->ppp_metrics.ipcp[metric]++;
-		break;
-	case PPP_IPV6CP:
-		pppoe->ppp_metrics.ipv6cp[PPP_METRIC_TOTAL]++;
-		pppoe->ppp_metrics.ipv6cp[metric]++;
-		break;
-	default:
-		if (!metric)
-			pppoe->ppp_metrics.dropped++;
-		break;
-	}
-
-	return 0;
-}
-
 static void
 sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 {
@@ -508,7 +475,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		}
 		break;
 	case CONF_ACK:
-		sppp_metric_update(pppoe, protocol, PPP_METRIC_CONF_ACK);
+		ppp_metric_update(pppoe, protocol, PPP_METRIC_CONF_ACK);
 		if (h->ident != sp->confid[cp->protoidx]) {
 			PPPDEBUG(("%s: %s id mismatch 0x%x != 0x%x\n",
 				 pppoe->ifname, cp->name,
@@ -551,7 +518,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		break;
 	case CONF_NAK:
 	case CONF_REJ:
-		sppp_metric_update(pppoe, protocol, PPP_METRIC_CONF_NAK);
+		ppp_metric_update(pppoe, protocol, PPP_METRIC_CONF_NAK);
 		if (h->ident != sp->confid[cp->protoidx]) {
 			PPPDEBUG(("%s: %s id mismatch 0x%x != 0x%x\n",
 				 pppoe->ifname, cp->name,
@@ -802,21 +769,21 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 
 	switch (ntohs(ht.protocol)) {
 	case PPP_LCP:
-		sppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_TOTAL);
+		ppp_metric_update_total(pppoe, PPP_LCP);
 		sppp_cp_input(&lcp, sp, pkt);
 		break;
 	case PPP_PAP:
-		sppp_metric_update(pppoe, PPP_PAP, PPP_METRIC_TOTAL);
+		ppp_metric_update_total(pppoe, PPP_PAP);
 		if (sp->pp_phase >= PHASE_AUTHENTICATE)
 			sppp_pap_input(sp, pkt);
 		break;
 	case PPP_IPCP:
-		sppp_metric_update(pppoe, PPP_IPCP, PPP_METRIC_TOTAL);
+		ppp_metric_update_total(pppoe, PPP_IPCP);
 		if (sp->pp_phase == PHASE_NETWORK)
 			sppp_cp_input(&ipcp, sp, pkt);
 		break;
 	case PPP_IPV6CP:
-		sppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_TOTAL);
+		ppp_metric_update_total(pppoe, PPP_IPV6CP);
 		if (sp->pp_phase == PHASE_NETWORK)
 			sppp_cp_input(&ipv6cp, sp, pkt);
 		return;
@@ -825,7 +792,7 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 		/* data-plane offloaded: if not: ignore */
 		break;
 	default:
-		sppp_metric_update(pppoe, 0, 0);
+		ppp_metric_update_dropped(pppoe);
 		if (sp->state[IDX_LCP] == STATE_OPENED)
 			sppp_cp_send(sp, PPP_LCP, PROTO_REJ,
 				     ++sp->pp_seq, 2, &ht.protocol);
@@ -1107,6 +1074,7 @@ sppp_lcp_up(sppp_t *sp)
 		lcp.Open(sp);
 	}
 
+	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_UP);
 	sppp_up_event(&lcp, sp);
 }
 
@@ -1115,6 +1083,7 @@ sppp_lcp_down(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
+	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_DOWN);
 	sppp_down_event(&lcp, sp);
 
 	PPPDEBUG(("%s: Down event (carrier loss)\n", pppoe->ifname));
@@ -1128,6 +1097,8 @@ sppp_lcp_down(sppp_t *sp)
 void
 sppp_lcp_open(sppp_t *sp)
 {
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
 	/*
 	 * If we are authenticator, negotiate LCP_AUTH
 	 */
@@ -1136,12 +1107,17 @@ sppp_lcp_open(sppp_t *sp)
 	else
 		__clear_bit(LCP_OPT_AUTH_PROTO, &sp->lcp.opts);
 	sp->pp_flags &= ~PP_NEEDAUTH;
+
+	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_OPEN);
 	sppp_open_event(&lcp, sp);
 }
 
 void
 sppp_lcp_close(sppp_t *sp)
 {
+	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+
+	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_CLOSE);
 	sppp_close_event(&lcp, sp);
 }
 
@@ -1655,24 +1631,28 @@ sppp_ipcp_destroy(sppp_t *sp)
 void
 sppp_ipcp_up(sppp_t *sp)
 {
+	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_UP);
 	sppp_up_event(&ipcp, sp);
 }
 
 void
 sppp_ipcp_down(sppp_t *sp)
 {
+	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_DOWN);
 	sppp_down_event(&ipcp, sp);
 }
 
 void
 sppp_ipcp_open(sppp_t *sp)
 {
+	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_OPEN);
 	sppp_open_event(&ipcp, sp);
 }
 
 void
 sppp_ipcp_close(sppp_t *sp)
 {
+	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_CLOSE);
 	sppp_close_event(&ipcp, sp);
 }
 
@@ -2045,6 +2025,7 @@ sppp_ipv6cp_up(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
+	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_UP);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
 		return;
 	sppp_up_event(&ipv6cp, sp);
@@ -2053,6 +2034,7 @@ sppp_ipv6cp_up(sppp_t *sp)
 void
 sppp_ipv6cp_down(sppp_t *sp)
 {
+	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPV6CP, PPP_METRIC_DOWN);
 	sppp_down_event(&ipv6cp, sp);
 }
 
@@ -2061,6 +2043,7 @@ sppp_ipv6cp_open(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
+	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_OPEN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
 		return;
 	sp->ipv6cp.opts |= (1 << IPV6CP_OPT_IFID);
@@ -2072,6 +2055,7 @@ sppp_ipv6cp_close(sppp_t *sp)
 {
 	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
+	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_CLOSE);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
 		return;
 	sppp_close_event(&ipv6cp, sp);
@@ -2587,6 +2571,7 @@ sppp_pap_open(sppp_t *sp)
 		ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
 		timer_node_add(ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
 	}
+	ppp_metric_update(pppoe, PPP_PAP, PPP_METRIC_OPEN);
 }
 
 void
@@ -2594,6 +2579,7 @@ sppp_pap_close(sppp_t *sp)
 {
 	if (sp->state[IDX_PAP] != STATE_CLOSED)
 		sppp_cp_change_state(&pap, sp, STATE_CLOSED);
+	ppp_metric_update(sp->s_pppoe->pppoe, PPP_PAP, PPP_METRIC_CLOSE);
 }
 
 /*

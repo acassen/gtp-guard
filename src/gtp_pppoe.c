@@ -44,52 +44,6 @@ pthread_mutex_t gtp_pppoe_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 /*
- *	PPPoE metrics
- */
-static int
-gtp_pppoe_vrrp_inuse(gtp_pppoe_t *pppoe, void *arg)
-{
-	bool *inuse = arg;
-
-	if (__test_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags) &&
-	    __test_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags))
-		*inuse = true;
-
-	return 0;
-}
-
-static int
-gtp_vrrp_metrics_tmpl_dump(gtp_pppoe_t *pppoe, void *arg)
-{
-	FILE *fp = arg;
-
-	if (!__test_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags) ||
-	    !__test_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags))
-		return -1;
-
-	fprintf(fp, "gtpguard_vrrp_in_packet_total{interface=\"%s\"} %ld\n"
-		  , pppoe->ifname, pppoe->vrrp_pkt_rx);
-	return 0;
-}
-
-int
-gtp_vrrp_metrics_dump(FILE *fp)
-{
-	bool inuse = false;
-
-	gtp_pppoe_foreach(gtp_pppoe_vrrp_inuse, &inuse);
-	if (!inuse)
-		return -1;
-
-	fprintf(fp, "#HELP gtpguard_vrrp_in_packet_total Count of received VRRP packets\n"
-		    "#TYPE gtpguard_vrrp_in_packet_total counter\n");
-	gtp_pppoe_foreach(gtp_vrrp_metrics_tmpl_dump, fp);
-	return 0;
-}
-
-
-
-/*
  *	PPPoE utilities
  */
 void

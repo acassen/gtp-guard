@@ -490,6 +490,62 @@ DEFUN(pppoe_metric_vrrp,
 	return CMD_SUCCESS;
 }
 
+DEFUN(reset_pppoe_metric_vrrp,
+      reset_pppoe_metric_vrrp_cmd,
+      "reset metric vrrp",
+      "Reset VRRP incoming packet monitor metric\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	vrrp_metrics_reset(pppoe);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pppoe_metric_vrrp,
+      no_pppoe_metric_vrrp_cmd,
+      "no metric vrrp",
+      "Disable VRRP incoming packet monitor metric\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	__clear_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(pppoe_metric_ppp,
+      pppoe_metric_ppp_cmd,
+      "metric ppp",
+      "Enable PPP incoming packet metric\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	__set_bit(PPPOE_FL_METRIC_PPP_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(reset_pppoe_metric_ppp,
+      reset_pppoe_metric_ppp_cmd,
+      "reset metric ppp",
+      "Reset PPP incoming packet metric\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	pppoe_metrics_reset(pppoe);
+	ppp_metrics_reset(pppoe);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pppoe_metric_ppp,
+      no_pppoe_metric_ppp_cmd,
+      "no metric ppp",
+      "Disable PPP incoming packet metric\n")
+{
+	gtp_pppoe_t *pppoe = vty->index;
+
+	__clear_bit(PPPOE_FL_METRIC_PPP_BIT, &pppoe->flags);
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	PPPoE Bundle Commands
@@ -767,6 +823,8 @@ gtp_config_pppoe_write(vty_t *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags))
 			vty_out(vty, " metric vrrp%s", VTY_NEWLINE);
+		if (__test_bit(PPPOE_FL_METRIC_PPP_BIT, &pppoe->flags))
+			vty_out(vty, " metric ppp%s", VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -828,6 +886,11 @@ gtp_pppoe_vty_init(void)
 	install_element(PPPOE_NODE, &pppoe_lcp_max_configure_cmd);
 	install_element(PPPOE_NODE, &pppoe_lcp_max_failure_cmd);
 	install_element(PPPOE_NODE, &pppoe_metric_vrrp_cmd);
+	install_element(PPPOE_NODE, &reset_pppoe_metric_vrrp_cmd);
+	install_element(PPPOE_NODE, &no_pppoe_metric_vrrp_cmd);
+	install_element(PPPOE_NODE, &pppoe_metric_ppp_cmd);
+	install_element(PPPOE_NODE, &reset_pppoe_metric_ppp_cmd);
+	install_element(PPPOE_NODE, &no_pppoe_metric_ppp_cmd);
 
 	/* Install PPPoE Bundle commands. */
 	install_node(&pppoe_bundle_node);

@@ -222,7 +222,15 @@ typedef struct _gtp_pppoe {
 } gtp_pppoe_t;
 
 /* Prototypes */
-extern int gtp_vrrp_metrics_dump(FILE *);
+extern int vrrp_metrics_dump(FILE *);
+extern int vrrp_metrics_reset(gtp_pppoe_t *);
+extern int pppoe_metric_update(gtp_pppoe_t *, int);
+extern int pppoe_metrics_reset(gtp_pppoe_t *);
+extern int ppp_metric_update(gtp_pppoe_t *, uint16_t, int);
+extern int ppp_metric_update_total(gtp_pppoe_t *, uint16_t);
+extern int ppp_metric_update_dropped(gtp_pppoe_t *);
+extern int ppp_metrics_reset(gtp_pppoe_t *);
+
 extern void gtp_pppoe_foreach(int (*hdl) (gtp_pppoe_t *, void *), void *);
 extern gtp_htab_t *gtp_pppoe_get_session_tab(gtp_pppoe_t *);
 extern gtp_htab_t *gtp_pppoe_get_unique_tab(gtp_pppoe_t *);
