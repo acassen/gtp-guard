@@ -38,8 +38,62 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 
+/*
+ *	Utilities
+ */
+int
+gtp_metrics_rx(gtp_metrics_msg_t *m, uint8_t msg_type)
+{
+	m->rx[msg_type].count++;
+	return 0;
+}
 
+int
+gtp_metrics_rx_notsup(gtp_metrics_msg_t *m, uint8_t msg_type)
+{
+	m->rx[msg_type].unsupported++;
+	return 0;
+}
 
+int
+gtp_metrics_tx(gtp_metrics_msg_t *m, uint8_t msg_type)
+{
+	m->tx[msg_type].count++;
+	return 0;
+}
+
+int
+gtp_metrics_tx_notsup(gtp_metrics_msg_t *m, uint8_t msg_type)
+{
+	m->tx[msg_type].unsupported++;
+	return 0;
+}
+
+int
+gtp_metrics_pkt_update(gtp_metrics_pkt_t *m, ssize_t nbytes)
+{
+	if (nbytes <= 0)
+		return -1;
+
+	m->bytes += nbytes;
+	m->count++;
+	return 0;
+}
+
+int
+gtp_metrics_cause_update(gtp_metrics_cause_t *m, pkt_buffer_t *pbuff)
+{
+	gtp_ie_cause_t *ie_cause;
+	uint8_t *cp;
+
+	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, pbuff);
+	if (!cp)
+		return -1;
+
+	ie_cause = (gtp_ie_cause_t *) cp;
+	m->cause[ie_cause->value]++;
+	return 0;
+}
 
 
 /*
@@ -104,7 +158,7 @@ gtp_metrics_srv_prepare(inet_server_t *s)
 
 
 /*
- *	GTP Request init
+ *	GTP Metrics init
  */
 int
 gtp_metrics_init(void)

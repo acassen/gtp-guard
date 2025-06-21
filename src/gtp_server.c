@@ -48,7 +48,7 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 				       , 0, addr, addrlen);
 
 	/* stats */
-	gtp_stats_pkt_update(&w->rx_stats, nbytes);
+	gtp_metrics_pkt_update(&w->rx_metrics, nbytes);
 
 	return nbytes;
 }
@@ -63,9 +63,9 @@ gtp_server_send(gtp_server_worker_t *w, int fd, struct sockaddr_in *addr)
 				  , 0, addr, sizeof(*addr));
 
 	/* stats */
-	gtp_stats_pkt_update(&w->tx_stats, nbytes);
-	gtp_stats_tx(&w->msg_stats, h->type);
-	gtp_stats_cause_update(&w->cause_tx_stats, w->pbuff);
+	gtp_metrics_pkt_update(&w->tx_metrics, nbytes);
+	gtp_metrics_tx(&w->msg_metrics, h->type);
+	gtp_metrics_cause_update(&w->cause_tx_metrics, w->pbuff);
 
 	return nbytes;
 }
@@ -78,9 +78,9 @@ gtp_server_send_async(gtp_server_worker_t *w, pkt_buffer_t *pbuff, struct sockad
 	ssize_t nbytes = pkt_buffer_send(w->fd, pbuff, (struct sockaddr_storage *) addr);
 
 	/* stats */
-	gtp_stats_pkt_update(&w->tx_stats, pkt_buffer_len(pbuff));
-	gtp_stats_tx(&w->msg_stats, h->type);
-	gtp_stats_cause_update(&w->cause_tx_stats, pbuff);
+	gtp_metrics_pkt_update(&w->tx_metrics, pkt_buffer_len(pbuff));
+	gtp_metrics_tx(&w->msg_metrics, h->type);
+	gtp_metrics_cause_update(&w->cause_tx_metrics, pbuff);
 
 	return nbytes;
 }

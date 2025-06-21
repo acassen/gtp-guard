@@ -252,8 +252,7 @@ bpf_rps_filter_init(gtp_pppoe_worker_t *w, int fd, const char *filename)
 static int
 gtp_pppoe_send(gtp_pppoe_t *pppoe, gtp_pppoe_worker_t *w, pkt_t *pkt)
 {
-	/* stats */
-	gtp_stats_pkt_update(&w->tx_stats, pkt_buffer_len(pkt->pbuff));
+	gtp_metrics_pkt_update(&w->tx_metrics, pkt_buffer_len(pkt->pbuff));
 
 	return pkt_send(w->fd, &pppoe->pkt_q, pkt);
 }
@@ -300,8 +299,7 @@ gtp_pppoe_ingress(pkt_t *pkt, void *arg)
 		break;
 	}
 
-	/* stats */
-	gtp_stats_pkt_update(&w->rx_stats, pkt_buffer_len(pkt->pbuff));
+	gtp_metrics_pkt_update(&w->rx_metrics, pkt_buffer_len(pkt->pbuff));
 }
 
 static int

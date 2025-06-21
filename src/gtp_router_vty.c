@@ -242,7 +242,7 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 	vty_out(vty, "   %s worker:#%.2d task:0x%lx fd:%d(%s)%s"
 		     "    flags:%s%s"
 		     "    seed:%d pbuff:%p (len:%d size:%d bytes)%s"
-		     "    rx:%"PRIu64"bytes %"PRIu64"pkts | tx:%"PRIu64"bytes %"PRIu64"pkts%s"
+		     "    rx:%"PRIu64"packets %"PRIu64"bytes | tx:%"PRIu64"packets %"PRIu64"bytes%s"
 		   , w->pname
 		   , w->id
 		   , w->task
@@ -253,55 +253,55 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 		   , w->seed , w->pbuff
 		   , pkt_buffer_len(w->pbuff), pkt_buffer_size(w->pbuff)
 		   , VTY_NEWLINE
-		   , w->rx_stats.bytes, w->rx_stats.pkts
-		   , w->tx_stats.bytes, w->tx_stats.pkts
+		   , w->rx_metrics.count, w->rx_metrics.bytes
+		   , w->tx_metrics.count, w->tx_metrics.bytes
 		   , VTY_NEWLINE);
 
 	vty_out(vty, "    RX:%s", VTY_NEWLINE);
-	for (i = 0; i < ARRAY_SIZE(w->msg_stats.rx); i++) {
-		if (w->msg_stats.rx[i].count)
+	for (i = 0; i < ARRAY_SIZE(w->msg_metrics.rx); i++) {
+		if (w->msg_metrics.rx[i].count)
 			vty_out(vty, "     %s(%d): %d%s"
 				   , gtp_msgtype2str(type, i)
 				   , i
-				   , w->msg_stats.rx[i].count
+				   , w->msg_metrics.rx[i].count
 				   , VTY_NEWLINE);
 
-		if (w->msg_stats.rx[i].unsupported)
+		if (w->msg_metrics.rx[i].unsupported)
 			vty_out(vty, "     %s(%d): %d (not supported)%s"
 				   , gtp_msgtype2str(type, i)
 				   , i
-				   , w->msg_stats.rx[i].unsupported
+				   , w->msg_metrics.rx[i].unsupported
 				   , VTY_NEWLINE);
 
-		if (w->cause_rx_stats.cause[i])
+		if (w->cause_rx_metrics.cause[i])
 			vty_out(vty, "     %s(%d): %d%s"
 				   , gtpc_cause2str(i)
 				   , i
-				   , w->cause_rx_stats.cause[i]
+				   , w->cause_rx_metrics.cause[i]
 				   , VTY_NEWLINE);
 	}
 
 	vty_out(vty, "    TX:%s", VTY_NEWLINE);
-	for (i = 0; i < ARRAY_SIZE(w->msg_stats.tx); i++) {
-		if (w->msg_stats.tx[i].count)
+	for (i = 0; i < ARRAY_SIZE(w->msg_metrics.tx); i++) {
+		if (w->msg_metrics.tx[i].count)
 			vty_out(vty, "     %s(%d): %d%s"
 				   , gtp_msgtype2str(type, i)
 				   , i
-				   , w->msg_stats.tx[i].count
+				   , w->msg_metrics.tx[i].count
 				   , VTY_NEWLINE);
 
-		if (w->msg_stats.tx[i].unsupported)
+		if (w->msg_metrics.tx[i].unsupported)
 			vty_out(vty, "     %s(%d): %d (not supported)%s"
 				   , gtp_msgtype2str(type, i)
 				   , i
-				   , w->msg_stats.tx[i].unsupported
+				   , w->msg_metrics.tx[i].unsupported
 				   , VTY_NEWLINE);
 
-		if (w->cause_tx_stats.cause[i])
+		if (w->cause_tx_metrics.cause[i])
 			vty_out(vty, "     %s(%d): %d%s"
 				   , gtpc_cause2str(i)
 				   , i
-				   , w->cause_tx_stats.cause[i]
+				   , w->cause_tx_metrics.cause[i]
 				   , VTY_NEWLINE);
 	}
 

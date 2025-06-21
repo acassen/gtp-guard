@@ -33,11 +33,11 @@ typedef struct _gtp_server_worker {
 	unsigned int		seed;
 
 	/* stats */
-	gtp_stats_pkt_t		rx_stats;
-	gtp_stats_pkt_t		tx_stats;
-	gtp_stats_cause_t	cause_rx_stats;
-	gtp_stats_cause_t	cause_tx_stats;
-	gtp_stats_msg_t		msg_stats;
+	gtp_metrics_pkt_t	rx_metrics;
+	gtp_metrics_pkt_t	tx_metrics;
+	gtp_metrics_cause_t	cause_rx_metrics;
+	gtp_metrics_cause_t	cause_tx_metrics;
+	gtp_metrics_msg_t	msg_metrics;
 
 	list_head_t		next;
 
