@@ -107,6 +107,7 @@ typedef struct _gtp_apn {
 	ip_vrf_t		*vrf;
 	gtp_plmn_t		egci_plmn;
 	gtp_cdr_spool_t		*cdr_spool;
+	int			session_count;
 
 	list_head_t		naptr;
 	list_head_t		service_selection;
@@ -127,6 +128,7 @@ typedef struct _gtp_apn {
 
 
 /* Prototypes */
+extern void gtp_apn_foreach(int (*hdl) (gtp_apn_t *, void *), void *);
 extern gtp_rewrite_rule_t *gtp_rewrite_rule_alloc(gtp_apn_t *, list_head_t *);
 extern int apn_resolv_cache_realloc(gtp_apn_t *);
 extern void *apn_resolv_cache_task(void *);
@@ -143,7 +145,6 @@ extern gtp_apn_t *gtp_apn_alloc(const char *);
 extern gtp_pco_t *gtp_apn_pco(gtp_apn_t *);
 extern int gtp_apn_destroy(void);
 extern gtp_apn_t *gtp_apn_get(const char *);
-extern int gtp_apn_for_each_vty(vty_t *, void (*hdl) (vty_t *, gtp_apn_t *));
 extern int gtp_apn_cdr_commit(gtp_apn_t *, gtp_cdr_t *);
 
 #endif

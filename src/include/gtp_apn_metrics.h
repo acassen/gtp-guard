@@ -19,43 +19,12 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _GTP_METRICS_H
-#define _GTP_METRICS_H
-
-/* defines */
-#define GTP_METRIC_MAX_MSG	(1 << 8)
-#define METRIC_PACKET		0
-#define METRIC_BYTE		1
-
-/* types */
-typedef struct _gtp_metric {
-	uint32_t		count;
-	uint32_t		unsupported;
-} gtp_metric_t;
-
-typedef struct _gtp_metrics_msg {
-	gtp_metric_t		rx[GTP_METRIC_MAX_MSG];
-	gtp_metric_t		tx[GTP_METRIC_MAX_MSG];
-} gtp_metrics_msg_t;
-
-typedef struct _gtp_metrics_cause {
-	uint32_t		cause[GTP_METRIC_MAX_MSG];
-} gtp_metrics_cause_t;
-
-typedef struct _gtp_metrics_pkt {
-	uint64_t		count;
-	uint64_t		bytes;
-} gtp_metrics_pkt_t;
+#ifndef _GTP_APN_METRICS_H
+#define _GTP_APN_METRICS_H
 
 
 /* Prototypes */
-extern int gtp_metrics_rx(gtp_metrics_msg_t *, uint8_t);
-extern int gtp_metrics_rx_notsup(gtp_metrics_msg_t *, uint8_t);
-extern int gtp_metrics_tx(gtp_metrics_msg_t *, uint8_t);
-extern int gtp_metrics_tx_notsup(gtp_metrics_msg_t *, uint8_t);
-extern int gtp_metrics_pkt_update(gtp_metrics_pkt_t *, ssize_t);
-extern int gtp_metrics_cause_update(gtp_metrics_cause_t *, pkt_buffer_t *);
-extern int gtp_metrics_init(void);
-extern int gtp_metrics_destroy(void);
+extern int gtp_apn_metrics_dump(FILE *);
+
 
 #endif

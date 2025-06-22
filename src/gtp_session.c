@@ -42,6 +42,18 @@ static timer_thread_t gtp_session_timer;
 
 
 /*
+ *	GTP Sessions tracking
+ */
+static int gtp_sessions_count = 0;
+
+int
+gtp_sessions_count_read(void)
+{
+	return gtp_sessions_count;
+}
+
+
+/*
  *	Session handling
  */
 gtp_teid_t *
@@ -175,6 +187,7 @@ gtp_session_add(gtp_conn_t *c, gtp_session_t *s)
 	list_add_tail(&s->next, &c->gtp_sessions);
 	__sync_add_and_fetch(&c->refcnt, 1);
 	pthread_mutex_unlock(&c->session_mutex);
+	__sync_add_and_fetch(&gtp_sessions_count, 1);
 
 	return 0;
 }
@@ -255,7 +268,7 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 
 	gtp_session_add(c, new);
 	gtp_session_add_timer(new);
-
+	__sync_add_and_fetch(&apn->session_count, 1);
 	return new;
 }
 
@@ -368,6 +381,8 @@ __gtp_session_send_delete_bearer(gtp_session_t *s)
 static int
 __gtp_session_free(gtp_session_t *s)
 {
+	__sync_sub_and_fetch(&s->apn->session_count, 1);
+	__sync_sub_and_fetch(&gtp_sessions_count, 1);
 	__gtp_session_teid_destroy(s);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
 	__spppoe_destroy(s->s_pppoe);

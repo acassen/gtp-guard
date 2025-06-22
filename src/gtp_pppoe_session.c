@@ -39,8 +39,16 @@ extern thread_master_t *master;
 
 
 /*
- *	PPPoE Session tracking
+ *	PPPoE Sessions tracking
  */
+static int pppoe_sessions_count = 0;
+
+int
+spppoe_sessions_count_read(void)
+{
+	return pppoe_sessions_count;
+}
+
 
 /* Host-Unique related */
 static struct hlist_head *
@@ -277,6 +285,7 @@ spppoe_add(gtp_conn_t *c, spppoe_t *s)
 	pthread_mutex_unlock(&c->session_mutex);
 
 	__sync_add_and_fetch(&pppoe->session_count, 1);
+	__sync_add_and_fetch(&pppoe_sessions_count, 1);
 	return 0;
 }
 
@@ -288,6 +297,7 @@ __spppoe_del(gtp_conn_t *c, spppoe_t *s)
 	list_head_del(&s->next);
 	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
 	__sync_sub_and_fetch(&pppoe->session_count, 1);
+	__sync_sub_and_fetch(&pppoe_sessions_count, 1);
 	return 0;
 }
 

@@ -20,14 +20,7 @@
  */
 
 /* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/un.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"
@@ -97,6 +90,30 @@ gtp_metrics_cause_update(gtp_metrics_cause_t *m, pkt_buffer_t *pbuff)
 
 
 /*
+ *	Metrics dump
+ */
+static int
+gtp_sessions_metrics_tmpl_dump(gtp_apn_t *apn, void *arg)
+{
+	fprintf((FILE *) arg, "%s{apn=\"%s\"} %d\n"
+			    , "gtpguard_gtp_sessions_current"
+			    , apn->name, apn->session_count);
+	return 0;
+}
+
+static int
+gtp_metrics_dump(FILE *fp)
+{
+	fprintf(fp, "# HELP gtpguard_gtp_sessions_current Number of current GTP sessions\n"
+		    "# TYPE gtpguard_gtp_sessions_current gauge\n");
+	fprintf(fp, "gtpguard_gtp_sessions_current %d\n", gtp_sessions_count_read());
+	gtp_apn_foreach(gtp_sessions_metrics_tmpl_dump, fp);
+	fprintf(fp, "\n");
+	return 0;
+}
+
+
+/*
  *	Handle request
  */
 static int
@@ -118,6 +135,7 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 	gtp_interface_metrics_dump(c->fp);
 	vrrp_metrics_dump(c->fp);
 	pppoe_metrics_dump(c->fp);
+	gtp_metrics_dump(c->fp);
 
   end:
 	return 0;

@@ -53,6 +53,7 @@ typedef struct _gtp_conn {
 
 
 /* Prototypes */
+extern int gtp_conn_count_read(void);
 extern int gtp_conn_get(gtp_conn_t *);
 extern int gtp_conn_put(gtp_conn_t *);
 extern gtp_conn_t *gtp_conn_alloc(uint64_t);

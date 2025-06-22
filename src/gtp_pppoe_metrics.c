@@ -19,18 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <net/if.h>
-#include <linux/if_packet.h>
-#include <errno.h>
-#include <libbpf.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -78,8 +66,8 @@ vrrp_metrics_dump(FILE *fp)
 	if (!inuse)
 		return -1;
 
-	fprintf(fp, "#HELP gtpguard_vrrp_in_packet_total Count of received VRRP packets\n"
-		    "#TYPE gtpguard_vrrp_in_packet_total counter\n");
+	fprintf(fp, "# HELP gtpguard_vrrp_in_packet_total Count of received VRRP packets\n"
+		    "# TYPE gtpguard_vrrp_in_packet_total counter\n");
 	gtp_pppoe_foreach(vrrp_metrics_tmpl_dump, fp);
 	fprintf(fp, "\n");
 	return 0;
@@ -168,24 +156,24 @@ ppp_metrics_var_dump(gtp_pppoe_t *pppoe, void *arg, const char *var, int directi
 		return -1;
 
 	fprintf(fp, "%s{interface=\"%s\",type=\"ppp-dropped\"} %ld\n"
-			, var, pppoe->name
+			, var, pppoe->ifname
 			, metrics->dropped[direction]);
 
 	for (i = 0; i < PPP_METRIC_MAX; i++) {
 		fprintf(fp, "%s{interface=\"%s\",type=\"%s-%s\"} %ld\n"
-			  , var, pppoe->name
+			  , var, pppoe->ifname
 			  , "lcp", ppp_metrics_name[i]
 			  , metrics->lcp[direction][i]);
 		fprintf(fp, "%s{interface=\"%s\",type=\"%s-%s\"} %ld\n"
-			  , var, pppoe->name
+			  , var, pppoe->ifname
 			  , "pap", ppp_metrics_name[i]
 			  , metrics->pap[direction][i]);
 		fprintf(fp, "%s{interface=\"%s\",type=\"%s-%s\"} %ld\n"
-			  , var, pppoe->name
+			  , var, pppoe->ifname
 			  , "ipcp", ppp_metrics_name[i]
 			  , metrics->ipcp[direction][i]);
 		fprintf(fp, "%s{interface=\"%s\",type=\"%s-%s\"} %ld\n"
-			  , var, pppoe->name
+			  , var, pppoe->ifname
 			  , "ipv6cp", ppp_metrics_name[i]
 			  , metrics->ipv6cp[direction][i]);
 	}
@@ -251,7 +239,7 @@ pppoe_metrics_var_dump(gtp_pppoe_t *pppoe, void *arg, const char *var, int direc
 
 	for (i = 0; i < PPPOE_METRIC_MAX; i++)
 		fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %ld\n"
-			  , var, pppoe->name
+			  , var, pppoe->ifname
 			  , pppoe_metrics_name[i]
 			  , pppoe->pppoe_metrics->m[direction][i]);
 	ppp_metrics_var_dump(pppoe, arg, var, direction);
@@ -262,8 +250,19 @@ static int
 pppoe_metrics_tmpl_dump(FILE *fp, const char *var, const char *desc, const char *type,
 			int direction)
 {
-	fprintf(fp, "#HELP %s %s\n#TYPE %s %s\n", var, desc, var, type);
+	fprintf(fp, "# HELP %s %s\n# TYPE %s %s\n", var, desc, var, type);
 	gtp_pppoe_metrics_foreach(pppoe_metrics_var_dump, fp, var, direction);
+	fprintf(fp, "\n");
+	return 0;
+}
+
+static int
+pppoe_metrics_sessions_dump(FILE *fp)
+{
+	fprintf(fp, "# HELP gtpguard_pppoe_sessions_current Number of current PPPoE sessions\n"
+		    "# TYPE gtpguard_pppoe_sessions_current gauge\n");
+	fprintf(fp, "gtpguard_pppoe_sessions_current %d\n", spppoe_sessions_count_read());
+	gtp_apn_metrics_dump(fp);
 	fprintf(fp, "\n");
 	return 0;
 }
@@ -296,6 +295,7 @@ pppoe_metrics_dump(FILE *fp)
 					  , pppoe_metrics_set[i].description
 					  , pppoe_metrics_set[i].type
 					  , pppoe_metrics_set[i].direction);
+	pppoe_metrics_sessions_dump(fp);
 	return 0;
 }
 

@@ -44,6 +44,21 @@ pthread_mutex_t gtp_apn_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 /*
+ *	Utilities
+ */
+void
+gtp_apn_foreach(int (*hdl) (gtp_apn_t *, void *), void *arg)
+{
+	list_head_t *l = &daemon_data->gtp_apn;
+	gtp_apn_t *apn;
+
+	pthread_mutex_lock(&gtp_apn_mutex);
+	list_for_each_entry(apn, l, next)
+		(*(hdl)) (apn, arg);
+	pthread_mutex_unlock(&gtp_apn_mutex);
+}
+
+/*
  *	Rewrite rule related
  */
 gtp_rewrite_rule_t *
@@ -444,20 +459,6 @@ gtp_apn_get(const char *name)
 
 	return NULL;
 }
-
-int
-gtp_apn_for_each_vty(vty_t *vty, void (*hdl) (vty_t *, gtp_apn_t *))
-{
-	list_head_t *l = &daemon_data->gtp_apn;
-	gtp_apn_t *apn;
-
-	pthread_mutex_lock(&gtp_apn_mutex);
-	list_for_each_entry(apn, l, next)
-		(*hdl) (vty, apn);
-	pthread_mutex_unlock(&gtp_apn_mutex);
-	return 0;
-}
-
 
 int
 gtp_apn_cdr_commit(gtp_apn_t *apn, gtp_cdr_t *cdr)

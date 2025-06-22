@@ -19,15 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -38,8 +29,19 @@ extern thread_master_t *master;
 
 /* Local data */
 struct hlist_head *gtp_conn_tab;
-static int gtp_conn_tab_cnt = 0;
 pthread_mutex_t *__gtp_conn_lock_array;
+
+
+/*
+ *	Connection tracking (IMSI)
+ */
+static int gtp_conn_count = 0;
+
+int
+gtp_conn_count_read(void)
+{
+	return gtp_conn_count;
+}
 
 
 /*
@@ -138,7 +140,7 @@ gtp_conn_hash(gtp_conn_t *c)
 	gtp_conn_unlock_id(c->imsi);
 
 	__set_bit(GTP_CONN_F_HASHED, &c->flags);
-	__sync_add_and_fetch(&gtp_conn_tab_cnt, 1);
+	__sync_add_and_fetch(&gtp_conn_count, 1);
 	__sync_add_and_fetch(&c->refcnt, 1);
 	return 0;
 }
@@ -154,7 +156,7 @@ gtp_conn_unhash(gtp_conn_t *c)
 	gtp_conn_unlock_id(c->imsi);
 
 	__clear_bit(GTP_CONN_F_HASHED, &c->flags);
-	__sync_sub_and_fetch(&gtp_conn_tab_cnt, 1);
+	__sync_sub_and_fetch(&gtp_conn_count, 1);
 	__sync_sub_and_fetch(&c->refcnt, 1);
 	return 0;
 }

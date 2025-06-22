@@ -74,6 +74,7 @@ typedef struct _gtp_session {
 } gtp_session_t;
 
 /* Prototypes */
+extern int gtp_sessions_count_read(void);
 extern void gtp_session_dump(gtp_session_t *s);
 extern gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
 extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);

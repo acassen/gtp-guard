@@ -68,11 +68,13 @@ gtp_apn_hplmn_vty(vty_t *vty, gtp_apn_t *apn)
 	pthread_mutex_unlock(&apn->mutex);
 }
 
-static void
-gtp_apn_vty(vty_t *vty, gtp_apn_t *apn)
+static int
+gtp_apn_vty(gtp_apn_t *apn, void *arg)
 {
+	vty_t *vty = arg;
 	gtp_naptr_show(vty, apn);
 	gtp_apn_hplmn_vty(vty, apn);
+	return 0;
 }
 
 static int
@@ -84,7 +86,7 @@ gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
 		return 0;
 	}
 
-	gtp_apn_for_each_vty(vty, gtp_apn_vty);
+	gtp_apn_foreach(gtp_apn_vty, vty);
 	return 0;
 }
 

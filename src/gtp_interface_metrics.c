@@ -19,22 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <net/if.h>
-#include <sys/stat.h>
-#include <sys/statfs.h>
-#include <libgen.h>
-#include <sys/resource.h>
-#include <arpa/inet.h>
-#include <linux/if_link.h>
-#include <linux/if_ether.h>
-#include <libbpf.h>
-#include <btf.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -130,7 +114,7 @@ gtp_interface_metrics_tmpl_dump(FILE *fp, const char *var, int var_type,
 	if (!(inuse & 0xff))
 		return -1;
 
-	fprintf(fp, "#HELP %s %s\n#TYPE %s %s\n", var, desc, var, type);
+	fprintf(fp, "# HELP %s %s\n# TYPE %s %s\n", var, desc, var, type);
 	gtp_interface_metrics_foreach(gtp_interface_metrics_var_dump,
 				      fp, var, var_type, metric_type, direction);
 	fprintf(fp, "\n");
