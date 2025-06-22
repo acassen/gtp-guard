@@ -1298,15 +1298,15 @@ int
 gtpc_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp_server_t *srv = w->srv;
 
 	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
-		gtp_metrics_rx(&w->msg_metrics, gtph->type);
+		gtp_metrics_rx(&srv->msg_metrics, gtph->type);
 
 		return (*(gtpc_msg_hdl[gtph->type].hdl)) (w, addr);
 	}
 
-	/* stats */
-	gtp_metrics_rx_notsup(&w->msg_metrics, gtph->type);
+	gtp_metrics_rx_notsup(&srv->msg_metrics, gtph->type);
 	return -1;
 }
 
@@ -1358,6 +1358,7 @@ int
 gtpu_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 {
 	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp_server_t *srv = w->srv;
 	ssize_t len;
 
 	len = gtpu_get_header_len(w->pbuff);
@@ -1365,7 +1366,7 @@ gtpu_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 		return -1;
 
 	if (*(gtpu_msg_hdl[gtph->type].hdl)) {
-		gtp_metrics_rx(&w->msg_metrics, gtph->type);
+		gtp_metrics_rx(&srv->msg_metrics, gtph->type);
 
 		return (*(gtpu_msg_hdl[gtph->type].hdl)) (w, addr);
 	}
@@ -1376,6 +1377,6 @@ gtpu_router_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 			    , gtph->type
 			    , inet_sockaddrtos(addr));
 
-	gtp_metrics_rx_notsup(&w->msg_metrics, gtph->type);
+	gtp_metrics_rx_notsup(&srv->msg_metrics, gtph->type);
 	return -1;
 }

@@ -36,6 +36,9 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
+/* Local data */
+pthread_mutex_t gtp_router_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 /*
  *	Helpers
@@ -77,18 +80,45 @@ gtp_router_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr
 
 
 /*
- *	GTP Router init
+ *	GTP Router utilities
  */
+bool
+gtp_router_inuse(void)
+{
+	pthread_mutex_lock(&gtp_router_mutex);
+	if (list_empty(&daemon_data->gtp_router_ctx))
+		return false;
+	pthread_mutex_unlock(&gtp_router_mutex);
+
+	return true;
+}
+
+void
+gtp_router_foreach(int (*hdl) (gtp_router_t *, void *), void *arg)
+{
+	list_head_t *l = &daemon_data->gtp_router_ctx;
+	gtp_router_t *ctx;
+
+	pthread_mutex_lock(&gtp_router_mutex);
+	list_for_each_entry(ctx, l, next)
+		(*(hdl)) (ctx, arg);
+	pthread_mutex_unlock(&gtp_router_mutex);
+}
+
 gtp_router_t *
 gtp_router_get(const char *name)
 {
 	gtp_router_t *ctx;
 	size_t len = strlen(name);
 
+	pthread_mutex_lock(&gtp_router_mutex);
 	list_for_each_entry(ctx, &daemon_data->gtp_router_ctx, next) {
-		if (!strncmp(ctx->name, name, len))
+		if (!strncmp(ctx->name, name, len)) {
+			pthread_mutex_unlock(&gtp_router_mutex);
 			return ctx;
+		}
 	}
+	pthread_mutex_unlock(&gtp_router_mutex);
 
 	return NULL;
 }
@@ -101,7 +131,10 @@ gtp_router_init(const char *name)
 	PMALLOC(new);
         INIT_LIST_HEAD(&new->next);
         bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
-        list_add_tail(&new->next, &daemon_data->gtp_router_ctx);
+
+	pthread_mutex_lock(&gtp_router_mutex);
+	list_add_tail(&new->next, &daemon_data->gtp_router_ctx);
+	pthread_mutex_unlock(&gtp_router_mutex);
 
 	return new;
 }
@@ -117,7 +150,9 @@ gtp_router_ctx_server_destroy(gtp_router_t *ctx)
 int
 gtp_router_ctx_destroy(gtp_router_t *ctx)
 {
+	pthread_mutex_lock(&gtp_router_mutex);
 	list_head_del(&ctx->next);
+	pthread_mutex_unlock(&gtp_router_mutex);
 	return 0;
 }
 
@@ -126,8 +161,10 @@ gtp_router_server_destroy(void)
 {
 	gtp_router_t *c;
 
+	pthread_mutex_lock(&gtp_router_mutex);
 	list_for_each_entry(c, &daemon_data->gtp_router_ctx, next)
 		gtp_router_ctx_server_destroy(c);
+	pthread_mutex_unlock(&gtp_router_mutex);
 
 	return 0;
 }
@@ -137,10 +174,12 @@ gtp_router_destroy(void)
 {
 	gtp_router_t *c, *_c;
 
+	pthread_mutex_lock(&gtp_router_mutex);
 	list_for_each_entry_safe(c, _c, &daemon_data->gtp_router_ctx, next) {
-		gtp_router_ctx_destroy(c);
+		list_head_del(&c->next);
 		FREE(c);
 	}
+	pthread_mutex_unlock(&gtp_router_mutex);
 
 	return 0;
 }

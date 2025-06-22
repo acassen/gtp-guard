@@ -54,6 +54,7 @@
 #include "gtp_metrics.h"
 #include "gtp_apn_metrics.h"
 #include "gtp_pppoe_metrics.h"
+#include "gtp_router_metrics.h"
 #include "gtp_data.h"
 #include "gtp_htab.h"
 #include "gtp_teid.h"

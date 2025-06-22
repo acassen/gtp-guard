@@ -225,12 +225,9 @@ gtp_config_write(vty_t *vty)
 }
 
 static int
-vty_server_worker(gtp_server_worker_t *w, void *arg)
+vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
 {
-	vty_t *vty = arg;
-	gtp_server_t *srv = w->srv;
 	char flags2str[BUFSIZ];
-	char fdpath[PATH_MAX];
 	int i, type = -1;
 
 	/* Can only be GTP-C OR GTP-U */
@@ -239,98 +236,75 @@ vty_server_worker(gtp_server_worker_t *w, void *arg)
 	else if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
 		type = GTP_FL_UPF_BIT;
 
-	vty_out(vty, "   %s worker:#%.2d task:0x%lx fd:%d(%s)%s"
-		     "    flags:%s%s"
-		     "    seed:%d pbuff:%p (len:%d size:%d bytes)%s"
-		     "    rx:%"PRIu64"packets %"PRIu64"bytes | tx:%"PRIu64"packets %"PRIu64"bytes%s"
-		   , w->pname
-		   , w->id
-		   , w->task
-		   , w->fd, (w->fd < 0) ? "none" : inet_fd2str(w->fd, fdpath, PATH_MAX)
-		   , VTY_NEWLINE
-		   , gtp_flags2str(flags2str, sizeof(flags2str), w->flags)
-		   , VTY_NEWLINE
-		   , w->seed , w->pbuff
-		   , pkt_buffer_len(w->pbuff), pkt_buffer_size(w->pbuff)
-		   , VTY_NEWLINE
-		   , w->rx_metrics.count, w->rx_metrics.bytes
-		   , w->tx_metrics.count, w->tx_metrics.bytes
-		   , VTY_NEWLINE);
-
-	vty_out(vty, "    RX:%s", VTY_NEWLINE);
-	for (i = 0; i < ARRAY_SIZE(w->msg_metrics.rx); i++) {
-		if (w->msg_metrics.rx[i].count)
-			vty_out(vty, "     %s(%d): %d%s"
-				   , gtp_msgtype2str(type, i)
-				   , i
-				   , w->msg_metrics.rx[i].count
-				   , VTY_NEWLINE);
-
-		if (w->msg_metrics.rx[i].unsupported)
-			vty_out(vty, "     %s(%d): %d (not supported)%s"
-				   , gtp_msgtype2str(type, i)
-				   , i
-				   , w->msg_metrics.rx[i].unsupported
-				   , VTY_NEWLINE);
-
-		if (w->cause_rx_metrics.cause[i])
-			vty_out(vty, "     %s(%d): %d%s"
-				   , gtpc_cause2str(i)
-				   , i
-				   , w->cause_rx_metrics.cause[i]
-				   , VTY_NEWLINE);
-	}
-
-	vty_out(vty, "    TX:%s", VTY_NEWLINE);
-	for (i = 0; i < ARRAY_SIZE(w->msg_metrics.tx); i++) {
-		if (w->msg_metrics.tx[i].count)
-			vty_out(vty, "     %s(%d): %d%s"
-				   , gtp_msgtype2str(type, i)
-				   , i
-				   , w->msg_metrics.tx[i].count
-				   , VTY_NEWLINE);
-
-		if (w->msg_metrics.tx[i].unsupported)
-			vty_out(vty, "     %s(%d): %d (not supported)%s"
-				   , gtp_msgtype2str(type, i)
-				   , i
-				   , w->msg_metrics.tx[i].unsupported
-				   , VTY_NEWLINE);
-
-		if (w->cause_tx_metrics.cause[i])
-			vty_out(vty, "     %s(%d): %d%s"
-				   , gtpc_cause2str(i)
-				   , i
-				   , w->cause_tx_metrics.cause[i]
-				   , VTY_NEWLINE);
-	}
-
-	return CMD_SUCCESS;
-}
-
-static int
-vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
-{
-	char flags2str[BUFSIZ];
-
 	vty_out(vty, "  %s: %s port %d with %d threads%s"
 		     "   flags:0x%lx (%s)%s"
+		     "   rx:%"PRIu64"packets %"PRIu64"bytes | tx:%"PRIu64"packets %"PRIu64"bytes%s"
 		   , gtplane
 		   , inet_sockaddrtos(&srv->addr)
 		   , ntohs(inet_sockaddrport(&srv->addr))
 		   , srv->thread_cnt
 		   , VTY_NEWLINE
 		   , srv->flags, gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
+		   , VTY_NEWLINE
+		   , srv->rx_metrics.count, srv->rx_metrics.bytes
+		   , srv->tx_metrics.count, srv->tx_metrics.bytes
 		   , VTY_NEWLINE);
-	gtp_server_for_each_worker(srv, vty_server_worker, vty);
+
+	vty_out(vty, "    RX:%s", VTY_NEWLINE);
+	for (i = 0; i < GTP_METRIC_MAX_MSG; i++) {
+		if (srv->msg_metrics.rx[i].count)
+			vty_out(vty, "     %s(%d): %d%s"
+				   , gtp_msgtype2str(type, i)
+				   , i
+				   , srv->msg_metrics.rx[i].count
+				   , VTY_NEWLINE);
+
+		if (srv->msg_metrics.rx[i].unsupported)
+			vty_out(vty, "     %s(%d): %d (not supported)%s"
+				   , gtp_msgtype2str(type, i)
+				   , i
+				   , srv->msg_metrics.rx[i].unsupported
+				   , VTY_NEWLINE);
+
+		if (srv->cause_rx_metrics.cause[i])
+			vty_out(vty, "     %s(%d): %d%s"
+				   , gtpc_cause2str(i)
+				   , i
+				   , srv->cause_rx_metrics.cause[i]
+				   , VTY_NEWLINE);
+	}
+
+	vty_out(vty, "    TX:%s", VTY_NEWLINE);
+	for (i = 0; i < GTP_METRIC_MAX_MSG; i++) {
+		if (srv->msg_metrics.tx[i].count)
+			vty_out(vty, "     %s(%d): %d%s"
+				   , gtp_msgtype2str(type, i)
+				   , i
+				   , srv->msg_metrics.tx[i].count
+				   , VTY_NEWLINE);
+
+		if (srv->msg_metrics.tx[i].unsupported)
+			vty_out(vty, "     %s(%d): %d (not supported)%s"
+				   , gtp_msgtype2str(type, i)
+				   , i
+				   , srv->msg_metrics.tx[i].unsupported
+				   , VTY_NEWLINE);
+
+		if (srv->cause_tx_metrics.cause[i])
+			vty_out(vty, "     %s(%d): %d%s"
+				   , gtpc_cause2str(i)
+				   , i
+				   , srv->cause_tx_metrics.cause[i]
+				   , VTY_NEWLINE);
+	}
 
 	return CMD_SUCCESS;
 }
 
 /* show handlers */
-DEFUN(show_workers_gtp_router,
-      show_workers_gtp_router_cmd,
-      "show workers gtp-router (*|STRING) [plane (gtpu|gtpc|both)]",
+DEFUN(show_gtp_router,
+      show_gtp_router_cmd,
+      "show gtp-router (*|STRING) [plane (gtpu|gtpc|both)]",
       SHOW_STR
       "workers tasks\n"
       "gtp-router gtpc and gtpu workers\n"
@@ -396,8 +370,8 @@ gtp_router_vty_init(void)
 	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_cmd);
 
-	install_element(VIEW_NODE, &show_workers_gtp_router_cmd);
-	install_element(ENABLE_NODE, &show_workers_gtp_router_cmd);
+	install_element(VIEW_NODE, &show_gtp_router_cmd);
+	install_element(ENABLE_NODE, &show_gtp_router_cmd);
 
 	return 0;
 }

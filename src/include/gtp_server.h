@@ -32,13 +32,6 @@ typedef struct _gtp_server_worker {
 	pkt_buffer_t		*pbuff;
 	unsigned int		seed;
 
-	/* stats */
-	gtp_metrics_pkt_t	rx_metrics;
-	gtp_metrics_pkt_t	tx_metrics;
-	gtp_metrics_cause_t	cause_rx_metrics;
-	gtp_metrics_cause_t	cause_tx_metrics;
-	gtp_metrics_msg_t	msg_metrics;
-
 	list_head_t		next;
 
 	unsigned long		flags;
@@ -56,6 +49,15 @@ typedef struct _gtp_server {
 	int (*init) (gtp_server_worker_t *);
 	int (*process) (gtp_server_worker_t *, struct sockaddr_storage *);
 
+	/* metrics */
+	uint64_t		rx_pkts;
+	uint64_t		tx_pkts;
+	gtp_metrics_pkt_t	rx_metrics;
+	gtp_metrics_pkt_t	tx_metrics;
+	gtp_metrics_cause_t	cause_rx_metrics;
+	gtp_metrics_cause_t	cause_tx_metrics;
+	gtp_metrics_msg_t	msg_metrics;
+
 	unsigned long		flags;
 } gtp_server_t;
 
@@ -64,7 +66,7 @@ typedef struct _gtp_server {
 extern ssize_t gtp_server_send(gtp_server_worker_t *, int, struct sockaddr_in *);
 extern ssize_t gtp_server_send_async(gtp_server_worker_t *, pkt_buffer_t *, struct sockaddr_in *);
 extern int gtp_server_start(gtp_server_t *);
-extern int gtp_server_for_each_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *, void *), void *);
+extern int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *, void *), void *);
 extern int gtp_server_init(gtp_server_t *, void *
 					 , int (*init) (gtp_server_worker_t *)
 					 , int (*process) (gtp_server_worker_t *, struct sockaddr_storage *));

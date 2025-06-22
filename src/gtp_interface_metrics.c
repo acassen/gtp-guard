@@ -129,14 +129,14 @@ static const struct {
 	__u8		metric_type;
 	__u8		direction;
 } gtp_interface_metrics_set[] = {
-	{ "gtpguard_gtp_in_packet_total", METRIC_PACKET,
-	  "Count of received GTP packets", "counter", IF_METRICS_GTP, IF_DIRECTION_RX},
-	{ "gtpguard_gtp_in_byte_total",	METRIC_BYTE,
+	{ "gtpguard_gtpu_in_packet_total", METRIC_PACKET,
+	  "Count of received GTP-U packets", "counter", IF_METRICS_GTP, IF_DIRECTION_RX},
+	{ "gtpguard_gtpu_in_byte_total", METRIC_BYTE,
 	  "Count of received GTP bytes", "counter", IF_METRICS_GTP, IF_DIRECTION_RX},
-	{ "gtpguard_gtp_out_packet_total", METRIC_PACKET,
-	  "Count of transmitted GTP packets", "counter", IF_METRICS_GTP, IF_DIRECTION_TX},
-	{ "gtpguard_gtp_out_byte_total", METRIC_BYTE,
-	  "Count of transmitted GTP bytes", "counter", IF_METRICS_GTP, IF_DIRECTION_TX},
+	{ "gtpguard_gtpu_out_packet_total", METRIC_PACKET,
+	  "Count of transmitted GTP-U packets", "counter", IF_METRICS_GTP, IF_DIRECTION_TX},
+	{ "gtpguard_gtpu_out_byte_total", METRIC_BYTE,
+	  "Count of transmitted GTP-U bytes", "counter", IF_METRICS_GTP, IF_DIRECTION_TX},
 
 	{ "gtpguard_pppoe_in_packet_total", METRIC_PACKET,
 	  "Count of received PPPoE packets", "counter", IF_METRICS_PPPOE, IF_DIRECTION_RX},

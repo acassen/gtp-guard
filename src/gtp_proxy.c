@@ -203,7 +203,7 @@ gtp_proxy_gtpc_socketpair_init(gtp_server_t *srv)
 
 	if (!ctx->gtpc_socket_pair)
 		ctx->gtpc_socket_pair = MALLOC(sizeof(socket_pair_t) * srv->thread_cnt);
-	gtp_server_for_each_worker(srv, gtp_proxy_socketpair_set, NULL);
+	gtp_server_foreach_worker(srv, gtp_proxy_socketpair_set, NULL);
 	return 0;
 }
 

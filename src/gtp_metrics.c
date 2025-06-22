@@ -37,28 +37,28 @@ extern thread_master_t *master;
 int
 gtp_metrics_rx(gtp_metrics_msg_t *m, uint8_t msg_type)
 {
-	m->rx[msg_type].count++;
+	__sync_add_and_fetch(&m->rx[msg_type].count, 1);
 	return 0;
 }
 
 int
 gtp_metrics_rx_notsup(gtp_metrics_msg_t *m, uint8_t msg_type)
 {
-	m->rx[msg_type].unsupported++;
+	__sync_add_and_fetch(&m->rx[msg_type].unsupported, 1);
 	return 0;
 }
 
 int
 gtp_metrics_tx(gtp_metrics_msg_t *m, uint8_t msg_type)
 {
-	m->tx[msg_type].count++;
+	__sync_add_and_fetch(&m->tx[msg_type].count, 1);
 	return 0;
 }
 
 int
 gtp_metrics_tx_notsup(gtp_metrics_msg_t *m, uint8_t msg_type)
 {
-	m->tx[msg_type].unsupported++;
+	__sync_add_and_fetch(&m->tx[msg_type].unsupported, 1);
 	return 0;
 }
 
@@ -68,8 +68,8 @@ gtp_metrics_pkt_update(gtp_metrics_pkt_t *m, ssize_t nbytes)
 	if (nbytes <= 0)
 		return -1;
 
-	m->bytes += nbytes;
-	m->count++;
+	__sync_add_and_fetch(&m->bytes, nbytes);
+	__sync_add_and_fetch(&m->count, 1);
 	return 0;
 }
 
@@ -84,7 +84,7 @@ gtp_metrics_cause_update(gtp_metrics_cause_t *m, pkt_buffer_t *pbuff)
 		return -1;
 
 	ie_cause = (gtp_ie_cause_t *) cp;
-	m->cause[ie_cause->value]++;
+	__sync_add_and_fetch(&m->cause[ie_cause->value], 1);
 	return 0;
 }
 
@@ -136,6 +136,7 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 	vrrp_metrics_dump(c->fp);
 	pppoe_metrics_dump(c->fp);
 	gtp_metrics_dump(c->fp);
+	gtp_router_metrics_dump(c->fp);
 
   end:
 	return 0;

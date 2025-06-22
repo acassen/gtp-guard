@@ -46,10 +46,12 @@ gtp_server_recvfrom(gtp_server_worker_t *w, struct sockaddr *addr, socklen_t *ad
 	ssize_t nbytes = recvfrom(w->fd, w->pbuff->head
 				       , pkt_buffer_size(w->pbuff)
 				       , 0, addr, addrlen);
+	/* metrics */
+	if (nbytes < 0)
+		return -1;
 
-	/* stats */
-	gtp_metrics_pkt_update(&w->rx_metrics, nbytes);
-
+	gtp_metrics_pkt_update(&w->srv->rx_metrics, nbytes);
+	__sync_add_and_fetch(&w->srv->rx_pkts, 1);
 	return nbytes;
 }
 
@@ -57,15 +59,17 @@ ssize_t
 gtp_server_send(gtp_server_worker_t *w, int fd, struct sockaddr_in *addr)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) w->pbuff->head;
+	gtp_server_t *srv = w->srv;
 
 	ssize_t nbytes = sendto(fd, w->pbuff->head
 				  , pkt_buffer_len(w->pbuff)
 				  , 0, addr, sizeof(*addr));
 
-	/* stats */
-	gtp_metrics_pkt_update(&w->tx_metrics, nbytes);
-	gtp_metrics_tx(&w->msg_metrics, h->type);
-	gtp_metrics_cause_update(&w->cause_tx_metrics, w->pbuff);
+	/* metrics */
+	gtp_metrics_pkt_update(&srv->tx_metrics, nbytes);
+	gtp_metrics_tx(&srv->msg_metrics, h->type);
+	gtp_metrics_cause_update(&srv->cause_tx_metrics, w->pbuff);
+	__sync_add_and_fetch(&w->srv->tx_pkts, 1);
 
 	return nbytes;
 }
@@ -74,13 +78,15 @@ ssize_t
 gtp_server_send_async(gtp_server_worker_t *w, pkt_buffer_t *pbuff, struct sockaddr_in *addr)
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	gtp_server_t *srv = w->srv;
 
 	ssize_t nbytes = pkt_buffer_send(w->fd, pbuff, (struct sockaddr_storage *) addr);
 
-	/* stats */
-	gtp_metrics_pkt_update(&w->tx_metrics, pkt_buffer_len(pbuff));
-	gtp_metrics_tx(&w->msg_metrics, h->type);
-	gtp_metrics_cause_update(&w->cause_tx_metrics, pbuff);
+	/* metrics */
+	gtp_metrics_pkt_update(&srv->tx_metrics, pkt_buffer_len(pbuff));
+	gtp_metrics_tx(&srv->msg_metrics, h->type);
+	gtp_metrics_cause_update(&srv->cause_tx_metrics, pbuff);
+	__sync_add_and_fetch(&w->srv->tx_pkts, 1);
 
 	return nbytes;
 }
@@ -177,7 +183,7 @@ gtp_server_worker_task(void *arg)
 
 
 /*
- *	UDP listener init
+ *	Utilities
  */
 static int
 gtp_server_worker_launch(gtp_server_t *srv)
@@ -226,7 +232,7 @@ gtp_server_worker_destroy(gtp_server_worker_t *w)
  *	GTP Server related
  */
 int
-gtp_server_for_each_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *, void *), void *arg)
+gtp_server_foreach_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *, void *), void *arg)
 {
 	gtp_server_worker_t *w;
 
