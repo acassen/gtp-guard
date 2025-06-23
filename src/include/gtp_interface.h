@@ -27,6 +27,7 @@ enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_GTP_BIT,
 	GTP_INTERFACE_FL_METRICS_PPPOE_BIT,
 	GTP_INTERFACE_FL_METRICS_IPIP_BIT,
+	GTP_INTERFACE_FL_METRICS_LINK_BIT,
 	GTP_INTERFACE_FL_DIRECT_TX_GW_BIT,
 	GTP_INTERFACE_FL_SHUTDOWN_BIT,
 };
@@ -42,6 +43,9 @@ typedef struct _gtp_interface {
 	char			description[GTP_STR_MAX_LEN];
 	gtp_bpf_prog_t		*bpf_prog;
 	struct bpf_link		*bpf_lnk;
+
+	/* metrics */
+	struct rtnl_link_stats64 *link_metrics;
 
 	list_head_t		next;
 

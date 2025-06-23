@@ -122,7 +122,7 @@ gtp_router_metrics_dump(FILE *fp)
 	gtp_router_foreach(gtp_router_server_rx_dump, fp);
 	fprintf(fp, "\n");
 
-	fprintf(fp, "# HELP %s Count of received GTP-C packets\n"
+	fprintf(fp, "# HELP %s Count of transmitted GTP-C packets\n"
 		    "# TYPE %s counter\n", var_tx, var_tx);
 	gtp_router_foreach(gtp_router_server_tx_dump, fp);
 	fprintf(fp, "\n");

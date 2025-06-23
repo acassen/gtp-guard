@@ -194,12 +194,20 @@ gtp_interface_unload_bpf(gtp_interface_t *iface)
 }
 
 int
+__gtp_interface_destroy(gtp_interface_t *iface)
+{
+	gtp_interface_unload_bpf(iface);
+	FREE_PTR(iface->link_metrics);
+	list_head_del(&iface->next);
+	FREE(iface);
+	return 0;
+}
+
+int
 gtp_interface_destroy(gtp_interface_t *iface)
 {
 	pthread_mutex_lock(&gtp_interfaces_mutex);
-	gtp_interface_unload_bpf(iface);
-	list_head_del(&iface->next);
-	FREE(iface);
+	__gtp_interface_destroy(iface);
 	pthread_mutex_unlock(&gtp_interfaces_mutex);
 	return 0;
 }
@@ -211,11 +219,8 @@ gtp_interfaces_destroy(void)
 	gtp_interface_t *iface, *_iface;
 
 	pthread_mutex_lock(&gtp_interfaces_mutex);
-	list_for_each_entry_safe(iface, _iface, l, next) {
-		gtp_interface_unload_bpf(iface);
-		list_head_del(&iface->next);
-		FREE(iface);
-	}
+	list_for_each_entry_safe(iface, _iface, l, next)
+		__gtp_interface_destroy(iface);
 	pthread_mutex_unlock(&gtp_interfaces_mutex);
 	return 0;
 }

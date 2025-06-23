@@ -24,6 +24,7 @@
 
 #include <net/ethernet.h>
 #include <net/if.h>
+#include <linux/if_link.h>
 #include <resolv.h>
 
 #include "daemon.h"

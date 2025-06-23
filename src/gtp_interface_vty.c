@@ -26,6 +26,7 @@
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <linux/if_link.h>
 #include <ctype.h>
 #include <netdb.h>
 #include <resolv.h>
@@ -294,6 +295,33 @@ DEFUN(no_interface_metrics_ipip,
 	return CMD_SUCCESS;
 }
 
+DEFUN(interface_metrics_link,
+      interface_metrics_link_cmd,
+      "metrics link",
+      "Enable link metrics\n")
+{
+	gtp_interface_t *iface = vty->index;
+
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
+		return CMD_SUCCESS;
+
+	iface->link_metrics = MALLOC(sizeof(struct rtnl_link_stats64));
+	__set_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_interface_metrics_link,
+      no_interface_metrics_link_cmd,
+      "no metrics link",
+      "Disable link metrics\n")
+{
+	gtp_interface_t *iface = vty->index;
+
+	FREE_PTR(iface->link_metrics);
+	iface->link_metrics = NULL;
+	__clear_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags);
+	return CMD_SUCCESS;
+}
 
 DEFUN(interface_shutdown,
       interface_shutdown_cmd,
@@ -422,6 +450,8 @@ interface_config_write(vty_t *vty)
 			vty_out(vty, " metrics pppoe%s", VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
 			vty_out(vty, " metrics ipip%s", VTY_NEWLINE);
+		if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
+			vty_out(vty, " metrics link%s", VTY_NEWLINE);
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ? "" : "no "
 			   , VTY_NEWLINE);
@@ -453,6 +483,8 @@ gtp_interface_vty_init(void)
 	install_element(INTERFACE_NODE, &no_interface_metrics_pppoe_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_ipip_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_ipip_cmd);
+	install_element(INTERFACE_NODE, &interface_metrics_link_cmd);
+	install_element(INTERFACE_NODE, &no_interface_metrics_link_cmd);
 	install_element(INTERFACE_NODE, &interface_shutdown_cmd);
 	install_element(INTERFACE_NODE, &interface_no_shutdown_cmd);
 

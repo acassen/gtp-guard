@@ -33,6 +33,168 @@ extern data_t *daemon_data;
  * https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
  */
 static int
+gtp_interface_nl_rx_dump(gtp_interface_t *iface, FILE *fp,
+			 const char *var, __u8 type)
+{
+	struct rtnl_link_stats64 *s = iface->link_metrics;
+
+	if (type == METRIC_BYTE) {
+		fprintf(fp, "%s{interface=\"%s\"} %lld\n"
+			  , var, iface->description, s->rx_bytes);
+		return 0;
+	}
+	
+	fprintf(fp, "%s{interface=\"%s\"} %lld\n"
+		  , var, iface->description, s->rx_packets);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "multicast", s->multicast);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "collisions", s->collisions);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "errors", s->rx_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "dropped", s->rx_dropped);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "length-errors", s->rx_length_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "over-errors", s->rx_over_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "crc-errors", s->rx_crc_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "frame-errors", s->rx_frame_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "fifo-errors", s->rx_fifo_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "missed-errors", s->rx_missed_errors);
+	return 0;
+}
+
+static int
+gtp_interface_nl_tx_dump(gtp_interface_t *iface, FILE *fp,
+			 const char *var, __u8 type)
+{
+	struct rtnl_link_stats64 *s = iface->link_metrics;
+
+	if (type == METRIC_BYTE) {
+		fprintf(fp, "%s{interface=\"%s\"} %lld\n"
+			  , var, iface->description, s->tx_bytes);
+		return 0;
+	}
+
+	fprintf(fp, "%s{interface=\"%s\"} %lld\n"
+		  , var, iface->description, s->tx_packets);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "errors", s->tx_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "dropped", s->tx_dropped);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "aborted-errors", s->tx_aborted_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "carrier-errors", s->tx_carrier_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "fifo-errors", s->tx_fifo_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "heartbeat-errors", s->tx_heartbeat_errors);
+	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
+		  , var, iface->description
+		  , "window-errors", s->tx_window_errors);
+	return 0;
+}
+
+static int
+link_metrics_var_dump(gtp_interface_t *iface, void *arg,
+		      const char *var, int var_type,
+		      __u8 type, __u8 direction)
+{
+	struct rtnl_link_stats64 *s = iface->link_metrics;
+	FILE *fp = arg;
+
+	if (!__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags) || !s)
+		return -1;
+
+	switch (direction) {
+	case IF_DIRECTION_RX:
+		gtp_interface_nl_rx_dump(iface, fp, var, var_type);
+		break;
+	case IF_DIRECTION_TX:
+		gtp_interface_nl_tx_dump(iface, fp, var, var_type);
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+link_metrics_tmpl_dump(FILE *fp, const char *var, int var_type,
+		       const char *desc, const char *type,
+		       __u8 metric_type, __u8 direction)
+{
+	fprintf(fp, "# HELP %s %s\n# TYPE %s %s\n", var, desc, var, type);
+	gtp_interface_metrics_foreach(link_metrics_var_dump,
+				      fp, var, var_type, metric_type, direction);
+	fprintf(fp, "\n");
+	return 0;
+}
+
+
+static const struct {
+	const char	*var;
+	int		var_type;
+	const char	*description;
+	const char	*type;
+	__u8		metric_type;
+	__u8		direction;
+} link_metrics_set[] = {
+	{ "gtpguard_in_packet_total", METRIC_PACKET,
+	  "Count of received packets", "counter", 0, IF_DIRECTION_RX},
+	{ "gtpguard_in_byte_total", METRIC_BYTE,
+	  "Count of received bytes", "counter", 0, IF_DIRECTION_RX},
+	{ "gtpguard_out_packet_total", METRIC_PACKET,
+	  "Count of transmitted packets", "counter", 0, IF_DIRECTION_TX},
+	{ "gtpguard_out_byte_total", METRIC_BYTE,
+	  "Count of transmitted bytes", "counter", 0, IF_DIRECTION_TX},
+	{ NULL, 0, NULL, NULL, 0, 0}
+};
+
+
+static int
+gtp_interface_nl_metrics_dump(FILE *fp)
+{
+	int i;
+
+	netlink_if_stats_update();
+
+	for (i = 0; link_metrics_set[i].var; i++)
+		link_metrics_tmpl_dump(fp,
+				       link_metrics_set[i].var,
+				       link_metrics_set[i].var_type,
+				       link_metrics_set[i].description,
+				       link_metrics_set[i].type,
+				       link_metrics_set[i].metric_type,
+				       link_metrics_set[i].direction);
+	return 0;
+}
+
+
+static int
 gtp_interface_metric_inuse(gtp_interface_t *iface, void *arg)
 {
 	__u16 *type = arg;
@@ -164,7 +326,9 @@ gtp_interface_metrics_dump(FILE *fp)
 {
 	int i;
 
-	for (i = 0; gtp_interface_metrics_set[i].var; i++) {
+	gtp_interface_nl_metrics_dump(fp);
+
+	for (i = 0; gtp_interface_metrics_set[i].var; i++)
 		gtp_interface_metrics_tmpl_dump(fp,
 						gtp_interface_metrics_set[i].var,
 						gtp_interface_metrics_set[i].var_type,
@@ -172,7 +336,5 @@ gtp_interface_metrics_dump(FILE *fp)
 						gtp_interface_metrics_set[i].type,
 						gtp_interface_metrics_set[i].metric_type,
 						gtp_interface_metrics_set[i].direction);
-	}
-
 	return 0;
 }

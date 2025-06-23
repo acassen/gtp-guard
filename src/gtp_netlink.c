@@ -62,7 +62,7 @@ get_nl_msg_type(unsigned type)
 }
 
 /* iproute2 utility function */
-int
+static int
 addattr_l(struct nlmsghdr *n, size_t maxlen, unsigned short type, const void *data, size_t alen)
 {
 	unsigned short len = RTA_LENGTH(alen);
@@ -79,6 +79,18 @@ addattr_l(struct nlmsghdr *n, size_t maxlen, unsigned short type, const void *da
 		memcpy(RTA_DATA(rta), data, alen);
 	n->nlmsg_len = NLMSG_ALIGN(n->nlmsg_len) + align_len;
 
+	return 0;
+}
+
+static int
+get_rtnl_link_stats_rta(struct rtnl_link_stats64 *stats64, struct rtattr *tb[])
+{
+	struct rtattr *rta = tb[IFLA_STATS64];
+
+	if (!rta)
+		return -1;
+
+	memcpy(stats64, RTA_DATA(rta), RTA_PAYLOAD(rta));
 	return 0;
 }
 
@@ -517,14 +529,14 @@ netlink_if_get_ll_addr(gtp_interface_t *iface, struct rtattr *tb[], int type)
 }
 
 static int
-netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type)
+netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type, bool stats)
 {
 	ssize_t status;
 	struct sockaddr_nl snl = { .nl_family = AF_NETLINK };
 	struct {
 		struct nlmsghdr nlh;
 		struct ifinfomsg i;
-		char buf[64];
+		char buf[1024];
 	} req = {
 		.nlh.nlmsg_len = NLMSG_LENGTH(sizeof req.i),
 		.nlh.nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST,
@@ -533,9 +545,12 @@ netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type)
 		.nlh.nlmsg_seq = ++nl->seq,
 		.i.ifi_family = family,
 	};
-	__u32 filt_mask = RTEXT_FILTER_SKIP_STATS;
+	__u32 filt_mask = 0;
 
-	addattr_l(&req.nlh, sizeof(req), IFLA_EXT_MASK, &filt_mask, sizeof(uint32_t));
+	if (!stats) {
+		filt_mask = RTEXT_FILTER_SKIP_STATS;
+		addattr_l(&req.nlh, sizeof(req), IFLA_EXT_MASK, &filt_mask, sizeof(uint32_t));
+	}
 
 	status = sendto(nl->fd, (void *) &req, sizeof (req), 0
 			      , (struct sockaddr *) &snl, sizeof(snl));
@@ -569,12 +584,70 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 	if (!iface)
 		return 0;
 
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
+		get_rtnl_link_stats_rta(iface->link_metrics, tb);
+
 	err = netlink_if_get_ll_addr(iface, tb, IFLA_ADDRESS);
 	if (err || !iface->hw_addr_len)
 		log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
 				    , __FUNCTION__
 				    , iface->ifname);
 	gtp_interface_put(iface);
+	return err;
+}
+
+static int
+netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h)
+{
+	struct ifinfomsg *ifi = NLMSG_DATA(h);
+	struct rtattr *tb[IFLA_MAX + 1];
+	gtp_interface_t *iface;
+	int len = h->nlmsg_len;
+
+	if (h->nlmsg_type != RTM_NEWLINK)
+		return 0;
+
+	len -= NLMSG_LENGTH(sizeof(*ifi));
+	if (len < 0)
+		return -1;
+
+	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len);
+
+	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
+	if (!iface)
+		return 0;
+
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
+		get_rtnl_link_stats_rta(iface->link_metrics, tb);
+
+	gtp_interface_put(iface);
+	return 0;
+}
+
+int
+netlink_if_stats_update(void)
+{
+	nl_handle_t nl_stats = { .fd = -1 };
+	int err = 0;
+
+	if (list_empty(&daemon_data->interfaces))
+		return -1;
+
+	err = netlink_open(&nl_stats, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
+				    , 0, 0);
+	if (err) {
+		log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
+		return -1;
+	}
+
+	if (netlink_if_request(&nl_stats, AF_PACKET, RTM_GETLINK, true) < 0) {
+		err = -1;
+		goto end;
+	}
+
+	netlink_parse_info(netlink_if_link_update_filter, &nl_stats, NULL, false);
+  end:
+	netlink_close(&nl_stats);
 	return err;
 }
 
@@ -593,7 +666,7 @@ netlink_if_lookup(void)
 		return -1;
 	}
 
-	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK) < 0) {
+	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true) < 0) {
 		err = -1;
 		goto end;
 	}
