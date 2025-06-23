@@ -23,7 +23,7 @@
 #define _GTP_CDR_FILE_H
 
 /* Defines */
-#define GTP_CDR_MAGIC			0x0c0c
+#define GTP_CDR_MAGIC			0xe6e6
 #define GTP_CDR_DEFAULT_FSIZE		10*1024*1024
 #define GTP_CDR_DEFAULT_ROLLPERIOD	7200
 
