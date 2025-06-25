@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPPOE_SESSION_H
-#define _GTP_PPPOE_SESSION_H
+#pragma once
 
 #define GTP_PPPOE_MAX_SESSION_PER_IMSI	8
 
@@ -89,5 +87,3 @@ extern spppoe_t *spppoe_init(gtp_pppoe_t *, gtp_conn_t *,
 			     gtp_id_ecgi_t *, gtp_ie_ambr_t *);
 extern int spppoe_close(spppoe_t *);
 extern int spppoe_disconnect(spppoe_t *);
-
-#endif

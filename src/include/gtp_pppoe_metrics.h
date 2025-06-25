@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPPOE_METRICS_H
-#define _GTP_PPPOE_METRICS_H
+#pragma once
 
 enum metrics_direction {
 	METRICS_DIR_IN = 0,
@@ -61,5 +59,3 @@ typedef struct _ppp_metrics {
 	uint64_t	ipcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
 	uint64_t	ipv6cp[METRICS_DIR_MAX][PPP_METRIC_MAX];
 } ppp_metrics_t;
-
-#endif

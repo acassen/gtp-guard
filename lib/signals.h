@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _SIGNALS_H
-#define _SIGNALS_H
+#pragma once
 
 #include "config.h"
 
@@ -62,6 +60,4 @@ extern void signal_noignore_sig(int);
 
 #ifdef THREAD_DUMP
 extern void register_signal_thread_addresses(void);
-#endif
-
 #endif

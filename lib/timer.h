@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _TIMER_H
-#define _TIMER_H
+#pragma once
 
 #include <sys/time.h>
 #include <limits.h>
@@ -143,5 +141,3 @@ extern timeval_t set_time_now(void);
 extern struct tm *time_now_to_calendar(struct tm *);
 extern timeval_t timer_add_long(timeval_t, unsigned long) __attribute__((const));
 extern timeval_t timer_sub_long(timeval_t, unsigned long) __attribute__((const));
-
-#endif

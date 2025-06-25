@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_DATA_H
-#define _GTP_DATA_H
+#pragma once
 
 /* Default values */
 #define GTP_STR_MAX_LEN		128
@@ -113,5 +111,3 @@ extern int gtp_bpf_opts_config_write(vty_t *, const char *, gtp_bpf_opts_t *);
 extern int gtp_bpf_opts_list_config_write(vty_t *, const char *, list_head_t *);
 extern data_t *alloc_daemon_data(void);
 extern void free_daemon_data(void);
-
-#endif

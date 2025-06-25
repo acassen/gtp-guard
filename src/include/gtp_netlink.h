@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_NETLINK_H
-#define _GTP_NETLINK_H
+#pragma once
 
 #include <linux/netlink.h>
 
@@ -49,5 +47,3 @@ typedef struct _nl_handle {
 /* Prototypes */
 extern int gtp_netlink_init(void);
 extern int gtp_netlink_destroy(void);
-
-#endif

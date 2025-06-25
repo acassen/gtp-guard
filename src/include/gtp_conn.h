@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_CONN_H
-#define _GTP_CONN_H
+#pragma once
 
 /* Hash table */
 #define CONN_HASHTAB_BITS  20
@@ -63,5 +61,3 @@ extern int gtp_conn_unhash(gtp_conn_t *);
 extern int gtp_conn_vty(vty_t *, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t);
 extern int gtp_conn_init(void);
 extern int gtp_conn_destroy(void);
-
-#endif

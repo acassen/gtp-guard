@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_INTERFACE_H
-#define _GTP_INTERFACE_H
+#pragma once
 
 /* Flags */
 enum gtp_interface_flags {
@@ -66,5 +64,3 @@ extern gtp_interface_t *gtp_interface_alloc(const char *, int);
 extern int gtp_interface_unload_bpf(gtp_interface_t *);
 extern int gtp_interface_destroy(gtp_interface_t *);
 extern int gtp_interfaces_destroy(void);
-
-#endif

@@ -18,12 +18,8 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPPOE_MONITOR_H
-#define _GTP_PPPOE_MONITOR_H
+#pragma once
 
 /* Prototypes */
 extern int gtp_pppoe_monitor_vrrp_init(gtp_pppoe_t *);
 extern int gtp_pppoe_monitor_vrrp_destroy(gtp_pppoe_t *);
-
-#endif

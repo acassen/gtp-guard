@@ -18,13 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_ROUTER_METRICS_H
-#define _GTP_ROUTER_METRICS_H
-
+#pragma once
 
 /* Prototypes */
 extern int gtp_router_metrics_dump(FILE *);
-
-
-#endif

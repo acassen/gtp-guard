@@ -5,8 +5,7 @@
  * Written by David Howells (dhowells@redhat.com)
  */
 
-#ifndef _LINUX_ASN1_DECODER_H
-#define _LINUX_ASN1_DECODER_H
+#pragma once
 
 #include <linux/types.h>
 #include "asn1.h"
@@ -17,5 +16,3 @@ extern int asn1_ber_decoder(const struct asn1_decoder *decoder,
 			    void *context,
 			    const unsigned char *data,
 			    size_t datalen);
-
-#endif /* _LINUX_ASN1_DECODER_H */

@@ -20,16 +20,7 @@
  */
 
 /* system includes */
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <linux/if_link.h>
-#include <linux/netlink.h>
 #include <linux/rtnetlink.h>
-#include <linux/xfrm.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"

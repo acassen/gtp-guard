@@ -19,15 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <stdio.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 

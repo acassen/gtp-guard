@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _CONTAINER_H
-#define _CONTAINER_H
+#pragma once
 
 #include "warnings.h"
 #include "config.h"
@@ -90,6 +89,4 @@
 			"pointer type mismatch in container_of()");	\
 	const typeof( ((type *)0)->member ) *__mptr = (ptr);  		\
 	(type *)( (const char *)__mptr - offsetof(type,member) );})
-#endif
-
 #endif

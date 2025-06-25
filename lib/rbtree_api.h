@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _RBTREE_API_H
-#define _RBTREE_API_H
+#pragma once
 
 #include "rbtree.h"
 
@@ -103,5 +102,3 @@ rb_move_cached(struct rb_node *node, struct rb_root_cached *tree,
 		}
 	}
 }
-
-#endif	/* _LINUX_RBTREE_H */

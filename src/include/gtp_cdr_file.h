@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_CDR_FILE_H
-#define _GTP_CDR_FILE_H
+#pragma once
 
 /* Defines */
 #define GTP_CDR_MAGIC			0xe6e6
@@ -62,5 +60,3 @@ extern int gtp_cdr_file_create(gtp_cdr_file_t *);
 extern int gtp_cdr_file_close(gtp_cdr_file_t *);
 extern gtp_cdr_file_t *gtp_cdr_file_alloc(void);
 extern int gtp_cdr_file_destroy(gtp_cdr_file_t *f);
-
-#endif

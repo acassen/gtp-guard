@@ -9,8 +9,7 @@
   linux/include/linux/rbtree_augmented.h
 */
 
-#ifndef _LINUX_RBTREE_AUGMENTED_H
-#define _LINUX_RBTREE_AUGMENTED_H
+#pragma once
 
 #include "rbtree.h"
 
@@ -315,5 +314,3 @@ rb_erase_augmented_cached(struct rb_node *node, struct rb_root_cached *root,
 		root->rb_leftmost = rb_next(node);
 	rb_erase_augmented(node, &root->rb_root, augment);
 }
-
-#endif	/* _LINUX_RBTREE_AUGMENTED_H */

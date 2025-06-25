@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_TEID_H
-#define _GTP_TEID_H
+#pragma once
 
 /* Tunnel type */
 enum {
@@ -115,5 +113,3 @@ extern void gtp_teid_dump(gtp_teid_t *);
 extern int gtp_vteid_alloc(gtp_htab_t *, gtp_teid_t *, unsigned int *);
 extern int gtp_vteid_unhash(gtp_htab_t *, gtp_teid_t *);
 extern gtp_teid_t *gtp_vteid_get(gtp_htab_t *, uint32_t);
-
-#endif

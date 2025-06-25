@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_METRICS_H
-#define _GTP_METRICS_H
+#pragma once
 
 /* defines */
 #define GTP_METRIC_MAX_MSG	(1 << 8)
@@ -57,5 +55,3 @@ extern int gtp_metrics_pkt_update(gtp_metrics_pkt_t *, ssize_t);
 extern int gtp_metrics_cause_update(gtp_metrics_cause_t *, pkt_buffer_t *);
 extern int gtp_metrics_init(void);
 extern int gtp_metrics_destroy(void);
-
-#endif

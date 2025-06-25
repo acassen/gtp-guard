@@ -19,11 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <pthread.h>
-#include <sys/stat.h>
-#include <net/if.h>
-
 /* local includes */
 #include "gtp_guard.h"
 

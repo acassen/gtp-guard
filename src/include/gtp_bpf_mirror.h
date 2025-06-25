@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_MIRROR_H
-#define _GTP_BPF_MIRROR_H
+#pragma once
 
 struct gtp_mirror_rule {
 	__be32	addr;
@@ -35,5 +33,3 @@ extern int gtp_bpf_mirror_action(int, gtp_mirror_rule_t *);
 extern int gtp_bpf_mirror_vty(vty_t *);
 extern int gtp_bpf_mirror_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_mirror_unload(gtp_bpf_opts_t *);
-
-#endif

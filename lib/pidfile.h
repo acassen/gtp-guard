@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _PIDFILE_H
-#define _PIDFILE_H
+#pragma once
 
 /* system include */
 #include <unistd.h>
@@ -33,5 +32,3 @@
 extern int pidfile_write(char *pid_file, int pid);
 extern void pidfile_rm(char *pid_file);
 extern int process_running(char *pid_file);
-
-#endif

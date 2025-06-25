@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_UTILS_H
-#define _GTP_BPF_UTILS_H
+#pragma once
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +56,4 @@ static inline unsigned int bpf_num_possible_cpus(void)
 #ifndef offsetofend
 #define offsetofend(TYPE, MEMBER) \
 	(offsetof(TYPE, MEMBER) + sizeof_field(TYPE, MEMBER))
-#endif
-
 #endif

@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _JSON_READER_H_
-#define _JSON_READER_H_
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -72,5 +71,3 @@ extern json_node_t *json_first_child(const json_node_t *);
 extern json_node_t *json_decode(const char *);
 extern void json_dump(json_node_t *);
 extern void json_destroy(json_node_t *);
-
-#endif

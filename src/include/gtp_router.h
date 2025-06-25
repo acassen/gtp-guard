@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_ROUTER_H
-#define _GTP_ROUTER_H
+#pragma once
 
 #define GTP_ROUTER_DELAYED	2
 
@@ -47,5 +45,3 @@ extern int gtp_router_ctx_destroy(gtp_router_t *);
 extern int gtp_router_server_destroy(void);
 extern int gtp_router_destroy(void);
 extern int gtp_router_vty_init(void);
-
-#endif

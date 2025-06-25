@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_SESSION_H
-#define _GTP_SESSION_H
+#pragma once
 
 /* flags */
 enum gtp_session_flags {
@@ -98,5 +96,3 @@ extern int gtp_sessions_release(gtp_conn_t *);
 extern int gtp_sessions_free(gtp_conn_t *);
 extern int gtp_sessions_init(void);
 extern int gtp_sessions_destroy(void);
-
-#endif

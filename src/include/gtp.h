@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_H
-#define _GTP_H
+#pragma once
 
 /* Flags */
 enum gtp_flags {
@@ -574,5 +572,3 @@ typedef union _gtp_packet {
 	};
 	uint8_t		buffer[GTP_MAX_PACKET_SIZE];
 } __attribute__((packed)) gtp_packet_t;
-
-#endif

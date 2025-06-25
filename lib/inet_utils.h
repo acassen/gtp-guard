@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _INET_UTILS_H
-#define _INET_UTILS_H
+#pragma once
 
 /* system includes */
 #include <stdio.h>
@@ -160,5 +159,3 @@ extern int inet_setsockopt_no_receive(int);
 extern int inet_setsockopt_rcvbuf(int, int);
 extern int inet_setsockopt_bindtodevice(int, const char *);
 extern int inet_setsockopt_priority(int, int);
-
-#endif

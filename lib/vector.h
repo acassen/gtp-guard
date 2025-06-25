@@ -2,9 +2,7 @@
 /* Generic vector interface routine
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
-
-#ifndef _VECTOR_H
-#define _VECTOR_H
+#pragma once
 
 /* vector definition */
 typedef struct _vector {
@@ -45,5 +43,3 @@ extern void vector_free(vector_t *);
 extern void vector_dump(vector_t *);
 extern void free_strvec(vector_t *);
 extern void dump_strvec(vector_t *);
-
-#endif

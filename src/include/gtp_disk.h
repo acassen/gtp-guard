@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_DISK_H
-#define _GTP_DISK_H
+#pragma once
 
 /* defines */
 #define GTP_DISK_ASYNC	0
@@ -47,5 +45,3 @@ extern int gtp_disk_write_sync(map_file_t *, off_t, const void *, size_t);
 extern int gtp_disk_write_async(map_file_t *, off_t, const void *, size_t);
 extern int gtp_disk_write_restart_counter(void);
 extern int gtp_disk_read_restart_counter(void);
-
-#endif

@@ -19,14 +19,10 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _LOGGER_H
-#define _LOGGER_H
+#pragma once
 
 #include <syslog.h>
 
 void enable_console_log(void);
 void log_message(int, const char * , ...);
 void conf_write(FILE *, const char *, ...);
-
-
-#endif

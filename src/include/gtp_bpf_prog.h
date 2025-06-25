@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_PROG_H
-#define _GTP_BPF_PROG_H
+#pragma once
 
 /* Flags */
 enum gtp_bpf_prog_flags {
@@ -56,5 +54,3 @@ extern gtp_bpf_prog_t *gtp_bpf_prog_get(const char *);
 extern int gtp_bpf_prog_put(gtp_bpf_prog_t *);
 extern gtp_bpf_prog_t *gtp_bpf_prog_alloc(const char *);
 extern int gtp_bpf_progs_destroy(void);
-
-#endif

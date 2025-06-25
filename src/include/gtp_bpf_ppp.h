@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_PPP_H
-#define _GTP_BPF_PPP_H
+#pragma once
 
 struct ppp_key {
 	__u8	hw[6];
@@ -33,5 +31,3 @@ extern int gtp_bpf_ppp_teid_vty(vty_t *, gtp_teid_t *, struct bpf_map *, struct 
 extern int gtp_bpf_ppp_teid_bytes(gtp_teid_t *, struct bpf_map *, struct bpf_map *, uint64_t *);
 extern int gtp_bpf_ppp_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_ppp_unload(gtp_bpf_opts_t *);
-
-#endif

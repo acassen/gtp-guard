@@ -3,8 +3,7 @@
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
 
-#ifndef _PREFIX_H
-#define _PREFIX_H
+#pragma once
 
 /* system includes */
 #include <stdio.h>
@@ -92,5 +91,3 @@ extern int ip2prefix_ipv4(const uint32_t, prefix_t *);
 extern prefix_t *prefix_alloc(void);
 extern void prefix_free(prefix_t *);
 extern void prefix_dump(prefix_t *);
-
-#endif

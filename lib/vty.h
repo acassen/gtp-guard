@@ -2,9 +2,7 @@
 /* Virtual terminal [aka TeletYpe] interface routine
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
-
-#ifndef _VTY_H
-#define _VTY_H
+#pragma once
 
 #include <netinet/in.h>
 #include "timer.h"
@@ -177,5 +175,3 @@ extern int vty_shell(vty_t *);
 extern int vty_shell_serv(vty_t *);
 extern void vty_time_print(vty_t *, int);
 extern void vty_hello(vty_t *);
-
-#endif

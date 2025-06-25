@@ -20,17 +20,8 @@
  */
 
 /* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
 #include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <ctype.h>
-#include <netdb.h>
-#include <resolv.h>
 #include <fnmatch.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"

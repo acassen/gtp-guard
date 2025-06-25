@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPPOE_PROTO_H
-#define _GTP_PPPOE_PROTO_H
+#pragma once
 
 /* Prototypes */
 extern pkt_t *pppoe_eth_pkt_get(spppoe_t *, const struct ether_addr *, const uint16_t);
@@ -31,5 +29,3 @@ extern int pppoe_connect(spppoe_t *);
 extern int pppoe_abort_connect(spppoe_t *);
 extern int pppoe_disconnect(spppoe_t *);
 extern int pppoe_send_padi(spppoe_t *);
-
-#endif

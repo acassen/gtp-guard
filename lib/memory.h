@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _MEMORY_H
-#define _MEMORY_H
+#pragma once
 
 /* system includes */
 #include <stdio.h>
@@ -70,5 +69,3 @@ extern void memory_free_final(char *);
 #define PMALLOC(p)	{ p = MALLOC(sizeof(*p)); }
 #define FREE_PTR(p)     { if (p) { FREE(p);} }
 #define FREE_CONST_PTR(p) { if (p) { FREE_CONST(p);} }
-
-#endif

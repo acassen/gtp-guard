@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_RT_H
-#define _GTP_BPF_RT_H
+#pragma once
 
 enum {
 	XDP_RT_MAP_TEID_INGRESS = 0,
@@ -114,5 +112,3 @@ extern int gtp_bpf_rt_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_bpf_rt_iptnl_vty(vty_t *);
 extern int gtp_bpf_rt_lladdr_update(void *);
 extern int gtp_bpf_rt_lladdr_vty(vty_t *);
-
-#endif

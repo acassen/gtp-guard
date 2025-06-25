@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_VRF_H
-#define _GTP_VRF_H
+#pragma once
 
 enum ip_vrf_flags {
 	IP_VRF_FL_ENCAP_DOT1Q_BIT,
@@ -55,5 +53,3 @@ extern int gtp_ip_vrf_destroy(ip_vrf_t *);
 extern int gtp_vrf_init(void);
 extern int gtp_vrf_destroy(void);
 extern int gtp_vrf_vty_init(void);
-
-#endif

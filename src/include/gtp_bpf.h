@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_H
-#define _GTP_BPF_H
+#pragma once
 
 enum {
 	RULE_ADD = 0,
@@ -41,5 +39,3 @@ extern int gtp_bpf_load(gtp_bpf_opts_t *);
 extern void gtp_bpf_unload(gtp_bpf_opts_t *);
 extern int gtp_bpf_init(void);
 extern int gtp_bpf_destroy(void);
-
-#endif

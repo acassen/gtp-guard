@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _DAEMON_H
-#define _DAEMON_H
+#pragma once
 
 /* System includes */
 #include <stdio.h>
@@ -34,5 +33,3 @@
 
 /* prototype */
 extern pid_t xdaemon(int, int, int);
-
-#endif

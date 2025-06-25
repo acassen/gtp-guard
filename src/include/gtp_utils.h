@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_UTILS_H
-#define _GTP_UTILS_H
+#pragma once
 
 typedef struct _gtp_msg_type_map {
 	const char *name;
@@ -70,6 +68,3 @@ extern int gtp_foreach_ie(uint8_t, uint8_t *, size_t, uint8_t *,
 			  gtp_server_worker_t *, gtp_session_t *, int, void *,
 			  gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *));
 extern ssize_t gtpu_get_header_len(pkt_buffer_t *);
-
-
-#endif

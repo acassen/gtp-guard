@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_CDR_SPOOL_H
-#define _GTP_CDR_SPOOL_H
+#pragma once
 
 /* Flags */
 enum gtp_cdr_file_flags {
@@ -71,5 +69,3 @@ extern int gtp_cdr_spool_start(gtp_cdr_spool_t *);
 extern int gtp_cdr_spool_stop(gtp_cdr_spool_t *);
 extern gtp_cdr_spool_t *gtp_cdr_spool_alloc(const char *);
 extern int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);
-
-#endif

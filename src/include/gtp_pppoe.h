@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPPOE_H
-#define _GTP_PPPOE_H
+#pragma once
 
 /*
  *	PPPoE RFC 2516 related
@@ -255,5 +253,3 @@ extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_init(const char *);
 extern gtp_pppoe_t *gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *);
 extern int gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *);
 extern int gtp_pppoe_bundle_destroy(void);
-
-#endif

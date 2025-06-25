@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_ROUTER_HDL_H
-#define _GTP_ROUTER_HDL_H
+#pragma once
 
 /* Defines */
 
@@ -28,5 +26,3 @@
 extern int gtpc_send_delete_bearer_request(gtp_teid_t *);
 extern int gtpc_router_handle(gtp_server_worker_t *, struct sockaddr_storage *);
 extern int gtpu_router_handle(gtp_server_worker_t *, struct sockaddr_storage *);
-
-#endif

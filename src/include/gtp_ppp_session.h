@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPP_SESSION_H
-#define _GTP_PPP_SESSION_H
+#pragma once
 
 #define AUTHFLAG_NOCALLOUT	1 /* don't require authentication on callouts */
 #define AUTHFLAG_NORECHALLENGE	2 /* don't re-challenge CHAP */
@@ -233,5 +231,3 @@ extern sppp_t *sppp_init(spppoe_t *, void (*pp_tls)(struct _sppp *)
 				   , void (*pp_con)(sppp_t *)
 				   , void (*pp_chg)(struct _sppp *, int));
 extern void sppp_destroy(sppp_t *);
-
-#endif

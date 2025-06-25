@@ -27,8 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _MD5_H_
-#define _MD5_H_
+#pragma once
 
 #define MD5_BUFLEN	64
 
@@ -69,5 +68,3 @@ do {				\
 	md5_pad((y));		\
 	md5_result((x), (y));	\
 } while (0)
-
-#endif

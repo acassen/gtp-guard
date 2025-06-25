@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _TIMER_THREAD_H
-#define _TIMER_THREAD_H
+#pragma once
 
 enum {
 	TIMER_THREAD_FL_STOP_BIT,
@@ -56,5 +54,3 @@ extern int timer_node_del(timer_thread_t *, timer_node_t *);
 extern int timer_thread_init(timer_thread_t *, const char *, int (*fired) (void *));
 extern int timer_thread_signal(timer_thread_t *);
 extern int timer_thread_destroy(timer_thread_t *);
-
-#endif

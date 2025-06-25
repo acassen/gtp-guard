@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_GUARD_H
-#define _GTP_GUARD_H
+#pragma once
 
 #include <net/ethernet.h>
 #include <net/if.h>
@@ -111,5 +109,3 @@
 #include "gtp_interface_vty.h"
 #include "gtp_router.h"
 #include "gtp_router_hdl.h"
-
-#endif
