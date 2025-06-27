@@ -284,14 +284,14 @@ sppp_log_error(sppp_t *sp, const char *errmsg)
 void
 sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timer_thread_t *ppp_timer;
 	int timo;
 
 	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
 	if (timo < 1)
 		timo = 1;
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	timer_node_add(ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
 }
 
@@ -302,7 +302,7 @@ sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 void
 sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timer_thread_t *ppp_timer;
 
 	if (debug & 8 && sp->state[cp->protoidx] != newstate)
@@ -311,7 +311,7 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 		       sppp_state_name(sp->state[cp->protoidx]),
 		       sppp_state_name(newstate));
 	sp->state[cp->protoidx] = newstate;
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 
 	switch (newstate) {
 	case STATE_INITIAL:
@@ -340,7 +340,7 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 	     uint8_t ident, uint16_t len, void *data)
 {
 	spppoe_t *s = sp->s_pppoe;
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	lcp_hdr_t *lh;
 	uint8_t *p;
 	pkt_t *pkt;
@@ -392,7 +392,7 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 	/* send pkt */
 	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
 	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
-	return gtp_pppoe_ses_send(pppoe, pkt);
+	return pppoe_ses_send(pppoe, pkt);
 }
 
 /*
@@ -401,7 +401,7 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 static void
 sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	pkt_buffer_t *pbuff = pkt->pbuff;
 	uint16_t protocol = ntohs(*(uint16_t *) pbuff->data);
 	int rv, len = pbuff->end - pbuff->data;
@@ -758,7 +758,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 void
 sppp_input(sppp_t *sp, pkt_t *pkt)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	ppp_hdr_t ht;
 	timeval_t tv;
 
@@ -814,7 +814,7 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
 void
 sppp_up_event(const struct cp *cp, sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s up(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -840,7 +840,7 @@ sppp_up_event(const struct cp *cp, sppp_t *sp)
 void
 sppp_down_event(const struct cp *cp, sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s down(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -877,7 +877,7 @@ sppp_down_event(const struct cp *cp, sppp_t *sp)
 void
 sppp_open_event(const struct cp *cp, sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s open(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -912,7 +912,7 @@ sppp_open_event(const struct cp *cp, sppp_t *sp)
 void
 sppp_close_event(const struct cp *cp, sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s close(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -952,7 +952,7 @@ sppp_close_event(const struct cp *cp, sppp_t *sp)
 void
 sppp_to_event(const struct cp *cp, sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s TO(%s) rst_counter = %d\n",
 		 pppoe->ifname, cp->name,
@@ -1033,7 +1033,7 @@ sppp_phase_network(sppp_t *sp)
 void
 sppp_lcp_init(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	__set_bit(LCP_OPT_MAGIC, &sp->lcp.opts);
 	sp->lcp.magic = 0;
@@ -1059,7 +1059,7 @@ sppp_lcp_init(sppp_t *sp)
 void
 sppp_lcp_up(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timeval_t tv;
 
 	sp->pp_alivecnt = 0;
@@ -1084,7 +1084,7 @@ sppp_lcp_up(sppp_t *sp)
 void
 sppp_lcp_down(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_DOWN, METRICS_DIR_IN);
 	sppp_down_event(&lcp, sp);
@@ -1100,7 +1100,7 @@ sppp_lcp_down(sppp_t *sp)
 void
 sppp_lcp_open(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	/*
 	 * If we are authenticator, negotiate LCP_AUTH
@@ -1118,7 +1118,7 @@ sppp_lcp_open(sppp_t *sp)
 void
 sppp_lcp_close(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_CLOSE, METRICS_DIR_IN);
 	sppp_close_event(&lcp, sp);
@@ -1140,7 +1140,7 @@ sppp_lcp_TO(void *cookie)
 int
 sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *buf, *r, *p;
 	int origlen, rlen;
 	uint32_t nmagic;
@@ -1324,7 +1324,7 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 void
 sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 
 	len -= 4;
@@ -1378,7 +1378,7 @@ sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 void
 sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 	uint32_t magic;
 
@@ -1536,7 +1536,7 @@ sppp_lcp_tlf(sppp_t *sp)
 void
 sppp_lcp_scr(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	char opt[6 /* magicnum */ + 4 /* mru */ + 5 /* chap */];
 	int i = 0;
 	uint16_t authproto;
@@ -1675,7 +1675,7 @@ sppp_ipcp_TO(void *cookie)
 int
 sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *buf, *r, *p;
 	int rlen, origlen, buflen;
 	uint32_t hisaddr = 0, desiredaddr;
@@ -1823,7 +1823,7 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 void
 sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 
 	len -= 4;
@@ -1861,7 +1861,7 @@ sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 void
 sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 	uint32_t wantaddr;
 
@@ -2026,7 +2026,7 @@ sppp_ipv6cp_destroy(sppp_t *sp)
 void
 sppp_ipv6cp_up(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_UP, METRICS_DIR_IN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
@@ -2044,7 +2044,7 @@ sppp_ipv6cp_down(sppp_t *sp)
 void
 sppp_ipv6cp_open(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_OPEN, METRICS_DIR_IN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
@@ -2056,7 +2056,7 @@ sppp_ipv6cp_open(sppp_t *sp)
 void
 sppp_ipv6cp_close(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_CLOSE, METRICS_DIR_IN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
@@ -2074,7 +2074,7 @@ sppp_ipv6cp_TO(void *cookie)
 int
 sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *buf, *r, *p;
 	int rlen, origlen, buflen;
 	struct in6_addr myaddr, desiredaddr, suggestaddr = IN6ADDR_ANY_INIT;
@@ -2204,7 +2204,7 @@ end:
 void
 sppp_ipv6cp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 
 	len -= 4;
@@ -2233,7 +2233,7 @@ sppp_ipv6cp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 void
 sppp_ipv6cp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 	struct in6_addr suggestaddr = IN6ADDR_ANY_INIT;
 	char addr[INET6_ADDRSTRLEN];
@@ -2343,7 +2343,7 @@ void
 sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 {
 	spppoe_t *s = sp->s_pppoe;
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	pppoe_hdr_t *ph;
 	lcp_hdr_t *lh;
 	pkt_t *pkt;
@@ -2406,7 +2406,7 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 	/* send pkt */
 	pkt_buffer_set_end_pointer(pkt->pbuff, pkt->pbuff->data - pkt->pbuff->head);
 	pkt_buffer_pad(pkt->pbuff, ETH_ZLEN);
-	gtp_pppoe_ses_send(pppoe, pkt);
+	pppoe_ses_send(pppoe, pkt);
 }
 
 /*
@@ -2414,7 +2414,7 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 void
 sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	pkt_buffer_t *pbuff = pkt->pbuff;
 	int len = pbuff->end - pbuff->data;
 	timer_thread_t *ppp_timer;
@@ -2428,7 +2428,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		return;
 	}
 
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	h = (lcp_hdr_t *) pbuff->data;
 	if (len > ntohs(h->len))
 		len = ntohs(h->len);
@@ -2559,7 +2559,7 @@ sppp_pap_init(sppp_t *sp)
 void
 sppp_pap_open(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timer_thread_t *ppp_timer;
 
 	if (sp->hisauth.proto == PPP_PAP &&
@@ -2571,7 +2571,7 @@ sppp_pap_open(sppp_t *sp)
 	if (sp->myauth.proto == PPP_PAP) {
 		/* we are peer, send a request, and start a timer */
 		pap.scr(sp);
-		ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+		ppp_timer = pppoe_get_ppp_timer(pppoe);
 		timer_node_add(ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
 	}
 	ppp_metric_update(pppoe, PPP_PAP, PPP_METRIC_OPEN, METRICS_DIR_IN);
@@ -2593,7 +2593,7 @@ int
 sppp_pap_TO(void *cookie)
 {
 	sppp_t *sp = (sppp_t *)cookie;
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap TO(%s) rst_counter = %d\n",
 		 pppoe->ifname,
@@ -2630,7 +2630,7 @@ int
 sppp_pap_my_TO(void *cookie)
 {
 	sppp_t *sp = (sppp_t *)cookie;
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap peer TO\n", pppoe->ifname));
 	pap.scr(sp);
@@ -2640,7 +2640,7 @@ sppp_pap_my_TO(void *cookie)
 void
 sppp_pap_tlu(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	sp->rst_counter[IDX_PAP] = sp->lcp.max_configure;
 
@@ -2663,11 +2663,11 @@ sppp_pap_tlu(sppp_t *sp)
 void
 sppp_pap_tld(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timer_thread_t *ppp_timer;
 
 	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	timer_node_del(ppp_timer, &sp->ch[IDX_PAP]);
 	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 	sp->lcp.protos &= ~(1 << IDX_PAP);
@@ -2700,7 +2700,7 @@ static int
 sppp_keepalive(void *arg)
 {
 	sppp_t *sp = arg;
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timer_thread_t *ppp_timer;
 	timeval_t tv;
 
@@ -2751,7 +2751,7 @@ sppp_keepalive(void *arg)
 	}
 
   next_timer:
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
 	return 0;
 }
@@ -2763,7 +2763,7 @@ sppp_keepalive(void *arg)
 int
 sppp_up(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp = s->s_ppp;
 	timer_thread_t *ppp_timer;
 
@@ -2773,7 +2773,7 @@ sppp_up(spppoe_t *s)
 	/* Register keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags |= PP_KEEPALIVE;
-		ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+		ppp_timer = pppoe_get_ppp_timer(pppoe);
 		timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
 	}
 	return 0;
@@ -2782,12 +2782,12 @@ sppp_up(spppoe_t *s)
 int
 sppp_down(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp = s->s_ppp;
 	timer_thread_t *ppp_timer;
 	int i;
 
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 
 	/* LCP layer */
 	(sp->pp_down)(sp);
@@ -2808,7 +2808,7 @@ sppp_t *
 sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
 		     , void (*pp_con)(sppp_t *), void (*pp_chg)(struct _sppp *, int))
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;
 	int i;
 
@@ -2864,11 +2864,11 @@ sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
 void
 sppp_destroy(sppp_t *sp)
 {
-	gtp_pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timer_thread_t *ppp_timer;
 	int i;
 
-	ppp_timer = gtp_pppoe_get_ppp_timer(pppoe);
+	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	sppp_ipcp_destroy(sp);
 	sppp_ipv6cp_destroy(sp);
 
@@ -2892,7 +2892,7 @@ sppp_destroy(sppp_t *sp)
  *	PPP service init
  */
 static int
-gtp_ppp_timer_init(gtp_pppoe_t *pppoe)
+gtp_ppp_timer_init(pppoe_t *pppoe)
 {
 	char pname[128];
 
@@ -2902,14 +2902,14 @@ gtp_ppp_timer_init(gtp_pppoe_t *pppoe)
 }
 
 static int
-gtp_ppp_timer_destroy(gtp_pppoe_t *pppoe)
+gtp_ppp_timer_destroy(pppoe_t *pppoe)
 {
 	timer_thread_destroy(&pppoe->ppp_timer);
 	return 0;
 }
 
 int
-gtp_ppp_init(gtp_pppoe_t *pppoe)
+gtp_ppp_init(pppoe_t *pppoe)
 {
 	gtp_ppp_timer_init(pppoe);
 
@@ -2922,7 +2922,7 @@ gtp_ppp_init(gtp_pppoe_t *pppoe)
 }
 
 int
-gtp_ppp_destroy(gtp_pppoe_t *pppoe)
+gtp_ppp_destroy(pppoe_t *pppoe)
 {
 	gtp_ppp_timer_destroy(pppoe);
 	return 0;

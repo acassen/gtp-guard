@@ -290,8 +290,8 @@ free_daemon_data(void)
 	gtp_router_server_destroy();
 	gtp_request_destroy();
 	gtp_metrics_destroy();
-	gtp_pppoe_bundle_destroy();
-	gtp_pppoe_destroy();
+	pppoe_bundle_destroy();
+	pppoe_destroy();
 	gtp_conn_destroy();
 	gtp_sessions_destroy();
 	gtp_proxy_destroy();
@@ -306,4 +306,3 @@ free_daemon_data(void)
 	gtp_apn_destroy();
 	FREE(daemon_data);
 }
-

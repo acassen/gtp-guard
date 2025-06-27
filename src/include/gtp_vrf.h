@@ -37,8 +37,8 @@ typedef struct _ip_vrf {
 	uint16_t		encap_vlan_id;
 	uint16_t		decap_vlan_id;
 	gtp_iptnl_t		iptnl;
-	gtp_pppoe_t		*pppoe;
-	gtp_pppoe_bundle_t	*pppoe_bundle;
+	pppoe_t			*pppoe;
+	pppoe_bundle_t		*pppoe_bundle;
 
 	list_head_t		next;
 

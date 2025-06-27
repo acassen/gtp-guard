@@ -21,4 +21,4 @@
 #pragma once
 
 /* Prototypes */
-extern int gtp_pppoe_vty_init(void);
+extern int pppoe_vty_init(void);

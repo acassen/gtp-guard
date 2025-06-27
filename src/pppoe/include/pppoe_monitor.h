@@ -21,5 +21,5 @@
 #pragma once
 
 /* Prototypes */
-extern int gtp_pppoe_monitor_vrrp_init(gtp_pppoe_t *);
-extern int gtp_pppoe_monitor_vrrp_destroy(gtp_pppoe_t *);
+extern int pppoe_monitor_vrrp_init(pppoe_t *);
+extern int pppoe_monitor_vrrp_destroy(pppoe_t *);

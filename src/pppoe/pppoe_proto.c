@@ -36,7 +36,7 @@ static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
 pkt_t *
 pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t proto)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	struct ether_header *eh;
 	pkt_t *pkt;
 
@@ -92,7 +92,7 @@ pppoe_vendor_specific_tag_append(uint8_t *p, uint8_t type, uint8_t *value, uint8
 static int
 pppoe_vendor_specific_append(spppoe_t *s, uint8_t *p, bool rate_append)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	pppoe_tag_t *vendor_spec_tag;
 	uint32_t *value;
 	int offset = 0;
@@ -144,7 +144,7 @@ pppoe_eth_pkt_pad(pkt_buffer_t *b, uint8_t *p)
 int
 pppoe_send_padi(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	pppoe_hdr_t *pppoeh;
 	pkt_t *pkt;
 	uint32_t *hunique;
@@ -201,13 +201,13 @@ pppoe_send_padi(spppoe_t *s)
 	pppoe_metric_update(pppoe, METRICS_DIR_OUT, PPPOE_METRIC_PADI);
 
 	/* send pkt */
-	return gtp_pppoe_disc_send(pppoe, pkt);
+	return pppoe_disc_send(pppoe, pkt);
 }
 
 static int
 pppoe_send_padr(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	pppoe_hdr_t *pppoeh;
 	pkt_t *pkt;
 	uint8_t *p;
@@ -271,13 +271,13 @@ pppoe_send_padr(spppoe_t *s)
 	pppoe_metric_update(pppoe, METRICS_DIR_OUT, PPPOE_METRIC_PADR);
 
 	/* send pkt */
-	return gtp_pppoe_disc_send(pppoe, pkt);
+	return pppoe_disc_send(pppoe, pkt);
 }
 
 static int
 pppoe_send_padt(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	pkt_t *pkt;
 	uint8_t *p;
 
@@ -295,13 +295,13 @@ pppoe_send_padt(spppoe_t *s)
 	pppoe_metric_update(pppoe, METRICS_DIR_OUT, PPPOE_METRIC_PADT);
 
 	/* send pkt */
-	return gtp_pppoe_disc_send(pppoe, pkt);
+	return pppoe_disc_send(pppoe, pkt);
 }
 
 int
 pppoe_connect(spppoe_t *s)
 {
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	timer_thread_t *session_timer;
 	int err, retry_wait = 2;
 
@@ -320,7 +320,7 @@ pppoe_connect(spppoe_t *s)
 	/* register timer */
 	if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 		retry_wait = PPPOE_DISC_TIMEOUT;
-	session_timer = gtp_pppoe_get_session_timer(pppoe);
+	session_timer = pppoe_get_session_timer(pppoe);
 	timer_node_add(session_timer, &s->t_node, retry_wait);
 	return 0;
 }
@@ -340,13 +340,13 @@ int
 pppoe_disconnect(spppoe_t *s)
 {
 	timer_thread_t *session_timer;
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	int ret;
 
 	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", s->pppoe->ifname, s->unique));
 
 	/* Release pending session timer */
-	session_timer = gtp_pppoe_get_session_timer(pppoe);
+	session_timer = pppoe_get_session_timer(pppoe);
 	timer_node_del(session_timer, &s->t_node);
 
 	/* Send PADT if session is running */
@@ -368,13 +368,13 @@ int
 pppoe_timeout(void *arg)
 {
 	spppoe_t *s = (spppoe_t *) arg;
-	gtp_pppoe_t *pppoe = s->pppoe;
+	pppoe_t *pppoe = s->pppoe;
 	timer_thread_t *session_timer;
 	int retry_wait = 2;
 
 	PPPDEBUG(("%s: pppoe hunique:0x%.8x\n", pppoe->ifname, s->unique));
 
-	session_timer = gtp_pppoe_get_session_timer(pppoe);
+	session_timer = pppoe_get_session_timer(pppoe);
 
 	switch (s->state) {
 	case PPPOE_STATE_PADI_SENT:
@@ -429,7 +429,7 @@ pppoe_timeout(void *arg)
 }
 
 static int
-pppoe_sanitize_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt,
+pppoe_sanitize_pkt(pppoe_t *pppoe, pkt_t *pkt,
 		   int *off, uint16_t *session, uint16_t *plen, uint8_t *code)
 {
 	struct ether_header *eh;
@@ -468,7 +468,7 @@ pppoe_sanitize_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt,
 }
 
 void
-pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
+pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 {
 	spppoe_t *s = NULL;
 	struct ether_header *eh;
@@ -497,9 +497,9 @@ pppoe_dispatch_disc_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		return;
 	}
 	eh = (struct ether_header *) pkt->pbuff->head;
-	session_tab = gtp_pppoe_get_session_tab(pppoe);
-	unique_tab = gtp_pppoe_get_unique_tab(pppoe);
-	session_timer = gtp_pppoe_get_session_timer(pppoe);
+	session_tab = pppoe_get_session_tab(pppoe);
+	unique_tab = pppoe_get_unique_tab(pppoe);
+	session_timer = pppoe_get_session_timer(pppoe);
 
 	while (off + sizeof(*pt) <= pkt_buffer_len(pkt->pbuff)) {
 		pt = (pppoe_tag_t *) (pkt->pbuff->head + off);
@@ -744,7 +744,7 @@ breakbreak:
 }
 
 void
-pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
+pppoe_dispatch_session_pkt(pppoe_t *pppoe, pkt_t *pkt)
 {
 	struct ether_header *eh;
 	spppoe_t *sp;
@@ -758,7 +758,7 @@ pppoe_dispatch_session_pkt(gtp_pppoe_t *pppoe, pkt_t *pkt)
 		return;
 	eh = (struct ether_header *) pkt->pbuff->head;
 
-	session_tab = gtp_pppoe_get_session_tab(pppoe);
+	session_tab = pppoe_get_session_tab(pppoe);
 	sp = spppoe_get_by_session(session_tab, (struct ether_addr *) eh->ether_dhost, session);
 	if (!sp) {
 		log_message(LOG_INFO, "%s(): %s: unknown pppoe session for "

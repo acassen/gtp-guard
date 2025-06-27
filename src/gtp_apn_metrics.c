@@ -28,7 +28,7 @@ extern data_t *daemon_data;
 
 static int
 gtp_vrf_pppoe_metrics_tmpl_dump(FILE *fp, const char *apn_name,
-				gtp_pppoe_t *pppoe)
+				pppoe_t *pppoe)
 {
 	if (!pppoe)
 		return -1;
@@ -41,7 +41,7 @@ gtp_vrf_pppoe_metrics_tmpl_dump(FILE *fp, const char *apn_name,
 
 static int
 gtp_vrf_pppoe_bundle_metrics_tmpl_dump(FILE *fp, const char *apn_name,
-				       gtp_pppoe_bundle_t *bundle)
+				       pppoe_bundle_t *bundle)
 {
 	int i;
 

@@ -32,7 +32,7 @@ extern thread_master_t *master;
  *	VRRP metrics
  */
 static int
-pppoe_vrrp_inuse(gtp_pppoe_t *pppoe, void *arg)
+pppoe_vrrp_inuse(pppoe_t *pppoe, void *arg)
 {
 	bool *inuse = arg;
 
@@ -44,7 +44,7 @@ pppoe_vrrp_inuse(gtp_pppoe_t *pppoe, void *arg)
 }
 
 static int
-vrrp_metrics_tmpl_dump(gtp_pppoe_t *pppoe, void *arg)
+vrrp_metrics_tmpl_dump(pppoe_t *pppoe, void *arg)
 {
 	FILE *fp = arg;
 
@@ -62,19 +62,19 @@ vrrp_metrics_dump(FILE *fp)
 {
 	bool inuse = false;
 
-	gtp_pppoe_foreach(pppoe_vrrp_inuse, &inuse);
+	pppoe_foreach(pppoe_vrrp_inuse, &inuse);
 	if (!inuse)
 		return -1;
 
 	fprintf(fp, "# HELP gtpguard_vrrp_in_packet_total Count of received VRRP packets\n"
 		    "# TYPE gtpguard_vrrp_in_packet_total counter\n");
-	gtp_pppoe_foreach(vrrp_metrics_tmpl_dump, fp);
+	pppoe_foreach(vrrp_metrics_tmpl_dump, fp);
 	fprintf(fp, "\n");
 	return 0;
 }
 
 int
-vrrp_metrics_reset(gtp_pppoe_t *pppoe)
+vrrp_metrics_reset(pppoe_t *pppoe)
 {
 	pppoe->vrrp_pkt_rx = 0;
 	return 0;
@@ -85,7 +85,7 @@ vrrp_metrics_reset(gtp_pppoe_t *pppoe)
  *	PPP metrics
  */
 int
-ppp_metric_update(gtp_pppoe_t *pppoe, uint16_t protocol, int direction, int metric)
+ppp_metric_update(pppoe_t *pppoe, uint16_t protocol, int direction, int metric)
 {
 	ppp_metrics_t *metrics = pppoe->ppp_metrics;
 
@@ -115,13 +115,13 @@ ppp_metric_update(gtp_pppoe_t *pppoe, uint16_t protocol, int direction, int metr
 }
 
 int
-ppp_metric_update_total(gtp_pppoe_t *pppoe, uint16_t protocol, int direction)
+ppp_metric_update_total(pppoe_t *pppoe, uint16_t protocol, int direction)
 {
 	return ppp_metric_update(pppoe, protocol, direction, PPP_METRIC_TOTAL);
 }
 
 int
-ppp_metric_update_dropped(gtp_pppoe_t *pppoe, int direction)
+ppp_metric_update_dropped(pppoe_t *pppoe, int direction)
 {
 	if (!pppoe->ppp_metrics)
 		return -1;
@@ -134,7 +134,7 @@ ppp_metric_update_dropped(gtp_pppoe_t *pppoe, int direction)
 }
 
 int
-ppp_metrics_reset(gtp_pppoe_t *pppoe)
+ppp_metrics_reset(pppoe_t *pppoe)
 {
 	if (pppoe->ppp_metrics)
 		memset(pppoe->ppp_metrics, 0, sizeof(ppp_metrics_t));
@@ -146,7 +146,7 @@ static const char *ppp_metrics_name[PPP_METRIC_MAX] = {
 };
 
 static int
-ppp_metrics_var_dump(gtp_pppoe_t *pppoe, void *arg, const char *var, int direction)
+ppp_metrics_var_dump(pppoe_t *pppoe, void *arg, const char *var, int direction)
 {
 	ppp_metrics_t *metrics = pppoe->ppp_metrics;
 	FILE *fp = arg;
@@ -186,7 +186,7 @@ ppp_metrics_var_dump(gtp_pppoe_t *pppoe, void *arg, const char *var, int directi
  *	PPPoE metrics
  */
 int
-pppoe_metric_update(gtp_pppoe_t *pppoe, int dir, int metric)
+pppoe_metric_update(pppoe_t *pppoe, int dir, int metric)
 {
 	if (!pppoe->pppoe_metrics)
 		return -1;
@@ -201,7 +201,7 @@ pppoe_metric_update(gtp_pppoe_t *pppoe, int dir, int metric)
 }
 
 int
-pppoe_metrics_reset(gtp_pppoe_t *pppoe)
+pppoe_metrics_reset(pppoe_t *pppoe)
 {
 	int i;
 
@@ -217,7 +217,7 @@ pppoe_metrics_reset(gtp_pppoe_t *pppoe)
 }
 
 static int
-pppoe_metrics_inuse(gtp_pppoe_t *pppoe, void *arg)
+pppoe_metrics_inuse(pppoe_t *pppoe, void *arg)
 {
 	bool *inuse = arg;
 
@@ -232,7 +232,7 @@ static const char *pppoe_metrics_name[PPPOE_METRIC_MAX] = {
 };
 
 static int
-pppoe_metrics_var_dump(gtp_pppoe_t *pppoe, void *arg, const char *var, int direction)
+pppoe_metrics_var_dump(pppoe_t *pppoe, void *arg, const char *var, int direction)
 {
 	FILE *fp = arg;
 	int i;
@@ -251,7 +251,7 @@ pppoe_metrics_tmpl_dump(FILE *fp, const char *var, const char *desc, const char 
 			int direction)
 {
 	fprintf(fp, "# HELP %s %s\n# TYPE %s %s\n", var, desc, var, type);
-	gtp_pppoe_metrics_foreach(pppoe_metrics_var_dump, fp, var, direction);
+	pppoe_metrics_foreach(pppoe_metrics_var_dump, fp, var, direction);
 	fprintf(fp, "\n");
 	return 0;
 }
@@ -286,7 +286,7 @@ pppoe_metrics_dump(FILE *fp)
 	bool inuse = false;
 	int i;
 
-	gtp_pppoe_foreach(pppoe_metrics_inuse, &inuse);
+	pppoe_foreach(pppoe_metrics_inuse, &inuse);
 	if (!inuse)
 		return -1;
 
@@ -304,7 +304,7 @@ pppoe_metrics_dump(FILE *fp)
  *	Alloc/destroy
  */
 int
-pppoe_metrics_alloc(gtp_pppoe_t *pppoe)
+pppoe_metrics_alloc(pppoe_t *pppoe)
 {
 	pppoe_metrics_t *pppoe_m;
 	ppp_metrics_t *ppp_m;
@@ -325,7 +325,7 @@ pppoe_metrics_alloc(gtp_pppoe_t *pppoe)
 }
 
 int
-pppoe_metrics_destroy(gtp_pppoe_t *pppoe)
+pppoe_metrics_destroy(pppoe_t *pppoe)
 {
 	FREE_PTR(pppoe->ppp_metrics);
 	FREE_PTR(pppoe->pppoe_metrics);

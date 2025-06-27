@@ -890,7 +890,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 	gtp_conn_t *c;
 	gtp_session_t *s = NULL;
 	spppoe_t *s_pppoe;
-	gtp_pppoe_t *pppoe = NULL;
+	pppoe_t *pppoe = NULL;
 	gtp_teid_t *teid;
 	gtp_id_ecgi_t *ecgi = NULL;
 	gtp_ie_ambr_t *ambr = NULL;
@@ -1054,7 +1054,7 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 		if (__test_bit(IP_VRF_FL_PPPOE_BIT, &apn->vrf->flags))
 			pppoe = apn->vrf->pppoe;
 		else
-			pppoe = gtp_pppoe_bundle_get_active_instance(apn->vrf->pppoe_bundle);
+			pppoe = pppoe_bundle_get_active_instance(apn->vrf->pppoe_bundle);
 
 		if (!pppoe) {
 			log_message(LOG_INFO, "No active PPPoE Instance available to handle request");

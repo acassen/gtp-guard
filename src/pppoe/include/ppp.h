@@ -127,5 +127,5 @@ typedef struct _lcp_hdr {
 
 
 /* Prototypes */
-extern int gtp_ppp_init(gtp_pppoe_t *);
-extern int gtp_ppp_destroy(gtp_pppoe_t *);
+extern int gtp_ppp_init(pppoe_t *);
+extern int gtp_ppp_destroy(pppoe_t *);

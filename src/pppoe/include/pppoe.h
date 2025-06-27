@@ -140,13 +140,13 @@ struct rps_opts {
 	__u16	max_id;
 } __attribute__ ((__aligned__(8)));
 
-typedef struct _gtp_pppoe_worker {
+typedef struct _pppoe_worker {
 	char			pname[GTP_PNAME];
 	uint16_t		proto;
 	int			fd;
 	int			id;
 	pthread_t		task;
-	struct _gtp_pppoe	*pppoe;		/* backpointer */
+	struct _pppoe	*pppoe;		/* backpointer */
 
 	pthread_cond_t		cond;
 	pthread_mutex_t		mutex;
@@ -157,20 +157,20 @@ typedef struct _gtp_pppoe_worker {
 	/* metrics */
 	gtp_metrics_pkt_t	rx_metrics;
 	gtp_metrics_pkt_t	tx_metrics;
-} gtp_pppoe_worker_t;
+} pppoe_worker_t;
 
-typedef struct _gtp_pppoe_bundle {
+typedef struct _pppoe_bundle {
 	char			name[GTP_NAME_MAX_LEN];
 
-	struct _gtp_pppoe	**pppoe;
+	struct _pppoe	**pppoe;
 	int			instance_idx;
 
 	list_head_t		next;
 
 	unsigned long		flags;
-} gtp_pppoe_bundle_t;
+} pppoe_bundle_t;
 
-typedef struct _gtp_pppoe {
+typedef struct _pppoe {
 	char			name[GTP_NAME_MAX_LEN];
 	char			ifname[GTP_NAME_MAX_LEN];
 	unsigned int		ifindex;
@@ -191,15 +191,15 @@ typedef struct _gtp_pppoe {
 	unsigned int		seed;
 	pthread_t		task;
 
-	gtp_pppoe_bundle_t	*bundle;	/* Part of a pppoe-bundle */
+	pppoe_bundle_t	*bundle;	/* Part of a pppoe-bundle */
 	gtp_htab_t		session_tab;	/* Session Tracking by session-id */
 	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
 	int			session_count;	/* Number of session tracked */
 	timer_thread_t		session_timer;	/* Session timer */
 	timer_thread_t		ppp_timer;	/* PPP session timer */
 
-	gtp_pppoe_worker_t	*worker_disc;
-	gtp_pppoe_worker_t	*worker_ses;
+	pppoe_worker_t	*worker_disc;
+	pppoe_worker_t	*worker_ses;
 	pkt_queue_t		pkt_q;
 
 	int			monitor_fd;	/* Monitoring channel */
@@ -216,40 +216,40 @@ typedef struct _gtp_pppoe {
 	list_head_t		next;
 
 	unsigned long		flags;
-} gtp_pppoe_t;
+} pppoe_t;
 
 /* Prototypes */
 extern int vrrp_metrics_dump(FILE *);
-extern int vrrp_metrics_reset(gtp_pppoe_t *);
-extern int ppp_metric_update(gtp_pppoe_t *, uint16_t, int, int);
-extern int ppp_metric_update_total(gtp_pppoe_t *, uint16_t, int);
-extern int ppp_metric_update_dropped(gtp_pppoe_t *, int);
-extern int ppp_metrics_reset(gtp_pppoe_t *);
-extern int pppoe_metric_update(gtp_pppoe_t *, int, int);
-extern int pppoe_metrics_reset(gtp_pppoe_t *);
+extern int vrrp_metrics_reset(pppoe_t *);
+extern int ppp_metric_update(pppoe_t *, uint16_t, int, int);
+extern int ppp_metric_update_total(pppoe_t *, uint16_t, int);
+extern int ppp_metric_update_dropped(pppoe_t *, int);
+extern int ppp_metrics_reset(pppoe_t *);
+extern int pppoe_metric_update(pppoe_t *, int, int);
+extern int pppoe_metrics_reset(pppoe_t *);
 extern int pppoe_metrics_dump(FILE *);
-extern int pppoe_metrics_alloc(gtp_pppoe_t *);
-extern int pppoe_metrics_destroy(gtp_pppoe_t *);
+extern int pppoe_metrics_alloc(pppoe_t *);
+extern int pppoe_metrics_destroy(pppoe_t *);
 
-extern void gtp_pppoe_metrics_foreach(int (*hdl) (gtp_pppoe_t *, void *, const char *, int),
+extern void pppoe_metrics_foreach(int (*hdl) (pppoe_t *, void *, const char *, int),
 				      void *, const char *, int);
-extern void gtp_pppoe_foreach(int (*hdl) (gtp_pppoe_t *, void *), void *);
-extern gtp_htab_t *gtp_pppoe_get_session_tab(gtp_pppoe_t *);
-extern gtp_htab_t *gtp_pppoe_get_unique_tab(gtp_pppoe_t *);
-extern timer_thread_t *gtp_pppoe_get_session_timer(gtp_pppoe_t *);
-extern timer_thread_t *gtp_pppoe_get_ppp_timer(gtp_pppoe_t *);
-extern gtp_pppoe_t *gtp_pppoe_get_by_name(const char *);
-extern int gtp_pppoe_disc_send(gtp_pppoe_t *, pkt_t *);
-extern int gtp_pppoe_ses_send(gtp_pppoe_t *, pkt_t *);
-extern int gtp_pppoe_put(gtp_pppoe_t *);
-extern int gtp_pppoe_start(gtp_pppoe_t *);
-extern int gtp_pppoe_release(gtp_pppoe_t *);
-extern int gtp_pppoe_interface_init(gtp_pppoe_t *, const char *);
-extern gtp_pppoe_t *gtp_pppoe_init(const char *);
-extern int gtp_pppoe_destroy(void);
+extern void pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *);
+extern gtp_htab_t *pppoe_get_session_tab(pppoe_t *);
+extern gtp_htab_t *pppoe_get_unique_tab(pppoe_t *);
+extern timer_thread_t *pppoe_get_session_timer(pppoe_t *);
+extern timer_thread_t *pppoe_get_ppp_timer(pppoe_t *);
+extern pppoe_t *pppoe_get_by_name(const char *);
+extern int pppoe_disc_send(pppoe_t *, pkt_t *);
+extern int pppoe_ses_send(pppoe_t *, pkt_t *);
+extern int pppoe_put(pppoe_t *);
+extern int pppoe_start(pppoe_t *);
+extern int pppoe_release(pppoe_t *);
+extern int pppoe_interface_init(pppoe_t *, const char *);
+extern pppoe_t *pppoe_init(const char *);
+extern int pppoe_destroy(void);
 
-extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_get_by_name(const char *);
-extern gtp_pppoe_bundle_t *gtp_pppoe_bundle_init(const char *);
-extern gtp_pppoe_t *gtp_pppoe_bundle_get_active_instance(gtp_pppoe_bundle_t *);
-extern int gtp_pppoe_bundle_release(gtp_pppoe_bundle_t *);
-extern int gtp_pppoe_bundle_destroy(void);
+extern pppoe_bundle_t *pppoe_bundle_get_by_name(const char *);
+extern pppoe_bundle_t *pppoe_bundle_init(const char *);
+extern pppoe_t *pppoe_bundle_get_active_instance(pppoe_bundle_t *);
+extern int pppoe_bundle_release(pppoe_bundle_t *);
+extern int pppoe_bundle_destroy(void);

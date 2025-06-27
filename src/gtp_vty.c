@@ -889,7 +889,7 @@ gtp_vty_init(void)
 	/* Install other VTY */
 	gtp_bpf_prog_vty_init();
 	gtp_interface_vty_init();
-	gtp_pppoe_vty_init();
+	pppoe_vty_init();
 	gtp_vrf_vty_init();
 	gtp_cdr_vty_init();
 	gtp_apn_vty_init();

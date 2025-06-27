@@ -31,9 +31,9 @@
  *	Monitoring thread
  */
 static void
-gtp_pppoe_vrrp_timer_thread(thread_ref_t thread)
+pppoe_vrrp_timer_thread(thread_ref_t thread)
 {
-	gtp_pppoe_t *pppoe = THREAD_ARG(thread);
+	pppoe_t *pppoe = THREAD_ARG(thread);
 
 	/* Timer fired ? */
 	if (__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags) && (pppoe->expire > timer_long(time_now))) {
@@ -52,13 +52,13 @@ gtp_pppoe_vrrp_timer_thread(thread_ref_t thread)
 	}
 
   end:
-	thread_add_timer(master, gtp_pppoe_vrrp_timer_thread, pppoe, TIMER_HZ);
+	thread_add_timer(master, pppoe_vrrp_timer_thread, pppoe, TIMER_HZ);
 }
 
 static void
-gtp_pppoe_vrrp_read_thread(thread_ref_t thread)
+pppoe_vrrp_read_thread(thread_ref_t thread)
 {
-	gtp_pppoe_t *pppoe = THREAD_ARG(thread);
+	pppoe_t *pppoe = THREAD_ARG(thread);
 	ssize_t len;
 
 	/* Handle read timeout */
@@ -79,7 +79,7 @@ gtp_pppoe_vrrp_read_thread(thread_ref_t thread)
 	pppoe->expire = timer_long(time_now) + pppoe->credit;
 
   end:
-	pppoe->r_thread = thread_add_read(master, gtp_pppoe_vrrp_read_thread
+	pppoe->r_thread = thread_add_read(master, pppoe_vrrp_read_thread
 						, pppoe, pppoe->monitor_fd, TIMER_HZ, 0);
 }
 
@@ -96,7 +96,7 @@ gtp_pppoe_vrrp_read_thread(thread_ref_t thread)
  *	(005) ret      #0
  */
 static int
-gtp_pppoe_monitor_vrrp_socket_init(gtp_pppoe_t *pppoe)
+pppoe_monitor_vrrp_socket_init(pppoe_t *pppoe)
 {
 	int fd, err;
 	struct sock_filter bpfcode[6] = {
@@ -149,9 +149,9 @@ gtp_pppoe_monitor_vrrp_socket_init(gtp_pppoe_t *pppoe)
  *	PPPoE Monitoring
  */
 int
-gtp_pppoe_monitor_vrrp_init(gtp_pppoe_t *pppoe)
+pppoe_monitor_vrrp_init(pppoe_t *pppoe)
 {
-	pppoe->monitor_fd = gtp_pppoe_monitor_vrrp_socket_init(pppoe);
+	pppoe->monitor_fd = pppoe_monitor_vrrp_socket_init(pppoe);
 	if (pppoe->monitor_fd < 0) {
 		log_message(LOG_INFO, "%s(): Error creating VRRP minitoring socket (%m)"
 				    , __FUNCTION__);
@@ -163,14 +163,14 @@ gtp_pppoe_monitor_vrrp_init(gtp_pppoe_t *pppoe)
 			    , pppoe->ifname);
 
 	/* Scheduling submition */
-	pppoe->r_thread = thread_add_read(master, gtp_pppoe_vrrp_read_thread
+	pppoe->r_thread = thread_add_read(master, pppoe_vrrp_read_thread
 						, pppoe, pppoe->monitor_fd, TIMER_HZ, 0);
-	thread_add_timer(master, gtp_pppoe_vrrp_timer_thread, pppoe, pppoe->credit);
+	thread_add_timer(master, pppoe_vrrp_timer_thread, pppoe, pppoe->credit);
 	return 0;
 }
 
 int
-gtp_pppoe_monitor_vrrp_destroy(gtp_pppoe_t *pppoe)
+pppoe_monitor_vrrp_destroy(pppoe_t *pppoe)
 {
 	if (__test_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags))
 		close(pppoe->monitor_fd);
