@@ -154,7 +154,7 @@ typedef struct _gtp_pppoe_worker {
 	mpkt_t			mpkt;
 	pkt_queue_t		pkt_q;
 
-	/* Stats */
+	/* metrics */
 	gtp_metrics_pkt_t	rx_metrics;
 	gtp_metrics_pkt_t	tx_metrics;
 } gtp_pppoe_worker_t;
