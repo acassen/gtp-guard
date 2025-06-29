@@ -493,6 +493,7 @@ pppoe_init(void)
 {
 	spppoe_tracking_init();
 	pppoe_proto_init();
+	ppp_init();
 	return 0;
 }
 
@@ -501,6 +502,7 @@ pppoe_destroy(void)
 {
 	pppoe_t *pppoe, *_pppoe;
 
+	ppp_destroy();
 	pppoe_proto_destroy();
 	spppoe_tracking_destroy();
 	list_for_each_entry_safe(pppoe, _pppoe, &daemon_data->pppoe, next)

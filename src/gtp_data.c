@@ -276,7 +276,6 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
 	pppoe_init();
-	ppp_init();
 
 	return new;
 }
@@ -294,7 +293,6 @@ free_daemon_data(void)
 	gtp_metrics_destroy();
 	pppoe_bundle_destroy();
 	pppoe_destroy();
-	ppp_destroy();
 	gtp_conn_destroy();
 	gtp_sessions_destroy();
 	gtp_proxy_destroy();
