@@ -275,6 +275,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_cdr);
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
+	pppoe_init();
 
 	return new;
 }

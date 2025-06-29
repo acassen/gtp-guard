@@ -749,7 +749,7 @@ gtpc_pppoe_tls(sppp_t *sp)
 			      " hw_src:" ETHER_FMT
 			      " hw_dst:" ETHER_FMT
 			      " username:%s}"
-			    ,  c->imsi
+			    , c->imsi
 			    , s->unique
 			    , ETHER_BYTES(s->hw_src.ether_addr_octet)
 			    , ETHER_BYTES(s->hw_dst.ether_addr_octet)
@@ -1064,10 +1064,10 @@ gtpc_create_session_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage 
 			goto end;
 		}
 
-		s_pppoe = spppoe_init(pppoe, c,
-				      gtpc_pppoe_tls, gtpc_pppoe_tlf,
-				      gtpc_pppoe_create_session_response, gtpc_pppoe_chg,
-				      imsi, s->mei, apn_str, ecgi, ambr);
+		s_pppoe = spppoe_alloc(pppoe, c,
+				       gtpc_pppoe_tls, gtpc_pppoe_tlf,
+				       gtpc_pppoe_create_session_response, gtpc_pppoe_chg,
+				       imsi, s->mei, apn_str, ecgi, ambr);
 		if (!s_pppoe) {
 			rc = gtpc_build_errmsg(w->pbuff, teid
 						       , GTP_CREATE_SESSION_RESPONSE_TYPE

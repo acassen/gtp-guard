@@ -24,7 +24,7 @@
 
 
 /*
- *      Distributed lock handling
+ *	Distributed lock handling
  */
 static pthread_mutex_t *
 dlock_hash(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
@@ -64,9 +64,29 @@ gtp_htab_init(gtp_htab_t *h, size_t size)
 	h->dlock = dlock_init();
 }
 
+gtp_htab_t *
+gtp_htab_alloc(size_t size)
+{
+	gtp_htab_t *new;
+
+	PMALLOC(new);
+	if (!new)
+		return NULL;
+	gtp_htab_init(new, size);
+
+	return new;
+}
+
 void
 gtp_htab_destroy(gtp_htab_t *h)
 {
 	FREE(h->htab);
 	FREE(h->dlock);
+}
+
+void
+gtp_htab_free(gtp_htab_t *h)
+{
+	gtp_htab_destroy(h);
+	FREE(h);
 }

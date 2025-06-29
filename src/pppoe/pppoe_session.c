@@ -32,12 +32,16 @@ extern thread_master_t *master;
  *	PPPoE Sessions tracking
  */
 static int pppoe_sessions_count = 0;
+static gtp_htab_t *pppoe_session_tab;
+static gtp_htab_t *pppoe_unique_tab;
 
 int
 spppoe_sessions_count_read(void)
 {
 	return pppoe_sessions_count;
 }
+
+
 
 
 /* Host-Unique related */
@@ -65,8 +69,9 @@ __spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
 }
 
 spppoe_t *
-spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
+spppoe_get_by_unique(uint32_t id)
 {
+	gtp_htab_t *h = pppoe_unique_tab;
 	spppoe_t *s;
 
 	dlock_lock_id(h->dlock, id, 0);
@@ -76,7 +81,7 @@ spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
 	return s;
 }
 
-int
+static int
 __spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
 {
 	struct hlist_head *head;
@@ -95,7 +100,7 @@ __spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
 	return 0;
 }
 
-int
+static int
 spppoe_unique_unhash(gtp_htab_t *h, spppoe_t *s)
 {
 	dlock_lock_id(h->dlock, s->unique, 0);
@@ -113,7 +118,7 @@ spppoe_unique_unhash(gtp_htab_t *h, spppoe_t *s)
 	return 0;
 }
 
-int
+static int
 spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
 {
 	spppoe_t *_s;
@@ -165,8 +170,9 @@ __spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
 }
 
 spppoe_t *
-spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
+spppoe_get_by_session(struct ether_addr *hw_addr, uint16_t id)
 {
+	gtp_htab_t *h = pppoe_session_tab;
 	spppoe_t *s;
 
 	dlock_lock_id(h->dlock, id, 0);
@@ -177,8 +183,9 @@ spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
 }
 
 int
-spppoe_session_hash(gtp_htab_t *h, spppoe_t *s, struct ether_addr *hw_addr, uint16_t id)
+spppoe_session_hash(spppoe_t *s, struct ether_addr *hw_addr, uint16_t id)
 {
+	gtp_htab_t *h = pppoe_session_tab;
 	struct hlist_head *head;
 
 	dlock_lock_id(h->dlock, s->session_id, 0);
@@ -197,7 +204,7 @@ spppoe_session_hash(gtp_htab_t *h, spppoe_t *s, struct ether_addr *hw_addr, uint
 	return 0;
 }
 
-int
+static int
 spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
 {
 	dlock_lock_id(h->dlock, s->session_id, 0);
@@ -312,19 +319,12 @@ spppoe_free(spppoe_t *s)
 static int
 spppoe_release(spppoe_t *s)
 {
-	pppoe_t *pppoe = s->pppoe;
-	gtp_htab_t *session_tab, *unique_tab;
-
 	/* Disconnect pppoe session */
 	spppoe_disconnect(s);
 
 	/* Release tracking */
-	session_tab = pppoe_get_session_tab(pppoe);
-	spppoe_session_unhash(session_tab, s);
-
-	unique_tab = pppoe_get_unique_tab(pppoe);
-	spppoe_unique_unhash(unique_tab, s);
-
+	spppoe_session_unhash(pppoe_session_tab, s);
+	spppoe_unique_unhash(pppoe_unique_tab, s);
 	spppoe_free(s);
 	return 0;
 }
@@ -352,14 +352,13 @@ spppoe_destroy(spppoe_t *s)
 }
 
 spppoe_t *
-spppoe_init(pppoe_t *pppoe, gtp_conn_t *c,
-	    void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *),
-	    void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int),
-	    const uint64_t imsi, const uint64_t mei, const char *apn_str,
-	    gtp_id_ecgi_t *ecgi, gtp_ie_ambr_t *ambr)
+spppoe_alloc(pppoe_t *pppoe, gtp_conn_t *c,
+	     void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *),
+	     void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int),
+	     const uint64_t imsi, const uint64_t mei, const char *apn_str,
+	     gtp_id_ecgi_t *ecgi, gtp_ie_ambr_t *ambr)
 {
 	spppoe_t *s;
-	gtp_htab_t *unique_tab;
 	int err, id;
 
 	if (!pppoe)
@@ -403,8 +402,7 @@ spppoe_init(pppoe_t *pppoe, gtp_conn_t *c,
 
 	s->s_ppp = sppp_init(s, pp_tls, pp_tlf, pp_con, pp_chg);
 	timer_node_init(&s->t_node, NULL, s);
-	unique_tab = pppoe_get_unique_tab(pppoe);
-	spppoe_unique_hash(unique_tab, s, imsi, &pppoe->seed);
+	spppoe_unique_hash(pppoe_unique_tab, s, imsi, &pppoe->seed);
 	spppoe_add(c, s);
 
 	err = pppoe_connect(s);
@@ -434,4 +432,25 @@ spppoe_disconnect(spppoe_t *s)
 
 	__set_bit(GTP_PPPOE_FL_DELETE_IGNORE, &s->flags);
 	return pppoe_disconnect(s);
+}
+
+
+/*
+ *	PPPoE Tracking
+ */
+int
+spppoe_tracking_init(void)
+{
+	pppoe_session_tab = gtp_htab_alloc(CONN_HASHTAB_SIZE);
+	pppoe_unique_tab = gtp_htab_alloc(CONN_HASHTAB_SIZE);
+	return 0;
+}
+
+int
+spppoe_tracking_destroy(void)
+{
+	spppoe_sessions_destroy(pppoe_session_tab);
+	gtp_htab_free(pppoe_session_tab);
+	gtp_htab_free(pppoe_unique_tab);
+	return 0;
 }

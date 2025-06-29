@@ -487,7 +487,6 @@ pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 	uint32_t *hunique;
 	uint8_t code = 0;
 	char tmp[PPPOE_BUFSIZE];
-	gtp_htab_t *session_tab, *unique_tab;
 	timer_thread_t *session_timer;
 	int retry_wait = 2;
 
@@ -497,8 +496,6 @@ pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 		return;
 	}
 	eh = (struct ether_header *) pkt->pbuff->head;
-	session_tab = pppoe_get_session_tab(pppoe);
-	unique_tab = pppoe_get_unique_tab(pppoe);
 	session_timer = pppoe_get_session_timer(pppoe);
 
 	while (off + sizeof(*pt) <= pkt_buffer_len(pkt->pbuff)) {
@@ -539,7 +536,7 @@ pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 			}
 
 			hunique = (uint32_t *) (pkt->pbuff->head + off);
-			s = spppoe_get_by_unique(unique_tab, ntohl(*hunique));
+			s = spppoe_get_by_unique(ntohl(*hunique));
 			break;
 		case PPPOE_TAG_ACCOOKIE:
 			if (ac_cookie == NULL) {
@@ -701,7 +698,7 @@ breakbreak:
 		}
 
 		s->session_id = session;
-		spppoe_session_hash(session_tab, s, &s->hw_src, s->session_id);
+		spppoe_session_hash(s, &s->hw_src, s->session_id);
 		timer_node_del(session_timer, &s->t_node);
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x hw:" ETHER_FMT " connected\n",
 			 pppoe->ifname, s->unique, session,
@@ -718,8 +715,7 @@ breakbreak:
 			/* Some AC implementation doesnt tag PADT with Host-Uniq...
 			 * At least that's the way it is with Cisco implementation.
 			 * So try to find PPPoE session by session-id */
-			s = spppoe_get_by_session(session_tab,
-						  (struct ether_addr *) eh->ether_dhost, session);
+			s = spppoe_get_by_session((struct ether_addr *) eh->ether_dhost, session);
 			if (s == NULL) {
 				pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_DROPPED);
 				return;
@@ -751,15 +747,13 @@ pppoe_dispatch_session_pkt(pppoe_t *pppoe, pkt_t *pkt)
 	int off = 0, ret;
 	uint16_t session = 0, plen = 0;
 	uint8_t code = 0;
-	gtp_htab_t *session_tab;
 
 	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
 	if (ret < 0)
 		return;
 	eh = (struct ether_header *) pkt->pbuff->head;
 
-	session_tab = pppoe_get_session_tab(pppoe);
-	sp = spppoe_get_by_session(session_tab, (struct ether_addr *) eh->ether_dhost, session);
+	sp = spppoe_get_by_session((struct ether_addr *) eh->ether_dhost, session);
 	if (!sp) {
 		log_message(LOG_INFO, "%s(): %s: unknown pppoe session for "
 				      ETHER_FMT " session = 0x%.4x"
@@ -780,7 +774,7 @@ pppoe_dispatch_session_pkt(pppoe_t *pppoe, pkt_t *pkt)
 
 	/* Using PPPoE bundle, PPP frames could be broadcasted to every interfaces
 	 * part of the bundle. if "ignore-ingress-ppp-brd" feature is used then
-	 * only take care of pkt on the same interface as the one used during
+	 * to only take care of pkt on the same interface as the one used during
 	 * session init */
 	if (sp->pppoe->bundle &&
 	    __test_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &sp->pppoe->bundle->flags) &&

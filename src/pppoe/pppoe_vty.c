@@ -59,7 +59,7 @@ DEFUN(pppoe,
 		return CMD_WARNING;
 	}
 
-	new = pppoe_init(argv[0]);
+	new = pppoe_alloc(argv[0]);
 	if (!new) {
 		if (errno == EEXIST)
 			vty_out(vty, "%% PPPoE instance %s already exist !!!%s"

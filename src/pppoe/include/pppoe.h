@@ -191,9 +191,7 @@ typedef struct _pppoe {
 	unsigned int		seed;
 	pthread_t		task;
 
-	pppoe_bundle_t	*bundle;	/* Part of a pppoe-bundle */
-	gtp_htab_t		session_tab;	/* Session Tracking by session-id */
-	gtp_htab_t		unique_tab;	/* Session Tracking by unique */
+	pppoe_bundle_t		*bundle;	/* Part of a pppoe-bundle */
 	int			session_count;	/* Number of session tracked */
 	timer_thread_t		session_timer;	/* Session timer */
 	timer_thread_t		ppp_timer;	/* PPP session timer */
@@ -234,8 +232,6 @@ extern int pppoe_metrics_destroy(pppoe_t *);
 extern void pppoe_metrics_foreach(int (*hdl) (pppoe_t *, void *, const char *, int),
 				      void *, const char *, int);
 extern void pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *);
-extern gtp_htab_t *pppoe_get_session_tab(pppoe_t *);
-extern gtp_htab_t *pppoe_get_unique_tab(pppoe_t *);
 extern timer_thread_t *pppoe_get_session_timer(pppoe_t *);
 extern timer_thread_t *pppoe_get_ppp_timer(pppoe_t *);
 extern pppoe_t *pppoe_get_by_name(const char *);
@@ -245,7 +241,8 @@ extern int pppoe_put(pppoe_t *);
 extern int pppoe_start(pppoe_t *);
 extern int pppoe_release(pppoe_t *);
 extern int pppoe_interface_init(pppoe_t *, const char *);
-extern pppoe_t *pppoe_init(const char *);
+extern pppoe_t *pppoe_alloc(const char *);
+extern int pppoe_init(void);
 extern int pppoe_destroy(void);
 
 extern pppoe_bundle_t *pppoe_bundle_get_by_name(const char *);

@@ -73,17 +73,18 @@ typedef struct _spppoe {
 
 /* Prototypes */
 extern int spppoe_sessions_count_read(void);
-extern spppoe_t *spppoe_get_by_unique(gtp_htab_t *, uint32_t);
-extern spppoe_t *spppoe_get_by_session(gtp_htab_t *, struct ether_addr *, uint16_t);
-extern int spppoe_session_hash(gtp_htab_t *h, spppoe_t *, struct ether_addr *, uint16_t);
-extern int spppoe_sessions_destroy(gtp_htab_t *);
+extern spppoe_t *spppoe_get_by_unique(uint32_t);
+extern spppoe_t *spppoe_get_by_session(struct ether_addr *, uint16_t);
+extern int spppoe_session_hash(spppoe_t *, struct ether_addr *, uint16_t);
 extern void spppoe_free(spppoe_t *);
 extern int spppoe_destroy(spppoe_t *);
 extern int __spppoe_destroy(spppoe_t *);
-extern spppoe_t *spppoe_init(pppoe_t *, gtp_conn_t *,
-			     void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
-			     void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
-			     const uint64_t, const uint64_t, const char *,
-			     gtp_id_ecgi_t *, gtp_ie_ambr_t *);
+extern spppoe_t *spppoe_alloc(pppoe_t *, gtp_conn_t *,
+			      void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
+			      void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
+			      const uint64_t, const uint64_t, const char *,
+			      gtp_id_ecgi_t *, gtp_ie_ambr_t *);
 extern int spppoe_close(spppoe_t *);
 extern int spppoe_disconnect(spppoe_t *);
+extern int spppoe_tracking_init(void);
+extern int spppoe_tracking_destroy(void);

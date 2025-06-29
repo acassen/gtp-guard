@@ -56,20 +56,6 @@ pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *arg)
 		(*(hdl)) (pppoe, arg);
 }
 
-gtp_htab_t *
-pppoe_get_session_tab(pppoe_t *pppoe)
-{
-	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->session_tab :
-				 &pppoe->session_tab;
-}
-
-gtp_htab_t *
-pppoe_get_unique_tab(pppoe_t *pppoe)
-{
-	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->unique_tab :
-				 &pppoe->unique_tab;
-}
-
 timer_thread_t *
 pppoe_get_session_timer(pppoe_t *pppoe)
 {
@@ -496,7 +482,7 @@ pppoe_interface_init(pppoe_t *pppoe, const char *ifname)
 }
 
 pppoe_t *
-pppoe_init(const char *name)
+pppoe_alloc(const char *name)
 {
 	pppoe_t *pppoe = NULL;
 
@@ -516,8 +502,6 @@ pppoe_init(const char *name)
 	pppoe->seed = time(NULL);
 	srand(pppoe->seed);
 	pkt_queue_init(&pppoe->pkt_q);
-	gtp_htab_init(&pppoe->session_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&pppoe->unique_tab, CONN_HASHTAB_SIZE);
 	pppoe_timer_init(pppoe);
 	gtp_ppp_init(pppoe);
 	pppoe_add(pppoe);
@@ -534,9 +518,6 @@ pppoe_release(pppoe_t *pppoe)
 	pppoe_worker_destroy(pppoe);
 	gtp_ppp_destroy(pppoe);
 	list_head_del(&pppoe->next);
-	spppoe_sessions_destroy(&pppoe->session_tab);
-	gtp_htab_destroy(&pppoe->session_tab);
-	gtp_htab_destroy(&pppoe->unique_tab);
 	pkt_queue_destroy(&pppoe->pkt_q);
 	pppoe_monitor_vrrp_destroy(pppoe);
 	pppoe_metrics_destroy(pppoe);
@@ -545,13 +526,20 @@ pppoe_release(pppoe_t *pppoe)
 }
 
 int
+pppoe_init(void)
+{
+	spppoe_tracking_init();
+	return 0;
+}
+
+int
 pppoe_destroy(void)
 {
 	pppoe_t *pppoe, *_pppoe;
 
+	spppoe_tracking_destroy();
 	list_for_each_entry_safe(pppoe, _pppoe, &daemon_data->pppoe, next)
 		pppoe_release(pppoe);
-
 	return 0;
 }
 

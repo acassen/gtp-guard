@@ -140,7 +140,7 @@ gtp_proxy_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_
 
 
 /*
- *	GTP Switch init
+ *	GTP Proxy init
  */
 gtp_proxy_t *
 gtp_proxy_get(const char *name)
