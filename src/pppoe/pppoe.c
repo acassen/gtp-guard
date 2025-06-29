@@ -56,20 +56,6 @@ pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *arg)
 		(*(hdl)) (pppoe, arg);
 }
 
-timer_thread_t *
-pppoe_get_session_timer(pppoe_t *pppoe)
-{
-	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->session_timer :
-				 &pppoe->session_timer;
-}
-
-timer_thread_t *
-pppoe_get_ppp_timer(pppoe_t *pppoe)
-{
-	return (pppoe->bundle) ? &pppoe->bundle->pppoe[0]->ppp_timer :
-				 &pppoe->ppp_timer;
-}
-
 pppoe_t *
 pppoe_get_by_name(const char *name)
 {
@@ -413,26 +399,6 @@ pppoe_worker_destroy(pppoe_t *pppoe)
 	return 0;
 }
 
-/*
- *	PPPoE Timer related
- */
-static int
-pppoe_timer_init(pppoe_t *pppoe)
-{
-	char pname[128];
-
-	snprintf(pname, 127, "pppoe-timer-%s", pppoe->ifname);
-	timer_thread_init(&pppoe->session_timer, pname, pppoe_timeout);
-	return 0;
-}
-
-static int
-pppoe_timer_destroy(pppoe_t *pppoe)
-{
-	timer_thread_destroy(&pppoe->session_timer);
-	return 0;
-}
-
 
 /*
  *	PPPoE service init
@@ -502,8 +468,7 @@ pppoe_alloc(const char *name)
 	pppoe->seed = time(NULL);
 	srand(pppoe->seed);
 	pkt_queue_init(&pppoe->pkt_q);
-	pppoe_timer_init(pppoe);
-	gtp_ppp_init(pppoe);
+	ppp_set_default(pppoe);
 	pppoe_add(pppoe);
 
 	return pppoe;
@@ -514,9 +479,7 @@ pppoe_release(pppoe_t *pppoe)
 {
 	__set_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags);
 	pthread_join(pppoe->task, NULL);
-	pppoe_timer_destroy(pppoe);
 	pppoe_worker_destroy(pppoe);
-	gtp_ppp_destroy(pppoe);
 	list_head_del(&pppoe->next);
 	pkt_queue_destroy(&pppoe->pkt_q);
 	pppoe_monitor_vrrp_destroy(pppoe);
@@ -529,6 +492,7 @@ int
 pppoe_init(void)
 {
 	spppoe_tracking_init();
+	pppoe_proto_init();
 	return 0;
 }
 
@@ -537,6 +501,7 @@ pppoe_destroy(void)
 {
 	pppoe_t *pppoe, *_pppoe;
 
+	pppoe_proto_destroy();
 	spppoe_tracking_destroy();
 	list_for_each_entry_safe(pppoe, _pppoe, &daemon_data->pppoe, next)
 		pppoe_release(pppoe);

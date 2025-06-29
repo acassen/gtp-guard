@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 
+#include "memory.h"
 #include "utils.h"
 #include "bitops.h"
 #include "container.h"
@@ -368,6 +369,19 @@ timer_thread_init(timer_thread_t *t, const char *name, int (*fired) (void *))
 	return 0;
 }
 
+timer_thread_t *
+timer_thread_alloc(const char *name, int (*fired) (void *))
+{
+	timer_thread_t *new;
+
+	PMALLOC(new);
+	if (!new)
+		return NULL;
+	timer_thread_init(new, name, fired);
+
+	return new;
+}
+
 int
 timer_thread_signal(timer_thread_t *t)
 {
@@ -386,5 +400,13 @@ timer_thread_destroy(timer_thread_t *t)
 	pthread_mutex_destroy(&t->timer_mutex);
 	pthread_mutex_destroy(&t->cond_mutex);
 	pthread_cond_destroy(&t->cond);
+	return 0;
+}
+
+int
+timer_thread_free(timer_thread_t *t)
+{
+	timer_thread_destroy(t);
+	FREE(t);
 	return 0;
 }

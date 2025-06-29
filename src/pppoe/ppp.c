@@ -25,6 +25,8 @@
 /* local includes */
 #include "gtp_guard.h"
 
+/* local data */
+static timer_thread_t *ppp_timer;
 
 
 /*
@@ -284,14 +286,11 @@ sppp_log_error(sppp_t *sp, const char *errmsg)
 void
 sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	timer_thread_t *ppp_timer;
 	int timo;
 
 	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
 	if (timo < 1)
 		timo = 1;
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	timer_node_add(ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
 }
 
@@ -303,7 +302,6 @@ void
 sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 {
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	timer_thread_t *ppp_timer;
 
 	if (debug & 8 && sp->state[cp->protoidx] != newstate)
 		printf("%s: %s %s->%s\n",
@@ -311,7 +309,6 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 		       sppp_state_name(sp->state[cp->protoidx]),
 		       sppp_state_name(newstate));
 	sp->state[cp->protoidx] = newstate;
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 
 	switch (newstate) {
 	case STATE_INITIAL:
@@ -2417,7 +2414,6 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	pkt_buffer_t *pbuff = pkt->pbuff;
 	int len = pbuff->end - pbuff->data;
-	timer_thread_t *ppp_timer;
 	lcp_hdr_t *h;
 	uint8_t *name, *passwd, mlen;
 	int name_len, passwd_len;
@@ -2428,7 +2424,6 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		return;
 	}
 
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	h = (lcp_hdr_t *) pbuff->data;
 	if (len > ntohs(h->len))
 		len = ntohs(h->len);
@@ -2560,7 +2555,6 @@ void
 sppp_pap_open(sppp_t *sp)
 {
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	timer_thread_t *ppp_timer;
 
 	if (sp->hisauth.proto == PPP_PAP &&
 	    (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) != 0) {
@@ -2571,7 +2565,6 @@ sppp_pap_open(sppp_t *sp)
 	if (sp->myauth.proto == PPP_PAP) {
 		/* we are peer, send a request, and start a timer */
 		pap.scr(sp);
-		ppp_timer = pppoe_get_ppp_timer(pppoe);
 		timer_node_add(ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
 	}
 	ppp_metric_update(pppoe, PPP_PAP, PPP_METRIC_OPEN, METRICS_DIR_IN);
@@ -2664,10 +2657,8 @@ void
 sppp_pap_tld(sppp_t *sp)
 {
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	timer_thread_t *ppp_timer;
 
 	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	timer_node_del(ppp_timer, &sp->ch[IDX_PAP]);
 	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
 	sp->lcp.protos &= ~(1 << IDX_PAP);
@@ -2701,7 +2692,6 @@ sppp_keepalive(void *arg)
 {
 	sppp_t *sp = arg;
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	timer_thread_t *ppp_timer;
 	timeval_t tv;
 
 	/* Keepalive mode disabled */
@@ -2751,7 +2741,6 @@ sppp_keepalive(void *arg)
 	}
 
   next_timer:
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
 	return 0;
 }
@@ -2765,7 +2754,6 @@ sppp_up(spppoe_t *s)
 {
 	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp = s->s_ppp;
-	timer_thread_t *ppp_timer;
 
 	/* LCP layer */
 	(sp->pp_up)(sp);
@@ -2773,7 +2761,6 @@ sppp_up(spppoe_t *s)
 	/* Register keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags |= PP_KEEPALIVE;
-		ppp_timer = pppoe_get_ppp_timer(pppoe);
 		timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
 	}
 	return 0;
@@ -2784,10 +2771,7 @@ sppp_down(spppoe_t *s)
 {
 	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp = s->s_ppp;
-	timer_thread_t *ppp_timer;
 	int i;
-
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 
 	/* LCP layer */
 	(sp->pp_down)(sp);
@@ -2864,11 +2848,8 @@ sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
 void
 sppp_destroy(sppp_t *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	timer_thread_t *ppp_timer;
 	int i;
 
-	ppp_timer = pppoe_get_ppp_timer(pppoe);
 	sppp_ipcp_destroy(sp);
 	sppp_ipv6cp_destroy(sp);
 
@@ -2891,28 +2872,9 @@ sppp_destroy(sppp_t *sp)
 /*
  *	PPP service init
  */
-static int
-gtp_ppp_timer_init(pppoe_t *pppoe)
-{
-	char pname[128];
-
-	snprintf(pname, 127, "ppp-timer-%s", pppoe->ifname);
-	timer_thread_init(&pppoe->ppp_timer, pname, NULL);
-	return 0;
-}
-
-static int
-gtp_ppp_timer_destroy(pppoe_t *pppoe)
-{
-	timer_thread_destroy(&pppoe->ppp_timer);
-	return 0;
-}
-
 int
-gtp_ppp_init(pppoe_t *pppoe)
+ppp_set_default(pppoe_t *pppoe)
 {
-	gtp_ppp_timer_init(pppoe);
-
 	/* Default value */
 	pppoe->lcp_timeout = 1;		/* seconds */
 	pppoe->lcp_max_terminate = 2;
@@ -2922,8 +2884,15 @@ gtp_ppp_init(pppoe_t *pppoe)
 }
 
 int
-gtp_ppp_destroy(pppoe_t *pppoe)
+ppp_init(void)
 {
-	gtp_ppp_timer_destroy(pppoe);
+	ppp_timer = timer_thread_alloc("ppp-timer", NULL);
+	return 0;
+}
+
+int
+ppp_destroy(void)
+{
+	timer_thread_free(ppp_timer);
 	return 0;
 }

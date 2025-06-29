@@ -193,11 +193,9 @@ typedef struct _pppoe {
 
 	pppoe_bundle_t		*bundle;	/* Part of a pppoe-bundle */
 	int			session_count;	/* Number of session tracked */
-	timer_thread_t		session_timer;	/* Session timer */
-	timer_thread_t		ppp_timer;	/* PPP session timer */
 
-	pppoe_worker_t	*worker_disc;
-	pppoe_worker_t	*worker_ses;
+	pppoe_worker_t		*worker_disc;
+	pppoe_worker_t		*worker_ses;
 	pkt_queue_t		pkt_q;
 
 	int			monitor_fd;	/* Monitoring channel */
@@ -232,8 +230,6 @@ extern int pppoe_metrics_destroy(pppoe_t *);
 extern void pppoe_metrics_foreach(int (*hdl) (pppoe_t *, void *, const char *, int),
 				      void *, const char *, int);
 extern void pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *);
-extern timer_thread_t *pppoe_get_session_timer(pppoe_t *);
-extern timer_thread_t *pppoe_get_ppp_timer(pppoe_t *);
 extern pppoe_t *pppoe_get_by_name(const char *);
 extern int pppoe_disc_send(pppoe_t *, pkt_t *);
 extern int pppoe_ses_send(pppoe_t *, pkt_t *);

@@ -29,3 +29,5 @@ extern int pppoe_connect(spppoe_t *);
 extern int pppoe_abort_connect(spppoe_t *);
 extern int pppoe_disconnect(spppoe_t *);
 extern int pppoe_send_padi(spppoe_t *);
+extern int pppoe_proto_init(void);
+extern int pppoe_proto_destroy(void);

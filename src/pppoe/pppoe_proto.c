@@ -22,6 +22,9 @@
 /* local includes */
 #include "gtp_guard.h"
 
+
+/* Local data */
+static timer_thread_t *pppoe_session_timer;
 static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
 
 
@@ -302,7 +305,6 @@ int
 pppoe_connect(spppoe_t *s)
 {
 	pppoe_t *pppoe = s->pppoe;
-	timer_thread_t *session_timer;
 	int err, retry_wait = 2;
 
 	if (s->state != PPPOE_STATE_INITIAL)
@@ -320,8 +322,7 @@ pppoe_connect(spppoe_t *s)
 	/* register timer */
 	if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 		retry_wait = PPPOE_DISC_TIMEOUT;
-	session_timer = pppoe_get_session_timer(pppoe);
-	timer_node_add(session_timer, &s->t_node, retry_wait);
+	timer_node_add(pppoe_session_timer, &s->t_node, retry_wait);
 	return 0;
 }
 
@@ -339,15 +340,12 @@ pppoe_abort_connect(spppoe_t *s)
 int
 pppoe_disconnect(spppoe_t *s)
 {
-	timer_thread_t *session_timer;
-	pppoe_t *pppoe = s->pppoe;
 	int ret;
 
 	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", s->pppoe->ifname, s->unique));
 
 	/* Release pending session timer */
-	session_timer = pppoe_get_session_timer(pppoe);
-	timer_node_del(session_timer, &s->t_node);
+	timer_node_del(pppoe_session_timer, &s->t_node);
 
 	/* Send PADT if session is running */
 	if (s->state >= PPPOE_STATE_SESSION) {
@@ -369,12 +367,9 @@ pppoe_timeout(void *arg)
 {
 	spppoe_t *s = (spppoe_t *) arg;
 	pppoe_t *pppoe = s->pppoe;
-	timer_thread_t *session_timer;
 	int retry_wait = 2;
 
 	PPPDEBUG(("%s: pppoe hunique:0x%.8x\n", pppoe->ifname, s->unique));
-
-	session_timer = pppoe_get_session_timer(pppoe);
 
 	switch (s->state) {
 	case PPPOE_STATE_PADI_SENT:
@@ -390,7 +385,7 @@ pppoe_timeout(void *arg)
 		}
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-		timer_node_add(session_timer , &s->t_node, retry_wait);
+		timer_node_add(pppoe_session_timer , &s->t_node, retry_wait);
 		break;
 
 	case PPPOE_STATE_PADR_SENT:
@@ -403,7 +398,7 @@ pppoe_timeout(void *arg)
 			}
 			if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 				retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-			timer_node_add(session_timer , &s->t_node, retry_wait);
+			timer_node_add(pppoe_session_timer , &s->t_node, retry_wait);
 			break;
 		}
 
@@ -414,7 +409,7 @@ pppoe_timeout(void *arg)
 		}
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-		timer_node_add(session_timer , &s->t_node, retry_wait);
+		timer_node_add(pppoe_session_timer , &s->t_node, retry_wait);
 		break;
 
 	case PPPOE_STATE_CLOSING:
@@ -487,7 +482,6 @@ pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 	uint32_t *hunique;
 	uint8_t code = 0;
 	char tmp[PPPOE_BUFSIZE];
-	timer_thread_t *session_timer;
 	int retry_wait = 2;
 
 	ret = pppoe_sanitize_pkt(pppoe, pkt, &off, &session, &plen, &code);
@@ -496,7 +490,6 @@ pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 		return;
 	}
 	eh = (struct ether_header *) pkt->pbuff->head;
-	session_timer = pppoe_get_session_timer(pppoe);
 
 	while (off + sizeof(*pt) <= pkt_buffer_len(pkt->pbuff)) {
 		pt = (pppoe_tag_t *) (pkt->pbuff->head + off);
@@ -688,7 +681,7 @@ breakbreak:
 		}
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padr_retried);
-		timer_node_add(session_timer, &s->t_node, retry_wait);
+		timer_node_add(pppoe_session_timer, &s->t_node, retry_wait);
 		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADO);
 		break;
 	case PPPOE_CODE_PADS:
@@ -699,7 +692,7 @@ breakbreak:
 
 		s->session_id = session;
 		spppoe_session_hash(s, &s->hw_src, s->session_id);
-		timer_node_del(session_timer, &s->t_node);
+		timer_node_del(pppoe_session_timer, &s->t_node);
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x hw:" ETHER_FMT " connected\n",
 			 pppoe->ifname, s->unique, session,
 			 ETHER_BYTES(s->hw_src.ether_addr_octet)));
@@ -723,7 +716,7 @@ breakbreak:
 		}
 
 		/* stop timer (we might be about to transmit a PADT ourself) */
-		timer_node_del(session_timer, &s->t_node);
+		timer_node_del(pppoe_session_timer, &s->t_node);
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x terminated, received PADT\n",
 			 pppoe->ifname, s->unique, session));
 
@@ -788,4 +781,22 @@ pppoe_dispatch_session_pkt(pppoe_t *pppoe, pkt_t *pkt)
 	}
 
 	sppp_input(sp->s_ppp, pkt);
+}
+
+
+/*
+ *	Proto init
+ */
+int
+pppoe_proto_init(void)
+{
+	pppoe_session_timer = timer_thread_alloc("pppoe-session-timer", pppoe_timeout);
+	return 0;
+}
+
+int
+pppoe_proto_destroy(void)
+{
+	timer_thread_free(pppoe_session_timer);
+	return 0;
 }
