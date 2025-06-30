@@ -81,6 +81,7 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_t *srv, gtp_htab_t *h, 
 		 gtp_f_teid_t *f_teid, gtp_session_t *s)
 {
 	gtp_teid_t *teid;
+	gtp_server_t *ssrv = srv;
 	gtp_proxy_t *ctx = srv->ctx;
 	gtp_server_t *srv_gtpc_ingress = &ctx->gtpc;
 	gtp_server_t *srv_gtpc_egress = &ctx->gtpc_egress;
@@ -123,14 +124,14 @@ gtp1_create_teid(uint8_t type, int direction, gtp_server_t *srv, gtp_htab_t *h, 
 		gtp_sqn_update(srv, teid);
 
 	/* TEID masquarade */
-	srv = srv_gtpu;
+	ssrv = srv_gtpu;
 	if (type == GTP_TEID_C) {
-		srv = srv_gtpc_ingress;
+		ssrv = srv_gtpc_ingress;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv_gtpc_egress->flags) &&
 		    __test_bit(GTP_TEID_FL_INGRESS, &teid->flags))
-			srv = srv_gtpc_egress;
+			ssrv = srv_gtpc_egress;
 	}
-	gtp_teid_masq(f_teid, &srv->addr, teid->vid);
+	gtp_teid_masq(f_teid, &ssrv->addr, teid->vid);
 
 	return teid;
 }
