@@ -23,4 +23,4 @@
 /* Defines */
 
 /* Prototypes */
-extern gtp_teid_t *gtpc_proxy_handle_v1(gtp_server_worker_t *, struct sockaddr_storage *);
+extern gtp_teid_t *gtpc_proxy_handle_v1(gtp_server_t *, struct sockaddr_storage *);

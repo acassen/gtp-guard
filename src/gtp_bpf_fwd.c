@@ -94,12 +94,11 @@ gtp_bpf_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	gtp_session_t *s = t->session;
-	gtp_server_t *w_srv = s->w->srv;
-	gtp_proxy_t *sw = w_srv->ctx;
+	gtp_proxy_t *p = s->srv->ctx;
 	__u8 flags = __test_bit(GTP_TEID_FL_INGRESS, &t->flags) ? GTP_FWD_FL_INGRESS : GTP_FWD_FL_EGRESS;
 	int i;
 
-	if (__test_bit(GTP_FL_DIRECT_TX_BIT, &sw->flags))
+	if (__test_bit(GTP_FL_DIRECT_TX_BIT, &p->flags))
 		flags |= GTP_FWD_FL_DIRECT_TX;
 
 	for (i = 0; i < nr_cpus; i++) {

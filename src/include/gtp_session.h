@@ -55,7 +55,7 @@ typedef struct _gtp_session {
 
 	gtp_conn_t		*conn;		/* backpointer */
 	spppoe_t		*s_pppoe;	/* PPPoE session peer */
-	gtp_server_worker_t	*w;		/* Server worker used */
+	gtp_server_t		*srv;		/* Server used */
 
 	uint8_t			action;
 

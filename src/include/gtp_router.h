@@ -20,8 +20,6 @@
  */
 #pragma once
 
-#define GTP_ROUTER_DELAYED	2
-
 typedef struct _gtp_router {
 	char			name[GTP_NAME_MAX_LEN];
 	gtp_server_t		gtpc;
@@ -35,8 +33,8 @@ typedef struct _gtp_router {
 
 
 /* Prototypes */
-extern int gtp_router_ingress_init(gtp_server_worker_t *);
-extern int gtp_router_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
+extern int gtp_router_ingress_init(gtp_server_t *);
+extern int gtp_router_ingress_process(gtp_server_t *, struct sockaddr_storage *);
 extern bool gtp_router_inuse(void);
 extern void gtp_router_foreach(int (*hdl) (gtp_router_t *, void *), void *);
 extern gtp_router_t *gtp_router_get(const char *);

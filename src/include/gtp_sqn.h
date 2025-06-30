@@ -23,7 +23,7 @@
 /* Prototypes */
 extern gtp_teid_t *gtp_vsqn_get(gtp_htab_t *, uint32_t);
 extern int gtp_vsqn_unhash(gtp_htab_t *, gtp_teid_t *);
-extern int gtp_vsqn_alloc(gtp_server_worker_t *, gtp_teid_t *, bool);
-extern int gtp_sqn_update(gtp_server_worker_t *, gtp_teid_t *);
-extern int gtp_sqn_masq(gtp_server_worker_t *, gtp_teid_t *);
-extern int gtp_sqn_restore(gtp_server_worker_t *, gtp_teid_t *);
+extern int gtp_vsqn_alloc(gtp_server_t *, gtp_teid_t *, bool);
+extern int gtp_sqn_update(gtp_server_t *, gtp_teid_t *);
+extern int gtp_sqn_masq(gtp_server_t *, gtp_teid_t *);
+extern int gtp_sqn_restore(gtp_server_t *, gtp_teid_t *);

@@ -97,14 +97,12 @@ DEFUN(no_gtp_router,
 
 DEFUN(gtpc_router_tunnel_endpoint,
       gtpc_router_tunnel_endpoint_cmd,
-      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
+      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
       "GTP Control channel tunnel endpoint\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "listening UDP Port (default = 2123)\n"
-      "Number\n"
-      "max UDP listener pthreads\n"
-      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
+      "Number\n")
 {
         gtp_router_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
@@ -131,31 +129,30 @@ DEFUN(gtpc_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	/* argv[3] is listnener-count */
-	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
-	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
-	gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
-	gtp_server_start(srv);
+	err = gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
+	if (err) {
+		vty_out(vty, "%% Error initializing GTP-C listener on [%s]:%d%s"
+			   , argv[0], port, VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	return CMD_SUCCESS;
 }
 
 DEFUN(gtpu_router_tunnel_endpoint,
       gtpu_router_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> [listener-count [INTEGER]]",
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
       "GTP Userplane channel tunnel endpoint\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "listening UDP Port (default = 2152)\n"
-      "Number\n"
-      "max UDP listener pthreads\n"
-      "Number pthreads (default = "STR(GTP_DEFAULT_THREAD_CNT)")\n")
+      "Number\n")
 {
 	gtp_router_t *ctx = vty->index;
 	gtp_server_t *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->addr;
-	int port = 2152, ret = 0;
+	int port = 2152, err = 0;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -170,19 +167,20 @@ DEFUN(gtpu_router_tunnel_endpoint,
 	if (argc == 2)
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
-	ret = inet_stosockaddr(argv[0], port, addr);
-	if (ret < 0) {
+	err = inet_stosockaddr(argv[0], port, addr);
+	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
 	}
 
-	/* argv[3] is listnener-count */
-	srv->thread_cnt = (argc == 4) ? strtoul(argv[3], NULL, 10) : GTP_DEFAULT_THREAD_CNT;
-	srv->thread_cnt = (srv->thread_cnt < 1) ? 1 : srv->thread_cnt;
 	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
-	gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
-	gtp_server_start(srv);
+	err = gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
+	if (err) {
+		vty_out(vty, "%% Error initializing GTP-U listener on [%s]:%d%s"
+			   , argv[0], port, VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	return CMD_SUCCESS;
 }
@@ -200,23 +198,17 @@ gtp_config_write(vty_t *vty)
         	vty_out(vty, "gtp-router %s%s", ctx->name, VTY_NEWLINE);
 		srv = &ctx->gtpc;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
-			vty_out(vty, " gtpc-tunnel-endpoint %s port %d"
+			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
 				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr)));
-			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
-				vty_out(vty, " listener-count %d"
-					   , srv->thread_cnt);
-			vty_out(vty, "%s", VTY_NEWLINE);
+				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpu;
 		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
-			vty_out(vty, " gtpu-tunnel-endpoint %s port %d"
+			vty_out(vty, " gtpu-tunnel-endpoint %s port %d%s"
 				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr)));
-			if (srv->thread_cnt != GTP_DEFAULT_THREAD_CNT)
-				vty_out(vty, " listener-count %d"
-					   , srv->thread_cnt);
-			vty_out(vty, "%s", VTY_NEWLINE);
+				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
@@ -236,13 +228,12 @@ vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
 	else if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
 		type = GTP_FL_UPF_BIT;
 
-	vty_out(vty, "  %s: %s port %d with %d threads%s"
+	vty_out(vty, "  %s: %s port %d%s"
 		     "   flags:0x%lx (%s)%s"
 		     "   rx:%"PRIu64"packets %"PRIu64"bytes | tx:%"PRIu64"packets %"PRIu64"bytes%s"
 		   , gtplane
 		   , inet_sockaddrtos(&srv->addr)
 		   , ntohs(inet_sockaddrport(&srv->addr))
-		   , srv->thread_cnt
 		   , VTY_NEWLINE
 		   , srv->flags, gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
 		   , VTY_NEWLINE
