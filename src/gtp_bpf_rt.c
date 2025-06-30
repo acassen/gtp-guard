@@ -614,7 +614,7 @@ gtp_bpf_rt_lladdr_update(void *arg)
 
 	new = gtp_bpf_rt_lladdr_alloc(&sz);
 	if (!new) {
-		log_message(LOG_INFO, "%s(): Cant allocate temp ll_addr%s"
+		log_message(LOG_INFO, "%s(): Cant allocate temp ll_addr"
 				    , __FUNCTION__);
 		return -1;
 	}
