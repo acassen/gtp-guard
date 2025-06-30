@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _UTILS_H
-#define _UTILS_H
+#pragma once
 
 /* system includes */
 #include <stdio.h>
@@ -87,5 +85,3 @@ extern size_t bsd_strlcpy(char *, const char *, size_t);
 extern size_t bsd_strlcat(char *, const char *, size_t);
 extern char *memcpy2str(char *, size_t, const void *, size_t);
 extern int open_pipe(int [2]);
-
-#endif

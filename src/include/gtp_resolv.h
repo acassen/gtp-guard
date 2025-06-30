@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_RESOLV_H
-#define _GTP_RESOLV_H
+#pragma once
 
 /* defines */
 #define GTP_APN_MAX_LEN		256
@@ -95,5 +93,3 @@ extern gtp_resolv_ctx_t *gtp_resolv_ctx_alloc(gtp_apn_t *);
 extern int gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *);
 extern int gtp_resolv_init(void);
 extern int gtp_resolv_destroy(void);
-
-#endif

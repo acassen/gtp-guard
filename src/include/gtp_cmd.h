@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_CMD_H
-#define _GTP_CMD_H
+#pragma once
 
 #define GTP_CMD_BUFFER_SIZE	128
 
@@ -49,5 +47,3 @@ typedef struct _gtp_cmd_args {
 
 /* Prototypes */
 extern int gtp_cmd_echo_request(gtp_cmd_args_t *);
-
-#endif

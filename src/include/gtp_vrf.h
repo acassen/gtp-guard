@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_VRF_H
-#define _GTP_VRF_H
+#pragma once
 
 enum ip_vrf_flags {
 	IP_VRF_FL_ENCAP_DOT1Q_BIT,
@@ -39,8 +37,8 @@ typedef struct _ip_vrf {
 	uint16_t		encap_vlan_id;
 	uint16_t		decap_vlan_id;
 	gtp_iptnl_t		iptnl;
-	gtp_pppoe_t		*pppoe;
-	gtp_pppoe_bundle_t	*pppoe_bundle;
+	pppoe_t			*pppoe;
+	pppoe_bundle_t		*pppoe_bundle;
 
 	list_head_t		next;
 
@@ -55,5 +53,3 @@ extern int gtp_ip_vrf_destroy(ip_vrf_t *);
 extern int gtp_vrf_init(void);
 extern int gtp_vrf_destroy(void);
 extern int gtp_vrf_vty_init(void);
-
-#endif

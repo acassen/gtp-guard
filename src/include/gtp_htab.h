@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_HTAB_H
-#define _GTP_HTAB_H
+#pragma once
 
 /* Distributed lock */
 #define DLOCK_HASHTAB_BITS    10
@@ -38,6 +36,6 @@ extern int dlock_lock_id(pthread_mutex_t *, uint32_t, uint32_t);
 extern int dlock_unlock_id(pthread_mutex_t *, uint32_t, uint32_t);
 extern pthread_mutex_t *dlock_init(void);
 extern void gtp_htab_init(gtp_htab_t *, size_t);
+extern gtp_htab_t *gtp_htab_alloc(size_t);
 extern void gtp_htab_destroy(gtp_htab_t *);
-
-#endif
+extern void gtp_htab_free(gtp_htab_t *);

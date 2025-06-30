@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_APN_H
-#define _GTP_APN_H
+#pragma once
 
 /* defines */
 #define GTP_APN_MAX_LEN		256
@@ -146,5 +144,3 @@ extern gtp_pco_t *gtp_apn_pco(gtp_apn_t *);
 extern int gtp_apn_destroy(void);
 extern gtp_apn_t *gtp_apn_get(const char *);
 extern int gtp_apn_cdr_commit(gtp_apn_t *, gtp_cdr_t *);
-
-#endif

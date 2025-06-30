@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPP_H
-#define _GTP_PPP_H
+#pragma once
 
 #define PPPDEBUG(a)	do {	\
 	if (debug & 8)		\
@@ -129,7 +127,6 @@ typedef struct _lcp_hdr {
 
 
 /* Prototypes */
-extern int gtp_ppp_init(gtp_pppoe_t *);
-extern int gtp_ppp_destroy(gtp_pppoe_t *);
-
-#endif
+extern int ppp_set_default(pppoe_t *);
+extern int ppp_init(void);
+extern int ppp_destroy(void);

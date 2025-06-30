@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_FWD_H
-#define _GTP_BPF_FWD_H
+#pragma once
 
 enum {
 	XDP_FWD_MAP_TEID = 0,
@@ -54,5 +52,3 @@ extern int gtp_bpf_fwd_vty(vty_t *);
 extern int gtp_bpf_fwd_teid_bytes(gtp_teid_t *, uint64_t *);
 extern int gtp_bpf_fwd_iptnl_action(int, gtp_iptnl_t *);
 extern int gtp_bpf_fwd_iptnl_vty(vty_t *);
-
-#endif

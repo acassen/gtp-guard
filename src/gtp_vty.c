@@ -19,12 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <pthread.h>
-#include <sys/stat.h>
-#include <net/if.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -895,7 +889,7 @@ gtp_vty_init(void)
 	/* Install other VTY */
 	gtp_bpf_prog_vty_init();
 	gtp_interface_vty_init();
-	gtp_pppoe_vty_init();
+	pppoe_vty_init();
 	gtp_vrf_vty_init();
 	gtp_cdr_vty_init();
 	gtp_apn_vty_init();

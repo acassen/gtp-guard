@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_IPTNL_H
-#define _GTP_IPTNL_H
+#pragma once
 
 /* IP-IP tunneling related */
 #define IPTNL_FL_TRANSPARENT_INGRESS_ENCAP	(1 << 0)
@@ -54,5 +52,3 @@ typedef struct _gtp_iptnl {
 	uint16_t		decap_vlan_id;
 	uint8_t			flags;
 } gtp_iptnl_t;
-
-#endif

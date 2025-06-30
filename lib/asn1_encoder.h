@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef _LINUX_ASN1_ENCODER_H
-#define _LINUX_ASN1_ENCODER_H
+#pragma once
 
 #include <linux/types.h>
 #include <stdbool.h>
@@ -19,5 +18,3 @@ unsigned char *asn1_encode_octet_string(unsigned char *, const unsigned char *,
 unsigned char *asn1_encode_sequence(unsigned char *, const unsigned char *,
 				    const unsigned char *, int);
 unsigned char *asn1_encode_boolean(unsigned char *, const unsigned char *, bool);
-
-#endif

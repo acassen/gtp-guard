@@ -5,8 +5,7 @@
  * Written by David Howells (dhowells@redhat.com)
  */
 
-#ifndef _LINUX_ASN1_BER_BYTECODE_H
-#define _LINUX_ASN1_BER_BYTECODE_H
+#pragma once
 
 #include "asn1.h"
 
@@ -83,5 +82,3 @@ enum asn1_opcode {
 #define _tag_explicit(CLASS, CP, TAG) ((CLASS << 6) | (CP << 5) | TAG)
 #define _jump_target(N) (N)
 #define _action(N) (N)
-
-#endif /* _LINUX_ASN1_BER_BYTECODE_H */

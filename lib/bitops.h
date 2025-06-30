@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _BITOPS_H
-#define _BITOPS_H
+#pragma once
 
 #include "config.h"
 
@@ -113,5 +112,3 @@ enum global_bits {
 #endif
 	CONFIG_TEST_BIT,
 };
-
-#endif

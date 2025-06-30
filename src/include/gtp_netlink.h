@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_NETLINK_H
-#define _GTP_NETLINK_H
+#pragma once
 
 #include <linux/netlink.h>
 
@@ -47,8 +45,5 @@ typedef struct _nl_handle {
 #define RTA_TAIL(rta)	(struct rtattr *) (char *)(rta) + RTA_ALIGN((rta)->rta_len)
 
 /* Prototypes */
-extern int netlink_if_stats_update(void);
 extern int gtp_netlink_init(void);
 extern int gtp_netlink_destroy(void);
-
-#endif

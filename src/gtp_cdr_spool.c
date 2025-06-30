@@ -20,15 +20,7 @@
  */
 
 /* system includes */
-#include <stdio.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <sys/types.h>
 #include <sys/prctl.h>
-#include <pthread.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"

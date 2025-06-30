@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _WARNINGS_H
-#define _WARNINGS_H
+#pragma once
 
 #ifdef __GNUC__
 #include <features.h>
@@ -120,6 +118,4 @@ _Pragma("GCC diagnostic ignored \"-Wredundant-decls\"")
 #else
 #define RELAX_REDUNDANT_DECLS_START
 #define RELAX_REDUNDANT_DECLS_END
-#endif
-
 #endif

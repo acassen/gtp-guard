@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _MAIN_H
-#define _MAIN_H
+#pragma once
 
 /* global var */
 thread_master_t *master = NULL;					/* Scheduling master thread */
@@ -28,5 +26,3 @@ char *conf_file = NULL;						/* Configuration file */
 int log_facility = LOG_DAEMON;					/* Optional logging facilities */
 data_t *daemon_data = NULL;					/* Daemon Control Block data */
 char *default_conf_file = "/etc/gtp-guard/gtp-guard.conf";	/* Default configuration file */
-
-#endif

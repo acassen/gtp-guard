@@ -20,13 +20,7 @@
  */
 
 /* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
 #include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"
@@ -146,7 +140,7 @@ gtp_proxy_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_
 
 
 /*
- *	GTP Switch init
+ *	GTP Proxy init
  */
 gtp_proxy_t *
 gtp_proxy_get(const char *name)

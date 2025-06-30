@@ -18,13 +18,9 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PROXY_HDL_V1_H
-#define _GTP_PROXY_HDL_V1_H
+#pragma once
 
 /* Defines */
 
 /* Prototypes */
 extern gtp_teid_t *gtpc_proxy_handle_v1(gtp_server_worker_t *, struct sockaddr_storage *);
-
-#endif

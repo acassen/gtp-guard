@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _PKT_BUFFER_H
-#define _PKT_BUFFER_H
+#pragma once
 
 /* defines */
 #define DEFAULT_PKT_BUFFER_SIZE	4096
@@ -125,5 +124,3 @@ extern int pkt_buffer_put_zero(pkt_buffer_t *, unsigned int);
 extern int pkt_buffer_pad(pkt_buffer_t *, unsigned int);
 extern pkt_buffer_t *pkt_buffer_alloc(unsigned int);
 extern void pkt_buffer_free(pkt_buffer_t *);
-
-#endif

@@ -19,19 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <ctype.h>
-#include <netdb.h>
-#include <resolv.h>
-#include <fnmatch.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -59,13 +46,11 @@ gtp_apn_hplmn_vty(vty_t *vty, gtp_apn_t *apn)
 	if (!apn)
 		return;
 
-	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry(p, &apn->hplmn, next) {
 		vty_out(vty, " hplmn %ld%s"
 			   , bcd_plmn_to_int64(p->plmn, GTP_PLMN_MAX_LEN)
 			   , VTY_NEWLINE);
 	}
-	pthread_mutex_unlock(&apn->mutex);
 }
 
 static int

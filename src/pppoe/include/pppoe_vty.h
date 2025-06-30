@@ -18,11 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PPPOE_VTY_H
-#define _GTP_PPPOE_VTY_H
+#pragma once
 
 /* Prototypes */
-extern int gtp_pppoe_vty_init(void);
-
-#endif
+extern int pppoe_vty_init(void);

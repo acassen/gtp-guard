@@ -19,27 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <net/if.h>
-#include <sys/stat.h>
-#include <sys/statfs.h>
-#include <libgen.h>
-#include <sys/resource.h>
-#include <arpa/inet.h>
-#include <linux/if_link.h>
-#include <linux/if_ether.h>
-#include <libbpf.h>
-#include <btf.h>
-
 /* local includes */
 #include "gtp_guard.h"
-
-/* Local data */
-pthread_mutex_t gtp_bpf_progs_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -175,11 +156,9 @@ gtp_bpf_prog_destroy(gtp_bpf_prog_t *p)
 	if (__sync_add_and_fetch(&p->refcnt, 0))
 		return -1;
 
-	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	gtp_bpf_prog_unload(p);
 	list_head_del(&p->next);
 	FREE(p);
-	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 	return 0;
 }
 
@@ -192,13 +171,11 @@ gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg)
 {
 	gtp_bpf_prog_t *p;
 
-	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
 		__sync_add_and_fetch(&p->refcnt, 1);
 		(*(hdl)) (p, arg);
 		__sync_sub_and_fetch(&p->refcnt, 1);
 	}
-	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 }
 
 gtp_bpf_prog_t *
@@ -206,15 +183,12 @@ gtp_bpf_prog_get(const char *name)
 {
 	gtp_bpf_prog_t *p;
 
-	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
 		if (!strncmp(p->name, name, strlen(name))) {
-			pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 			__sync_add_and_fetch(&p->refcnt, 1);
 			return p;
 		}
 	}
-	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 
 	return NULL;
 }
@@ -235,9 +209,7 @@ gtp_bpf_prog_alloc(const char *name)
 	INIT_LIST_HEAD(&new->next);
 	bsd_strlcpy(new->name, name, GTP_STR_MAX_LEN - 1);
 
-	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	list_add_tail(&new->next, &daemon_data->bpf_progs);
-	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 
 	return new;
 }
@@ -248,12 +220,10 @@ gtp_bpf_progs_destroy(void)
 	list_head_t *l = &daemon_data->bpf_progs;
 	gtp_bpf_prog_t *p, *_p;
 
-	pthread_mutex_lock(&gtp_bpf_progs_mutex);
 	list_for_each_entry_safe(p, _p, l, next) {
 		gtp_bpf_prog_unload(p);
 		list_head_del(&p->next);
 		FREE(p);
 	}
-	pthread_mutex_unlock(&gtp_bpf_progs_mutex);
 	return 0;
 }

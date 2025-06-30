@@ -20,16 +20,7 @@
  */
 
 /* system includes */
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <linux/if_link.h>
-#include <linux/netlink.h>
 #include <linux/rtnetlink.h>
-#include <linux/xfrm.h>
-#include <errno.h>
 
 /* local includes */
 #include "gtp_guard.h"
@@ -436,17 +427,7 @@ netlink_neigh_request(nl_handle_t *nl, unsigned char family, uint16_t type)
 static int
 netlink_neigh_lookup(void)
 {
-	int err = 0;
-
-	if (list_empty(&daemon_data->interfaces))
-		return -1;
-
-	err = netlink_open(&nl_cmd, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
-				  , 0, 0);
-	if (err) {
-		log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
-		return -1;
-	}
+	int err;
 
 	err = netlink_neigh_request(&nl_cmd, AF_UNSPEC, RTM_GETNEIGH);
 	if (!err)
@@ -473,10 +454,6 @@ netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h)
 	return 0;
 }
 
-
-/*
- *	Kernel Netlink reflector
- */
 static void
 kernel_netlink(thread_ref_t thread)
 {
@@ -624,40 +601,50 @@ netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, s
 	return 0;
 }
 
-int
-netlink_if_stats_update(void)
+static void
+netlink_if_stats_update(thread_ref_t thread)
 {
-	nl_handle_t nl_stats = { .fd = -1 };
-	int err = 0;
+	int err;
 
-	if (list_empty(&daemon_data->interfaces))
-		return -1;
-
-	err = netlink_open(&nl_stats, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
-				    , 0, 0);
-	if (err) {
-		log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
-		return -1;
+	nl_cmd.thread = NULL;
+	if (nl_cmd.fd == -1) {
+		err = netlink_open(&nl_cmd, daemon_data->nl_rcvbuf_size
+					  , SOCK_NONBLOCK, NETLINK_ROUTE, 0, 0);
+		if (err) {
+			log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
+			goto end;
+		}
 	}
 
-	if (netlink_if_request(&nl_stats, AF_PACKET, RTM_GETLINK, true) < 0) {
-		err = -1;
+	err = netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true);
+	if (err) {
+		netlink_close(&nl_cmd);
 		goto end;
 	}
 
-	netlink_parse_info(netlink_if_link_update_filter, &nl_stats, NULL, false);
+	netlink_parse_info(netlink_if_link_update_filter, &nl_cmd, NULL, false);
   end:
-	netlink_close(&nl_stats);
-	return err;
+	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update
+					       , NULL, 5*TIMER_HZ);
 }
 
 static int
 netlink_if_lookup(void)
 {
-	int err = 0;
-
 	if (list_empty(&daemon_data->interfaces))
 		return -1;
+
+	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true) < 0)
+		return -1;
+
+	netlink_parse_info(netlink_if_link_filter, &nl_cmd, NULL, false);
+	return 0;
+}
+
+static int
+netlink_if_init(void)
+{
+	int err;
 
 	err = netlink_open(&nl_cmd, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
 				  , 0, 0);
@@ -666,15 +653,13 @@ netlink_if_lookup(void)
 		return -1;
 	}
 
-	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true) < 0) {
-		err = -1;
-		goto end;
-	}
+	err = (err) ? : netlink_if_lookup();
+	err = (err) ? : netlink_neigh_lookup();
+	if (err)
+		return -1;
 
-	netlink_parse_info(netlink_if_link_filter, &nl_cmd, NULL, false);
-  end:
-	netlink_close(&nl_cmd);
-	return err;
+	netlink_if_stats_update(NULL);
+	return 0;
 }
 
 
@@ -686,11 +671,12 @@ gtp_netlink_init(void)
 {
 	int err;
 
-	/* Interface lookup */
-	netlink_if_lookup();
-
-	/* Neighbour lookup */
-	netlink_neigh_lookup();
+	/* Interface init */
+	err = netlink_if_init();
+	if (err) {
+		log_message(LOG_INFO, "Error while probing Kernel netlink command channel");
+		return -1;
+	}
 
 	/* Register Kernel netlink reflector */
 	err = netlink_open(&nl_kernel, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
@@ -711,5 +697,6 @@ gtp_netlink_destroy(void)
 {
 	log_message(LOG_INFO, "Unregistering Kernel netlink reflector");
 	netlink_close(&nl_kernel);
+	netlink_close(&nl_cmd);
 	return 0;
 }

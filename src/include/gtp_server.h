@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_SERVER_H
-#define _GTP_SERVER_H
+#pragma once
 
 /* GTP Switching context */
 typedef struct _gtp_server_worker {
@@ -42,7 +40,6 @@ typedef struct _gtp_server {
 	int			thread_cnt;
 	void			*ctx;		/* backpointer */
 
-	pthread_mutex_t		workers_mutex;
 	list_head_t		workers;
 
 	/* Local method */
@@ -71,6 +68,3 @@ extern int gtp_server_init(gtp_server_t *, void *
 					 , int (*init) (gtp_server_worker_t *)
 					 , int (*process) (gtp_server_worker_t *, struct sockaddr_storage *));
 extern int gtp_server_destroy(gtp_server_t *);
-
-
-#endif

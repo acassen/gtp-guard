@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _PROCESS_H
-#define _PROCESS_H
+#pragma once
 
 #include <sched.h>
 #include <sys/types.h>
@@ -43,4 +42,3 @@ extern int get_process_cpu_affinity_string(cpu_set_t *, char *, size_t);
 extern void set_child_rlimit(int, const struct rlimit *);
 
 extern void set_max_file_limit(unsigned);
-#endif

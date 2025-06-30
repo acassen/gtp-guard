@@ -4,8 +4,7 @@
  * Copyright (C) 1997, 98 Kunihiro Ishiguro
  */
 
-#ifndef _COMMAND_H
-#define _COMMAND_H
+#pragma once
 
 #include "vector.h"
 #include "vty.h"
@@ -281,5 +280,3 @@ extern void cmd_init(void);
 extern void cmd_terminate(void);
 extern char *host_config_file(void);
 extern void host_config_set(char *);
-
-#endif

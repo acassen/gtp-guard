@@ -180,8 +180,6 @@ gtp_interface_nl_metrics_dump(FILE *fp)
 {
 	int i;
 
-	netlink_if_stats_update();
-
 	for (i = 0; link_metrics_set[i].var; i++)
 		link_metrics_tmpl_dump(fp,
 				       link_metrics_set[i].var,

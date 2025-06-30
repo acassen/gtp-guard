@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_VTY_H
-#define _GTP_VTY_H
+#pragma once
 
 /* STR(MACRO) stringifies MACRO */
 #define _STR(x) #x
@@ -28,6 +26,3 @@
 
 /* Prototypes */
 extern int gtp_vty_init(void);
-
-
-#endif

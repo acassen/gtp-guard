@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _INET_SERVER_H
-#define _INET_SERVER_H
+#pragma once
 
 #include <stdio.h>
 #include <pthread.h>
@@ -106,5 +105,3 @@ extern int inet_server_worker_start(inet_server_t *);
 extern int inet_server_init(inet_server_t *);
 extern int inet_server_destroy(inet_server_t *);
 extern int inet_server_for_each_worker(inet_server_t *, int (*cb) (inet_worker_t *, void *), void *);
-
-#endif

@@ -19,12 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <pthread.h>
-#include <sys/stat.h>
-#include <net/if.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -282,7 +276,7 @@ DEFUN(ip_vrf_pppoe,
       "NAME\n")
 {
 	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_t *pppoe;
+	pppoe_t *pppoe;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -299,7 +293,7 @@ DEFUN(ip_vrf_pppoe,
 		return CMD_WARNING;
 	}
 
-	pppoe = gtp_pppoe_get_by_name(argv[0]);
+	pppoe = pppoe_get_by_name(argv[0]);
 	if (!pppoe) {
 		vty_out(vty, "%% unknown PPPoE instance %s!%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
@@ -318,7 +312,7 @@ DEFUN(ip_vrf_pppoe_bundle,
       "NAME\n")
 {
 	ip_vrf_t *vrf = vty->index;
-	gtp_pppoe_bundle_t *bundle;
+	pppoe_bundle_t *bundle;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -335,7 +329,7 @@ DEFUN(ip_vrf_pppoe_bundle,
 		return CMD_WARNING;
 	}
 
-	bundle = gtp_pppoe_bundle_get_by_name(argv[0]);
+	bundle = pppoe_bundle_get_by_name(argv[0]);
 	if (!bundle) {
 		vty_out(vty, "%% unknown PPPoE bundle %s!%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
@@ -385,8 +379,8 @@ static int
 gtp_config_write(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->ip_vrf;
-	gtp_pppoe_t *pppoe;
-	gtp_pppoe_bundle_t *bundle;
+	pppoe_t *pppoe;
+	pppoe_bundle_t *bundle;
 	ip_vrf_t *vrf;
 
         list_for_each_entry(vrf, l, next) {

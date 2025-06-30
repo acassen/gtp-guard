@@ -4,8 +4,7 @@
  * Copyright (C) 1998 Kunihiro Ishiguro
  */
 
-#ifndef _BUFFER_H
-#define _BUFFER_H
+#pragma once
 
 /* buffer definition */
 typedef struct _buffer_data {
@@ -64,5 +63,3 @@ extern buffer_status_t buffer_flush_available(buffer_t *, int fd);
 extern buffer_status_t buffer_flush_all(buffer_t *, int fd);
 extern buffer_status_t buffer_flush_window(buffer_t *, int fd, int width,
                                            int height, int erase, int no_more);
-
-#endif

@@ -19,8 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _JSON_WRITER_H_
-#define _JSON_WRITER_H_
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -79,5 +78,3 @@ void jsonw_end_array(json_writer_t *self);
 
 /* Override default exception handling */
 typedef void (jsonw_err_handler_fn)(const char *);
-
-#endif

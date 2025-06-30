@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_CDR_H
-#define _GTP_CDR_H
+#pragma once
 
 /* defines */
 #define GTP_CDR_TAG_MAX	46
@@ -84,5 +82,3 @@ extern int gtp_cdr_update(pkt_buffer_t *, gtp_msg_t *, gtp_cdr_t *);
 extern int gtp_cdr_close(gtp_cdr_t *);
 extern gtp_cdr_t *gtp_cdr_alloc(void);
 extern void gtp_cdr_destroy(gtp_cdr_t *);
-
-#endif

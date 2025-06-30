@@ -21,8 +21,7 @@
 
 /* This file is copied from the Linux kernel include/linux/list.h file */
 
-#ifndef _LIST_HEAD_H
-#define _LIST_HEAD_H
+#pragma once
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -572,5 +571,3 @@ static __inline__ void hlist_add_after(struct hlist_node *n,
 			res = 1;						\
 	} else									\
 		hlist_add_head(&ntpos->hmember, (head));
-
-#endif /* ! _LIST_HEAD_H */

@@ -18,12 +18,44 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
+#pragma once
 
-#ifndef _GTP_PPPOE_MONITOR_H
-#define _GTP_PPPOE_MONITOR_H
+enum metrics_direction {
+	METRICS_DIR_IN = 0,
+	METRICS_DIR_OUT,
+	METRICS_DIR_MAX,
+};
 
-/* Prototypes */
-extern int gtp_pppoe_monitor_vrrp_init(gtp_pppoe_t *);
-extern int gtp_pppoe_monitor_vrrp_destroy(gtp_pppoe_t *);
+enum pppoe_metrics {
+	PPPOE_METRIC_TOTAL = 0,
+	PPPOE_METRIC_DROPPED,
+	PPPOE_METRIC_PADI,
+	PPPOE_METRIC_PADR,
+	PPPOE_METRIC_PADO,
+	PPPOE_METRIC_PADS,
+	PPPOE_METRIC_PADT,
+	PPPOE_METRIC_MAX,
+};
 
-#endif
+enum ppp_metrics {
+	PPP_METRIC_TOTAL = 0,
+	PPP_METRIC_UP,
+	PPP_METRIC_DOWN,
+	PPP_METRIC_OPEN,
+	PPP_METRIC_CLOSE,
+	PPP_METRIC_CONF_ACK,
+	PPP_METRIC_CONF_NAK,
+	PPP_METRIC_MAX,
+};
+
+typedef struct _pppoe_metrics {
+	uint64_t	m[METRICS_DIR_MAX][PPPOE_METRIC_MAX];
+} pppoe_metrics_t;
+
+typedef struct _ppp_metrics {
+	uint64_t	dropped[METRICS_DIR_MAX];
+	uint64_t	lcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
+	uint64_t	pap[METRICS_DIR_MAX][PPP_METRIC_MAX];
+	uint64_t	ipcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
+	uint64_t	ipv6cp[METRICS_DIR_MAX][PPP_METRIC_MAX];
+} ppp_metrics_t;

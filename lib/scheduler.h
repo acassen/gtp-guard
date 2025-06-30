@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _SCHEDULER_H
-#define _SCHEDULER_H
+#pragma once
 
 /* system includes */
 #include <sys/types.h>
@@ -262,6 +260,4 @@ extern void register_scheduler_addresses(void);
 #endif
 #ifdef _VRRP_FD_DEBUG_
 extern void set_extra_threads_debug(void (*)(void));
-#endif
-
 #endif

@@ -14,12 +14,7 @@
   See Documentation/core-api/rbtree.rst for documentation and samples.
 */
 
-#ifndef	_LINUX_RBTREE_H
-#define	_LINUX_RBTREE_H
-
-#if !defined _RBTREE_API_H
-# error "Never include "rbtree.h" directly; use "rbtree_api.h" instead."
-#endif
+#pragma once
 
 #include "rbtree_types.h"
 
@@ -341,5 +336,3 @@ rb_next_match(const void *key, struct rb_node *node,
 #define rb_for_each(node, key, tree, cmp) \
 	for ((node) = rb_find_first((key), (tree), (cmp)); \
 	     (node); (node) = rb_next_match((key), (node), (cmp)))
-
-#endif	/* _LINUX_RBTREE_H */

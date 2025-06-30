@@ -19,16 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <net/ethernet.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -62,14 +52,14 @@ DEFUN(pppoe,
       "Configure PPPoE Instance\n"
       "PPPoE Instance Name")
 {
-	gtp_pppoe_t *new;
+	pppoe_t *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	new = gtp_pppoe_init(argv[0]);
+	new = pppoe_alloc(argv[0]);
 	if (!new) {
 		if (errno == EEXIST)
 			vty_out(vty, "%% PPPoE instance %s already exist !!!%s"
@@ -92,7 +82,7 @@ DEFUN(no_pppoe,
       "Destroy PPPoe\n"
       "PPPoE Instance Name")
 {
-	gtp_pppoe_t *pppoe;
+	pppoe_t *pppoe;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -100,13 +90,13 @@ DEFUN(no_pppoe,
 	}
 
 	/* Already existing ? */
-	pppoe = gtp_pppoe_get_by_name(argv[0]);
+	pppoe = pppoe_get_by_name(argv[0]);
 	if (!pppoe) {
 		vty_out(vty, "%% unknown PPPoE instance %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	gtp_pppoe_release(pppoe);
+	pppoe_release(pppoe);
 	return CMD_SUCCESS;
 }
 
@@ -118,7 +108,7 @@ DEFUN(pppoe_interface,
       "RPS bits for pthread workers\n"
       "max bits of pthread workers (default = "STR(GTP_PPPOE_RPS_BITS)" bits)\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 	int err, rps_bits, rps_size = 1;
 
 	if (argc < 1) {
@@ -126,7 +116,7 @@ DEFUN(pppoe_interface,
 		return CMD_WARNING;
 	}
 
-	err = gtp_pppoe_interface_init(pppoe, argv[0]);
+	err = pppoe_interface_init(pppoe, argv[0]);
 	if (err) {
 		vty_out(vty, "%% Error intializing interface %s (%s)%s"
 			   , argv[0]
@@ -145,7 +135,7 @@ DEFUN(pppoe_interface,
 	}
 
 	pppoe->thread_cnt = rps_size;
-	err = gtp_pppoe_start(pppoe);
+	err = pppoe_start(pppoe);
 	if (err) {
 		vty_out(vty, "%% Error starting PPPoE on interface %s!%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
@@ -160,7 +150,7 @@ DEFUN(pppoe_monitor_vrrp,
       "VRRP Traffic monitoring\n"
       "Timeout to transit into FAULT state\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 	int credit, err;
 
 	if (argc < 1) {
@@ -174,7 +164,7 @@ DEFUN(pppoe_monitor_vrrp,
 	pppoe->credit = credit * TIMER_HZ;
 	pppoe->expire = timer_long(time_now) + pppoe->credit;
 
-	err = gtp_pppoe_monitor_vrrp_init(pppoe);
+	err = pppoe_monitor_vrrp_init(pppoe);
 	if (err) {
 		vty_out(vty, "%% Error VRRP Monitoring on interface:%s (%s)%s"
 			   , pppoe->ifname
@@ -193,7 +183,7 @@ DEFUN(pppoe_ac_name,
       "Access Concentrator Name\n"
       "String\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -210,7 +200,7 @@ DEFUN(pppoe_strict_ac_name,
       "strict-ac-name",
       "Discard incoming PPPoE packet if ac_name miss-match our\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (!pppoe->ac_name[0]) {
 		vty_out(vty, "%% access-concentrator-name not configured%s", VTY_NEWLINE);
@@ -227,7 +217,7 @@ DEFUN(pppoe_service_name,
       "Service Name\n"
       "String\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -243,7 +233,7 @@ DEFUN(pppoe_vendor_specific_bbf,
       "vendor-specific-bbf",
       "Vendor Specific BroadBandForum\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	__set_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
@@ -255,7 +245,7 @@ DEFUN(pppoe_mru,
       "Maximum Receive Unit\n"
       "Integer\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -272,7 +262,7 @@ DEFUN(pppoe_vmac_hbits,
       "Virtual MAC Address first 4bits\n"
       "hbits\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 	uint8_t hbits;
 
 	if (argc < 1) {
@@ -292,7 +282,7 @@ DEFUN(pppoe_auth_pap_gtp_username_tpl0,
       "Password Authentication Protocol\n"
       "Username built from GTP imsi+mei@apn\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
 		vty_out(vty, "%% Static username already configured%s", VTY_NEWLINE);
@@ -310,7 +300,7 @@ DEFUN(pppoe_auth_pap_gtp_username_tpl1,
       "Password Authentication Protocol\n"
       "Username built from GTP imsi@apn\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (__test_bit(PPPOE_FL_STATIC_USERNAME_BIT, &pppoe->flags)) {
 		vty_out(vty, "%% Static username already configured%s", VTY_NEWLINE);
@@ -329,7 +319,7 @@ DEFUN(pppoe_auth_pap_username,
       "Username\n"
       "String\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -354,7 +344,7 @@ DEFUN(pppoe_auth_pap_passwd,
       "Password\n"
       "String\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -372,7 +362,7 @@ DEFUN(pppoe_ipv6cp_disable,
       "IPv6 Control Protocol\n"
       "Disable\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	__set_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
@@ -384,7 +374,7 @@ DEFUN(pppoe_keepalive,
       "PPP Keepalive interval\n"
       "Number of seconds\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -401,7 +391,7 @@ DEFUN(pppoe_padi_fast_retry,
       "padi-fast-retry",
       "PADI Fast Retry (1s)\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	__set_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
@@ -413,7 +403,7 @@ DEFUN(pppoe_lcp_timeout,
       "PPP lcp-timeout\n"
       "Number of seconds\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -431,7 +421,7 @@ DEFUN(pppoe_lcp_max_terminate,
       "PPP lcp-max-terminate request\n"
       "Number\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -449,7 +439,7 @@ DEFUN(pppoe_lcp_max_configure,
       "PPP lcp-max-configure request\n"
       "Number\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -467,7 +457,7 @@ DEFUN(pppoe_lcp_max_failure,
       "PPP lcp-max-failure\n"
       "Number\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -484,7 +474,7 @@ DEFUN(pppoe_metric_vrrp,
       "metric vrrp",
       "Enable VRRP incoming packet monitor metric\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	__set_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
@@ -495,7 +485,7 @@ DEFUN(reset_pppoe_metric_vrrp,
       "reset metric vrrp",
       "Reset VRRP incoming packet monitor metric\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	vrrp_metrics_reset(pppoe);
 	return CMD_SUCCESS;
@@ -506,7 +496,7 @@ DEFUN(no_pppoe_metric_vrrp,
       "no metric vrrp",
       "Disable VRRP incoming packet monitor metric\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	__clear_bit(PPPOE_FL_METRIC_VRRP_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
@@ -517,7 +507,7 @@ DEFUN(pppoe_metric_pppoe,
       "metric pppoe",
       "Enable PPPoE packet metrics\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	pppoe_metrics_alloc(pppoe);
 	__set_bit(PPPOE_FL_METRIC_PPPOE_BIT, &pppoe->flags);
@@ -529,7 +519,7 @@ DEFUN(reset_pppoe_metric_pppoe,
       "reset metric pppoe",
       "Reset PPPoE packet metrics\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	pppoe_metrics_reset(pppoe);
 	ppp_metrics_reset(pppoe);
@@ -541,7 +531,7 @@ DEFUN(no_pppoe_metric_pppoe,
       "no metric pppoe",
       "Disable PPPoE packet metrics\n")
 {
-	gtp_pppoe_t *pppoe = vty->index;
+	pppoe_t *pppoe = vty->index;
 
 	__clear_bit(PPPOE_FL_METRIC_PPPOE_BIT, &pppoe->flags);
 	return CMD_SUCCESS;
@@ -557,14 +547,14 @@ DEFUN(pppoe_bundle,
       "Configure PPPoE Bundle\n"
       "PPPoE Bundle Name")
 {
-	gtp_pppoe_bundle_t *new;
+	pppoe_bundle_t *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	new = gtp_pppoe_bundle_init(argv[0]);
+	new = pppoe_bundle_init(argv[0]);
 	if (!new) {
 		if (errno == EEXIST)
 			vty_out(vty, "%% PPPoE bundle %s already exist !!!%s"
@@ -587,7 +577,7 @@ DEFUN(no_pppoe_bundle,
       "Destroy PPPoe Bundle\n"
       "PPPoE Bundle Name")
 {
-	gtp_pppoe_bundle_t *bundle;
+	pppoe_bundle_t *bundle;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -595,27 +585,27 @@ DEFUN(no_pppoe_bundle,
 	}
 
 	/* Already existing ? */
-	bundle = gtp_pppoe_bundle_get_by_name(argv[0]);
+	bundle = pppoe_bundle_get_by_name(argv[0]);
 	if (!bundle) {
 		vty_out(vty, "%% unknown PPPoE bundle %s%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	gtp_pppoe_bundle_release(bundle);
+	pppoe_bundle_release(bundle);
 	return CMD_SUCCESS;
 }
 
-static gtp_pppoe_t *
-gtp_pppoe_bundle_instance_prepare(vty_t *vty, gtp_pppoe_bundle_t *bundle, int argc, const char **argv)
+static pppoe_t *
+pppoe_bundle_instance_prepare(vty_t *vty, pppoe_bundle_t *bundle, int argc, const char **argv)
 {
-	gtp_pppoe_t *pppoe;
+	pppoe_t *pppoe;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return NULL;
 	}
 
-	pppoe = gtp_pppoe_get_by_name(argv[0]);
+	pppoe = pppoe_get_by_name(argv[0]);
 	if (!pppoe) {
 		vty_out(vty, "%% Unknown PPPoe Instance %s%s"
 			   , argv[0]
@@ -653,10 +643,10 @@ DEFUN(pppoe_bundle_instance,
       "PPPoE Instance\n"
       "Name\n")
 {
-	gtp_pppoe_bundle_t *bundle = vty->index;
-	gtp_pppoe_t *pppoe;
+	pppoe_bundle_t *bundle = vty->index;
+	pppoe_t *pppoe;
 
-	pppoe = gtp_pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
+	pppoe = pppoe_bundle_instance_prepare(vty, bundle, argc, argv);
 	if (!pppoe)
 		return CMD_WARNING;
 
@@ -671,7 +661,7 @@ DEFUN(pppoe_bundle_ignore_ingress_ppp_brd,
       "ignore-ingress-ppp-brd",
       "Ignore Ingress PPP broadcast messages\n")
 {
-	gtp_pppoe_bundle_t *bundle = vty->index;
+	pppoe_bundle_t *bundle = vty->index;
 	__set_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags);
 	return CMD_SUCCESS;
 }
@@ -681,7 +671,7 @@ DEFUN(no_pppoe_bundle_ignore_ingress_ppp_brd,
       "no ignore-ingress-ppp-brd",
       "Allow Ingress PPP broadcast messages\n")
 {
-	gtp_pppoe_bundle_t *bundle = vty->index;
+	pppoe_bundle_t *bundle = vty->index;
 	__clear_bit(PPPOE_FL_IGNORE_INGRESS_PPP_BRD_BIT, &bundle->flags);
 	return CMD_SUCCESS;
 }
@@ -690,7 +680,7 @@ DEFUN(no_pppoe_bundle_ignore_ingress_ppp_brd,
  *	Show commands
  */
 static int
-gtp_pppoe_worker_vty(vty_t *vty, gtp_pppoe_worker_t *w)
+pppoe_worker_vty(vty_t *vty, pppoe_worker_t *w)
 {
 	gtp_metrics_pkt_t *rx = &w->rx_metrics;
 	gtp_metrics_pkt_t *tx = &w->tx_metrics;
@@ -702,19 +692,19 @@ gtp_pppoe_worker_vty(vty_t *vty, gtp_pppoe_worker_t *w)
 }
 
 static int
-gtp_pppoe_workers_vty(vty_t *vty, const char *desc, gtp_pppoe_worker_t *w, int count)
+pppoe_workers_vty(vty_t *vty, const char *desc, pppoe_worker_t *w, int count)
 {
 	int i;
 
 	vty_out(vty, "  %s:%s", desc, VTY_NEWLINE);
 	for (i = 0; i < count; i++)
-		gtp_pppoe_worker_vty(vty, &w[i]);
+		pppoe_worker_vty(vty, &w[i]);
 
 	return 0;
 }
 
 static int
-gtp_pppoe_vty(vty_t *vty, gtp_pppoe_t *pppoe)
+pppoe_vty(vty_t *vty, pppoe_t *pppoe)
 {
 	if (!pppoe)
 		return -1;
@@ -722,9 +712,9 @@ gtp_pppoe_vty(vty_t *vty, gtp_pppoe_t *pppoe)
 	vty_out(vty, " PPPoE(%s): ifname %s (ifindex:%d) sessions:%d%s"
 		   , pppoe->name, pppoe->ifname, pppoe->ifindex, pppoe->session_count
 		   , VTY_NEWLINE);
-	gtp_pppoe_workers_vty(vty, "Discovery channel"
+	pppoe_workers_vty(vty, "Discovery channel"
 				 , pppoe->worker_disc, pppoe->thread_cnt);
-	gtp_pppoe_workers_vty(vty, "Session channel"
+	pppoe_workers_vty(vty, "Session channel"
 				 , pppoe->worker_ses, pppoe->thread_cnt);
 	return 0;
 }
@@ -736,7 +726,7 @@ DEFUN(show_pppoe,
       "PPP Over Ethernet\n"
       "Instance name")
 {
-	gtp_pppoe_t *pppoe;
+	pppoe_t *pppoe;
 	const char *name = NULL;
 
 	if (list_empty(&daemon_data->pppoe)) {
@@ -751,7 +741,7 @@ DEFUN(show_pppoe,
 		if (name && strncmp(pppoe->name, name, GTP_NAME_MAX_LEN))
 			continue;
 
-		gtp_pppoe_vty(vty, pppoe);
+		pppoe_vty(vty, pppoe);
 	}
 
 	return CMD_SUCCESS;
@@ -762,7 +752,7 @@ static int
 gtp_config_pppoe_write(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->pppoe;
-	gtp_pppoe_t *pppoe;
+	pppoe_t *pppoe;
 
 	list_for_each_entry(pppoe, l, next) {
 		vty_out(vty, "pppoe %s%s", pppoe->name, VTY_NEWLINE);
@@ -836,8 +826,8 @@ static int
 gtp_config_pppoe_bundle_write(vty_t *vty)
 {
 	list_head_t *l = &daemon_data->pppoe_bundle;
-	gtp_pppoe_bundle_t *bundle;
-	gtp_pppoe_t *pppoe;
+	pppoe_bundle_t *bundle;
+	pppoe_t *pppoe;
 	int i;
 
 	list_for_each_entry(bundle, l, next) {
@@ -859,7 +849,7 @@ gtp_config_pppoe_bundle_write(vty_t *vty)
  *	VTY init
  */
 int
-gtp_pppoe_vty_init(void)
+pppoe_vty_init(void)
 {
 
 	/* Install PPPoE commands. */

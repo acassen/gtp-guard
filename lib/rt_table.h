@@ -2,9 +2,7 @@
 /* Routing table implementation
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
-
-#ifndef _RT_TABLE_H
-#define _RT_TABLE_H
+#pragma once
 
 /* system includes */
 #include <stdio.h>
@@ -56,5 +54,3 @@ extern rt_node_t *rt_node_get(rt_table_t *, prefix_t *);
 extern int rt_node_delete(rt_node_t *);
 extern rt_node_t *rt_next(rt_node_t *);
 extern rt_node_t *rt_next_until(rt_node_t *, rt_node_t *);
-
-#endif

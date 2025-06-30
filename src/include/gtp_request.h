@@ -18,12 +18,8 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_REQUEST_H
-#define _GTP_REQUEST_H
+#pragma once
 
 /* Prototypes */
 extern int gtp_request_init(void);
 extern int gtp_request_destroy(void);
-
-#endif

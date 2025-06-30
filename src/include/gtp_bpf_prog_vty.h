@@ -18,11 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_PROG_VTY_H
-#define _GTP_BPF_PROG_VTY_H
+#pragma once
 
 /* Prototypes */
 extern int gtp_bpf_prog_vty_init(void);
-
-#endif

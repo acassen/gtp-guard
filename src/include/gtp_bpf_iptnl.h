@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_BPF_IPTNL_H
-#define _GTP_BPF_IPTNL_H
+#pragma once
 
 struct gtp_iptnl_rule {
 	__be32	selector_addr;
@@ -34,5 +32,3 @@ struct gtp_iptnl_rule {
 /* Prototypes */
 extern int gtp_bpf_iptnl_action(int, gtp_iptnl_t *, struct bpf_map *);
 extern int gtp_bpf_iptnl_vty(vty_t *, struct bpf_map *);
-
-#endif

@@ -19,13 +19,9 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* global includes */
+/* system includes */
 #include <getopt.h>
-#include <syslog.h>
-#include <time.h>
-#include <sys/time.h>
 #include <sys/resource.h>
-#include <libbpf.h>
 
 /* local includes */
 #include "gtp_guard.h"

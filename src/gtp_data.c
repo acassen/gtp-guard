@@ -19,11 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <pthread.h>
-#include <sys/stat.h>
-#include <net/if.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -280,6 +275,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_cdr);
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
+	pppoe_init();
 
 	return new;
 }
@@ -295,8 +291,8 @@ free_daemon_data(void)
 	gtp_router_server_destroy();
 	gtp_request_destroy();
 	gtp_metrics_destroy();
-	gtp_pppoe_bundle_destroy();
-	gtp_pppoe_destroy();
+	pppoe_bundle_destroy();
+	pppoe_destroy();
 	gtp_conn_destroy();
 	gtp_sessions_destroy();
 	gtp_proxy_destroy();
@@ -311,4 +307,3 @@ free_daemon_data(void)
 	gtp_apn_destroy();
 	FREE(daemon_data);
 }
-

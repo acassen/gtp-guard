@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_CDR_ASN1_H
-#define _GTP_CDR_ASN1_H
+#pragma once
 
 /* defines */
 #define PGW_RECORD_TYPE		85
@@ -61,5 +59,3 @@ enum gtp_cdr_asn1_encode_method {
 /* Prototypes */
 extern int gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *, uint8_t *, size_t);
 extern int gtp_cdr_asn1_ctx_set(gtp_cdr_ctx_t *, uint32_t, uint8_t *, size_t);
-
-#endif

@@ -6,8 +6,7 @@
  * Copyright (C) 1996 Bob Jenkins, <bob_jenkins@burtleburtle.net>
  */
 
-#ifndef _JHASH_H
-#define _JHASH_H
+#pragma once
 
 /* Global helpers */
 typedef uint32_t ub4;
@@ -176,5 +175,3 @@ jhash_oaat(register ub1 *k, size_t s)
 	hash += (hash << 15);
 	return hash;
 }
-
-#endif

@@ -19,15 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -190,11 +181,9 @@ gtp_server_worker_launch(gtp_server_t *srv)
 {
 	gtp_server_worker_t *worker;
 
-	pthread_mutex_lock(&srv->workers_mutex);
 	list_for_each_entry(worker, &srv->workers, next) {
 		pthread_create(&worker->task, NULL, gtp_server_worker_task, worker);
 	}
-	pthread_mutex_unlock(&srv->workers_mutex);
 
 	return 0;
 }
@@ -212,9 +201,7 @@ gtp_server_worker_alloc(gtp_server_t *srv, int id)
 	srand(worker->seed);
 	worker->pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 
-	pthread_mutex_lock(&srv->workers_mutex);
 	list_add_tail(&worker->next, &srv->workers);
-	pthread_mutex_unlock(&srv->workers_mutex);
 
 	return 0;
 }
@@ -236,10 +223,8 @@ gtp_server_foreach_worker(gtp_server_t *srv, int (*hdl) (gtp_server_worker_t *, 
 {
 	gtp_server_worker_t *w;
 
-	pthread_mutex_lock(&srv->workers_mutex);
 	list_for_each_entry(w, &srv->workers, next)
 		(*hdl) (w, arg);
-	pthread_mutex_unlock(&srv->workers_mutex);
 	return 0;
 }
 
@@ -282,13 +267,11 @@ gtp_server_destroy(gtp_server_t *srv)
 	if (!__test_bit(GTP_FL_RUNNING_BIT, &srv->flags))
 		return -1;
 
-	pthread_mutex_lock(&srv->workers_mutex);
 	list_for_each_entry_safe(w, _w, &srv->workers, next) {
 		pthread_cancel(w->task);
 		pthread_join(w->task, NULL);
 		gtp_server_worker_destroy(w);
 	}
-	pthread_mutex_unlock(&srv->workers_mutex);
 
 	return 0;
 }

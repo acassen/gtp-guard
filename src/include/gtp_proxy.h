@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_PROXY_H
-#define _GTP_PROXY_H
+#pragma once
 
 /* GTP Switching context */
 typedef struct _socket_pair {
@@ -68,5 +66,3 @@ extern int gtp_proxy_ctx_destroy(gtp_proxy_t *);
 extern int gtp_proxy_server_destroy(void);
 extern int gtp_proxy_destroy(void);
 extern int gtp_proxy_vty_init(void);
-
-#endif

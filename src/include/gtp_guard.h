@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_GUARD_H
-#define _GTP_GUARD_H
+#pragma once
 
 #include <net/ethernet.h>
 #include <net/if.h>
@@ -54,7 +52,7 @@
 #include "gtp_request.h"
 #include "gtp_metrics.h"
 #include "gtp_apn_metrics.h"
-#include "gtp_pppoe_metrics.h"
+#include "pppoe_metrics.h"
 #include "gtp_router_metrics.h"
 #include "gtp_data.h"
 #include "gtp_htab.h"
@@ -62,13 +60,13 @@
 #include "gtp_iptnl.h"
 #include "gtp_conn.h"
 #include "gtp_server.h"
-#include "gtp_pppoe.h"
-#include "gtp_pppoe_session.h"
-#include "gtp_pppoe_proto.h"
-#include "gtp_pppoe_monitor.h"
-#include "gtp_pppoe_vty.h"
-#include "gtp_ppp.h"
-#include "gtp_ppp_session.h"
+#include "pppoe.h"
+#include "pppoe_session.h"
+#include "pppoe_proto.h"
+#include "pppoe_monitor.h"
+#include "pppoe_vty.h"
+#include "ppp.h"
+#include "ppp_session.h"
 #include "gtp_disk.h"
 #include "gtp_cdr.h"
 #include "gtp_cdr_asn1.h"
@@ -111,5 +109,3 @@
 #include "gtp_interface_vty.h"
 #include "gtp_router.h"
 #include "gtp_router_hdl.h"
-
-#endif

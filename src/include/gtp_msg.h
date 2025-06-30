@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_MSG_H
-#define _GTP_MSG_H
+#pragma once
 
 /*
  *	GTPv2 Message
@@ -46,5 +44,3 @@ extern gtp_msg_ie_t *gtp_msg_ie_get(gtp_msg_t *, uint8_t);
 extern gtp_msg_t *gtp_msg_alloc(const pkt_buffer_t *);
 extern void gtp_msg_destroy(gtp_msg_t *);
 extern void gtp_msg_dump(const char *, gtp_msg_t *);
-
-#endif

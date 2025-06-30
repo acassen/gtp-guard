@@ -18,11 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_INTERFACE_VTY_H
-#define _GTP_INTERFACE_VTY_H
+#pragma once
 
 /* Prototypes */
 extern int gtp_interface_vty_init(void);
-
-#endif

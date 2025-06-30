@@ -19,15 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <errno.h>
-
 /* local includes */
 #include "gtp_guard.h"
 
@@ -557,8 +548,10 @@ gtp_sessions_free(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	pthread_mutex_lock(&c->session_mutex);
-	list_for_each_entry_safe(s, _s, l, next)
+	list_for_each_entry_safe(s, _s, l, next) {
+		timer_node_del(&gtp_session_timer, &s->t_node);
 		__gtp_session_free(s);
+	}
 	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;

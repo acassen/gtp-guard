@@ -18,9 +18,7 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _GTP_SCHED_H
-#define _GTP_SCHED_H
+#pragma once
 
 /* defines */
 #define GTP_SCHED_MAX_LEN	64
@@ -30,5 +28,3 @@ extern int gtp_sched(gtp_apn_t *, struct sockaddr_in *, struct sockaddr_in *, un
 extern int gtp_sched_dynamic(gtp_apn_t *, const char *, const char *,
 			     struct sockaddr_in *, struct sockaddr_in *,
 			     unsigned long *);
-
-#endif
