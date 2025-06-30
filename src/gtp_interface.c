@@ -22,9 +22,6 @@
 /* local includes */
 #include "gtp_guard.h"
 
-/* Local data */
-pthread_mutex_t gtp_interfaces_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 /* Extern data */
 extern data_t *daemon_data;
 
@@ -39,13 +36,11 @@ gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char 
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_for_each_entry(iface, l, next) {
 		__sync_add_and_fetch(&iface->refcnt, 1);
 		(*(hdl)) (iface, arg, var, var_type, type, direction);
 		__sync_sub_and_fetch(&iface->refcnt, 1);
 	}
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 }
 
 void
@@ -54,13 +49,11 @@ gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *arg)
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_for_each_entry(iface, l, next) {
 		__sync_add_and_fetch(&iface->refcnt, 1);
 		(*(hdl)) (iface, arg);
 		__sync_sub_and_fetch(&iface->refcnt, 1);
 	}
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 }
 
 gtp_interface_t *
@@ -69,15 +62,12 @@ gtp_interface_get(const char *name)
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_for_each_entry(iface, l, next) {
 		if (!strncmp(iface->ifname, name, strlen(name))) {
-			pthread_mutex_unlock(&gtp_interfaces_mutex);
 			__sync_add_and_fetch(&iface->refcnt, 1);
 			return iface;
 		}
 	}
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 
 	return NULL;
 }
@@ -88,15 +78,12 @@ gtp_interface_get_by_ifindex(int ifindex)
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_for_each_entry(iface, l, next) {
 		if (iface->ifindex == ifindex) {
-			pthread_mutex_unlock(&gtp_interfaces_mutex);
 			__sync_add_and_fetch(&iface->refcnt, 1);
 			return iface;
 		}
 	}
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 
 	return NULL;
 }
@@ -109,7 +96,6 @@ gtp_interface_get_by_direct_tx(ip_address_t *addr)
 	ip_address_t *addr_iface;
 	bool addr_equal = false;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_for_each_entry(iface, l, next) {
 		addr_iface = &iface->direct_tx_gw;
 		if (!addr_iface->family)
@@ -130,12 +116,10 @@ gtp_interface_get_by_direct_tx(ip_address_t *addr)
 		}
 
 		if (addr_equal) {
-			pthread_mutex_unlock(&gtp_interfaces_mutex);
 			__sync_add_and_fetch(&iface->refcnt, 1);
 			return iface;
 		}
 	}
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 
 	return NULL;
 }
@@ -158,9 +142,7 @@ gtp_interface_alloc(const char *name, int ifindex)
 	bsd_strlcpy(new->ifname, name, GTP_STR_MAX_LEN - 1);
 	new->ifindex = ifindex;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_add_tail(&new->next, &daemon_data->interfaces);
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 
 	return new;
 }
@@ -190,9 +172,7 @@ __gtp_interface_destroy(gtp_interface_t *iface)
 int
 gtp_interface_destroy(gtp_interface_t *iface)
 {
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	__gtp_interface_destroy(iface);
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 	return 0;
 }
 
@@ -202,9 +182,7 @@ gtp_interfaces_destroy(void)
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface, *_iface;
 
-	pthread_mutex_lock(&gtp_interfaces_mutex);
 	list_for_each_entry_safe(iface, _iface, l, next)
 		__gtp_interface_destroy(iface);
-	pthread_mutex_unlock(&gtp_interfaces_mutex);
 	return 0;
 }

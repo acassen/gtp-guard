@@ -40,7 +40,6 @@ typedef struct _gtp_server {
 	int			thread_cnt;
 	void			*ctx;		/* backpointer */
 
-	pthread_mutex_t		workers_mutex;
 	list_head_t		workers;
 
 	/* Local method */

@@ -30,9 +30,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-/* Local data */
-pthread_mutex_t gtp_apn_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 
 /*
  *	Utilities
@@ -43,10 +40,8 @@ gtp_apn_foreach(int (*hdl) (gtp_apn_t *, void *), void *arg)
 	list_head_t *l = &daemon_data->gtp_apn;
 	gtp_apn_t *apn;
 
-	pthread_mutex_lock(&gtp_apn_mutex);
 	list_for_each_entry(apn, l, next)
 		(*(hdl)) (apn, arg);
-	pthread_mutex_unlock(&gtp_apn_mutex);
 }
 
 /*
@@ -391,9 +386,7 @@ gtp_apn_alloc(const char *name)
 	bsd_strlcpy(new->name, name, GTP_APN_MAX_LEN - 1);
 
 	/* FIXME: lookup before insert */
-	pthread_mutex_lock(&gtp_apn_mutex);
 	list_add_tail(&new->next, &daemon_data->gtp_apn);
-	pthread_mutex_unlock(&gtp_apn_mutex);
 
 	/* Point default pGW to list head */
 
@@ -416,7 +409,6 @@ gtp_apn_destroy(void)
 	list_head_t *l = &daemon_data->gtp_apn;
 	gtp_apn_t *apn, *_apn;
 
-	pthread_mutex_lock(&gtp_apn_mutex);
 	list_for_each_entry_safe(apn, _apn, l, next) {
 		gtp_service_destroy(apn);
 		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
@@ -428,7 +420,6 @@ gtp_apn_destroy(void)
 		list_head_del(&apn->next);
 		FREE(apn);
 	}
-	pthread_mutex_unlock(&gtp_apn_mutex);
 
 	return 0;
 }
@@ -438,15 +429,11 @@ gtp_apn_get(const char *name)
 {
 	gtp_apn_t *apn;
 
-	pthread_mutex_lock(&gtp_apn_mutex);
 	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
-		if (!fnmatch(apn->name, name, 0)) {
-			pthread_mutex_unlock(&gtp_apn_mutex);
+		if (!fnmatch(apn->name, name, 0))
 			return apn;
-		}
 
 	}
-	pthread_mutex_unlock(&gtp_apn_mutex);
 
 	return NULL;
 }
