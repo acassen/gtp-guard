@@ -87,6 +87,10 @@ gtp_router_init(const char *name)
 	gtp_router_t *new;
 
 	PMALLOC(new);
+	if (!new) {
+		errno = ENOMEM;
+		return NULL;
+	}
         INIT_LIST_HEAD(&new->next);
         bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 

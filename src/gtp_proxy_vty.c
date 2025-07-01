@@ -60,8 +60,12 @@ DEFUN(gtp_proxy,
 
 	/* Already existing ? */
 	new = gtp_proxy_get(argv[0]);
-	if (!new)
-		new = gtp_proxy_init(argv[0]);
+	new = (new) ? : gtp_proxy_init(argv[0]);
+	if (!new) {
+		vty_out(vty, "%% Error allocating gtp-proxy:%s !!!%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	vty->node = GTP_PROXY_NODE;
 	vty->index = new;

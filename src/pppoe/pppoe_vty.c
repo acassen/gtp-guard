@@ -59,17 +59,13 @@ DEFUN(pppoe,
 		return CMD_WARNING;
 	}
 
-	new = pppoe_alloc(argv[0]);
+	new = pppoe_get_by_name(argv[0]);
+	new = (new) ? : pppoe_alloc(argv[0]);
 	if (!new) {
-		if (errno == EEXIST)
-			vty_out(vty, "%% PPPoE instance %s already exist !!!%s"
-				   , argv[0], VTY_NEWLINE);
-		else
-			vty_out(vty, "%% PPPoE Error allocating instance %s !!!%s"
-				   , argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% Error allocating PPPoE:%s !!!%s"
+			   , argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-
 
 	vty->node = PPPOE_NODE;
 	vty->index = new;

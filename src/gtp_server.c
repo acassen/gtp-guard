@@ -192,6 +192,8 @@ gtp_server_init(gtp_server_t *s, void *ctx
 	s->init = init;
 	s->process = process;
 	s->pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
+	s->seed = time(NULL);
+	srand(s->seed);
 
 	/* Create UDP Listener */
 	fd = gtp_server_udp_init(s);

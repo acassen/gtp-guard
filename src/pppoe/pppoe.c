@@ -450,28 +450,22 @@ pppoe_interface_init(pppoe_t *pppoe, const char *ifname)
 pppoe_t *
 pppoe_alloc(const char *name)
 {
-	pppoe_t *pppoe = NULL;
+	pppoe_t *new = NULL;
 
-	pppoe = pppoe_get_by_name(name);
-	if (pppoe) {
-		errno = EEXIST;
-		return NULL;
-	}
-
-	PMALLOC(pppoe);
-	if (!pppoe) {
+	PMALLOC(new);
+	if (!new) {
 		errno = ENOMEM;
 		return NULL;
 	}
-	bsd_strlcpy(pppoe->name, name, GTP_NAME_MAX_LEN);
-	INIT_LIST_HEAD(&pppoe->next);
-	pppoe->seed = time(NULL);
-	srand(pppoe->seed);
-	pkt_queue_init(&pppoe->pkt_q);
-	ppp_set_default(pppoe);
-	pppoe_add(pppoe);
+	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN);
+	INIT_LIST_HEAD(&new->next);
+	new->seed = time(NULL);
+	srand(new->seed);
+	pkt_queue_init(&new->pkt_q);
+	ppp_set_default(new);
+	pppoe_add(new);
 
-	return pppoe;
+	return new;
 }
 
 int
