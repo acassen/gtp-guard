@@ -89,11 +89,11 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 	struct tm *t;
 
 	/* Walk the line */
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(s, l, next) {
-		if (timerisset(&s->t_node.sands)) {
-			timeout = s->t_node.sands.tv_sec - time_now.tv_sec;
+		if (s->timer) {
+			timeout = s->timer->sands.tv_sec - time_now.tv_sec;
 			snprintf(s->tmp_str, 63, "%ld secs", timeout);
+
 		}
 
 		t = &s->creation_time;
@@ -102,7 +102,7 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 			   , c->imsi
 			   , t->tm_mday, t->tm_mon+1, t->tm_year+1900
 			   , t->tm_hour, t->tm_min, t->tm_sec
-			   , timerisset(&s->t_node.sands) ? s->tmp_str : "never");
+			   , s->timer ? s->tmp_str : "never");
 		if (c->pppoe_cnt)
 			vty_out(vty, " pppoe cnt:%d" , c->pppoe_cnt);
 		vty_out(vty, "%s" , VTY_NEWLINE);
@@ -112,7 +112,6 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 		__gtp_session_teid_cp_vty(vty, &s->gtpc_teid);
 		__gtp_session_teid_up_vty(vty, &s->gtpu_teid);
 	}
-	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -125,17 +124,16 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 	gtp_apn_t *apn = NULL;
 
 	/* Walk the line */
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(s, l, next) {
-		if (timerisset(&s->t_node.sands)) {
-			timeout = s->t_node.sands.tv_sec - time_now.tv_sec;
+		if (s->timer) {
+			timeout = s->timer->sands.tv_sec - time_now.tv_sec;
 			snprintf(s->tmp_str, 63, "%ld secs", timeout);
 		}
 
 		if (!apn) {
 			vty_out(vty, "| %.15ld | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
 				   , c->imsi, s->apn->name, s->id, s->refcnt
-				   , timerisset(&s->t_node.sands) ? s->tmp_str : "never"
+				   , s->timer ? s->tmp_str : "never"
 				   , VTY_NEWLINE);
 			apn = s->apn;
 			continue;
@@ -144,11 +142,10 @@ gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
 		vty_out(vty, "|                 | %10s |  session-id:0x%.8x #teid:%.2d expiration:%11s |%s"
 			   , (apn == s->apn) ? "" : s->apn->name
 			   , s->id, s->refcnt
-			   , timerisset(&s->t_node.sands) ? s->tmp_str : "never"
+			   , s->timer ? s->tmp_str : "never"
 			   , VTY_NEWLINE);
 		apn = s->apn;
 	}
-	pthread_mutex_unlock(&c->session_mutex);
 
 	/* Footer */
 	vty_out(vty, "+-----------------+------------+--------------------------------------------------------+%s"

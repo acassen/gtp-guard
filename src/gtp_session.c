@@ -29,7 +29,7 @@ extern thread_master_t *master;
 
 /* Local data */
 static uint32_t gtp_session_id;
-static timer_thread_t gtp_session_timer;
+static void gtp_session_expire(thread_ref_t);
 
 
 /*
@@ -50,24 +50,19 @@ gtp_sessions_count_read(void)
 gtp_teid_t *
 gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 {
-	gtp_conn_t *c = s->conn;
 	list_head_t *l = &s->gtpu_teid;
 	gtp_teid_t *t;
 
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(t, l, next) {
-		if (t->sqn == sqn) {
-			pthread_mutex_unlock(&c->session_mutex);
+		if (t->sqn == sqn)
 			return t;
-		}
 	}
 
-	pthread_mutex_unlock(&c->session_mutex);
 	return NULL;
 }
 
 static int
-__gtp_session_teid_del(gtp_session_t *s, gtp_teid_t *teid)
+gtp_session_teid_del(gtp_session_t *s, gtp_teid_t *teid)
 {
 	if (!__test_and_clear_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already unlinked from session:0x%.8x!!!"
@@ -84,20 +79,15 @@ __gtp_session_teid_del(gtp_session_t *s, gtp_teid_t *teid)
 static int
 gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
 {
-	gtp_conn_t *c = s->conn;
-
-	pthread_mutex_lock(&c->session_mutex);
 	if (__test_and_set_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already linked to session:0x%.8x !!!"
 			    , __FUNCTION__, ntohl(teid->id), s->id);
-		pthread_mutex_unlock(&c->session_mutex);
 		return -1;
 	}
 
 	list_add_tail(&teid->next, l);
 	__sync_add_and_fetch(&teid->refcnt, 1);
 	__sync_add_and_fetch(&s->refcnt, 1);
-	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -137,26 +127,26 @@ gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 int
 gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
 {
-	gtp_conn_t *c = s->conn;
 	list_head_t *l = &s->gtpu_teid;
 	gtp_teid_t *teid;
 
 	/* Fast-Path setup */
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(teid, l, next) {
 		if (__test_bit(GTP_TEID_FL_XDP_SET, &teid->flags))
 			continue;
 
 		gtp_session_gtu_teid_xdp_rule_add(teid);
 	}
-	pthread_mutex_unlock(&c->session_mutex);
+
 	return 0;
 }
 
 void
 gtp_session_mod_timer(gtp_session_t *s, int timeout)
 {
-	timer_node_add(&gtp_session_timer, &s->t_node, timeout);
+	thread_del_timer(s->timer);
+	s->timer = thread_add_timer(master, gtp_session_expire, s
+					  , timeout * TIMER_HZ);
 }
 
 static void
@@ -174,10 +164,8 @@ gtp_session_add_timer(gtp_session_t *s)
 static int
 gtp_session_add(gtp_conn_t *c, gtp_session_t *s)
 {
-	pthread_mutex_lock(&c->session_mutex);
 	list_add_tail(&s->next, &c->gtp_sessions);
 	__sync_add_and_fetch(&c->refcnt, 1);
-	pthread_mutex_unlock(&c->session_mutex);
 	__sync_add_and_fetch(&gtp_sessions_count, 1);
 
 	return 0;
@@ -243,7 +231,6 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 	INIT_LIST_HEAD(&new->gtpc_teid);
 	INIT_LIST_HEAD(&new->gtpu_teid);
 	INIT_LIST_HEAD(&new->next);
-	timer_node_init(&new->t_node, NULL, new);
 	new->apn = apn;
 	new->conn = c;
 	new->gtpc_teid_destroy = gtpc_destroy;
@@ -264,13 +251,17 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 }
 
 
-static int
-__gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
+int
+gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
 {
-	gtp_session_t *s = teid->session;
+	gtp_session_t *s;
 
+	if (!teid)
+		return -1;
+
+	s = teid->session;
 	(*s->gtpc_teid_destroy) (teid);
-	if (__gtp_session_teid_del(s, teid) < 0)
+	if (gtp_session_teid_del(s, teid) < 0)
 		return -1;
 
 	gtp_teid_free(teid);
@@ -278,29 +269,16 @@ __gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
 }
 
 int
-gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
+gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 {
 	gtp_session_t *s;
-	gtp_conn_t *c;
 
 	if (!teid)
 		return -1;
 
 	s = teid->session;
-	c = s->conn;
-	pthread_mutex_lock(&c->session_mutex);
-	__gtp_session_gtpc_teid_destroy(teid);
-	pthread_mutex_unlock(&c->session_mutex);
-	return 0;
-}
-
-static int
-__gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
-{
-	gtp_session_t *s = teid->session;
-
 	(*s->gtpu_teid_destroy) (teid);
-	if (__gtp_session_teid_del(s, teid) < 0)
+	if (gtp_session_teid_del(s, teid) < 0)
 		return -1;
 
 	/* Fast-Path cleanup */
@@ -321,41 +299,24 @@ __gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 	return 0;
 }
 
-int
-gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
-{
-	gtp_session_t *s;
-	gtp_conn_t *c;
-
-	if (!teid)
-		return -1;
-
-	s = teid->session;
-	c = s->conn;
-	pthread_mutex_lock(&c->session_mutex);
-	__gtp_session_gtpu_teid_destroy(teid);
-	pthread_mutex_unlock(&c->session_mutex);
-	return 0;
-}
-
 static int
-__gtp_session_teid_destroy(gtp_session_t *s)
+gtp_session_teid_destroy(gtp_session_t *s)
 {
 	gtp_teid_t *t, *_t;
 
 	/* Release control plane */
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next)
-		__gtp_session_gtpc_teid_destroy(t);
+		gtp_session_gtpc_teid_destroy(t);
 
 	/* Release data plane */
 	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next)
-		__gtp_session_gtpu_teid_destroy(t);
+		gtp_session_gtpu_teid_destroy(t);
 
 	return 0;
 }
 
 static int
-__gtp_session_send_delete_bearer(gtp_session_t *s)
+gtp_session_send_delete_bearer(gtp_session_t *s)
 {
 	gtp_teid_t *t;
 
@@ -370,32 +331,30 @@ __gtp_session_send_delete_bearer(gtp_session_t *s)
 }
 
 static int
-__gtp_session_free(gtp_session_t *s)
+gtp_session_free(gtp_session_t *s)
 {
 	__sync_sub_and_fetch(&s->apn->session_count, 1);
 	__sync_sub_and_fetch(&gtp_sessions_count, 1);
-	__gtp_session_teid_destroy(s);
+	gtp_session_teid_destroy(s);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
-	__spppoe_destroy(s->s_pppoe);
+	spppoe_destroy(s->s_pppoe);
 	list_head_del(&s->next);
 	FREE(s);
 	return 0;
 }
 
-static int
-__gtp_session_destroy(gtp_session_t *s)
+int
+gtp_session_destroy(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 
-	pthread_mutex_lock(&c->session_mutex);
+	thread_del_timer(s->timer);
 
 	/* Send Delete-Bearer-Request if needed */
 	if (s->action == GTP_ACTION_SEND_DELETE_BEARER_REQUEST)
-		__gtp_session_send_delete_bearer(s);
+		gtp_session_send_delete_bearer(s);
 
-	__gtp_session_free(s);
-
-	pthread_mutex_unlock(&c->session_mutex);
+	gtp_session_free(s);
 
 	/* Release connection if no more sessions */
 	if (__sync_sub_and_fetch(&c->refcnt, 1) == 0) {
@@ -409,27 +368,15 @@ __gtp_session_destroy(gtp_session_t *s)
 }
 
 int
-gtp_session_destroy(gtp_session_t *s)
-{
-	if (timerisset(&s->t_node.sands))
-		return gtp_session_expire_now(s);
-
-	return __gtp_session_destroy(s);
-}
-
-int
 gtp_session_set_delete_bearer(gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
 {
-	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t;
 
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(t, &s->gtpu_teid, next) {
 		if ((ebi->h.instance == 0) ||
 		    (ebi->h.instance == 1 && t->bearer_id == ebi->id))
 			t->action = GTP_ACTION_DELETE_BEARER;
 	}
-	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
 }
@@ -437,22 +384,19 @@ gtp_session_set_delete_bearer(gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
 int
 gtp_session_destroy_bearer(gtp_session_t *s)
 {
-	gtp_conn_t *c = s->conn;
 	gtp_teid_t *t, *_t;
 
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
 		if (t->bearer_teid && t->bearer_teid->action == GTP_ACTION_DELETE_BEARER) {
-			__gtp_session_gtpc_teid_destroy(t);
+			gtp_session_gtpc_teid_destroy(t);
 		}
 	}
 
 	list_for_each_entry_safe(t, _t, &s->gtpu_teid, next) {
 		if (t->action == GTP_ACTION_DELETE_BEARER) {
-			__gtp_session_gtpu_teid_destroy(t);
+			gtp_session_gtpu_teid_destroy(t);
 		}
 	}
-	pthread_mutex_unlock(&c->session_mutex);
 
 	if (__sync_sub_and_fetch(&s->refcnt, 0) == 0)
 		return gtp_session_destroy(s);
@@ -490,7 +434,6 @@ gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
 	gtp_session_t *s;
 	int err = 0;
 
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(s, &c->gtp_sessions, next) {
 		if (s->ptype != ptype)
 			continue;
@@ -499,7 +442,6 @@ gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
 		gtp_session_destroy(s);
 		err = -1;
 	}
-	pthread_mutex_unlock(&c->session_mutex);
 
 	return err;
 }
@@ -508,22 +450,14 @@ gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
 /*
  *	Session expiration handling
  */
-int
-gtp_session_expire_now(gtp_session_t *s)
+static void
+gtp_session_expire(thread_ref_t thread)
 {
-	timer_node_expire_now(&gtp_session_timer, &s->t_node);
-	return 0;
-}
-
-static int
-__gtp_session_expire(void *arg)
-{
-	gtp_session_t *s = (gtp_session_t *) arg;
+	gtp_session_t *s = THREAD_ARG(thread);
 
 	log_message(LOG_INFO, "IMSI:%ld - Expiring session-id:0x%.8x"
 			    , s->conn->imsi, s->id);
-	__gtp_session_destroy(s);
-	return 0;
+	gtp_session_destroy(s);
 }
 
 int
@@ -533,10 +467,8 @@ gtp_sessions_release(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	/* Release sessions */
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(s, _s, l, next)
-		gtp_session_expire_now(s);
-	pthread_mutex_unlock(&c->session_mutex);
+		gtp_session_destroy(s);
 
 	return 0;
 }
@@ -547,12 +479,10 @@ gtp_sessions_free(gtp_conn_t *c)
 	list_head_t *l = &c->gtp_sessions;
 	gtp_session_t *s, *_s;
 
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry_safe(s, _s, l, next) {
-		timer_node_del(&gtp_session_timer, &s->t_node);
-		__gtp_session_free(s);
+		thread_del_timer(s->timer);
+		gtp_session_free(s);
 	}
-	pthread_mutex_unlock(&c->session_mutex);
 
 	return 0;
 }
@@ -564,13 +494,11 @@ gtp_sessions_free(gtp_conn_t *c)
 int
 gtp_sessions_init(void)
 {
-	timer_thread_init(&gtp_session_timer, "gtp-session-timer", __gtp_session_expire);
 	return 0;
 }
 
 int
 gtp_sessions_destroy(void)
 {
-	timer_thread_destroy(&gtp_session_timer);
 	return 0;
 }

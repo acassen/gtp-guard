@@ -62,7 +62,9 @@ typedef struct _gtp_session {
 	/* Expiration handling */
 	char			tmp_str[64];
 	struct tm		creation_time;
-	timer_node_t		t_node;
+
+	/* I/O MUX */
+	thread_ref_t		timer;
 
 	list_head_t		next;
 

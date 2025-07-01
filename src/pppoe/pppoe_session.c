@@ -276,18 +276,15 @@ spppoe_add(gtp_conn_t *c, spppoe_t *s)
 {
 	pppoe_t *pppoe = s->pppoe;
 
-	pthread_mutex_lock(&c->session_mutex);
 	list_add_tail(&s->next, &c->pppoe_sessions);
 	__sync_add_and_fetch(&c->pppoe_cnt, 1);
-	pthread_mutex_unlock(&c->session_mutex);
-
 	__sync_add_and_fetch(&pppoe->session_count, 1);
 	__sync_add_and_fetch(&pppoe_sessions_count, 1);
 	return 0;
 }
 
 static int
-__spppoe_del(gtp_conn_t *c, spppoe_t *s)
+spppoe_del(gtp_conn_t *c, spppoe_t *s)
 {
 	pppoe_t *pppoe = s->pppoe;
 
@@ -295,15 +292,6 @@ __spppoe_del(gtp_conn_t *c, spppoe_t *s)
 	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
 	__sync_sub_and_fetch(&pppoe->session_count, 1);
 	__sync_sub_and_fetch(&pppoe_sessions_count, 1);
-	return 0;
-}
-
-static int
-spppoe_del(gtp_conn_t *c, spppoe_t *s)
-{
-	pthread_mutex_lock(&c->session_mutex);
-	__spppoe_del(c, s);
-	pthread_mutex_unlock(&c->session_mutex);
 	return 0;
 }
 
@@ -326,17 +314,6 @@ spppoe_release(spppoe_t *s)
 	spppoe_session_unhash(pppoe_session_tab, s);
 	spppoe_unique_unhash(pppoe_unique_tab, s);
 	spppoe_free(s);
-	return 0;
-}
-
-int
-__spppoe_destroy(spppoe_t *s)
-{
-	if (!s)
-		return -1;
-
-	__spppoe_del(s->s_gtp->conn, s);
-	spppoe_release(s);
 	return 0;
 }
 
@@ -401,7 +378,6 @@ spppoe_alloc(pppoe_t *pppoe, gtp_conn_t *c,
 	}
 
 	s->s_ppp = sppp_init(s, pp_tls, pp_tlf, pp_con, pp_chg);
-	timer_node_init(&s->t_node, NULL, s);
 	spppoe_unique_hash(pppoe_unique_tab, s, imsi, &pppoe->seed);
 	spppoe_add(c, s);
 
