@@ -134,8 +134,6 @@ gtp_server_async_recv_thread(thread_ref_t thread)
 	if (thread->type == THREAD_READ_TIMEOUT)
 		goto next_read;
 
-	s->r_thread = NULL;
-
 	/* Perform ingress packet handling */
 	nbytes = gtp_server_recvfrom(s, (struct sockaddr *) &addr_from, &addrlen);
 	if (nbytes == -1) {

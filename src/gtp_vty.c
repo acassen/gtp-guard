@@ -195,54 +195,6 @@ DEFUN(no_pdn_xdp_mirror,
         return CMD_SUCCESS;
 }
 
-DEFUN(pdn_bpf_ppp_rps,
-      pdn_bpf_ppp_rps_cmd,
-      "bpf-ppp-rps STRING [xdp-prog STRING]",
-      "PPP Receive Packet Steering BPF program\n"
-      "path to BPF file\n"
-      "XDP Program Name"
-      "Name")
-{
-	gtp_bpf_opts_t *opts = &daemon_data->bpf_ppp_rps;
-
-	if (__test_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% PPP RPS program already loaded.%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return -1;
-	}
-
-	bsd_strlcpy(opts->filename, argv[0], GTP_STR_MAX_LEN-1);
-	if (argc == 2)
-		bsd_strlcpy(opts->progname, argv[1], GTP_STR_MAX_LEN-1);
-
-	__set_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(no_pdn_bpf_ppp_rps,
-      no_pdn_bpf_ppp_rps_cmd,
-      "no bpf-ppp-rps",
-      "PPP Receive Packet Steering BPF program\n")
-{
-	gtp_bpf_opts_t *opts = &daemon_data->bpf_ppp_rps;
-
-	if (!__test_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% No PPP RPS BPF program is currently configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* Reset data */
-	memset(opts, 0, sizeof(gtp_bpf_opts_t));
-	__clear_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
-
 static int
 pdn_mirror_prepare(int argc, const char **argv, vty_t *vty,
 		   struct sockaddr_storage *addr, uint8_t *protocol, int *ifindex)
@@ -858,8 +810,6 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &no_pdn_xdp_gtp_forward_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_mirror_cmd);
-	install_element(PDN_NODE, &pdn_bpf_ppp_rps_cmd);
-	install_element(PDN_NODE, &no_pdn_bpf_ppp_rps_cmd);
 	install_element(PDN_NODE, &pdn_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_mirror_cmd);
 	install_element(PDN_NODE, &restart_counter_file_cmd);

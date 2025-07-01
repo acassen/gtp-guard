@@ -186,12 +186,6 @@ struct eth_percpu_ctx {
 	__u8		dest[6];
 };
 
-/* Receive Packet Steering */
-struct rps_opts {
-	__u16		id;
-	__u16		max_id;
-} __attribute__ ((__aligned__(8)));
-
 /* Statistics */
 #define IF_METRICS_GTP		0
 #define IF_METRICS_PPPOE	1

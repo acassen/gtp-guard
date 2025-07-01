@@ -135,29 +135,23 @@ enum pppoe_flags {
 	PPPOE_FL_METRIC_PPPOE_BIT,
 };
 
-struct rps_opts {
-	__u16	id;
-	__u16	max_id;
-} __attribute__ ((__aligned__(8)));
-
-typedef struct _pppoe_worker {
+typedef struct _pppoe_channel {
 	char			pname[GTP_PNAME];
 	uint16_t		proto;
 	int			fd;
-	int			id;
-	pthread_t		task;
-	struct _pppoe	*pppoe;		/* backpointer */
-
-	pthread_cond_t		cond;
-	pthread_mutex_t		mutex;
+	struct _pppoe		*pppoe;		/* backpointer */
 
 	mpkt_t			mpkt;
 	pkt_queue_t		pkt_q;
 
+	/* I/O MUX */
+	thread_ref_t		r_thread;
+	thread_ref_t		w_thread;
+
 	/* metrics */
 	gtp_metrics_pkt_t	rx_metrics;
 	gtp_metrics_pkt_t	tx_metrics;
-} pppoe_worker_t;
+} pppoe_channel_t;
 
 typedef struct _pppoe_bundle {
 	char			name[GTP_NAME_MAX_LEN];
@@ -186,7 +180,6 @@ typedef struct _pppoe {
 	int			lcp_max_terminate;
 	int			lcp_max_configure;
 	int			lcp_max_failure;
-	int			thread_cnt;
 	int			refcnt;
 	unsigned int		seed;
 	pthread_t		task;
@@ -194,15 +187,14 @@ typedef struct _pppoe {
 	pppoe_bundle_t		*bundle;	/* Part of a pppoe-bundle */
 	int			session_count;	/* Number of session tracked */
 
-	pppoe_worker_t		*worker_disc;
-	pppoe_worker_t		*worker_ses;
+	pppoe_channel_t		channel_disc;
+	pppoe_channel_t		channel_ses;
 	pkt_queue_t		pkt_q;
 
 	int			monitor_fd;	/* Monitoring channel */
 	unsigned char		monitor_buffer[GTP_BUFFER_SIZE];
 	unsigned long		credit;
 	unsigned long		expire;
-	thread_ref_t		r_thread;
 
 	/* metrics */
 	uint64_t		vrrp_pkt_rx;

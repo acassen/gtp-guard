@@ -75,7 +75,6 @@ typedef struct _data {
 	void			*xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtp_forward;
 	gtp_bpf_opts_t		xdp_mirror;
-	gtp_bpf_opts_t		bpf_ppp_rps;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 	unsigned		nl_rcvbuf_size;
