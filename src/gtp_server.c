@@ -219,6 +219,7 @@ gtp_server_destroy(gtp_server_t *s)
 	if (!__test_bit(GTP_FL_RUNNING_BIT, &s->flags))
 		return -1;
 
+	close(s->fd);
 	pkt_buffer_free(s->pbuff);
 	return 0;
 }
