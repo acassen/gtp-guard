@@ -256,10 +256,8 @@ spppoe_generate_id(gtp_conn_t *c)
 	/* Phase 0 : populate inuse table, since session can
 	 * be deleted or added we need to mark and look for
 	 * available id */
-	pthread_mutex_lock(&c->session_mutex);
 	list_for_each_entry(s, &c->pppoe_sessions, next)
 		inuse[s->id] = true;
-	pthread_mutex_unlock(&c->session_mutex);
 
 	/* Phase 1 : return first available id */
 	for (i = 0; i < GTP_PPPOE_MAX_SESSION_PER_IMSI; i++) {
