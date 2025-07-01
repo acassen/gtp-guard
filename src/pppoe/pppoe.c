@@ -234,8 +234,6 @@ pppoe_async_recv_thread(thread_ref_t thread)
 					     , ch, ch->fd, 3*TIMER_HZ, 0);
 }
 
-
-
 static int
 pppoe_channel_init(pppoe_t *pppoe, pppoe_channel_t *ch, uint16_t proto)
 {
@@ -250,14 +248,17 @@ pppoe_channel_init(pppoe_t *pppoe, pppoe_channel_t *ch, uint16_t proto)
 	err = (err) ? : __pkt_queue_mget(&ch->pkt_q, &ch->mpkt);
 	err = (err) ? : pppoe_socket_init(ch, proto);
 	if (err) {
-		log_message(LOG_INFO, "%s(): Error creating mpkt for proto:%d"
-				    , __FUNCTION__, proto);
+		log_message(LOG_INFO, "%s(): Error creating PPPoE %s channel on interface %s"
+				    , __FUNCTION__
+				    , (proto == ETH_P_PPP_DISC) ? "Discovery" : "Session"
+				    , pppoe->ifname);
 		return -1;
 	}
 
-	log_message(LOG_INFO, "%s(): Starting PPPoE %s channel"
+	log_message(LOG_INFO, "%s(): Starting PPPoE %s channel on interface %s"
 			    , __FUNCTION__
-			    , (proto == ETH_P_PPP_DISC) ? "Discovery" : "Session");
+			    , (proto == ETH_P_PPP_DISC) ? "Discovery" : "Session"
+			    , pppoe->ifname);
 	ch->r_thread = thread_add_read(master, pppoe_async_recv_thread
 					     , ch, ch->fd, 3*TIMER_HZ, 0);
 	return 0;
@@ -268,11 +269,15 @@ pppoe_channel_release(pppoe_channel_t *ch)
 {
 	mpkt_destroy(&ch->mpkt);
 	pkt_queue_destroy(&ch->pkt_q);
+	close(ch->fd);
 }
 
 static int
 pppoe_channel_destroy(pppoe_t *pppoe)
 {
+	if (!__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
+		return -1;
+
 	pppoe_channel_release(&pppoe->channel_disc);
 	pppoe_channel_release(&pppoe->channel_ses);
 	return 0;
@@ -287,9 +292,6 @@ pppoe_start(pppoe_t *pppoe)
 {
 	if (__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
 		return -1;
-
-	log_message(LOG_INFO, "%s(): Starting PPPoE on interface %s"
-			    , __FUNCTION__, pppoe->ifname);
 
 	/* Channel init */
 	pppoe_channel_init(pppoe, &pppoe->channel_disc, ETH_P_PPP_DISC);

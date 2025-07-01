@@ -106,9 +106,9 @@ typedef struct _sppp {
 	uint8_t		confid[IDX_COUNT];	/* id of last configuration request */
 	int		rst_counter[IDX_COUNT];	/* restart counter */
 	int		fail_counter[IDX_COUNT];/* negotiation failure counter */
-	timer_node_t	ch[IDX_COUNT];
-	timer_node_t	pap_my_to_ch;
-	timer_node_t	keepalive;
+	thread_ref_t	ch[IDX_COUNT];
+	thread_ref_t	pap_my_to_ch;
+	thread_ref_t	keepalive;
 	slcp_t		lcp;			/* LCP params */
 	sipcp_t		ipcp;			/* IPCP params */
 	sipcp_t		ipv6cp;			/* IPV6CP params */
@@ -170,7 +170,7 @@ extern void sppp_lcp_up(sppp_t *);
 extern void sppp_lcp_down(sppp_t *);
 extern void sppp_lcp_open(sppp_t *);
 extern void sppp_lcp_close(sppp_t *);
-extern int sppp_lcp_TO(void *);
+extern void sppp_lcp_TO(thread_ref_t);
 extern int sppp_lcp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_lcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_lcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
@@ -188,7 +188,7 @@ extern void sppp_ipcp_up(sppp_t *);
 extern void sppp_ipcp_down(sppp_t *);
 extern void sppp_ipcp_open(sppp_t *);
 extern void sppp_ipcp_close(sppp_t *);
-extern int sppp_ipcp_TO(void *);
+extern void sppp_ipcp_TO(thread_ref_t);
 extern int sppp_ipcp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
@@ -203,7 +203,7 @@ extern void sppp_ipv6cp_up(sppp_t *);
 extern void sppp_ipv6cp_down(sppp_t *);
 extern void sppp_ipv6cp_open(sppp_t *);
 extern void sppp_ipv6cp_close(sppp_t *);
-extern int sppp_ipv6cp_TO(void *);
+extern void sppp_ipv6cp_TO(thread_ref_t);
 extern int sppp_ipv6cp_RCR(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipv6cp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
 extern void sppp_ipv6cp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
@@ -217,8 +217,8 @@ extern void sppp_pap_input(sppp_t *, pkt_t *pkt);
 extern void sppp_pap_init(sppp_t *);
 extern void sppp_pap_open(sppp_t *);
 extern void sppp_pap_close(sppp_t *);
-extern int sppp_pap_TO(void *);
-extern int sppp_pap_my_TO(void *);
+extern void sppp_pap_TO(thread_ref_t);
+extern void sppp_pap_my_TO(thread_ref_t);
 extern void sppp_pap_tlu(sppp_t *);
 extern void sppp_pap_tld(sppp_t *);
 extern void sppp_pap_scr(sppp_t *);

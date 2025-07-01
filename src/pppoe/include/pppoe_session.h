@@ -62,6 +62,9 @@ typedef struct _spppoe {
 	struct tm		creation_time;
 	timer_node_t		t_node;
 
+	/* I/O MUX */
+	thread_ref_t		timer;
+
 	struct hlist_node	h_session;	/* h by {MAC,session_id}*/
 	struct hlist_node	h_unique;	/* h by unique*/
 	list_head_t		next;		/* member of gtp_conn_t->pppoe_sessions */

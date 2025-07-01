@@ -1273,7 +1273,7 @@ thread_update_arg2(thread_ref_t thread_cp, const thread_arg2 *u)
 }
 
 void
-timer_thread_update_timeout(thread_ref_t thread_cp, unsigned long timer)
+thread_mod_timer(thread_ref_t thread_cp, unsigned long timer)
 {
 	thread_t *thread = no_const(thread_t, thread_cp);
 	timeval_t sands;
@@ -1292,6 +1292,19 @@ timer_thread_update_timeout(thread_ref_t thread_cp, unsigned long timer)
 	thread->sands = sands;
 
 	rb_move_cached(&thread->n, &thread->master->timer, thread_timer_less);
+}
+
+void
+thread_del_timer(thread_ref_t thread_cp)
+{
+	thread_t *thread = no_const(thread_t, thread_cp);
+	thread_master_t *m;
+
+	if (!thread)
+		return;
+
+	m = thread->master;
+	rb_erase_cached(&thread->n, &m->timer);
 }
 
 thread_ref_t

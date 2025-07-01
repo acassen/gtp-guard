@@ -142,6 +142,7 @@ gtp_server_async_recv_thread(thread_ref_t thread)
 		log_message(LOG_INFO, "%s(): Error recv (%m). Exiting"
 					, __FUNCTION__);
 		/* re-init on error */
+		thread_del_read(thread);
 		close(s->fd);
 		s->fd = gtp_server_udp_init(s);
 		if (s->fd < 0) {
