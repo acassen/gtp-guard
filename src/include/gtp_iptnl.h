@@ -29,6 +29,13 @@
 #define IPTNL_FL_UNTAG_VLAN			(1 << 5)
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
+typedef struct _pfx_vlan {
+	prefix_t		pfx;
+	uint16_t		vlan_id;
+
+	list_head_t		next;
+} pfx_vlan_t;
+
 typedef struct _gtp_iptnl {
 	/* Dead-Peer-Detection */
 	int			fd_in;
@@ -50,5 +57,13 @@ typedef struct _gtp_iptnl {
 	uint32_t		remote_addr;
 	uint16_t		encap_vlan_id;
 	uint16_t		decap_vlan_id;
+	list_head_t		decap_pfx_vlan;
+
 	uint8_t			flags;
 } gtp_iptnl_t;
+
+
+/* Prototypes */
+extern pfx_vlan_t *pfx_vlan_alloc(void);
+extern int pfx_vlan_free(pfx_vlan_t *);
+extern int pfx_vlan_add(gtp_iptnl_t *, pfx_vlan_t *);

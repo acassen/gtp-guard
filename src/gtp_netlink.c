@@ -631,8 +631,10 @@ netlink_if_stats_update(thread_ref_t thread)
 static int
 netlink_if_lookup(void)
 {
-	if (list_empty(&daemon_data->interfaces))
+	if (list_empty(&daemon_data->interfaces)) {
+		log_message(LOG_INFO, "No interfaces defined, stopping netlink channel");
 		return -1;
+	}
 
 	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true) < 0)
 		return -1;

@@ -45,6 +45,7 @@
 #include "json_reader.h"
 #include "json_writer.h"
 #include "pkt_buffer.h"
+#include "prefix.h"
 #include "asn1_encoder.h"
 #include "jhash.h"
 #include "gtp.h"

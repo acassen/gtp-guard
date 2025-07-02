@@ -54,7 +54,6 @@ extern int gtp_proxy_ingress_init(gtp_server_t *);
 extern int gtp_proxy_ingress_process(gtp_server_t *, struct sockaddr_storage *);
 extern gtp_proxy_t *gtp_proxy_get(const char *);
 extern gtp_proxy_t *gtp_proxy_init(const char *);
-extern int gtp_proxy_gtpc_socketpair_init(gtp_server_t *);
 extern int gtp_proxy_ctx_server_destroy(gtp_proxy_t *);
 extern int gtp_proxy_ctx_destroy(gtp_proxy_t *);
 extern int gtp_proxy_server_destroy(void);

@@ -95,12 +95,12 @@ str2prefix_ipv4(const char *str, prefix_ipv4_t *p)
 		/* Convert string to prefix. */
 		ret = inet_aton(str, &p->prefix);
 		if (ret == 0)
-			return 0;
+			return -1;
 
 		/* If address doesn't contain slash we assume it host address. */
 		p->prefixlen = IPV4_MAX_BITLEN;
 
-		return ret;
+		return 0;
 	} else {
 		cp = MALLOC((pnt - str) + 1);
 		strncpy(cp, str, pnt - str);
@@ -111,14 +111,14 @@ str2prefix_ipv4(const char *str, prefix_ipv4_t *p)
 		/* Get prefix length. */
 		plen = (u_char) atoi(++pnt);
 		if (plen > IPV4_MAX_PREFIXLEN)
-			return 0;
+			return -1;
 
 		p->prefixlen = plen;
 	}
 
 	p->family = AF_INET;
 
-	return ret;
+	return ret ? 0 : -1;
 }
 
 int
@@ -133,7 +133,7 @@ str2prefix_ipv6(const char *str, prefix_ipv6_t *p)
 	if (pnt == NULL) {
 		ret = inet_pton(AF_INET6, str, &p->prefix);
 		if (ret == 0)
-			return 0;
+			return -1;
 		p->prefixlen = IPV6_MAX_BITLEN;
 	} else {
 		cp = MALLOC((pnt - str) + 1);
@@ -142,34 +142,30 @@ str2prefix_ipv6(const char *str, prefix_ipv6_t *p)
 		ret = inet_pton(AF_INET6, cp, &p->prefix);
 		FREE(cp);
 		if (ret == 0)
-			return 0;
+			return -1;
 		plen = (u_char)atoi (++pnt);
 		if (plen > 128)
-			return 0;
+			return -1;
 		p->prefixlen = plen;
 	}
 
 	p->family = AF_INET6;
 
-	return ret;
+	return ret ? 0 : -1;
 }
 
 int
 str2prefix(const char *str, prefix_t *p)
 {
-	int ret;
+	int err;
 
 	/* First we try to convert string to struct prefix_ipv4. */
-	ret = str2prefix_ipv4(str, (prefix_ipv4_t *) p);
-	if (ret)
-		return ret;
+	err = str2prefix_ipv4(str, (prefix_ipv4_t *) p);
+	if (!err)
+		return 0;
 
 	/* Next we try to convert string to struct prefix_ipv6. */
-	ret = str2prefix_ipv6(str, (prefix_ipv6_t *) p);
-	if (ret)
-		return ret;
-
-	return 0;
+	return str2prefix_ipv6(str, (prefix_ipv6_t *) p);
 }
 
 /*
@@ -207,7 +203,7 @@ prefix_free(prefix_t *p)
 void
 prefix_dump(prefix_t *p)
 {
-	syslog(LOG_INFO, "prefix : %u.%u.%u.%u/%d"
-		       , NIPQUAD(p->u.prefix4.s_addr)
-		       , p->prefixlen);
+	printf("prefix : %u.%u.%u.%u/%d\n"
+	       , NIPQUAD(p->u.prefix4.s_addr)
+	       , p->prefixlen);
 }

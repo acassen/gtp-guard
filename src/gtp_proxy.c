@@ -127,6 +127,44 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 /*
  *	GTP Proxy init
  */
+pfx_vlan_t *
+pfx_vlan_alloc(void)
+{
+	pfx_vlan_t *new;
+
+	PMALLOC(new);
+	if (!new)
+		return NULL;
+        INIT_LIST_HEAD(&new->next);
+	return new;
+}
+
+int
+pfx_vlan_add(gtp_iptnl_t *tnl, pfx_vlan_t *pfx)
+{
+	list_add_tail(&pfx->next, &tnl->decap_pfx_vlan);
+	return 0;
+}
+
+int
+pfx_vlan_free(pfx_vlan_t *pfx)
+{
+	list_head_del(&pfx->next);
+	FREE(pfx);
+	return 0;
+}
+
+static int
+pfx_vlan_destroy(list_head_t *l)
+{
+	pfx_vlan_t *p, *_p;
+
+	list_for_each_entry_safe(p, _p, l, next)
+		pfx_vlan_free(p);
+
+	return 0;
+}
+
 gtp_proxy_t *
 gtp_proxy_get(const char *name)
 {
@@ -152,6 +190,7 @@ gtp_proxy_init(const char *name)
 		return NULL;
 	}
         INIT_LIST_HEAD(&new->next);
+        INIT_LIST_HEAD(&new->iptnl.decap_pfx_vlan);
         strncpy(new->name, name, GTP_NAME_MAX_LEN - 1);
         list_add_tail(&new->next, &daemon_data->gtp_proxy_ctx);
 
@@ -177,6 +216,7 @@ gtp_proxy_ctx_server_destroy(gtp_proxy_t *ctx)
 int
 gtp_proxy_ctx_destroy(gtp_proxy_t *ctx)
 {
+	pfx_vlan_destroy(&ctx->iptnl.decap_pfx_vlan);
 	gtp_htab_destroy(&ctx->gtpc_teid_tab);
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
 	gtp_htab_destroy(&ctx->vteid_tab);
