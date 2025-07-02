@@ -218,6 +218,11 @@ config_cgn_write(vty_t *vty)
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "carrier-grade-nat %s%s", c->name, VTY_NEWLINE);
+		if (c->description[0])
+			vty_out(vty, " description %s%s", c->description, VTY_NEWLINE);
+  		vty_out(vty, " %sshutdown%s"
+			   , __test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags) ? "" : "no "
+			   , VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 

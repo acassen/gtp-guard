@@ -28,13 +28,9 @@
 /* htab */
 typedef struct _gtp_htab {
 	struct hlist_head	*htab;
-	pthread_mutex_t		*dlock;
 } gtp_htab_t;
 
 /* Prototypes */
-extern int dlock_lock_id(pthread_mutex_t *, uint32_t, uint32_t);
-extern int dlock_unlock_id(pthread_mutex_t *, uint32_t, uint32_t);
-extern pthread_mutex_t *dlock_init(void);
 extern void gtp_htab_init(gtp_htab_t *, size_t);
 extern gtp_htab_t *gtp_htab_alloc(size_t);
 extern void gtp_htab_destroy(gtp_htab_t *);

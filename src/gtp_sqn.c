@@ -32,8 +32,8 @@ gtp_sqn_hashkey(gtp_htab_t *h, uint32_t id)
 	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
 }
 
-static gtp_teid_t *
-__gtp_vsqn_get(gtp_htab_t *h, uint32_t sqn)
+gtp_teid_t *
+gtp_vsqn_get(gtp_htab_t *h, uint32_t sqn)
 {
 	struct hlist_head *head = gtp_sqn_hashkey(h, sqn);
 	struct hlist_node *n;
@@ -49,20 +49,8 @@ __gtp_vsqn_get(gtp_htab_t *h, uint32_t sqn)
 	return NULL;
 }
 
-gtp_teid_t *
-gtp_vsqn_get(gtp_htab_t *h, uint32_t sqn)
-{
-	gtp_teid_t *t;
-
-	dlock_lock_id(h->dlock, sqn, 0);
-	t = __gtp_vsqn_get(h, sqn);
-	dlock_unlock_id(h->dlock, sqn, 0);
-
-	return t;
-}
-
 int
-__gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
+gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
 {
 	struct hlist_head *head;
 
@@ -75,17 +63,7 @@ __gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
 	head = gtp_sqn_hashkey(h, sqn);
 	t->vsqn = sqn;
 	hlist_add_head(&t->hlist_vsqn, head);
-
 	__sync_add_and_fetch(&t->refcnt, 1);
-	return 0;
-}
-
-int
-gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
-{
-	dlock_lock_id(h->dlock, sqn, 0);
-	__gtp_vsqn_hash(h, t, sqn);
-	dlock_unlock_id(h->dlock, sqn, 0);
 	return 0;
 }
 
@@ -95,17 +73,13 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 	if (!t->vsqn)
 		return -1;
 
-	dlock_lock_id(h->dlock, t->vsqn, 0);
 	if (!__test_and_clear_bit(GTP_TEID_FL_VSQN_HASHED, &t->flags)) {
 		log_message(LOG_INFO, "%s(): VSQN:0x%.8x for TEID:0x%.8x already unhashed !!!"
 				    , __FUNCTION__, t->vsqn, ntohl(t->id));
-		dlock_unlock_id(h->dlock, t->vsqn, 0);
 		return -1;
 	}
 	hlist_del_init(&t->hlist_vsqn);
 	__sync_sub_and_fetch(&t->refcnt, 1);
-	dlock_unlock_id(h->dlock, t->vsqn, 0);
-
 	return 0;
 }
 

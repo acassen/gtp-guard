@@ -117,13 +117,7 @@ __gtp_teid_get(gtp_htab_t *h, uint32_t id, uint32_t ipv4)
 gtp_teid_t *
 gtp_teid_get(gtp_htab_t *h, gtp_f_teid_t *f_teid)
 {
-	gtp_teid_t *t = NULL;
-
-	dlock_lock_id(h->dlock, *f_teid->teid_grekey, *f_teid->ipv4);
-	t = __gtp_teid_get(h, *f_teid->teid_grekey, *f_teid->ipv4);
-	dlock_unlock_id(h->dlock, *f_teid->teid_grekey, *f_teid->ipv4);
-
-	return t;
+	return __gtp_teid_get(h, *f_teid->teid_grekey, *f_teid->ipv4);
 }
 
 gtp_teid_t *
@@ -149,7 +143,7 @@ gtp_teid_put(gtp_teid_t *t)
 }
 
 static int
-__gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
+gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, teid->id, teid->ipv4);
 
@@ -164,33 +158,19 @@ __gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
 	return 0;
 }
 
-static int
-gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
-{
-	dlock_lock_id(h->dlock, teid->id, teid->ipv4);
-	__gtp_teid_hash(h, teid);
-	dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
-
-	return 0;
-}
-
 int
 gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 {
 	if (!teid)
 		return -1;
 
-	dlock_lock_id(h->dlock, teid->id, teid->ipv4);
 	if (!__test_and_clear_bit(GTP_TEID_FL_HASHED, &teid->flags)) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already unhashed !!!"
 				    , __FUNCTION__, ntohl(teid->id));
-		dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
 		return -1;
 	}
 	hlist_del_init(&teid->hlist_teid);
 	__sync_sub_and_fetch(&teid->refcnt, 1);
-	dlock_unlock_id(h->dlock, teid->id, teid->ipv4);
-
 	return 0;
 }
 
@@ -234,10 +214,8 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
 	/* Add some kind of enthropy to workaround rand() crappiness */
 	id ^= teid->id;
 
-	dlock_lock_id(h->dlock, id, ipv4);
 	t = __gtp_teid_get(h, id, ipv4);
 	if (t) {
-		dlock_unlock_id(h->dlock, id, ipv4);
 		/* same player */
 		__sync_sub_and_fetch(&t->refcnt, 1);
 		goto shoot_again;
@@ -247,8 +225,7 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
 	new->ipv4 = ipv4;
 	if (bid)
 		new->bearer_id = bid->id;
-	__gtp_teid_hash(h, new);
-	dlock_unlock_id(h->dlock, id, ipv4);
+	gtp_teid_hash(h, new);
 
 	/* bind new TEID */
 	gtp_teid_bind(teid, new);
@@ -360,8 +337,8 @@ gtp_teid_dump(gtp_teid_t *teid)
 /*
  *	Virtual TEID hashtab
  */
-static gtp_teid_t *
-__gtp_vteid_get(gtp_htab_t *h, uint32_t id)
+gtp_teid_t *
+gtp_vteid_get(gtp_htab_t *h, uint32_t id)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, id, 0);
 	struct hlist_node *n;
@@ -377,20 +354,8 @@ __gtp_vteid_get(gtp_htab_t *h, uint32_t id)
 	return NULL;
 }
 
-gtp_teid_t *
-gtp_vteid_get(gtp_htab_t *h, uint32_t id)
-{
-	gtp_teid_t *t;
-
-	dlock_lock_id(h->dlock, id, 0);
-	t = __gtp_vteid_get(h, id);
-	dlock_unlock_id(h->dlock, id, 0);
-
-	return t;
-}
-
 int
-__gtp_vteid_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t vid)
+gtp_vteid_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t vid)
 {
 	struct hlist_head *head;
 
@@ -411,18 +376,14 @@ __gtp_vteid_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t vid)
 int
 gtp_vteid_unhash(gtp_htab_t *h, gtp_teid_t *t)
 {
-	dlock_lock_id(h->dlock, t->vid, 0);
 	if (!__test_and_clear_bit(GTP_TEID_FL_VTEID_HASHED, &t->flags)) {
 		log_message(LOG_INFO, "%s(): VTEID:0x%.8x for TEID:0x%.8x already unhashed !!!"
 				    , __FUNCTION__, t->vid, ntohl(t->id));
-		dlock_unlock_id(h->dlock, t->vid, 0);
 		return -1;
 	}
 
 	hlist_del_init(&t->hlist_vteid);
 	__sync_sub_and_fetch(&t->refcnt, 1);
-	dlock_unlock_id(h->dlock, t->vid, 0);
-
 	return 0;
 }
 
@@ -437,17 +398,14 @@ gtp_vteid_alloc(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
 	/* Add some kind of enthropy to workaround rand() crappiness */
 	vid ^= teid->id;
 
-	dlock_lock_id(h->dlock, vid, 0);
-	t = __gtp_vteid_get(h, vid);
+	t = gtp_vteid_get(h, vid);
 	if (t) {
-		dlock_unlock_id(h->dlock, vid, 0);
 		/* same player */
 		__sync_sub_and_fetch(&t->refcnt, 1);
 		goto shoot_again;
 	}
 
-	__gtp_vteid_hash(h, teid, vid);
-	dlock_unlock_id(h->dlock, vid, 0);
+	gtp_vteid_hash(h, teid, vid);
 	return 0;
 }
 

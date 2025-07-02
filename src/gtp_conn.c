@@ -29,7 +29,6 @@ extern thread_master_t *master;
 
 /* Local data */
 struct hlist_head *gtp_conn_tab;
-pthread_mutex_t *__gtp_conn_lock_array;
 
 
 /*
@@ -41,36 +40,6 @@ int
 gtp_conn_count_read(void)
 {
 	return gtp_conn_count;
-}
-
-
-/*
- *      Distributate lock handling
- */
-int
-gtp_conn_lock_id(uint64_t id)
-{
-	return dlock_lock_id(__gtp_conn_lock_array, (uint32_t)id, (uint32_t) (id >> 32));
-}
-
-int
-gtp_conn_unlock_id(uint64_t id)
-{
-	return dlock_unlock_id(__gtp_conn_lock_array, (uint32_t)id, (uint32_t) (id >> 32));
-}
-
-int
-gtp_conn_lock_init(void)
-{
-	__gtp_conn_lock_array = dlock_init();
-	return 0;
-}
-
-int
-gtp_conn_lock_destroy(void)
-{
-	FREE(__gtp_conn_lock_array);
-	return 0;
 }
 
 
@@ -112,15 +81,12 @@ gtp_conn_get_by_imsi(uint64_t imsi)
 	struct hlist_node *n;
 	gtp_conn_t *c;
 
-	gtp_conn_lock_id(imsi);
 	hlist_for_each_entry(c, n, head, hlist) {
 		if (c->imsi == imsi) {
 			__sync_add_and_fetch(&c->refcnt, 1);
-			gtp_conn_unlock_id(imsi);
 			return c;
 		}
 	}
-	gtp_conn_unlock_id(imsi);
 
 	return NULL;
 }
@@ -134,11 +100,7 @@ gtp_conn_hash(gtp_conn_t *c)
 		return -1;
 
 	head = gtp_conn_hashkey(c->imsi);
-
-	gtp_conn_lock_id(c->imsi);
 	hlist_add_head(&c->hlist, head);
-	gtp_conn_unlock_id(c->imsi);
-
 	__set_bit(GTP_CONN_F_HASHED, &c->flags);
 	__sync_add_and_fetch(&gtp_conn_count, 1);
 	__sync_add_and_fetch(&c->refcnt, 1);
@@ -151,10 +113,7 @@ gtp_conn_unhash(gtp_conn_t *c)
 	if (!c)
 		return -1;
 
-	gtp_conn_lock_id(c->imsi);
 	hlist_del(&c->hlist);
-	gtp_conn_unlock_id(c->imsi);
-
 	__clear_bit(GTP_CONN_F_HASHED, &c->flags);
 	__sync_sub_and_fetch(&gtp_conn_count, 1);
 	__sync_sub_and_fetch(&c->refcnt, 1);
@@ -180,13 +139,11 @@ gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
 
 	/* Iterate */
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
-		gtp_conn_lock_id(i);
 		hlist_for_each_entry(c, n, &gtp_conn_tab[i], hlist) {
 			gtp_conn_get(c);
 			(*vty_conn) (vty, c);
 			gtp_conn_put(c);
 		}
-		gtp_conn_unlock_id(i);
 	}
 
 	return 0;
@@ -220,7 +177,6 @@ gtp_conn_init(void)
 {
 	gtp_conn_tab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) *
 						    CONN_HASHTAB_SIZE);
-	gtp_conn_lock_init();
 	return 0;
 }
 
@@ -232,15 +188,12 @@ gtp_conn_destroy(void)
 	int i;
 
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
-		gtp_conn_lock_id(i);
 		hlist_for_each_entry_safe(c, n, n2, &gtp_conn_tab[i], hlist) {
 			gtp_sessions_free(c);
 			FREE(c);
 		}
-		gtp_conn_unlock_id(i);
 	}
 
 	FREE(gtp_conn_tab);
-	gtp_conn_lock_destroy();
 	return 0;
 }

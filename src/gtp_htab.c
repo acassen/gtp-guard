@@ -24,44 +24,12 @@
 
 
 /*
- *	Distributed lock handling
- */
-static pthread_mutex_t *
-dlock_hash(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
-{
-	return &__array[(jhash_2words(w1, w2, 0) & DLOCK_HASHTAB_MASK)];
-}
-
-int
-dlock_lock_id(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
-{
-	pthread_mutex_t *m = dlock_hash(__array, w1, w2);
-	pthread_mutex_lock(m);
-	return 0;
-}
-
-int
-dlock_unlock_id(pthread_mutex_t *__array, uint32_t w1, uint32_t w2)
-{
-	pthread_mutex_t *m = dlock_hash(__array, w1, w2);
-	pthread_mutex_unlock(m);
-	return 0;
-}
-
-pthread_mutex_t *
-dlock_init(void)
-{
-	return MALLOC(DLOCK_HASHTAB_SIZE * sizeof(pthread_mutex_t));
-}
-
-/*
  *	HTAB handling
  */
 void
 gtp_htab_init(gtp_htab_t *h, size_t size)
 {
 	h->htab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) * size);
-	h->dlock = dlock_init();
 }
 
 gtp_htab_t *
@@ -81,12 +49,10 @@ void
 gtp_htab_destroy(gtp_htab_t *h)
 {
 	FREE(h->htab);
-	FREE(h->dlock);
 }
 
 void
 gtp_htab_free(gtp_htab_t *h)
 {
-	gtp_htab_destroy(h);
 	FREE(h);
 }
