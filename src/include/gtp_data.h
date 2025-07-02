@@ -80,6 +80,7 @@ typedef struct _data {
 	unsigned		nl_rcvbuf_size;
 
 	list_head_t		mirror_rules;
+	list_head_t		cgn;
 	list_head_t		pppoe;
 	list_head_t		pppoe_bundle;
 	list_head_t		ip_vrf;
