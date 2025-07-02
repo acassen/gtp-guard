@@ -35,38 +35,16 @@ extern thread_master_t *master;
  *	Helpers
  */
 int
-gtp_router_ingress_init(gtp_server_worker_t *w)
+gtp_router_ingress_init(gtp_server_t *s)
 {
-	gtp_server_t *srv = w->srv;
-	gtp_router_t *ctx = srv->ctx;
-	const char *ptype = "rt-gtpc";
-
-	/* Create Process Name */
-	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
-		ptype = "rt-upf";
-	snprintf(w->pname, 127, "%s-%s-%d"
-			 , ctx->name
-			 , ptype
-			 , w->id);
-	prctl(PR_SET_NAME, w->pname, 0, 0, 0, 0);
-
 	return 0;
 }
 
 int
-gtp_router_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
+gtp_router_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 {
-	gtp_server_t *srv = w->srv;
-	int ret;
-
-	ret = __test_bit(GTP_FL_UPF_BIT, &srv->flags) ? gtpu_router_handle(w, addr_from) :
-							gtpc_router_handle(w, addr_from);
-	if (ret < 0)
-		return -1;
-
-	if (ret != GTP_ROUTER_DELAYED)
-		gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
-	return 0;
+	return __test_bit(GTP_FL_UPF_BIT, &s->flags) ? gtpu_router_handle(s, addr_from) :
+						       gtpc_router_handle(s, addr_from);
 }
 
 
@@ -109,6 +87,10 @@ gtp_router_init(const char *name)
 	gtp_router_t *new;
 
 	PMALLOC(new);
+	if (!new) {
+		errno = ENOMEM;
+		return NULL;
+	}
         INIT_LIST_HEAD(&new->next);
         bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 

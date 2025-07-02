@@ -20,17 +20,11 @@
  */
 #pragma once
 
-/* GTP Switching context */
-typedef struct _socket_pair {
-	int	*fd_ingress;
-	int	*fd_egress;
-} socket_pair_t;
-
+/* GTP Proxy context */
 typedef struct _gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];
 	gtp_server_t		gtpc;
 	gtp_server_t		gtpc_egress;
-	socket_pair_t		*gtpc_socket_pair;
 	gtp_server_t		gtpu;
 	gtp_server_t		gtpu_egress;
 	int			session_delete_to;
@@ -56,8 +50,8 @@ typedef struct _gtp_proxy {
 /* Prototypes */
 extern int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *);
 extern int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *);
-extern int gtp_proxy_ingress_init(gtp_server_worker_t *);
-extern int gtp_proxy_ingress_process(gtp_server_worker_t *, struct sockaddr_storage *);
+extern int gtp_proxy_ingress_init(gtp_server_t *);
+extern int gtp_proxy_ingress_process(gtp_server_t *, struct sockaddr_storage *);
 extern gtp_proxy_t *gtp_proxy_get(const char *);
 extern gtp_proxy_t *gtp_proxy_init(const char *);
 extern int gtp_proxy_gtpc_socketpair_init(gtp_server_t *);

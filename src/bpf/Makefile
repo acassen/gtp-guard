@@ -20,7 +20,7 @@
 #
 
 # XDP program to build
-TARGETS := gtp_fwd.bpf gtp_route.bpf gtp_mirror.bpf sock_rps.bpf
+TARGETS := gtp_fwd.bpf gtp_route.bpf gtp_mirror.bpf
 BIN = ../../bin
 
 # Allows pointing LLC/CLANG to a LLVM backend with bpf support, redefine on cmdline:

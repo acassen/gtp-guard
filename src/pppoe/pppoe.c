@@ -120,117 +120,34 @@ pppoe_bundle_add(pppoe_bundle_t *bundle)
 
 
 /*
- *	Receive Packet Steering eBPF related
- */
-static struct bpf_object *
-bpf_rps_filter_init(pppoe_worker_t *w, int fd, const char *filename)
-{
-	pppoe_t *pppoe = w->pppoe;
-	struct bpf_object *bpf_obj;
-	struct bpf_program *bpf_prog;
-	struct bpf_map *bpf_map;
-	struct rps_opts opts;
-	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err, key = 0;
-
-	bpf_obj = bpf_object__open(filename);
-	if (!bpf_obj) {
-		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "eBPF: error opening bpf file err:%d (%s)\n"
-				    , errno, errmsg);
-		return NULL;
-	}
-
-	bpf_prog = bpf_object__next_program(bpf_obj, NULL);
-	if (!bpf_prog) {
-		log_message(LOG_INFO, "eBPF: no program found in file:%s\n", filename);
-		bpf_object__close(bpf_obj);
-		return NULL;
-	}
-
-	err = bpf_object__load(bpf_obj);
-	if (err) {
-		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "eBPF: error loading bpf_object err:%d (%s)\n"
-				    , err, errmsg);
-		bpf_object__close(bpf_obj);
-		return NULL;
-	}
-
-	bpf_map = bpf_object__find_map_by_name(bpf_obj, "socket_filter_opts");
-	if (!bpf_map) {
-		log_message(LOG_INFO, "eBPF: error mapping:%s\n"
-				    , "socket_filter_ops");
-		bpf_object__close(bpf_obj);
-		return NULL;
-	}
-
-	err = inet_setsockopt_attach_bpf(fd, bpf_program__fd(bpf_prog));
-	if (err) {
-		close(fd);
-		bpf_object__close(bpf_obj);
-		return NULL;
-	}
-
-	/* Initialize socket filter option */
-	memset(&opts, 0, sizeof(struct rps_opts));
-	opts.id = w->id;
-	opts.max_id = pppoe->thread_cnt;
-	err = bpf_map__update_elem(bpf_map, &key, sizeof(int)
-					  , &opts, sizeof(struct rps_opts)
-					  , BPF_ANY);
-	if (err) {
-		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "eBPF: error setting option in map:%s (%s)\n"
-				    , "socket_filter_ops", errmsg);
-		bpf_object__close(bpf_obj);
-		return NULL;
-	}
-
-	return bpf_obj;
-}
-
-/*
  *	PPPoE Workers
  */
 static int
-pppoe_send(pppoe_t *pppoe, pppoe_worker_t *w, pkt_t *pkt)
+pppoe_send(pppoe_t *pppoe, pppoe_channel_t *ch, pkt_t *pkt)
 {
-	gtp_metrics_pkt_update(&w->tx_metrics, pkt_buffer_len(pkt->pbuff));
+	gtp_metrics_pkt_update(&ch->tx_metrics, pkt_buffer_len(pkt->pbuff));
 
-	return pkt_send(w->fd, &pppoe->pkt_q, pkt);
+	return pkt_send(ch->fd, &pppoe->pkt_q, pkt);
 }
 
 int
 pppoe_disc_send(pppoe_t *pppoe, pkt_t *pkt)
 {
-	struct ether_header *eh;
-	uint32_t hkey;
-
-	eh = (struct ether_header *) pkt->pbuff->head;
-	hkey = eh->ether_shost[ETH_ALEN - 2] & (pppoe->thread_cnt - 1);
-
-	return pppoe_send(pppoe, &pppoe->worker_disc[hkey], pkt);
+	return pppoe_send(pppoe, &pppoe->channel_disc, pkt);
 }
 
 int
 pppoe_ses_send(pppoe_t *pppoe, pkt_t *pkt)
 {
-	struct ether_header *eh;
-	uint32_t hkey;
-
-	eh = (struct ether_header *) pkt->pbuff->head;
-	hkey = eh->ether_shost[ETH_ALEN - 2] & (pppoe->thread_cnt - 1);
-
-	return pppoe_send(pppoe, &pppoe->worker_ses[hkey], pkt);
+	return pppoe_send(pppoe, &pppoe->channel_ses, pkt);
 }
 
 static void
 pppoe_ingress(pkt_t *pkt, void *arg)
 {
 	struct ether_header *eh = (struct ether_header *) pkt->pbuff->head;
-	pppoe_worker_t *w = arg;
-	pppoe_t *pppoe = w->pppoe;
+	pppoe_channel_t *ch = arg;
+	pppoe_t *pppoe = ch->pppoe;
 
 	switch (ntohs(eh->ether_type)) {
 	case ETH_P_PPP_DISC:
@@ -243,12 +160,13 @@ pppoe_ingress(pkt_t *pkt, void *arg)
 		break;
 	}
 
-	gtp_metrics_pkt_update(&w->rx_metrics, pkt_buffer_len(pkt->pbuff));
+	gtp_metrics_pkt_update(&ch->rx_metrics, pkt_buffer_len(pkt->pbuff));
 }
 
 static int
-pppoe_socket_init(pppoe_t *pppoe, uint16_t proto, int id)
+pppoe_socket_init(pppoe_channel_t *ch, uint16_t proto)
 {
+	pppoe_t *pppoe = ch->pppoe;
 	struct sockaddr_ll sll;
 	int fd, err;
 
@@ -261,10 +179,9 @@ pppoe_socket_init(pppoe_t *pppoe, uint16_t proto, int id)
 	fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(proto));
 	err = inet_setsockopt_broadcast(fd);
 	err = (err) ? : inet_setsockopt_promisc(fd, sll.sll_ifindex, true);
-	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 1000);
 	if (err) {
-		log_message(LOG_INFO, "%s(): #%d : Error creating pppoe channel on interface %s (%m)"
-				    , __FUNCTION__, id
+		log_message(LOG_INFO, "%s(): Error creating pppoe channel on interface %s (%m)"
+				    , __FUNCTION__
 				    , pppoe->ifname);
 		close(fd);
 		return -1;
@@ -272,130 +189,97 @@ pppoe_socket_init(pppoe_t *pppoe, uint16_t proto, int id)
 
 	err = bind(fd, (struct sockaddr *) &sll, sizeof(sll));
 	if (err) {
-		log_message(LOG_INFO, "%s(): #%d : Error binding pppoe channel on interface %s (%m)"
-				    , __FUNCTION__, id
+		log_message(LOG_INFO, "%s(): Error binding pppoe channel on interface %s (%m)"
+				    , __FUNCTION__
 				    , pppoe->ifname);
 		close(fd);
 		return -1;
 	}
 
-	return fd;
-}
-
-static void *
-pppoe_worker_task(void *arg)
-{
-	pppoe_worker_t *w = arg;
-	pppoe_t *pppoe = w->pppoe;
-	struct bpf_object *bpf_obj = NULL;
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->bpf_ppp_rps;
-	char pname[128];
-	int ret;
-
-	/* Our identity */
-	snprintf(pname, 127, "pppoe-%s-w-%s-%d"
-		      , pppoe->ifname
-		      , (w->proto == ETH_P_PPP_DISC) ? "d" : "s"
-		      , w->id);
-	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
-
-	/* Socket init */
-	w->fd = pppoe_socket_init(pppoe, w->proto, w->id);
-	if (w->fd < 0)
-		return NULL;
-
-	/* RPS Init */
-	if (__test_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags)) {
-		bpf_obj = bpf_rps_filter_init(w, w->fd, bpf_opts->filename);
-		if (!bpf_obj)
-			goto end;
-	}
-
-	signal_noignore_sig(SIGPIPE);
-
-	log_message(LOG_INFO, "%s(): Starting PPPoE Worker %s"
-			    , __FUNCTION__, pname);
-
-  shoot_again:
-	if (__test_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags))
-		goto end;
-
-	ret = mpkt_recv(w->fd, &w->mpkt);
-	if (ret < 0) {
-		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
-			mpkt_reset(&w->mpkt);
-			goto shoot_again;
-		}
-
-		log_message(LOG_INFO, "%s(): Error recv on pppoe socket for interface %s (%m)"
-				    , __FUNCTION__
-				    , pppoe->ifname);
-		mpkt_reset(&w->mpkt);
-		usleep(100000); /* 100ms delay before retry */
-		goto shoot_again;
-	}
-
-	/* mpkt processing */
-	mpkt_process(&w->mpkt, ret, pppoe_ingress, w);
-	mpkt_reset(&w->mpkt);
-	goto shoot_again;
-
-  end:
-	log_message(LOG_INFO, "%s(): Stopping PPPoE Worker %s"
-			    , __FUNCTION__, pname);
-	if (bpf_obj)
-		bpf_object__close(bpf_obj);
-	close(w->fd);
-	return NULL;
-}
-
-static int
-pppoe_worker_init(pppoe_t *pppoe, pppoe_worker_t *w, int id, uint16_t proto)
-{
-	int err;
-
-	w->pppoe = pppoe;
-	w->id = id;
-	w->proto = proto;
-
-	/* Packet queue Init */
-	pkt_queue_init(&w->pkt_q);
-	err = mpkt_init(&w->mpkt, PPPOE_MPKT);
-	err = (err) ? : __pkt_queue_mget(&w->pkt_q, &w->mpkt);
-	if (err) {
-		log_message(LOG_INFO, "%s(): Error creating mpkt for Worker %d/%d"
-				    , __FUNCTION__, proto, id);
-		return -1;
-	}
-
-	pthread_create(&w->task, NULL, pppoe_worker_task, w);
+	ch->fd = fd;
 	return 0;
 }
 
 static void
-pppoe_worker_release(pppoe_worker_t *w)
+pppoe_async_recv_thread(thread_ref_t thread)
 {
-	if (!w->task)
-		return;
-	
-	pthread_kill(w->task, SIGPIPE);
-	pthread_join(w->task, NULL);
-	mpkt_destroy(&w->mpkt);
-	pkt_queue_destroy(&w->pkt_q);
+	pppoe_channel_t *ch = THREAD_ARG(thread);
+	pppoe_t *pppoe = ch->pppoe;
+	int ret;
+
+	if (thread->type == THREAD_READ_TIMEOUT)
+		goto next_read;
+
+	ret = mpkt_recv(ch->fd, &ch->mpkt);
+	if (ret < 0) {
+		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+			mpkt_reset(&ch->mpkt);
+			goto next_read;
+		}
+
+		log_message(LOG_INFO, "%s(): Error recv on PPPoE %s socket for interface %s (%m)"
+				    , __FUNCTION__
+				    , (ch->proto == ETH_P_PPP_DISC) ? "Discovery" : "Session"
+				    , pppoe->ifname);
+		mpkt_reset(&ch->mpkt);
+		goto next_read;
+	}
+
+	/* mpkt processing */
+	mpkt_process(&ch->mpkt, ret, pppoe_ingress, ch);
+	mpkt_reset(&ch->mpkt);
+
+  next_read:
+	ch->r_thread = thread_add_read(master, pppoe_async_recv_thread
+					     , ch, ch->fd, 3*TIMER_HZ, 0);
 }
 
 static int
-pppoe_worker_destroy(pppoe_t *pppoe)
+pppoe_channel_init(pppoe_t *pppoe, pppoe_channel_t *ch, uint16_t proto)
 {
-	int i;
+	int err;
 
-	for (i = 0; i < pppoe->thread_cnt; i++) {
-		pppoe_worker_release(&pppoe->worker_disc[i]);
-		pppoe_worker_release(&pppoe->worker_ses[i]);
+	ch->pppoe = pppoe;
+	ch->proto = proto;
+
+	/* Packet queue Init */
+	pkt_queue_init(&ch->pkt_q);
+	err = mpkt_init(&ch->mpkt, PPPOE_MPKT);
+	err = (err) ? : __pkt_queue_mget(&ch->pkt_q, &ch->mpkt);
+	err = (err) ? : pppoe_socket_init(ch, proto);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error creating PPPoE %s channel on interface %s"
+				    , __FUNCTION__
+				    , (proto == ETH_P_PPP_DISC) ? "Discovery" : "Session"
+				    , pppoe->ifname);
+		return -1;
 	}
 
-	FREE(pppoe->worker_disc);
-	FREE(pppoe->worker_ses);
+	log_message(LOG_INFO, "%s(): Starting PPPoE %s channel on interface %s"
+			    , __FUNCTION__
+			    , (proto == ETH_P_PPP_DISC) ? "Discovery" : "Session"
+			    , pppoe->ifname);
+	ch->r_thread = thread_add_read(master, pppoe_async_recv_thread
+					     , ch, ch->fd, 3*TIMER_HZ, 0);
+	return 0;
+}
+
+static void
+pppoe_channel_release(pppoe_channel_t *ch)
+{
+	mpkt_destroy(&ch->mpkt);
+	pkt_queue_destroy(&ch->pkt_q);
+	close(ch->fd);
+}
+
+static int
+pppoe_channel_destroy(pppoe_t *pppoe)
+{
+	if (!__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
+		return -1;
+
+	pppoe_channel_release(&pppoe->channel_disc);
+	pppoe_channel_release(&pppoe->channel_ses);
 	return 0;
 }
 
@@ -406,22 +290,12 @@ pppoe_worker_destroy(pppoe_t *pppoe)
 int
 pppoe_start(pppoe_t *pppoe)
 {
-	int i;
-
 	if (__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
 		return -1;
 
-	log_message(LOG_INFO, "%s(): Starting PPPoE on interface %s"
-			    , __FUNCTION__, pppoe->ifname);
-
-	/* worker init */
-	pppoe->worker_disc = MALLOC(sizeof(pppoe_worker_t) * pppoe->thread_cnt);
-	for (i = 0; i < pppoe->thread_cnt; i++)
-		pppoe_worker_init(pppoe, &pppoe->worker_disc[i], i, ETH_P_PPP_DISC);
-
-	pppoe->worker_ses = MALLOC(sizeof(pppoe_worker_t) * pppoe->thread_cnt);
-	for (i = 0; i < pppoe->thread_cnt; i++)
-		pppoe_worker_init(pppoe, &pppoe->worker_ses[i], i, ETH_P_PPP_SES);
+	/* Channel init */
+	pppoe_channel_init(pppoe, &pppoe->channel_disc, ETH_P_PPP_DISC);
+	pppoe_channel_init(pppoe, &pppoe->channel_ses, ETH_P_PPP_SES);
 
 	__set_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags);
 	return 0;
@@ -450,36 +324,29 @@ pppoe_interface_init(pppoe_t *pppoe, const char *ifname)
 pppoe_t *
 pppoe_alloc(const char *name)
 {
-	pppoe_t *pppoe = NULL;
+	pppoe_t *new = NULL;
 
-	pppoe = pppoe_get_by_name(name);
-	if (pppoe) {
-		errno = EEXIST;
-		return NULL;
-	}
-
-	PMALLOC(pppoe);
-	if (!pppoe) {
+	PMALLOC(new);
+	if (!new) {
 		errno = ENOMEM;
 		return NULL;
 	}
-	bsd_strlcpy(pppoe->name, name, GTP_NAME_MAX_LEN);
-	INIT_LIST_HEAD(&pppoe->next);
-	pppoe->seed = time(NULL);
-	srand(pppoe->seed);
-	pkt_queue_init(&pppoe->pkt_q);
-	ppp_set_default(pppoe);
-	pppoe_add(pppoe);
+	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN);
+	INIT_LIST_HEAD(&new->next);
+	new->seed = time(NULL);
+	srand(new->seed);
+	pkt_queue_init(&new->pkt_q);
+	ppp_set_default(new);
+	pppoe_add(new);
 
-	return pppoe;
+	return new;
 }
 
 int
 pppoe_release(pppoe_t *pppoe)
 {
 	__set_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags);
-	pthread_join(pppoe->task, NULL);
-	pppoe_worker_destroy(pppoe);
+	pppoe_channel_destroy(pppoe);
 	list_head_del(&pppoe->next);
 	pkt_queue_destroy(&pppoe->pkt_q);
 	pppoe_monitor_vrrp_destroy(pppoe);

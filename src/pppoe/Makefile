@@ -20,7 +20,8 @@
 #
 
 CC	 ?= gcc
-INCLUDES = -Iinclude -I../include -I../../lib -I../../libbpf/src -I../../libbpf/src/uapi
+INCLUDES = -Iinclude -I../include -I../carrier-grade-nat/include	\
+	   -I../../lib -I../../libbpf/src -I../../libbpf/src/uapi
 CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes -D_GNU_SOURCE -MMD
 #DEFS	 = -D_DEBUG_
 DEFS	 =

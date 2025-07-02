@@ -75,12 +75,12 @@ typedef struct _data {
 	void			*xdp_gtp_route;
 	gtp_bpf_opts_t		xdp_gtp_forward;
 	gtp_bpf_opts_t		xdp_mirror;
-	gtp_bpf_opts_t		bpf_ppp_rps;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 	unsigned		nl_rcvbuf_size;
 
 	list_head_t		mirror_rules;
+	list_head_t		cgn;
 	list_head_t		pppoe;
 	list_head_t		pppoe_bundle;
 	list_head_t		ip_vrf;

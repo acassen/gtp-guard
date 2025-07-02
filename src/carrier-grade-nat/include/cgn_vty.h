@@ -20,7 +20,5 @@
  */
 #pragma once
 
-/* Defines */
-
 /* Prototypes */
-extern gtp_teid_t *gtpc_proxy_handle_v2(gtp_server_t *, struct sockaddr_storage *);
+extern int pppoe_vty_init(void);

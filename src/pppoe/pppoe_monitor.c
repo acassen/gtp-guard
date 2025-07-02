@@ -79,8 +79,8 @@ pppoe_vrrp_read_thread(thread_ref_t thread)
 	pppoe->expire = timer_long(time_now) + pppoe->credit;
 
   end:
-	pppoe->r_thread = thread_add_read(master, pppoe_vrrp_read_thread
-						, pppoe, pppoe->monitor_fd, TIMER_HZ, 0);
+	thread_add_read(master, pppoe_vrrp_read_thread
+			      , pppoe, pppoe->monitor_fd, TIMER_HZ, 0);
 }
 
 
@@ -163,8 +163,8 @@ pppoe_monitor_vrrp_init(pppoe_t *pppoe)
 			    , pppoe->ifname);
 
 	/* Scheduling submition */
-	pppoe->r_thread = thread_add_read(master, pppoe_vrrp_read_thread
-						, pppoe, pppoe->monitor_fd, TIMER_HZ, 0);
+	thread_add_read(master, pppoe_vrrp_read_thread
+			      , pppoe, pppoe->monitor_fd, TIMER_HZ, 0);
 	thread_add_timer(master, pppoe_vrrp_timer_thread, pppoe, pppoe->credit);
 	return 0;
 }

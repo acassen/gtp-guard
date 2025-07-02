@@ -620,18 +620,18 @@ gtp_get_ie(uint8_t type, pkt_buffer_t *pbuff)
 
 int
 gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buffer_end,
-	       gtp_server_worker_t *w, gtp_session_t *s, int direction, void *arg,
-	       gtp_teid_t * (*hdl) (gtp_server_worker_t *, gtp_session_t *, int, void *, uint8_t *))
+	       gtp_server_t *srv, gtp_session_t *s, int direction, void *arg,
+	       gtp_teid_t * (*hdl) (gtp_server_t *, gtp_session_t *, int, void *, uint8_t *))
 {
 	size_t offset = buffer_offset;
-	uint8_t *end = pkt_buffer_end(w->pbuff);
+	uint8_t *end = pkt_buffer_end(srv->pbuff);
 	uint8_t *cp;
 	gtp_ie_t *ie;
 
 	for (cp = buffer+offset; cp < buffer_end && cp < end; cp += offset) {
 		ie = (gtp_ie_t *) cp;
 		if (ie->type == type) {
-			(*hdl) (w, s, direction, arg, cp);
+			(*hdl) (srv, s, direction, arg, cp);
 		}
 
 		offset = sizeof(gtp_ie_t) + ntohs(ie->length); 

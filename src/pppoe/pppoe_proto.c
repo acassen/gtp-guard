@@ -22,9 +22,10 @@
 /* local includes */
 #include "gtp_guard.h"
 
+/* Extern data */
+extern thread_master_t *master;
 
 /* Local data */
-static timer_thread_t *pppoe_session_timer;
 static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
 
 
@@ -322,7 +323,7 @@ pppoe_connect(spppoe_t *s)
 	/* register timer */
 	if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 		retry_wait = PPPOE_DISC_TIMEOUT;
-	timer_node_add(pppoe_session_timer, &s->t_node, retry_wait);
+	s->timer = thread_add_timer(master, pppoe_timeout, s, retry_wait * TIMER_HZ);
 	return 0;
 }
 
@@ -345,7 +346,8 @@ pppoe_disconnect(spppoe_t *s)
 	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", s->pppoe->ifname, s->unique));
 
 	/* Release pending session timer */
-	timer_node_del(pppoe_session_timer, &s->t_node);
+	thread_del_timer(s->timer);
+	s->timer = NULL;
 
 	/* Send PADT if session is running */
 	if (s->state >= PPPOE_STATE_SESSION) {
@@ -362,10 +364,10 @@ pppoe_disconnect(spppoe_t *s)
 	return 0;
 }
 
-int
-pppoe_timeout(void *arg)
+void
+pppoe_timeout(thread_ref_t thread)
 {
-	spppoe_t *s = (spppoe_t *) arg;
+	spppoe_t *s = THREAD_ARG(thread);
 	pppoe_t *pppoe = s->pppoe;
 	int retry_wait = 2;
 
@@ -385,7 +387,7 @@ pppoe_timeout(void *arg)
 		}
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-		timer_node_add(pppoe_session_timer , &s->t_node, retry_wait);
+		s->timer = thread_add_timer(master, pppoe_timeout, s, retry_wait * TIMER_HZ);
 		break;
 
 	case PPPOE_STATE_PADR_SENT:
@@ -398,7 +400,7 @@ pppoe_timeout(void *arg)
 			}
 			if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 				retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-			timer_node_add(pppoe_session_timer , &s->t_node, retry_wait);
+			s->timer = thread_add_timer(master, pppoe_timeout, s, retry_wait * TIMER_HZ);
 			break;
 		}
 
@@ -409,7 +411,7 @@ pppoe_timeout(void *arg)
 		}
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padi_retried);
-		timer_node_add(pppoe_session_timer , &s->t_node, retry_wait);
+		s->timer = thread_add_timer(master, pppoe_timeout, s, retry_wait * TIMER_HZ);
 		break;
 
 	case PPPOE_STATE_CLOSING:
@@ -419,8 +421,6 @@ pppoe_timeout(void *arg)
 	default:
 		break;	/* all done, work in peace */
 	}
-
-	return 0;
 }
 
 static int
@@ -681,7 +681,7 @@ breakbreak:
 		}
 		if (!__test_bit(PPPOE_FL_PADI_FAST_RETRY_BIT, &pppoe->flags))
 			retry_wait = PPPOE_DISC_TIMEOUT * (1 + s->padr_retried);
-		timer_node_add(pppoe_session_timer, &s->t_node, retry_wait);
+		s->timer = thread_add_timer(master, pppoe_timeout, s, retry_wait * TIMER_HZ);
 		pppoe_metric_update(pppoe, METRICS_DIR_IN, PPPOE_METRIC_PADO);
 		break;
 	case PPPOE_CODE_PADS:
@@ -692,7 +692,8 @@ breakbreak:
 
 		s->session_id = session;
 		spppoe_session_hash(s, &s->hw_src, s->session_id);
-		timer_node_del(pppoe_session_timer, &s->t_node);
+		thread_del_timer(s->timer);
+		s->timer = NULL;
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x hw:" ETHER_FMT " connected\n",
 			 pppoe->ifname, s->unique, session,
 			 ETHER_BYTES(s->hw_src.ether_addr_octet)));
@@ -716,7 +717,8 @@ breakbreak:
 		}
 
 		/* stop timer (we might be about to transmit a PADT ourself) */
-		timer_node_del(pppoe_session_timer, &s->t_node);
+		thread_del_timer(s->timer);
+		s->timer = NULL;
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x terminated, received PADT\n",
 			 pppoe->ifname, s->unique, session));
 
@@ -790,13 +792,11 @@ pppoe_dispatch_session_pkt(pppoe_t *pppoe, pkt_t *pkt)
 int
 pppoe_proto_init(void)
 {
-	pppoe_session_timer = timer_thread_alloc("pppoe-session-timer", pppoe_timeout);
 	return 0;
 }
 
 int
 pppoe_proto_destroy(void)
 {
-	timer_thread_free(pppoe_session_timer);
 	return 0;
 }

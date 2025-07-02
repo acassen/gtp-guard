@@ -20,31 +20,23 @@
  */
 #pragma once
 
-/* GTP Switching context */
-typedef struct _gtp_server_worker {
-	char			pname[GTP_PNAME];
-	int			id;
-	pthread_t		task;
-	int			fd;
-	struct _gtp_server	*srv;		/* backpointer */
-	pkt_buffer_t		*pbuff;
-	unsigned int		seed;
+#define GTP_SERVER_DELAYED	2
 
-	list_head_t		next;
-
-	unsigned long		flags;
-} gtp_server_worker_t;
-
+/* GTP Server context */
 typedef struct _gtp_server {
 	struct sockaddr_storage	addr;
-	int			thread_cnt;
+	int			fd;
+	pkt_buffer_t		*pbuff;
+	unsigned int		seed;
 	void			*ctx;		/* backpointer */
 
-	list_head_t		workers;
+	/* I/O MUX */
+	thread_ref_t		r_thread;
+	thread_ref_t		w_thread;
 
 	/* Local method */
-	int (*init) (gtp_server_worker_t *);
-	int (*process) (gtp_server_worker_t *, struct sockaddr_storage *);
+	int (*init) (struct _gtp_server *);
+	int (*process) (struct _gtp_server *, struct sockaddr_storage *);
 
 	/* metrics */
 	uint64_t		rx_pkts;
@@ -60,11 +52,11 @@ typedef struct _gtp_server {
 
 
 /* Prototypes */
-extern ssize_t gtp_server_send(gtp_server_worker_t *, int, struct sockaddr_in *);
-extern ssize_t gtp_server_send_async(gtp_server_worker_t *, pkt_buffer_t *, struct sockaddr_in *);
+extern ssize_t gtp_server_send(gtp_server_t *, int, struct sockaddr_in *);
+extern ssize_t gtp_server_send_async(gtp_server_t *, pkt_buffer_t *, struct sockaddr_in *);
 extern int gtp_server_start(gtp_server_t *);
-extern int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_worker_t *, void *), void *);
+extern int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_t *, void *), void *);
 extern int gtp_server_init(gtp_server_t *, void *
-					 , int (*init) (gtp_server_worker_t *)
-					 , int (*process) (gtp_server_worker_t *, struct sockaddr_storage *));
+					 , int (*init) (gtp_server_t *)
+					 , int (*process) (gtp_server_t *, struct sockaddr_storage *));
 extern int gtp_server_destroy(gtp_server_t *);

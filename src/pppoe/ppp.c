@@ -25,8 +25,8 @@
 /* local includes */
 #include "gtp_guard.h"
 
-/* local data */
-static timer_thread_t *ppp_timer;
+/* Extern data */
+extern thread_master_t *master;
 
 
 /*
@@ -65,7 +65,7 @@ struct cp {
 	void	(*Down) (sppp_t *);
 	void	(*Open) (sppp_t *);
 	void	(*Close) (sppp_t *);
-	int	(*TO) (void *);
+	void	(*TO) (thread_ref_t);
 	int	(*RCR) (sppp_t *, lcp_hdr_t *, int);
 	void	(*RCN_rej) (sppp_t *, lcp_hdr_t *, int);
 	void	(*RCN_nak) (sppp_t *, lcp_hdr_t *, int);
@@ -291,7 +291,10 @@ sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
 	if (timo < 1)
 		timo = 1;
-	timer_node_add(ppp_timer, &sp->ch[cp->protoidx], timo * sp->lcp.timeout);
+
+	thread_del_timer(sp->ch[cp->protoidx]);
+	sp->ch[cp->protoidx] = thread_add_timer(master, (cps[cp->protoidx])->TO, sp
+						      , timo * sp->lcp.timeout * TIMER_HZ);
 }
 
 /*
@@ -316,14 +319,15 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 	case STATE_CLOSED:
 	case STATE_STOPPED:
 	case STATE_OPENED:
-		timer_node_del(ppp_timer, &sp->ch[cp->protoidx]);
+		thread_del_timer(sp->ch[cp->protoidx]);
+		sp->ch[cp->protoidx] = NULL;
 		break;
 	case STATE_CLOSING:
 	case STATE_STOPPING:
 	case STATE_REQ_SENT:
 	case STATE_ACK_RCVD:
 	case STATE_ACK_SENT:
-		if (!timer_node_pending(&sp->ch[cp->protoidx]))
+		if (!sp->ch[cp->protoidx])
 			sppp_increasing_timeout(cp, sp);
 		break;
 	}
@@ -981,7 +985,7 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 		case STATE_STOPPING:
 			sppp_cp_send(sp, cp->proto, TERM_REQ, ++sp->pp_seq,
 				     0, 0);
-			sppp_increasing_timeout (cp, sp);
+			sppp_increasing_timeout(cp, sp);
 			break;
 		case STATE_REQ_SENT:
 		case STATE_ACK_RCVD:
@@ -990,7 +994,7 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 			(cp->scr)(sp);
 			break;
 		case STATE_ACK_SENT:
-			sppp_increasing_timeout (cp, sp);
+			sppp_increasing_timeout(cp, sp);
 			(cp->scr)(sp);
 			break;
 		}
@@ -1121,11 +1125,10 @@ sppp_lcp_close(sppp_t *sp)
 	sppp_close_event(&lcp, sp);
 }
 
-int
-sppp_lcp_TO(void *cookie)
+void
+sppp_lcp_TO(thread_ref_t thread)
 {
-	sppp_to_event(&lcp, (sppp_t *)cookie);
-	return 0;
+	sppp_to_event(&lcp, (sppp_t *) THREAD_ARG(thread));
 }
 
 /*
@@ -1656,11 +1659,10 @@ sppp_ipcp_close(sppp_t *sp)
 	sppp_close_event(&ipcp, sp);
 }
 
-int
-sppp_ipcp_TO(void *cookie)
+void
+sppp_ipcp_TO(thread_ref_t thread)
 {
-	sppp_to_event(&ipcp, (sppp_t *)cookie);
-	return 0;
+	sppp_to_event(&ipcp, (sppp_t *) THREAD_ARG(thread));
 }
 
 /*
@@ -2061,11 +2063,10 @@ sppp_ipv6cp_close(sppp_t *sp)
 	sppp_close_event(&ipv6cp, sp);
 }
 
-int
-sppp_ipv6cp_TO(void *cookie)
+void
+sppp_ipv6cp_TO(thread_ref_t thread)
 {
-	sppp_to_event(&ipv6cp, (sppp_t *)cookie);
-	return 0;
+	sppp_to_event(&ipv6cp, (sppp_t *) THREAD_ARG(thread));
 }
 
 int
@@ -2487,7 +2488,8 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 
 	/* ack and nak are his authproto */
 	case PAP_ACK:
-		timer_node_del(ppp_timer, &sp->pap_my_to_ch);
+		thread_del_timer(sp->pap_my_to_ch);
+		sp->pap_my_to_ch = NULL;
 		if (debug & 8) {
 			PPPDEBUG(("%s: pap success", pppoe->ifname));
 			name_len = *((char *)h);
@@ -2513,7 +2515,8 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		break;
 
 	case PAP_NAK:
-		timer_node_del(ppp_timer, &sp->pap_my_to_ch);
+		thread_del_timer(sp->pap_my_to_ch);
+		sp->pap_my_to_ch = NULL;
 		if (debug & 8) {
 			PPPDEBUG(("%s: pap failure", pppoe->ifname));
 			name_len = *((char *)h);
@@ -2565,7 +2568,9 @@ sppp_pap_open(sppp_t *sp)
 	if (sp->myauth.proto == PPP_PAP) {
 		/* we are peer, send a request, and start a timer */
 		pap.scr(sp);
-		timer_node_add(ppp_timer, &sp->pap_my_to_ch, sp->lcp.timeout);
+		thread_del_timer(sp->pap_my_to_ch);
+		sp->pap_my_to_ch = thread_add_timer(master, sppp_pap_my_TO, sp
+							  , sp->lcp.timeout * TIMER_HZ);
 	}
 	ppp_metric_update(pppoe, PPP_PAP, PPP_METRIC_OPEN, METRICS_DIR_IN);
 }
@@ -2582,10 +2587,10 @@ sppp_pap_close(sppp_t *sp)
  * That's the timeout routine if we are authenticator.  Since the
  * authenticator is basically passive in PAP, we can't do much here.
  */
-int
-sppp_pap_TO(void *cookie)
+void
+sppp_pap_TO(thread_ref_t thread)
 {
-	sppp_t *sp = (sppp_t *)cookie;
+	sppp_t *sp = THREAD_ARG(thread);
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap TO(%s) rst_counter = %d\n",
@@ -2610,8 +2615,6 @@ sppp_pap_TO(void *cookie)
 			break;
 		}
 	}
-
-	return 0;
 }
 
 /*
@@ -2619,15 +2622,15 @@ sppp_pap_TO(void *cookie)
  * we need to retransmit our PAP request since it is apparently lost.
  * XXX We should impose a max counter.
  */
-int
-sppp_pap_my_TO(void *cookie)
+void
+sppp_pap_my_TO(thread_ref_t thread)
 {
-	sppp_t *sp = (sppp_t *)cookie;
+	sppp_t *sp = THREAD_ARG(thread);
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap peer TO\n", pppoe->ifname));
+	sp->pap_my_to_ch = NULL;
 	pap.scr(sp);
-	return 0;
 }
 
 void
@@ -2659,8 +2662,10 @@ sppp_pap_tld(sppp_t *sp)
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
-	timer_node_del(ppp_timer, &sp->ch[IDX_PAP]);
-	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
+	thread_del_timer(sp->ch[IDX_PAP]);
+	sp->ch[IDX_PAP] = NULL;
+	thread_del_timer(sp->pap_my_to_ch);
+	sp->pap_my_to_ch = NULL;
 	sp->lcp.protos &= ~(1 << IDX_PAP);
 
 	lcp.Close(sp);
@@ -2687,10 +2692,10 @@ sppp_pap_scr(sppp_t *sp)
 /*
  *	PPP Timer related
  */
-static int
-sppp_keepalive(void *arg)
+static void
+sppp_keepalive(thread_ref_t thread)
 {
-	sppp_t *sp = arg;
+	sppp_t *sp = THREAD_ARG(thread);
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 	timeval_t tv;
 
@@ -2741,8 +2746,8 @@ sppp_keepalive(void *arg)
 	}
 
   next_timer:
-	timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
-	return 0;
+	sp ->keepalive = thread_add_timer(master, sppp_keepalive, sp
+						, pppoe->keepalive * TIMER_HZ);
 }
 
 
@@ -2761,7 +2766,8 @@ sppp_up(spppoe_t *s)
 	/* Register keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags |= PP_KEEPALIVE;
-		timer_node_add(ppp_timer, &sp->keepalive, pppoe->keepalive);
+		sp ->keepalive = thread_add_timer(master, sppp_keepalive, sp
+							, pppoe->keepalive * TIMER_HZ);
 	}
 	return 0;
 }
@@ -2776,14 +2782,18 @@ sppp_down(spppoe_t *s)
 	/* LCP layer */
 	(sp->pp_down)(sp);
 
-	for (i = 0; i < IDX_COUNT; i++)
-		timer_node_del(ppp_timer, &sp->ch[i]);
-	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
+	for (i = 0; i < IDX_COUNT; i++) {
+		thread_del_timer(sp->ch[i]);
+		sp->ch[i] = NULL;
+	}
+	thread_del_timer(sp->pap_my_to_ch);
+	sp->pap_my_to_ch = NULL;
 
 	/* Release keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags &= ~PP_KEEPALIVE;
-		timer_node_del(ppp_timer, &sp->keepalive);
+		thread_del_timer(sp->keepalive);
+		sp->keepalive = NULL;
 	}
 	return 0;
 }
@@ -2794,7 +2804,6 @@ sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
 {
 	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;
-	int i;
 
 	PMALLOC(sp);
 	sp->s_pppoe = s;
@@ -2830,13 +2839,6 @@ sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
 		sp->myauth.secret = pppoe->pap_passwd;
 	}
 
-	for (i = 0; i < IDX_COUNT; i++)
-		timer_node_init(&sp->ch[i], (cps[i])->TO, sp);
-	timer_node_init(&sp->pap_my_to_ch, sppp_pap_my_TO, sp);
-
-	/* keepalive init */
-	timer_node_init(&sp->keepalive, sppp_keepalive, sp);
-
 	sppp_lcp_init(sp);
 	sppp_ipcp_init(sp);
 	sppp_ipv6cp_init(sp);
@@ -2853,12 +2855,16 @@ sppp_destroy(sppp_t *sp)
 	sppp_ipcp_destroy(sp);
 	sppp_ipv6cp_destroy(sp);
 
-	/* Stop keepalive handler. */
-	timer_node_del(ppp_timer, &sp->keepalive);
+	/* Stop timers. */
+	thread_del_timer(sp->keepalive);
+	sp->keepalive = NULL;
 
-	for (i = 0; i < IDX_COUNT; i++)
-		timer_node_del(ppp_timer, &sp->ch[i]);
-	timer_node_del(ppp_timer, &sp->pap_my_to_ch);
+	for (i = 0; i < IDX_COUNT; i++) {
+		thread_del_timer(sp->ch[i]);
+		sp->ch[i] = NULL;
+	}
+	thread_del_timer(sp->pap_my_to_ch);
+	sp->pap_my_to_ch = NULL;
 
 	/* release authentication data */
 	if (sp->hisauth.name != NULL)
@@ -2886,13 +2892,11 @@ ppp_set_default(pppoe_t *pppoe)
 int
 ppp_init(void)
 {
-	ppp_timer = timer_thread_alloc("ppp-timer", NULL);
 	return 0;
 }
 
 int
 ppp_destroy(void)
 {
-	timer_thread_free(ppp_timer);
 	return 0;
 }

@@ -26,7 +26,6 @@
  *	Unuse queue
  */
 static list_head_t gtp_teid_unuse;
-pthread_mutex_t gtp_teid_unuse_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int gtp_teid_unuse_count;
 static gtp_htab_t gtpc_teid_tab;
 static gtp_htab_t gtpu_teid_tab;
@@ -36,13 +35,11 @@ gtp_teid_unuse_destroy(void)
 {
 	gtp_teid_t *t, *_t;
 
-	pthread_mutex_lock(&gtp_teid_unuse_mutex);
 	list_for_each_entry_safe(t, _t, &gtp_teid_unuse, next) {
 		list_head_del(&t->next);
 		FREE(t);
 	}
 	INIT_LIST_HEAD(&gtp_teid_unuse);
-	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
 
 	return 0;
 }
@@ -58,16 +55,12 @@ gtp_teid_unuse_trim_head(void)
 {
 	gtp_teid_t *t;
 
-	pthread_mutex_lock(&gtp_teid_unuse_mutex);
-	if (list_empty(&gtp_teid_unuse)) {
-		pthread_mutex_unlock(&gtp_teid_unuse_mutex);
+	if (list_empty(&gtp_teid_unuse))
 		return NULL;
-	}
 
 	t = list_first_entry(&gtp_teid_unuse, gtp_teid_t, next);
 	list_head_del(&t->next);
 	memset(t, 0, sizeof(gtp_teid_t));
-	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
 
 	__sync_sub_and_fetch(&gtp_teid_unuse_count, 1);
 	return t;
@@ -90,11 +83,7 @@ void
 gtp_teid_free(gtp_teid_t *t)
 {
 	INIT_LIST_HEAD(&t->next);
-
-	pthread_mutex_lock(&gtp_teid_unuse_mutex);
 	list_add_tail(&t->next, &gtp_teid_unuse);
-	pthread_mutex_unlock(&gtp_teid_unuse_mutex);
-
 	__sync_add_and_fetch(&gtp_teid_unuse_count, 1);
 }
 

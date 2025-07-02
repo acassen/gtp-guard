@@ -55,6 +55,7 @@ typedef enum _node_type {
 	CDR_NODE,					/* CDR commands. */
 	GTP_PROXY_NODE,					/* GTP Proxy commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
+	CGN_NODE,					/* Carrier Grade NAT */
 
 	VTY_NODE,					/* Vty node. */
 } node_type_t;

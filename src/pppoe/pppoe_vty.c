@@ -59,17 +59,13 @@ DEFUN(pppoe,
 		return CMD_WARNING;
 	}
 
-	new = pppoe_alloc(argv[0]);
+	new = pppoe_get_by_name(argv[0]);
+	new = (new) ? : pppoe_alloc(argv[0]);
 	if (!new) {
-		if (errno == EEXIST)
-			vty_out(vty, "%% PPPoE instance %s already exist !!!%s"
-				   , argv[0], VTY_NEWLINE);
-		else
-			vty_out(vty, "%% PPPoE Error allocating instance %s !!!%s"
-				   , argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% Error allocating PPPoE:%s !!!%s"
+			   , argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-
 
 	vty->node = PPPOE_NODE;
 	vty->index = new;
@@ -102,14 +98,12 @@ DEFUN(no_pppoe,
 
 DEFUN(pppoe_interface,
       pppoe_interface_cmd,
-      "interface STRING [rps-bits [INTEGER]]",
+      "interface STRING",
       "Interface\n"
-      "IFNAME\n"
-      "RPS bits for pthread workers\n"
-      "max bits of pthread workers (default = "STR(GTP_PPPOE_RPS_BITS)" bits)\n")
+      "IFNAME\n")
 {
 	pppoe_t *pppoe = vty->index;
-	int err, rps_bits, rps_size = 1;
+	int err;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -125,16 +119,6 @@ DEFUN(pppoe_interface,
 		return CMD_WARNING;
 	}
 
-	/* PPPoE ingress thread count built from rps-bits */
-	if (__test_bit(GTP_FL_PPP_RPS_LOADED_BIT, &daemon_data->flags)) {
-		rps_size = GTP_PPPOE_RPS_SIZE;
-		if (argc == 3) {
-			VTY_GET_INTEGER_RANGE("rps-bits", rps_bits, argv[2], 1, 7);
-			rps_size = 1 << rps_bits;
-		}
-	}
-
-	pppoe->thread_cnt = rps_size;
 	err = pppoe_start(pppoe);
 	if (err) {
 		vty_out(vty, "%% Error starting PPPoE on interface %s!%s", argv[0], VTY_NEWLINE);
@@ -680,26 +664,22 @@ DEFUN(no_pppoe_bundle_ignore_ingress_ppp_brd,
  *	Show commands
  */
 static int
-pppoe_worker_vty(vty_t *vty, pppoe_worker_t *w)
+pppoe_channel_vty(vty_t *vty, pppoe_channel_t *ch)
 {
-	gtp_metrics_pkt_t *rx = &w->rx_metrics;
-	gtp_metrics_pkt_t *tx = &w->tx_metrics;
+	gtp_metrics_pkt_t *rx = &ch->rx_metrics;
+	gtp_metrics_pkt_t *tx = &ch->tx_metrics;
 
-	vty_out(vty, "   #%.2d: rx_packets:%ld rx_bytes:%ld tx_packets:%ld tx_bytes:%ld%s"
-		   , w->id, rx->count, rx->bytes, tx->count, tx->bytes
+	vty_out(vty, "   rx_packets:%ld rx_bytes:%ld tx_packets:%ld tx_bytes:%ld%s"
+		   , rx->count, rx->bytes, tx->count, tx->bytes
 		   , VTY_NEWLINE);
 	return 0;
 }
 
 static int
-pppoe_workers_vty(vty_t *vty, const char *desc, pppoe_worker_t *w, int count)
+pppoe_workers_vty(vty_t *vty, const char *desc, pppoe_channel_t *ch)
 {
-	int i;
-
 	vty_out(vty, "  %s:%s", desc, VTY_NEWLINE);
-	for (i = 0; i < count; i++)
-		pppoe_worker_vty(vty, &w[i]);
-
+	pppoe_channel_vty(vty, ch);
 	return 0;
 }
 
@@ -712,10 +692,8 @@ pppoe_vty(vty_t *vty, pppoe_t *pppoe)
 	vty_out(vty, " PPPoE(%s): ifname %s (ifindex:%d) sessions:%d%s"
 		   , pppoe->name, pppoe->ifname, pppoe->ifindex, pppoe->session_count
 		   , VTY_NEWLINE);
-	pppoe_workers_vty(vty, "Discovery channel"
-				 , pppoe->worker_disc, pppoe->thread_cnt);
-	pppoe_workers_vty(vty, "Session channel"
-				 , pppoe->worker_ses, pppoe->thread_cnt);
+	pppoe_workers_vty(vty, "Discovery channel", &pppoe->channel_disc);
+	pppoe_workers_vty(vty, "Session channel", &pppoe->channel_ses);
 	return 0;
 }
 
@@ -756,10 +734,7 @@ gtp_config_pppoe_write(vty_t *vty)
 
 	list_for_each_entry(pppoe, l, next) {
 		vty_out(vty, "pppoe %s%s", pppoe->name, VTY_NEWLINE);
-		vty_out(vty, " interface %s", pppoe->name);
-		if (pppoe->thread_cnt != GTP_PPPOE_RPS_SIZE)
-			vty_out(vty, " rps-bits %d", __builtin_ctz(pppoe->thread_cnt));
-		vty_out(vty, "%s", VTY_NEWLINE);
+		vty_out(vty, " interface %s%s", pppoe->name, VTY_NEWLINE);
 		if (__test_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags))
 			vty_out(vty, " monitor-vrrp %ld%s", pppoe->credit / TIMER_HZ, VTY_NEWLINE);
 		if (pppoe->ac_name[0])

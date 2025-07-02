@@ -57,10 +57,8 @@ typedef struct _spppoe {
 	gtp_teid_t		*teid;		/* TEID we are linked to */
 	struct sockaddr_storage gtpc_peer_addr;	/* Remote GTP-C peer */
 
-	/* Expiration handling */
-	char			tmp_str[64];
-	struct tm		creation_time;
-	timer_node_t		t_node;
+	/* I/O MUX */
+	thread_ref_t		timer;
 
 	struct hlist_node	h_session;	/* h by {MAC,session_id}*/
 	struct hlist_node	h_unique;	/* h by unique*/
@@ -78,7 +76,6 @@ extern spppoe_t *spppoe_get_by_session(struct ether_addr *, uint16_t);
 extern int spppoe_session_hash(spppoe_t *, struct ether_addr *, uint16_t);
 extern void spppoe_free(spppoe_t *);
 extern int spppoe_destroy(spppoe_t *);
-extern int __spppoe_destroy(spppoe_t *);
 extern spppoe_t *spppoe_alloc(pppoe_t *, gtp_conn_t *,
 			      void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
 			      void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),

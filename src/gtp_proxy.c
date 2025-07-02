@@ -38,8 +38,8 @@ int
 gtp_proxy_gtpc_teid_destroy(gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
-	gtp_server_t *w_srv = s->w->srv;
-	gtp_proxy_t *ctx = w_srv->ctx;
+	gtp_server_t *srv = s->srv;
+	gtp_proxy_t *ctx = srv->ctx;
 
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
@@ -51,8 +51,8 @@ int
 gtp_proxy_gtpu_teid_destroy(gtp_teid_t *teid)
 {
 	gtp_session_t *s = teid->session;
-	gtp_server_t *w_srv = s->w->srv;
-	gtp_proxy_t *ctx = w_srv->ctx;
+	gtp_server_t *srv = s->srv;
+	gtp_proxy_t *ctx = srv->ctx;
 
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
@@ -75,65 +75,50 @@ gtp_proxy_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct s
 }
 
 int
-gtp_proxy_ingress_init(gtp_server_worker_t *w)
+gtp_proxy_ingress_init(gtp_server_t *s)
 {
-	gtp_server_t *srv = w->srv;
-	gtp_proxy_t *ctx = srv->ctx;
-	const char *ptype = "sw-gtpc";
-
-	/* Create Process Name */
-	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
-		ptype = "sw-upf";
-	snprintf(w->pname, 127, "%s-%s-%d"
-			 , ctx->name
-			 , ptype
-			 , w->id);
-	prctl(PR_SET_NAME, w->pname, 0, 0, 0, 0);
-
 	return 0;
 }
 
 int
-gtp_proxy_ingress_process(gtp_server_worker_t *w, struct sockaddr_storage *addr_from)
+gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 {
-	gtp_server_t *srv = w->srv;
-	gtp_proxy_t *ctx = srv->ctx;
-	gtp_server_t *srv_egress = &ctx->gtpc_egress;
-	socket_pair_t *spair = ctx->gtpc_socket_pair;
+	gtp_proxy_t *ctx = s->ctx;
+	gtp_server_t *s_egress = &ctx->gtpc_egress;
 	struct sockaddr_in addr_to;
 	gtp_teid_t *teid;
-	int fd = w->fd;
+	int fd = s->fd;
 
 	/* GTP-U handling */
-	if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
-		teid = gtpu_proxy_handle(w, addr_from);
+	if (__test_bit(GTP_FL_UPF_BIT, &s->flags)) {
+		teid = gtpu_proxy_handle(s, addr_from);
 		if (!teid)
 			return -1;
 
-		gtp_server_send(w, w->fd, (struct sockaddr_in *) addr_from);
+		gtp_server_send(s, s->fd, (struct sockaddr_in *) addr_from);
 		return 0;
 	}
 
 	/* GTP-C handling */
-	teid = gtpc_proxy_handle(w, addr_from);
+	teid = gtpc_proxy_handle(s, addr_from);
 	if (!teid)
 		return -1;
 
 	/* Select appropriate socket. If egress channel is configured
 	 * then split socket */
-	if (__test_bit(GTP_FL_CTL_BIT, &srv_egress->flags)) {
-		if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &srv->flags))
-			fd = *spair[w->id].fd_egress;
-		else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &srv->flags))
-			fd = *spair[w->id].fd_ingress;
-		fd = (fd) ? : w->fd;
+	if (__test_bit(GTP_FL_CTL_BIT, &s_egress->flags)) {
+		if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &s->flags))
+			fd = ctx->gtpc_egress.fd;
+		else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &s->flags))
+			fd = ctx->gtpc.fd;
+		fd = (fd) ? : s->fd;
 	}
 
 	/* Set destination address */
 	gtp_proxy_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(w, TEID_IS_DUMMY(teid) ? w->fd : fd
+	gtp_server_send(s, TEID_IS_DUMMY(teid) ? s->fd : fd
 			 , TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
-	gtpc_proxy_handle_post(w, teid);
+	gtpc_proxy_handle_post(s, teid);
 
 	return 0;
 }
@@ -162,6 +147,10 @@ gtp_proxy_init(const char *name)
 	gtp_proxy_t *new;
 
 	PMALLOC(new);
+	if (!new) {
+		errno = ENOMEM;
+		return NULL;
+	}
         INIT_LIST_HEAD(&new->next);
         strncpy(new->name, name, GTP_NAME_MAX_LEN - 1);
         list_add_tail(&new->next, &daemon_data->gtp_proxy_ctx);
@@ -173,32 +162,6 @@ gtp_proxy_init(const char *name)
 	gtp_htab_init(&new->vsqn_tab, CONN_HASHTAB_SIZE);
 
 	return new;
-}
-
-static int
-gtp_proxy_socketpair_set(gtp_server_worker_t *w, void *arg)
-{
-	gtp_server_t *srv = w->srv;
-	gtp_proxy_t *ctx = srv->ctx;
-	socket_pair_t *spair = ctx->gtpc_socket_pair;
-
-	if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &srv->flags))
-		spair[w->id].fd_ingress = &w->fd;
-	else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &srv->flags))
-		spair[w->id].fd_egress = &w->fd;
-
-	return 0;
-}
-
-int
-gtp_proxy_gtpc_socketpair_init(gtp_server_t *srv)
-{
-	gtp_proxy_t *ctx = srv->ctx;
-
-	if (!ctx->gtpc_socket_pair)
-		ctx->gtpc_socket_pair = MALLOC(sizeof(socket_pair_t) * srv->thread_cnt);
-	gtp_server_foreach_worker(srv, gtp_proxy_socketpair_set, NULL);
-	return 0;
 }
 
 int
@@ -218,8 +181,6 @@ gtp_proxy_ctx_destroy(gtp_proxy_t *ctx)
 	gtp_htab_destroy(&ctx->gtpu_teid_tab);
 	gtp_htab_destroy(&ctx->vteid_tab);
 	gtp_htab_destroy(&ctx->vsqn_tab);
-	if (ctx->gtpc_socket_pair)
-		FREE(ctx->gtpc_socket_pair);
 	list_head_del(&ctx->next);
 	return 0;
 }

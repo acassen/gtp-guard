@@ -35,11 +35,10 @@ gtp_teid_t dummy_teid = { .type = 0xff };
  *	GTP-C Message handle
  */
 gtp_session_t *
-gtpc_retransmit_detected(gtp_server_worker_t *w)
+gtpc_retransmit_detected(gtp_server_t *srv)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
-	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) w->pbuff->head;
-	gtp_server_t *srv = w->srv;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
+	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) srv->pbuff->head;
 	gtp_proxy_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
 	gtp_session_t *s = NULL;
@@ -47,7 +46,7 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 	uint8_t *cp;
 
 	if (gtph->version == 2) {
-		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, w->pbuff);
+		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, srv->pbuff);
 		if (!cp)
 			return NULL;
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, teid_grekey));
@@ -66,11 +65,11 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
 		return s;
 	}
 
-	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, w->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, srv->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, srv->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
@@ -90,20 +89,20 @@ gtpc_retransmit_detected(gtp_server_worker_t *w)
  *	GTP-C Message handle
  */
 static const struct {
-	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
+	gtp_teid_t * (*hdl) (gtp_server_t *, struct sockaddr_storage *);
 } gtpc_msg_hdl[7] = {
 	[1]	= { gtpc_proxy_handle_v1 },
 	[2]	= { gtpc_proxy_handle_v2 },
 };
 
 gtp_teid_t *
-gtpc_proxy_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpc_proxy_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
 
 	/* Only support GTPv1 & GTPv2 */
 	if (*(gtpc_msg_hdl[gtph->version].hdl))
-		return (*(gtpc_msg_hdl[gtph->version].hdl)) (w, addr);
+		return (*(gtpc_msg_hdl[gtph->version].hdl)) (srv, addr);
 
 	log_message(LOG_INFO, "%s(): GTP Version %d not supported."
 			      " Ignoring ingress datagram from [%s]:%d"
@@ -116,7 +115,7 @@ gtpc_proxy_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 }
 
 int
-gtpc_proxy_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
+gtpc_proxy_handle_post(gtp_server_t *srv, gtp_teid_t *teid)
 {
 	gtp_session_t *s;
 
@@ -139,42 +138,41 @@ gtpc_proxy_handle_post(gtp_server_worker_t *w, gtp_teid_t *teid)
  *	GTP-U Message handle
  */
 static gtp_teid_t *
-gtpu_echo_request_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpu_echo_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) w->pbuff->head;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) srv->pbuff->head;
 	gtp1_ie_recovery_t *rec;
 
 	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
 	h->type = GTPU_ECHO_RSP_TYPE;
 	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
-	pkt_buffer_set_end_pointer(w->pbuff, gtp1_get_header_len(h));
-	pkt_buffer_set_data_pointer(w->pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_end_pointer(srv->pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_data_pointer(srv->pbuff, gtp1_get_header_len(h));
 
-	gtp1_ie_add_tail(w->pbuff, sizeof(gtp1_ie_recovery_t));
-	rec = (gtp1_ie_recovery_t *) w->pbuff->data;
+	gtp1_ie_add_tail(srv->pbuff, sizeof(gtp1_ie_recovery_t));
+	rec = (gtp1_ie_recovery_t *) srv->pbuff->data;
 	rec->type = GTP1_IE_RECOVERY_TYPE;
 	rec->recovery = 0;
-	pkt_buffer_put_data(w->pbuff, sizeof(gtp1_ie_recovery_t));
+	pkt_buffer_put_data(srv->pbuff, sizeof(gtp1_ie_recovery_t));
 
 	return &dummy_teid;
 }
 
 static gtp_teid_t *
-gtpu_error_indication_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpu_error_indication_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_server_t *srv = w->srv;
 	gtp_proxy_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
 	uint8_t *cp;
 
 	/* Data Plane IE */
-	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, w->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, srv->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, w->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, srv->pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
@@ -208,10 +206,9 @@ gtpu_error_indication_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 }
 
 static gtp_teid_t *
-gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpu_end_marker_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
-	gtp_server_t *srv = w->srv;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
 	gtp_proxy_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
@@ -249,7 +246,7 @@ gtpu_end_marker_hdl(gtp_server_worker_t *w, struct sockaddr_storage *addr)
 }
 
 static const struct {
-	gtp_teid_t * (*hdl) (gtp_server_worker_t *, struct sockaddr_storage *);
+	gtp_teid_t * (*hdl) (gtp_server_t *, struct sockaddr_storage *);
 } gtpu_msg_hdl[0xff + 1] = {
 	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
@@ -257,18 +254,18 @@ static const struct {
 };
 
 gtp_teid_t *
-gtpu_proxy_handle(gtp_server_worker_t *w, struct sockaddr_storage *addr)
+gtpu_proxy_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
 	ssize_t len;
 
-	len = gtpu_get_header_len(w->pbuff);
+	len = gtpu_get_header_len(srv->pbuff);
 	if (len < 0)
 		return NULL;
 
 	/* Special care to create and delete session */
 	if (*(gtpu_msg_hdl[gtph->type].hdl))
-		return (*(gtpu_msg_hdl[gtph->type].hdl)) (w, addr);
+		return (*(gtpu_msg_hdl[gtph->type].hdl)) (srv, addr);
 
 	/* Not supported */
 	log_message(LOG_INFO, "%s(): GTP-U/path-mgt msg_type:0x%.2x from %s not supported..."

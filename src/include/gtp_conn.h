@@ -39,7 +39,6 @@ typedef struct _gtp_conn {
 	list_head_t		gtp_sessions;
 	list_head_t		pppoe_sessions;
 	int			pppoe_cnt;
-	pthread_mutex_t		session_mutex;
 	time_t			ts;
 
 	/* hash stuff */

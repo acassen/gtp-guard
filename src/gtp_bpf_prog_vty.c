@@ -77,6 +77,12 @@ DEFUN(bpf_prog,
 	}
 
 	new = gtp_bpf_prog_alloc(argv[0]);
+	if (!new) {
+		vty_out(vty, "%% Error allocating bpf-program:%s !!!%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	vty->node = BPF_PROG_NODE;
 	vty->index = new;
 	__set_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &new->flags);

@@ -110,11 +110,10 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 }
 
 int
-gtp_vsqn_alloc(gtp_server_worker_t *w, gtp_teid_t *teid, bool set_msb)
+gtp_vsqn_alloc(gtp_server_t *s, gtp_teid_t *teid, bool set_msb)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
-	gtp_server_t *srv = w->srv;
-	gtp_proxy_t *ctx = srv->ctx;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
+	gtp_proxy_t *ctx = s->ctx;
 	uint32_t *sqn = &ctx->seqnum;
 	uint32_t sqn_max = ~(1 << 31) >> 8; /* MSB is reserved */
 	uint32_t vsqn;
@@ -139,10 +138,10 @@ gtp_vsqn_alloc(gtp_server_worker_t *w, gtp_teid_t *teid, bool set_msb)
 }
 
 int
-gtp_sqn_update(gtp_server_worker_t *w, gtp_teid_t *teid)
+gtp_sqn_update(gtp_server_t *s, gtp_teid_t *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->pbuff->head;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) s->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
 
 	if (!teid)
 		return -1;
@@ -157,10 +156,10 @@ gtp_sqn_update(gtp_server_worker_t *w, gtp_teid_t *teid)
 }
 
 int
-gtp_sqn_masq(gtp_server_worker_t *w, gtp_teid_t *teid)
+gtp_sqn_masq(gtp_server_t *s, gtp_teid_t *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->pbuff->head;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) s->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
 
 	if (gtph->version == 1) {
 		if (gtp1h->seq)
@@ -178,10 +177,10 @@ gtp_sqn_masq(gtp_server_worker_t *w, gtp_teid_t *teid)
 }
 
 int
-gtp_sqn_restore(gtp_server_worker_t *w, gtp_teid_t *teid)
+gtp_sqn_restore(gtp_server_t *s, gtp_teid_t *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) w->pbuff->head;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) w->pbuff->head;
+	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) s->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
 
 	if (!teid)
 		return -1;

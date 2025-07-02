@@ -20,7 +20,26 @@
  */
 #pragma once
 
-/* Defines */
+enum cgn_flags {
+	CGN_FL_SHUTDOWN_BIT,
+};
+
+typedef struct _cgn {
+	char			name[GTP_NAME_MAX_LEN];
+	char			description[GTP_STR_MAX_LEN];
+
+	/* metrics */
+
+	list_head_t		next;
+
+	unsigned long		flags;
+} cgn_t;
 
 /* Prototypes */
-extern gtp_teid_t *gtpc_proxy_handle_v2(gtp_server_t *, struct sockaddr_storage *);
+extern void cgn_foreach(int (*hdl) (cgn_t *, void *), void *);
+extern cgn_t *cgn_get_by_name(const char *);
+extern int cgn_release(cgn_t *);
+extern cgn_t *cgn_alloc(const char *);
+extern int cgn_init(void);
+extern int cgn_destroy(void);
+
