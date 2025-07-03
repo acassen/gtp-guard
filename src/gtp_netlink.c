@@ -86,13 +86,15 @@ get_rtnl_link_stats_rta(struct rtnl_link_stats64 *stats64, struct rtattr *tb[])
 }
 
 static void
-parse_rtattr(struct rtattr **tb, int max, struct rtattr *rta, size_t len)
+parse_rtattr(struct rtattr **tb, int max, struct rtattr *rta, size_t len, unsigned short flags)
 {
-	memset(tb, 0, sizeof(struct rtattr *) * (max + 1));
+	unsigned short type;
 
+	memset(tb, 0, sizeof(struct rtattr *) * (max + 1));
 	while (RTA_OK(rta, len)) {
-		if (rta->rta_type <= max)
-			tb[rta->rta_type] = rta;
+		type = rta->rta_type & ~flags;
+		if ((type <= max) && (!tb[type]))
+			tb[type] = rta;
 		/* Note: clang issues a -Wcast-align warning for RTA_NEXT, whereas gcc does not.
 		 * gcc is more clever in it's analysis, and realises that RTA_NEXT is actually
 		 * forcing alignment.
@@ -359,7 +361,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 	if (len < 0)
 		return -1;
 
-	parse_rtattr(tb, NDA_MAX, NDA_RTA(r), len);
+	parse_rtattr(tb, NDA_MAX, NDA_RTA(r), len, 0);
 
 	/* Only netlink broadcast related to IP Address matter */
 	if (!tb[NDA_DST] || !tb[NDA_LLADDR])
@@ -524,10 +526,10 @@ netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type, bool st
 	};
 	__u32 filt_mask = 0;
 
-	if (!stats) {
-		filt_mask = RTEXT_FILTER_SKIP_STATS;
-		addattr_l(&req.nlh, sizeof(req), IFLA_EXT_MASK, &filt_mask, sizeof(uint32_t));
-	}
+	if (!stats)
+		filt_mask |= RTEXT_FILTER_SKIP_STATS;
+
+	addattr_l(&req.nlh, sizeof(req), IFLA_EXT_MASK, &filt_mask, sizeof(uint32_t));
 
 	status = sendto(nl->fd, (void *) &req, sizeof (req), 0
 			      , (struct sockaddr *) &snl, sizeof(snl));
@@ -536,6 +538,46 @@ netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type, bool st
 		return -1;
 	}
 
+	return 0;
+}
+
+static int
+netlink_if_link_info(struct rtattr *tb, gtp_interface_t *iface)
+{
+        struct rtattr *linkinfo[IFLA_INFO_MAX+1];
+        struct rtattr *attr[IFLA_VLAN_MAX+1], **data = NULL;
+        struct rtattr *linkdata;
+	const char *kind;
+
+	if (!tb)
+		return -1;
+
+	parse_rtattr(linkinfo, IFLA_INFO_MAX
+			     , RTA_DATA(tb), RTA_PAYLOAD(tb)
+			     , NLA_F_NESTED);
+
+	if (!linkinfo[IFLA_INFO_KIND])
+		return -1;
+
+	kind = (const char *)RTA_DATA(linkinfo[IFLA_INFO_KIND]);
+
+	/* Only take care of vlan interface type */
+	if (strncmp(kind, "vlan", 4))
+		return -1;
+
+	linkdata = linkinfo[IFLA_INFO_DATA];
+	if (!linkdata)
+		return -1;
+
+	parse_rtattr(attr, IFLA_VLAN_MAX
+			 , RTA_DATA(linkdata), RTA_PAYLOAD(linkdata)
+			 , NLA_F_NESTED);
+	data = attr;
+
+	if (!data[IFLA_VLAN_ID])
+		return -1;
+
+	iface->vlan_id = *(__u16 *)RTA_DATA(data[IFLA_VLAN_ID]);
 	return 0;
 }
 
@@ -555,11 +597,16 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 	if (len < 0)
 		return -1;
 
-	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len);
+	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len, 0);
 
 	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
-	if (!iface)
-		return 0;
+	if (!iface) {
+		/* reflect interface topology */
+		iface = gtp_interface_alloc((char *)RTA_DATA(tb[IFLA_IFNAME])
+					    , ifi->ifi_index);
+		if (!iface)
+			return -1;
+	}
 
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
 		get_rtnl_link_stats_rta(iface->link_metrics, tb);
@@ -569,6 +616,8 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 		log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
 				    , __FUNCTION__
 				    , iface->ifname);
+
+	netlink_if_link_info(tb[IFLA_LINKINFO], iface);
 	gtp_interface_put(iface);
 	return err;
 }
@@ -588,7 +637,7 @@ netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, s
 	if (len < 0)
 		return -1;
 
-	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len);
+	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len, 0);
 
 	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
 	if (!iface)
@@ -631,11 +680,6 @@ netlink_if_stats_update(thread_ref_t thread)
 static int
 netlink_if_lookup(void)
 {
-	if (list_empty(&daemon_data->interfaces)) {
-		log_message(LOG_INFO, "No interfaces defined, stopping netlink channel");
-		return -1;
-	}
-
 	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true) < 0)
 		return -1;
 
@@ -655,7 +699,7 @@ netlink_if_init(void)
 		return -1;
 	}
 
-	err = (err) ? : netlink_if_lookup();
+	err = netlink_if_lookup();
 	err = (err) ? : netlink_neigh_lookup();
 	if (err)
 		return -1;

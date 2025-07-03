@@ -34,6 +34,70 @@ static const char *pin_basedir = "/sys/fs/bpf";
 
 
 /*
+ *	BPF Interface topology reflection
+ * During daemon bootstrap a netlink interface probe is performed
+ * to reflect these topology informations to BPF progs that may
+ * use it.
+ */
+static struct ll_attr *
+gtp_bpf_ll_attr_alloc(size_t *sz)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct ll_attr *new;
+
+	new = calloc(nr_cpus, sizeof(*new));
+	if (!new)
+		return NULL;
+
+	*sz = nr_cpus * sizeof(struct ll_attr);
+	return new;
+}
+
+static void
+gtp_bpf_ll_attr_prepare(struct ll_attr *attr, uint16_t vlan_id, uint16_t flags)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	int i;
+
+	for (i = 0; i < nr_cpus; i++) {
+		attr[i].vlan_id = vlan_id;
+		attr[i].flags = flags;
+	}
+}
+
+int
+gtp_bpf_ll_attr_update(struct bpf_map *map, uint32_t ifindex, uint16_t vlan_id,
+		       uint16_t flags)
+{
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	struct ll_attr *new;
+	size_t sz;
+	int err;
+
+	new = gtp_bpf_ll_attr_alloc(&sz);
+	if (!new) {
+		log_message(LOG_INFO, "%s(): Cant allocate if_attr !!!"
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	gtp_bpf_ll_attr_prepare(new, vlan_id, flags);
+	err = bpf_map__update_elem(map, &ifindex, sizeof(uint32_t), new, sz, BPF_NOEXIST);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): Cant add attr for ifindex:%d (%s)"
+				    , __FUNCTION__
+				    , ifindex
+				    , errmsg);
+		err = -1;
+	}
+
+	free(new);
+	return err;
+}
+
+
+/*
  *	BPF Object variable update.
  *
  *  This only apply to global variables as present in .rodata section,

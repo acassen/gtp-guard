@@ -33,7 +33,19 @@ extern data_t *daemon_data;
 int
 gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p)
 {
+	/* TODO: migrate to bpf-program paradigm */
 	return -1;
+}
+
+static int
+gtp_bpf_fwd_ll_attr(gtp_interface_t *iface, void *arg)
+{
+	if (!iface->vlan_id)
+		return -1;
+
+	return gtp_bpf_ll_attr_update((struct bpf_map *) arg
+				      , iface->ifindex
+				      , iface->vlan_id, 0);
 }
 
 int
@@ -62,6 +74,16 @@ gtp_bpf_fwd_load(gtp_bpf_opts_t *opts)
 	}
 	opts->bpf_maps[XDP_FWD_MAP_IPTNL].map = map;
 
+	map = gtp_bpf_load_map(opts->bpf_obj, "if_llattr");
+	if (!map) {
+		gtp_bpf_unload(opts);
+		return -1;
+	}
+	opts->bpf_maps[XDP_FWD_MAP_IF_LLATTR].map = map;
+
+	/* Populate interface attributes */
+	gtp_interface_foreach(gtp_bpf_fwd_ll_attr, map);
+
 	return 0;
 }
 
@@ -73,7 +95,7 @@ gtp_bpf_fwd_unload(gtp_bpf_opts_t *opts)
 
 
 /*
- *	TEID Switching handling
+ *	TEID rules handling
  */
 static struct gtp_teid_rule *
 gtp_bpf_teid_rule_alloc(size_t *sz)
@@ -311,6 +333,7 @@ gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
 
 	return gtp_bpf_teid_bytes(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, ntohl(t->vid), bytes);
 }
+
 
 /*
  *	IP Tunneling related

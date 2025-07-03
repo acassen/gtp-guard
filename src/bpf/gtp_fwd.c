@@ -38,6 +38,7 @@
 #include "gtp_bpf_utils.h"
 #include "gtp.h"
 
+
 /*
  *	MAPs
  */
@@ -63,6 +64,14 @@ struct {
 	__type(key, __be32);
 	__type(value, struct gtp_iptnl_rule);
 } iptnl_info SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(max_entries, 16);
+	__type(key, __u32);				/* ifindex */
+	__type(value, struct ll_attr);			/* if attributes */
+} if_llattr SEC(".maps");
 
 
 /* Packet rewrite */
@@ -99,8 +108,10 @@ static __always_inline void ipv4_csum(void *data_start, int data_size, __u32 *cs
 }
 
 static __always_inline int
-gtpu_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph, struct bpf_fib_lookup *fib_params)
+gtpu_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct _vlan_hdr *vlanh,
+		struct iphdr *iph, struct bpf_fib_lookup *fib_params)
 {
+	struct ll_attr *attr;
 	int ret;
 
 	fib_params->family	= AF_INET;
@@ -116,17 +127,25 @@ gtpu_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph, stru
 	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
 		return XDP_DROP;
 
-	/* Ethernet playground */
+	/* Ethernet */
 //	ethh->h_proto = bpf_htons(ETH_P_IP);
 	__builtin_memcpy(ethh->h_dest, fib_params->dmac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_source, fib_params->smac, ETH_ALEN);
+
+	/* VLAN */
+	if (!vlanh) {
+		attr = bpf_map_lookup_elem(&if_llattr, &fib_params->ifindex);
+		if (attr) {
+			vlanh->hvlan_TCI = bpf_htons(attr->vlan_id);
+		}
+	}
 
 //	return bpf_redirect(fib_params->ifindex, 0);
 	return XDP_TX;
 }
 
 static __always_inline int
-gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
+gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 {
 	struct xdp_md *ctx = pkt->ctx;
 	void *data = (void *) (long) ctx->data;
@@ -196,7 +215,7 @@ gtpu_ipencap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtpu_fib_lookup(ctx, new_eth, iph, &fib_params);
+	return gtpu_fib_lookup(ctx, new_eth, vlanh, iph, &fib_params);
 }
 
 static __always_inline void
@@ -315,7 +334,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 		__builtin_memset(&fib_params, 0, sizeof(fib_params));
 		fib_params.ifindex = ctx->ingress_ifindex;
 
-		return gtpu_fib_lookup(ctx, new_eth, iph, &fib_params);
+		return gtpu_fib_lookup(ctx, new_eth, vlanh, iph, &fib_params);
 	}
 
 	offset += sizeof(struct iphdr);
@@ -341,7 +360,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	fib_params.ifindex = ctx->ingress_ifindex;
 
-	return gtpu_fib_lookup(ctx, new_eth, iph, &fib_params);
+	return gtpu_fib_lookup(ctx, new_eth, vlanh, iph, &fib_params);
 }
 
 static __always_inline int
@@ -428,13 +447,13 @@ gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct 
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD) &&
 	    iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP &&
 	    rule->flags & GTP_FWD_FL_INGRESS)
-		return gtpu_ipencap(pkt, iptnl_rule);
+		return gtpu_ipip_encap(pkt, iptnl_rule);
 
 	gtpu_xlat_header(rule, iph, gtph);
 
 	/* Phase 5 : Tunnel apply in not transparent mode */
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
-		return gtpu_ipencap(pkt, iptnl_rule);
+		return gtpu_ipip_encap(pkt, iptnl_rule);
 
 	/* No fib lookup needed, swap mac then */
 	swap_src_dst_mac(ethh);
@@ -449,12 +468,12 @@ gtpu_xlat_frag(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, __
 	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph->daddr);
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD) &&
 	    iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
-		return gtpu_ipencap(pkt, iptnl_rule);
+		return gtpu_ipip_encap(pkt, iptnl_rule);
 
 	gtpu_xlat_iph(iph, daddr);
 
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
-		return gtpu_ipencap(pkt, iptnl_rule);
+		return gtpu_ipip_encap(pkt, iptnl_rule);
 
 	/* No fib lookup needed, swap mac then */
 	swap_src_dst_mac(ethh);

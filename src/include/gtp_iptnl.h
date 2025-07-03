@@ -65,5 +65,5 @@ typedef struct _gtp_iptnl {
 
 /* Prototypes */
 extern pfx_vlan_t *pfx_vlan_alloc(void);
-extern int pfx_vlan_free(pfx_vlan_t *);
 extern int pfx_vlan_add(gtp_iptnl_t *, pfx_vlan_t *);
+extern int pfx_vlan_free(pfx_vlan_t *);

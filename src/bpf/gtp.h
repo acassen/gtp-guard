@@ -181,6 +181,11 @@ struct ll_addr {
 	__u8		state;
 } __attribute__ ((__aligned__(8)));
 
+struct ll_attr {
+	__u16		vlan_id;
+	__u16		flags;
+} __attribute__ ((__aligned__(8)));
+
 struct eth_percpu_ctx {
 	__u8		source[6];
 	__u8		dest[6];

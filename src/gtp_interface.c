@@ -124,7 +124,6 @@ gtp_interface_get_by_direct_tx(ip_address_t *addr)
 	return NULL;
 }
 
-
 int
 gtp_interface_put(gtp_interface_t *iface)
 {
@@ -138,11 +137,16 @@ gtp_interface_alloc(const char *name, int ifindex)
 	gtp_interface_t *new;
 
 	PMALLOC(new);
+	if (!new)
+		return NULL;
+
 	INIT_LIST_HEAD(&new->next);
-	bsd_strlcpy(new->ifname, name, GTP_STR_MAX_LEN - 1);
+	if (name)
+		bsd_strlcpy(new->ifname, name, GTP_STR_MAX_LEN - 1);
 	new->ifindex = ifindex;
 
 	list_add_tail(&new->next, &daemon_data->interfaces);
+	__sync_add_and_fetch(&new->refcnt, 1);
 
 	return new;
 }

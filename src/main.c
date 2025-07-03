@@ -69,6 +69,7 @@ start_gtp(void)
 	/* Configuration file parsing */
 	daemon_data = alloc_daemon_data();
 
+	gtp_netlink_init();
 	cmd_init();
 	vty_init();
 	gtp_vty_init();
@@ -83,8 +84,6 @@ start_gtp(void)
 		stop_gtp();
 		return;
 	}
-
-	gtp_netlink_init();
 }
 
 /* Terminate handler */

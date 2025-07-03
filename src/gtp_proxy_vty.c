@@ -623,74 +623,8 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_ipip_decap_tag_vlan_pfx,
-      gtpu_ipip_decap_tag_vlan_pfx_cmd,
-      "gtpu-ipip decap-tag-vlan <1-4095> prefix-dst (A.B.C.D/M|X:X::X:X/M)",
-      "GTP Userplane IPIP tunnel\n"
-      "GTP-U tag VLAN header for a specific prefix during decap\n")
-{
-        gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
-	pfx_vlan_t *pv;
-	int err, vlan;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (argc < 2) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (!t->selector_addr && !t->local_addr && !t->remote_addr) {
-		vty_out(vty, "%% You MUST configure IPIP-Tunnel before%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[0], 1, 4095);
-	if (vlan) {} ; /* dummy test */
-
-	pv = pfx_vlan_alloc();
-	if (!pv) {
-		vty_out(vty, "%% error allocating prefix-vlan rule%s", VTY_NEWLINE);
-		return CMD_WARNING;
-
-	}
-
-	t->flags |= IPTNL_FL_TAG_VLAN;
-	pv->vlan_id = vlan;
-	err = str2prefix(argv[1], &pv->pfx);
-	if (err) {
-		vty_out(vty, "%% malformed prefix:'%s'%s"
-			   , argv[1], VTY_NEWLINE);
-		pfx_vlan_free(pv);
-		return CMD_WARNING;
-	}
-
-	pfx_vlan_add(t, pv);
-
-	/* TODO: Add BPF stuff */
-
-	return CMD_SUCCESS;
-}
-
 
 /* Configuration writer */
-static int
-iptnl_decap_pfx_vlan_vty(vty_t *vty, list_head_t *l)
-{
-	pfx_vlan_t *p;
-
-	list_for_each_entry(p, l, next)
-		vty_out(vty, " gtpu-ipip decap-tag-vlan %d prefix-dst %u.%u.%u.%u/%d%s"
-			   , p->vlan_id
-			   , NIPQUAD(p->pfx.u.prefix4.s_addr), p->pfx.prefixlen
-			   , VTY_NEWLINE);
-	return 0;
-}
-
 static int
 gtp_config_write(vty_t *vty)
 {
@@ -753,11 +687,9 @@ gtp_config_write(vty_t *vty)
 			vty_out(vty, " gtpu-ipip transparent-egress-encap%s", VTY_NEWLINE);
 		if (ctx->iptnl.flags & IPTNL_FL_UNTAG_VLAN)
 			vty_out(vty, " gtpu-ipip decap-untag-vlan%s", VTY_NEWLINE);
-		if (ctx->iptnl.flags & IPTNL_FL_TAG_VLAN) {
+		if (ctx->iptnl.flags & IPTNL_FL_TAG_VLAN)
 			vty_out(vty, " gtpu-ipip decap-tag-vlan %d%s"
 				, ctx->iptnl.decap_vlan_id, VTY_NEWLINE);
-			iptnl_decap_pfx_vlan_vty(vty, &ctx->iptnl.decap_pfx_vlan);
-		}
 		if (ctx->iptnl.flags & IPTNL_FL_DPD)
 			vty_out(vty, " gtpu-ipip dead-peer-detection %ld src-addr %u.%u.%u.%u interface %s%s"
 				   , ctx->iptnl.credit / TIMER_HZ
@@ -796,7 +728,6 @@ gtp_proxy_vty_init(void)
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
-	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_tag_vlan_pfx_cmd);
 
 	return 0;
 }

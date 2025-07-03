@@ -30,11 +30,12 @@ enum gtp_interface_flags {
 	GTP_INTERFACE_FL_SHUTDOWN_BIT,
 };
 
-/* BPF prog structure */
+/* Interface structure */
 typedef struct _gtp_interface {
 	char			ifname[IF_NAMESIZE];
 	uint8_t			hw_addr[ETH_ALEN];
 	uint8_t			hw_addr_len;
+	uint16_t		vlan_id;
 	ip_address_t		direct_tx_gw;
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
 	int			ifindex;
@@ -50,6 +51,13 @@ typedef struct _gtp_interface {
 	int			refcnt;
 	unsigned long		flags;
 } gtp_interface_t;
+
+/* BPF interface attributes */
+struct ll_attr {
+	__u16		vlan_id;
+	__u16		flags;
+} __attribute__ ((__aligned__(8)));
+
 
 /* Prototypes */
 extern int gtp_interface_metrics_dump(FILE *);
