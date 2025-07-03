@@ -456,6 +456,9 @@ gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct 
 		return gtpu_ipip_encap(pkt, iptnl_rule);
 
 	/* No fib lookup needed, swap mac then */
+
+	/* FIXME: Support vlanh append when needed */
+
 	swap_src_dst_mac(ethh);
 	return XDP_TX;
 }
@@ -476,6 +479,9 @@ gtpu_xlat_frag(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, __
 		return gtpu_ipip_encap(pkt, iptnl_rule);
 
 	/* No fib lookup needed, swap mac then */
+
+	/* FIXME: Support vlanh append when needed */
+
 	swap_src_dst_mac(ethh);
 	return XDP_TX;
 }

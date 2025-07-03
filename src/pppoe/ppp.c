@@ -286,6 +286,7 @@ sppp_log_error(sppp_t *sp, const char *errmsg)
 void
 sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 {
+	unsigned long timer;
 	int timo;
 
 	timo = sp->lcp.max_configure - sp->rst_counter[cp->protoidx];
@@ -293,8 +294,9 @@ sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 		timo = 1;
 
 	thread_del_timer(sp->ch[cp->protoidx]);
+	timer = (unsigned long) (timo * sp->lcp.timeout) * TIMER_HZ;
 	sp->ch[cp->protoidx] = thread_add_timer(master, (cps[cp->protoidx])->TO, sp
-						      , timo * sp->lcp.timeout * TIMER_HZ);
+						      , timer);
 }
 
 /*
