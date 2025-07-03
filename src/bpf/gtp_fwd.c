@@ -74,25 +74,6 @@ struct {
 } if_llattr SEC(".maps");
 
 
-/* Packet rewrite */
-static __always_inline void swap_src_dst_mac(struct ethhdr *eth)
-{
-	__u8 h_tmp[ETH_ALEN];
-	__builtin_memcpy(h_tmp, eth->h_source, ETH_ALEN);
-	__builtin_memcpy(eth->h_source, eth->h_dest, ETH_ALEN);
-	__builtin_memcpy(eth->h_dest, h_tmp, ETH_ALEN);
-}
-
-#if 0
-static __always_inline void
-set_ethhdr(struct ethhdr *new_eth, const struct ethhdr *old_eth, __be16 h_proto)
-{
-	__builtin_memcpy(new_eth->h_source, old_eth->h_dest, ETH_ALEN);
-	__builtin_memcpy(new_eth->h_dest, old_eth->h_source, ETH_ALEN);
-	new_eth->h_proto = h_proto;
-}
-#endif
-
 static __always_inline __u16 csum_fold_helper(__u32 csum)
 {
 	__u32 sum;
@@ -108,40 +89,22 @@ static __always_inline void ipv4_csum(void *data_start, int data_size, __u32 *cs
 }
 
 static __always_inline int
-gtpu_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct _vlan_hdr *vlanh,
-		struct iphdr *iph, struct bpf_fib_lookup *fib_params)
+gtpu_fib_lookup(struct xdp_md *ctx, __be32 saddr, __be32 daddr, __be16 len,
+		struct bpf_fib_lookup *fib_params)
 {
-	struct ll_attr *attr;
 	int ret;
 
+	/* Keep in mind that forwarding need to be enabled */
+	fib_params->ifindex	= ctx->ingress_ifindex;
 	fib_params->family	= AF_INET;
 	fib_params->l4_protocol	= IPPROTO_UDP;
-	fib_params->tot_len	= bpf_ntohs(iph->tot_len);
-	fib_params->ipv4_src	= iph->saddr;
-	fib_params->ipv4_dst	= iph->daddr;
-	ret = bpf_fib_lookup(ctx, fib_params, sizeof(*fib_params), 0);
+	fib_params->tot_len	= bpf_ntohs(len);
+	fib_params->ipv4_src	= saddr;
+	fib_params->ipv4_dst	= daddr;
+	ret = bpf_fib_lookup(ctx, fib_params, sizeof(*fib_params)
+				, BPF_FIB_LOOKUP_DIRECT);
 
-	/* Keep in mind that forwarding need to be enabled
-	 * on interface we may need to redirect traffic to/from
-	 */
-	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
-		return XDP_DROP;
-
-	/* Ethernet */
-//	ethh->h_proto = bpf_htons(ETH_P_IP);
-	__builtin_memcpy(ethh->h_dest, fib_params->dmac, ETH_ALEN);
-	__builtin_memcpy(ethh->h_source, fib_params->smac, ETH_ALEN);
-
-	/* VLAN */
-	if (!vlanh) {
-		attr = bpf_map_lookup_elem(&if_llattr, &fib_params->ifindex);
-		if (attr) {
-			vlanh->hvlan_TCI = bpf_htons(attr->vlan_id);
-		}
-	}
-
-//	return bpf_redirect(fib_params->ifindex, 0);
-	return XDP_TX;
+	return (ret != BPF_FIB_LKUP_RET_SUCCESS) ? -1 : 0;
 }
 
 static __always_inline int
@@ -151,26 +114,44 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
 	struct bpf_fib_lookup fib_params;
+	struct ll_attr *attr;
 	struct ethhdr *new_eth;
 	struct _vlan_hdr *vlanh;
 	struct iphdr *iph;
 	__u16 payload_len;
 	__u32 csum = 0;
-	int headroom, use_vlan = 0, offset = 0;
+	int headroom, use_vlan = 0, offset = 0, err;
+	__be16 vlan_id = 0;
 
 	iph = data + pkt->l3_offset;
 	if (iph + 1 > data_end)
 		return XDP_DROP;
 	payload_len = bpf_ntohs(iph->tot_len);
 
+	/* fib lookup */
+	__builtin_memset(&fib_params, 0, sizeof(fib_params));
+	err = gtpu_fib_lookup(ctx, iptnl_rule->local_addr
+				 , iptnl_rule->remote_addr
+				 , payload_len, &fib_params);
+	if (err)
+		return XDP_DROP;
+
+	attr = bpf_map_lookup_elem(&if_llattr, &fib_params.ifindex);
+	if (attr)
+		vlan_id = attr->vlan_id;
+
 	/* Prepare headroom */
 	headroom = (int)sizeof(struct iphdr);
-	if (pkt->vlan_id != 0 && iptnl_rule->encap_vlan_id != 0) {
+	if (pkt->vlan_id != 0 && vlan_id != 0) {
 		use_vlan = 1;
-	} else if (pkt->vlan_id == 0 && iptnl_rule->encap_vlan_id != 0) {
+	} else if (pkt->vlan_id != 0 && vlan_id == 0) {
+		headroom -= (int)sizeof(struct _vlan_hdr);
+	} else if (pkt->vlan_id == 0 && vlan_id != 0) {
 		headroom += (int)sizeof(struct _vlan_hdr);
 		use_vlan = 1;
 	}
+
+	/* expand headroom */
 	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
 		return XDP_DROP;
 
@@ -180,7 +161,11 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	if (new_eth + 1 > data_end)
 		return XDP_DROP;
 
+	/* Ethernet */
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
+	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
+	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
+
 	if (use_vlan) {
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 
@@ -188,7 +173,7 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 		if (vlanh + 1 > data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
-		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->encap_vlan_id);
+		vlanh->hvlan_TCI = bpf_htons(vlan_id);
 		offset = sizeof(*vlanh);
 	}
 
@@ -210,12 +195,8 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	ipv4_csum(iph, sizeof(struct iphdr), &csum);
 	iph->check = csum;
 
-	/* We need to perform a fib lookup to resolv {s,d}mac properly
-	 * and not re-invent the wheel by storing it locally in ruleset
-	 */
-	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	fib_params.ifindex = ctx->ingress_ifindex;
-	return gtpu_fib_lookup(ctx, new_eth, vlanh, iph, &fib_params);
+//	return bpf_redirect(fib_params->ifindex, 0);
+	return XDP_TX;
 }
 
 static __always_inline void
@@ -285,6 +266,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	void *data = (void *) (long) ctx->data;
 	void *data_end = (void *) (long) ctx->data_end;
 	struct bpf_fib_lookup fib_params;
+	struct ll_attr *attr;
 	struct gtp_teid_rule *rule;
 	struct ethhdr *new_eth;
 	struct _vlan_hdr *vlanh = NULL;
@@ -292,10 +274,58 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
 	int offset = sizeof(struct ethhdr);
-	int headroom = sizeof(struct iphdr);
+	__be16 payload_len, vlan_id = 0;
+	int err, use_vlan = 0, headroom;
+	__be32 daddr;
 
-	if (iptnl_rule->flags & IPTNL_FL_UNTAG_VLAN)
-		headroom += sizeof(struct _vlan_hdr);
+	iph = data + pkt->l3_offset + sizeof(struct iphdr);
+	if (iph + 1 > data_end)
+		return XDP_DROP;
+	payload_len = bpf_ntohs(iph->tot_len);
+
+	/* Destination resolution
+	 * We could make it more simple and readable but it will
+	 * require 2 headroom adjust, so we need to look down
+	 * into the packet to find find final iph->daddr in order
+	 * to resolv vlan_id and perform a single headroom adjust.
+	 */
+	daddr = iph->daddr;
+	if (gtpf && (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)) {
+		daddr = gtpf->dst_addr;
+	} else if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
+		gtph = data + pkt->l3_offset
+			    + sizeof(struct iphdr)
+			    + sizeof(struct udphdr);
+		if (gtph + 1 > data_end)
+			return XDP_DROP;
+
+		rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
+		if (rule)
+			daddr = rule->dst_addr;
+	}
+
+	/* fib lookup */
+	__builtin_memset(&fib_params, 0, sizeof(fib_params));
+	err = gtpu_fib_lookup(ctx, iph->saddr
+				 , daddr
+				 , payload_len, &fib_params);
+	if (err)
+		return XDP_DROP;
+
+	attr = bpf_map_lookup_elem(&if_llattr, &fib_params.ifindex);
+	if (attr)
+		vlan_id = attr->vlan_id;
+
+	/* Prepare headroom */
+	headroom = (int)sizeof(struct iphdr);
+	if (pkt->vlan_id != 0 && vlan_id != 0) {
+		use_vlan = 1;
+	} else if (pkt->vlan_id != 0 && vlan_id == 0) {
+		headroom += (int)sizeof(struct _vlan_hdr);
+	} else if (pkt->vlan_id == 0 && vlan_id != 0) {
+		headroom -= (int)sizeof(struct _vlan_hdr);
+		use_vlan = 1;
+	}
 
 	/* shrink headroom */
 	if (bpf_xdp_adjust_head(ctx, headroom))
@@ -308,17 +338,17 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	if (new_eth + 1 > data_end)
 		return XDP_DROP;
 
-	new_eth->h_proto = bpf_htons(ETH_P_8021Q);
-	if (iptnl_rule->flags & IPTNL_FL_UNTAG_VLAN) {
-		new_eth->h_proto = bpf_htons(ETH_P_IP);
-	}
-	
-	if ((iptnl_rule->flags & IPTNL_FL_TAG_VLAN) && pkt->vlan_id != 0) {
+	/* Ethernet */
+	new_eth->h_proto = bpf_htons(ETH_P_IP);
+	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
+	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
+	if (use_vlan) {
+		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 		vlanh = data + offset;
 		if (vlanh + 1 > data_end)
 			return XDP_DROP;
 		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
-		vlanh->hvlan_TCI = bpf_htons(iptnl_rule->decap_vlan_id);
+		vlanh->hvlan_TCI = bpf_htons(vlan_id);
 		offset += sizeof(struct _vlan_hdr);
 	}
 
@@ -331,10 +361,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 		if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
 			gtpu_xlat_iph(iph, gtpf->dst_addr);
 
-		__builtin_memset(&fib_params, 0, sizeof(fib_params));
-		fib_params.ifindex = ctx->ingress_ifindex;
-
-		return gtpu_fib_lookup(ctx, new_eth, vlanh, iph, &fib_params);
+		return XDP_TX;
 	}
 
 	offset += sizeof(struct iphdr);
@@ -354,13 +381,8 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 			gtpu_xlat_header(rule, iph, gtph);
 	}
 
-	/* We need to perform a fib lookup to resolv {s,d}mac properly
-	 * and not re-invent the wheel by storing it locally in ruleset
-	 */
-	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	fib_params.ifindex = ctx->ingress_ifindex;
-
-	return gtpu_fib_lookup(ctx, new_eth, vlanh, iph, &fib_params);
+//	return bpf_redirect(fib_params->ifindex, 0);
+	return XDP_TX;
 }
 
 static __always_inline int
@@ -435,6 +457,68 @@ gtpu_ipip_traffic_selector(struct parse_pkt *pkt)
 }
 
 static __always_inline int
+gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
+{
+	struct xdp_md *ctx = pkt->ctx;
+	struct bpf_fib_lookup fib_params;
+	struct ll_attr *attr;
+	void *data, *data_end;
+	struct ethhdr *new_eth;
+	int use_vlan = 0, err, headroom = 0;
+	struct _vlan_hdr *vlanh;
+	__u16 payload_len;
+	__be16 vlan_id = 0;
+
+	__builtin_memset(&fib_params, 0, sizeof(fib_params));
+	payload_len = bpf_ntohs(iph->tot_len);
+	err = gtpu_fib_lookup(ctx, iph->saddr
+				 , iph->daddr
+				 , payload_len, &fib_params);
+	if (err)
+		return XDP_DROP;
+
+	attr = bpf_map_lookup_elem(&if_llattr, &fib_params.ifindex);
+	if (attr)
+		vlan_id = attr->vlan_id;
+
+	if (pkt->vlan_id != 0 && vlan_id != 0) {
+		use_vlan = 1;
+	} else if (pkt->vlan_id != 0 && vlan_id == 0) {
+		headroom -= (int)sizeof(struct _vlan_hdr);
+	} else if (pkt->vlan_id == 0 && vlan_id != 0) {
+		headroom += (int)sizeof(struct _vlan_hdr);
+		use_vlan = 1;
+	}
+
+	/* expand headroom */
+	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
+		return XDP_DROP;
+
+	data = (void *) (long) ctx->data;
+	data_end = (void *) (long) ctx->data_end;
+	new_eth = data;
+	if (new_eth + 1 > data_end)
+		return XDP_DROP;
+
+	/* Ethernet */
+	new_eth->h_proto = bpf_htons(ETH_P_IP);
+	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
+	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
+	if (use_vlan) {
+		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
+
+		vlanh = data + sizeof(*new_eth);
+		if (vlanh + 1 > data_end)
+			return XDP_DROP;
+		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
+		vlanh->hvlan_TCI = bpf_htons(vlan_id);
+	}
+
+//	return bpf_redirect(fib_params->ifindex, 0);
+	return XDP_TX;
+}
+
+static __always_inline int
 gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct udphdr *udph,
 	  struct gtphdr *gtph, struct gtp_teid_rule *rule)
 {
@@ -455,12 +539,8 @@ gtpu_xlat(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, struct 
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
 		return gtpu_ipip_encap(pkt, iptnl_rule);
 
-	/* No fib lookup needed, swap mac then */
-
-	/* FIXME: Support vlanh append when needed */
-
-	swap_src_dst_mac(ethh);
-	return XDP_TX;
+	/* xmit via fib_lookup */
+	return gtpu_xmit(pkt, iph);
 }
 
 static __always_inline int
@@ -478,12 +558,8 @@ gtpu_xlat_frag(struct parse_pkt *pkt, struct ethhdr *ethh, struct iphdr *iph, __
 	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
 		return gtpu_ipip_encap(pkt, iptnl_rule);
 
-	/* No fib lookup needed, swap mac then */
-
-	/* FIXME: Support vlanh append when needed */
-
-	swap_src_dst_mac(ethh);
-	return XDP_TX;
+	/* xmit via fib_lookup */
+	return gtpu_xmit(pkt, iph);
 }
 
 
@@ -618,31 +694,31 @@ parse_eth_frame(struct parse_pkt *pkt)
 {
 	void *data_end = (void *) (long) pkt->ctx->data_end;
 	void *data = (void *) (long) pkt->ctx->data;
-	struct _vlan_hdr *vlan_hdr;
-	struct ethhdr *eth = data;
+	struct _vlan_hdr *vlanh;
+	struct ethhdr *ethh = data;
 	__u16 eth_type, vlan = 0;
 	__u8 offset;
 
-	offset = sizeof(*eth);
+	offset = sizeof(*ethh);
 
 	/* Make sure packet is large enough for parsing eth */
-	if ((void *) eth + offset > data_end)
+	if ((void *) ethh + offset > data_end)
 		return false;
 
-	eth_type = eth->h_proto;
+	eth_type = ethh->h_proto;
 
 	/* Handle outer VLAN tag */
 	if (eth_type == bpf_htons(ETH_P_8021Q) ||
 	    eth_type == bpf_htons(ETH_P_8021AD)) {
-		vlan_hdr = (void *) eth + offset;
-		vlan = bpf_ntohs(vlan_hdr->hvlan_TCI);
+		vlanh = (void *) ethh + offset;
+		vlan = bpf_ntohs(vlanh->hvlan_TCI);
 		pkt->vlan_id = vlan & 0x0fff;
-		offset += sizeof (*vlan_hdr);
-		if ((void *) eth + offset > data_end)
+		offset += sizeof (*vlanh);
+		if ((void *) ethh + offset > data_end)
 			return false;
 
-		eth_type = vlan_hdr->h_vlan_encapsulated_proto;
-		vlan_hdr->hvlan_TCI = bpf_htons(pkt->vlan_id);
+		eth_type = vlanh->h_vlan_encapsulated_proto;
+		vlanh->hvlan_TCI = bpf_htons(pkt->vlan_id);
 	}
 
 	pkt->l3_proto = bpf_ntohs(eth_type);
