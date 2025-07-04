@@ -120,7 +120,7 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	struct iphdr *iph;
 	__u16 payload_len;
 	__u32 csum = 0;
-	int headroom, use_vlan = 0, offset = 0, err;
+	int headroom, offset = 0, err;
 	__be16 vlan_id = 0;
 
 	iph = data + pkt->l3_offset;
@@ -142,14 +142,10 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 
 	/* Prepare headroom */
 	headroom = (int)sizeof(struct iphdr);
-	if (pkt->vlan_id != 0 && vlan_id != 0) {
-		use_vlan = 1;
-	} else if (pkt->vlan_id != 0 && vlan_id == 0) {
+	if (pkt->vlan_id != 0 && vlan_id == 0)
 		headroom -= (int)sizeof(struct _vlan_hdr);
-	} else if (pkt->vlan_id == 0 && vlan_id != 0) {
+	else if (pkt->vlan_id == 0 && vlan_id != 0)
 		headroom += (int)sizeof(struct _vlan_hdr);
-		use_vlan = 1;
-	}
 
 	/* expand headroom */
 	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
@@ -166,7 +162,7 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
 	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
 
-	if (use_vlan) {
+	if (vlan_id) {
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + sizeof(*new_eth);
@@ -275,7 +271,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	struct gtphdr *gtph = NULL;
 	int offset = sizeof(struct ethhdr);
 	__be16 payload_len, vlan_id = 0;
-	int err, use_vlan = 0, headroom;
+	int err, headroom;
 	__be32 daddr;
 
 	iph = data + pkt->l3_offset + sizeof(struct iphdr);
@@ -318,14 +314,10 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 
 	/* Prepare headroom */
 	headroom = (int)sizeof(struct iphdr);
-	if (pkt->vlan_id != 0 && vlan_id != 0) {
-		use_vlan = 1;
-	} else if (pkt->vlan_id != 0 && vlan_id == 0) {
+	if (pkt->vlan_id != 0 && vlan_id == 0)
 		headroom += (int)sizeof(struct _vlan_hdr);
-	} else if (pkt->vlan_id == 0 && vlan_id != 0) {
+	else if (pkt->vlan_id == 0 && vlan_id != 0)
 		headroom -= (int)sizeof(struct _vlan_hdr);
-		use_vlan = 1;
-	}
 
 	/* shrink headroom */
 	if (bpf_xdp_adjust_head(ctx, headroom))
@@ -342,7 +334,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
 	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
 	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
-	if (use_vlan) {
+	if (vlan_id) {
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 		vlanh = data + offset;
 		if (vlanh + 1 > data_end)
@@ -464,7 +456,7 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 	struct ll_attr *attr;
 	void *data, *data_end;
 	struct ethhdr *new_eth;
-	int use_vlan = 0, err, headroom = 0;
+	int err, headroom = 0;
 	struct _vlan_hdr *vlanh;
 	__u16 payload_len;
 	__be16 vlan_id = 0;
@@ -481,14 +473,10 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 	if (attr)
 		vlan_id = attr->vlan_id;
 
-	if (pkt->vlan_id != 0 && vlan_id != 0) {
-		use_vlan = 1;
-	} else if (pkt->vlan_id != 0 && vlan_id == 0) {
+	if (pkt->vlan_id != 0 && vlan_id == 0)
 		headroom -= (int)sizeof(struct _vlan_hdr);
-	} else if (pkt->vlan_id == 0 && vlan_id != 0) {
+	if (pkt->vlan_id == 0 && vlan_id != 0)
 		headroom += (int)sizeof(struct _vlan_hdr);
-		use_vlan = 1;
-	}
 
 	/* expand headroom */
 	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
@@ -504,7 +492,7 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 	new_eth->h_proto = bpf_htons(ETH_P_IP);
 	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
 	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
-	if (use_vlan) {
+	if (vlan_id) {
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 
 		vlanh = data + sizeof(*new_eth);
