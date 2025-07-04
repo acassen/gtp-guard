@@ -39,12 +39,14 @@ gtp_server_recvfrom(gtp_server_t *s, struct sockaddr *addr, socklen_t *addrlen)
 				       , 0, addr, addrlen);
 	/* metrics */
 	if (nbytes < 0) {
-		__sync_add_and_fetch(&s->rx_errors, 1);
+		log_message(LOG_INFO, "%s(): error receiving (%m)"
+				    , __FUNCTION__);
+		s->rx_errors++;
 		return -1;
 	}
 
 	gtp_metrics_pkt_update(&s->rx_metrics, nbytes);
-	__sync_add_and_fetch(&s->rx_pkts, 1);
+	s->rx_pkts++;
 	return nbytes;
 }
 
@@ -55,14 +57,17 @@ gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in
 
 	ssize_t nbytes = pkt_buffer_send(fd, pbuff, (struct sockaddr_storage *) addr);
 
-	if (nbytes < 0)
-		__sync_add_and_fetch(&s->tx_errors, 1);
+	if (nbytes < 0) {
+		log_message(LOG_INFO, "%s(): error sending (%m)"
+				    , __FUNCTION__);
+		s->tx_errors++;
+	}
 
 	/* metrics */
 	gtp_metrics_pkt_update(&s->tx_metrics, nbytes);
 	gtp_metrics_tx(&s->msg_metrics, h->type);
 	gtp_metrics_cause_update(&s->cause_tx_metrics, s->pbuff);
-	__sync_add_and_fetch(&s->tx_pkts, 1);
+	s->tx_pkts++;
 
 	return nbytes;
 }
@@ -116,7 +121,6 @@ gtp_server_async_recv_thread(thread_ref_t thread)
 	struct sockaddr_storage addr_from;
 	socklen_t addrlen;
 	ssize_t nbytes;
-	int ret;
 
 	if (thread->type == THREAD_READ_TIMEOUT)
 		goto next_read;
@@ -144,17 +148,7 @@ gtp_server_async_recv_thread(thread_ref_t thread)
 	pkt_buffer_set_end_pointer(s->pbuff, nbytes);
 
 	/* Process incoming buffer */
-	ret = (*s->process) (s, &addr_from);
-	if (ret == -1 || ret == GTP_SERVER_DELAYED)
-		goto next_read;
-
-	/* That is UDP socket, ideally need to submit write operation to I/O MUX
-	 * but to reduce syscall, we can directly send packet
-	 *
-	s->w_thread = thread_add_write(master, gtp_server_egress_thread
-					     , s, s->fd, 3*TIMER_HZ, 0);
-	 */
-	gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) &addr_from);
+	(*s->process) (s, &addr_from);
 
   next_read:
 	s->r_thread = thread_add_read(master, gtp_server_async_recv_thread
