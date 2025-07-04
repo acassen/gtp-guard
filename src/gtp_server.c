@@ -38,8 +38,10 @@ gtp_server_recvfrom(gtp_server_t *s, struct sockaddr *addr, socklen_t *addrlen)
 				       , pkt_buffer_size(s->pbuff)
 				       , 0, addr, addrlen);
 	/* metrics */
-	if (nbytes < 0)
+	if (nbytes < 0) {
+		__sync_add_and_fetch(&s->rx_errors, 1);
 		return -1;
+	}
 
 	gtp_metrics_pkt_update(&s->rx_metrics, nbytes);
 	__sync_add_and_fetch(&s->rx_pkts, 1);
@@ -47,34 +49,19 @@ gtp_server_recvfrom(gtp_server_t *s, struct sockaddr *addr, socklen_t *addrlen)
 }
 
 ssize_t
-gtp_server_send(gtp_server_t *s, int fd, struct sockaddr_in *addr)
+gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) s->pbuff->head;
+	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 
-	ssize_t nbytes = sendto(fd, s->pbuff->head
-				  , pkt_buffer_len(s->pbuff)
-				  , 0, addr, sizeof(*addr));
+	ssize_t nbytes = pkt_buffer_send(fd, pbuff, (struct sockaddr_storage *) addr);
+
+	if (nbytes < 0)
+		__sync_add_and_fetch(&s->tx_errors, 1);
 
 	/* metrics */
 	gtp_metrics_pkt_update(&s->tx_metrics, nbytes);
 	gtp_metrics_tx(&s->msg_metrics, h->type);
 	gtp_metrics_cause_update(&s->cause_tx_metrics, s->pbuff);
-	__sync_add_and_fetch(&s->tx_pkts, 1);
-
-	return nbytes;
-}
-
-ssize_t
-gtp_server_send_async(gtp_server_t *s, pkt_buffer_t *pbuff, struct sockaddr_in *addr)
-{
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-
-	ssize_t nbytes = pkt_buffer_send(s->fd, pbuff, (struct sockaddr_storage *) addr);
-
-	/* metrics */
-	gtp_metrics_pkt_update(&s->tx_metrics, pkt_buffer_len(pbuff));
-	gtp_metrics_tx(&s->msg_metrics, h->type);
-	gtp_metrics_cause_update(&s->cause_tx_metrics, pbuff);
 	__sync_add_and_fetch(&s->tx_pkts, 1);
 
 	return nbytes;
@@ -167,7 +154,7 @@ gtp_server_async_recv_thread(thread_ref_t thread)
 	s->w_thread = thread_add_write(master, gtp_server_egress_thread
 					     , s, s->fd, 3*TIMER_HZ, 0);
 	 */
-	gtp_server_send(s, s->fd, (struct sockaddr_in *) &addr_from);
+	gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) &addr_from);
 
   next_read:
 	s->r_thread = thread_add_read(master, gtp_server_async_recv_thread

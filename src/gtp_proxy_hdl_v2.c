@@ -884,8 +884,8 @@ gtpc_delete_bearer_response_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		if (ie_cause->value >= GTP_CAUSE_REQUEST_ACCEPTED &&
 		    ie_cause->value <= GTP_CAUSE_CONTEXT_NOT_FOUND) {
 			if (ie_cause->value == GTP_CAUSE_CONTEXT_NOT_FOUND)
-				teid->session->action = GTP_ACTION_DELETE_SESSION;
-			gtp_session_destroy_bearer(s);
+				s->action = GTP_ACTION_DELETE_SESSION;
+			s->action = GTP_ACTION_DELETE_BEARER;
 		}
 	}
 

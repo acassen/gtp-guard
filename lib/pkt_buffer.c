@@ -386,14 +386,18 @@ pkt_buffer_send(int fd, pkt_buffer_t *b, struct sockaddr_storage *addr)
 		.msg_controllen = 0
 	};
 
-	if (addr->ss_family == AF_INET) {
+	switch (addr->ss_family) {
+	case AF_INET:
 		msg.msg_name = (struct sockaddr_in *) addr;
 		msg.msg_namelen = sizeof(struct sockaddr_in);
-	} else if (addr->ss_family == AF_INET6) {
+		break;
+	case AF_INET6:
 		msg.msg_name = (struct sockaddr_in6 *) addr;
 		msg.msg_namelen = sizeof(struct sockaddr_in6);
-	} else
+		break;
+	default:
 		return -1;
+	}
 
 	return sendmsg(fd, &msg, 0);
 }

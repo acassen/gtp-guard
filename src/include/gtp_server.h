@@ -40,7 +40,9 @@ typedef struct _gtp_server {
 
 	/* metrics */
 	uint64_t		rx_pkts;
+	uint64_t		rx_errors;
 	uint64_t		tx_pkts;
+	uint64_t		tx_errors;
 	gtp_metrics_pkt_t	rx_metrics;
 	gtp_metrics_pkt_t	tx_metrics;
 	gtp_metrics_cause_t	cause_rx_metrics;
@@ -52,8 +54,7 @@ typedef struct _gtp_server {
 
 
 /* Prototypes */
-extern ssize_t gtp_server_send(gtp_server_t *, int, struct sockaddr_in *);
-extern ssize_t gtp_server_send_async(gtp_server_t *, pkt_buffer_t *, struct sockaddr_in *);
+extern ssize_t gtp_server_send(gtp_server_t *, int, pkt_buffer_t *, struct sockaddr_in *);
 extern int gtp_server_start(gtp_server_t *);
 extern int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_t *, void *), void *);
 extern int gtp_server_init(gtp_server_t *, void *

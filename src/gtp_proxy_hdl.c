@@ -123,9 +123,12 @@ gtpc_proxy_handle_post(gtp_server_t *srv, gtp_teid_t *teid)
 		return -1;
 
 	s = teid->session;
-	if (s->action == GTP_ACTION_DELETE_SESSION) {
-		gtp_teid_put(teid);
+	switch (s->action) {
+	case GTP_ACTION_DELETE_SESSION:
 		gtp_session_destroy(s);
+		return 0;
+	case GTP_ACTION_DELETE_BEARER:
+		gtp_session_destroy_bearer(s);
 		return 0;
 	}
 

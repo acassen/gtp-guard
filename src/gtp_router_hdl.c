@@ -728,7 +728,7 @@ gtpc_send_delete_bearer_request(gtp_teid_t *teid)
 
 	addr = teid->sgw_addr;
 	addr.sin_port = htons(GTP_C_PORT);
-	gtp_server_send_async(srv, pbuff, (struct sockaddr_in*) &addr);
+	gtp_server_send(srv, srv->fd, pbuff, (struct sockaddr_in*) &addr);
 	pkt_buffer_free(pbuff);
 	return 0;
 }
@@ -775,8 +775,8 @@ gtpc_pppoe_tlf(sppp_t *sp)
 		pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
 		gtpc_build_errmsg(pbuff, teid, GTP_CREATE_SESSION_RESPONSE_TYPE
 					     , GTP_CAUSE_USER_AUTH_FAILED);
-		gtp_server_send_async(srv, pbuff
-				         , (struct sockaddr_in *) &s->gtpc_peer_addr);
+		gtp_server_send(srv, srv->fd, pbuff
+				   , (struct sockaddr_in *) &s->gtpc_peer_addr);
 
 		pkt_buffer_free(pbuff);
 
@@ -850,8 +850,8 @@ gtpc_pppoe_create_session_response(sppp_t *sp)
 			    , NIPQUAD(s_gtp->ipv4));
 
   end:
-	gtp_server_send_async(srv, pbuff
-			         , (struct sockaddr_in *) &s->gtpc_peer_addr);
+	gtp_server_send(srv, srv->fd, pbuff
+			   , (struct sockaddr_in *) &s->gtpc_peer_addr);
 	pkt_buffer_free(pbuff);
 }
 

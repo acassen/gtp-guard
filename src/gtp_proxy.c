@@ -95,7 +95,7 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 		if (!teid)
 			return -1;
 
-		gtp_server_send(s, s->fd, (struct sockaddr_in *) addr_from);
+		gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) addr_from);
 		return 0;
 	}
 
@@ -111,12 +111,11 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 			fd = ctx->gtpc_egress.fd;
 		else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &s->flags))
 			fd = ctx->gtpc.fd;
-		fd = (fd) ? : s->fd;
 	}
 
 	/* Set destination address */
 	gtp_proxy_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(s, TEID_IS_DUMMY(teid) ? s->fd : fd
+	gtp_server_send(s, TEID_IS_DUMMY(teid) ? s->fd : fd, s->pbuff
 			 , TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
 	gtpc_proxy_handle_post(s, teid);
 
