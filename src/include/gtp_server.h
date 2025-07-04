@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#define DEFAULT_SOCKBUF	(64 * 1024)
+
 /* GTP Server context */
 typedef struct _gtp_server {
 	struct sockaddr_storage	addr;

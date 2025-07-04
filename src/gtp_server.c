@@ -86,8 +86,8 @@ gtp_server_udp_init(gtp_server_t *s)
 	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
 	err = inet_setsockopt_reuseaddr(fd, 1);
 	err = (err) ? : inet_setsockopt_reuseport(fd, 1);
-	err = (err) ? : inet_setsockopt_rcvtimeo(fd, 5000);
-	err = (err) ? : inet_setsockopt_sndtimeo(fd, 5000);
+	err = (err) ? : inet_setsockopt_rcvbuf(fd, DEFAULT_SOCKBUF);
+	err = (err) ? : inet_setsockopt_sndbuf(fd, DEFAULT_SOCKBUF);
 	if (err) {
 		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
 				    , __FUNCTION__

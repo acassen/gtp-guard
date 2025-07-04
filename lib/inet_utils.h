@@ -157,5 +157,6 @@ extern int inet_setsockopt_promisc(int, int, bool);
 extern int inet_setsockopt_attach_bpf(int, int);
 extern int inet_setsockopt_no_receive(int);
 extern int inet_setsockopt_rcvbuf(int, int);
+extern int inet_setsockopt_sndbuf(int, int);
 extern int inet_setsockopt_bindtodevice(int, const char *);
 extern int inet_setsockopt_priority(int, int);
