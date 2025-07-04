@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#define GTP_ROUTER_DELAYED	2
+
 typedef struct _gtp_router {
 	char			name[GTP_NAME_MAX_LEN];
 	gtp_server_t		gtpc;

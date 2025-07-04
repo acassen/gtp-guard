@@ -1087,7 +1087,7 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		s_pppoe->teid = teid;
 		s_pppoe->gtpc_peer_addr = *addr;
 		s->s_pppoe = s_pppoe;
-		rc = GTP_SERVER_DELAYED;
+		rc = GTP_ROUTER_DELAYED;
 		goto end;
 	}
 

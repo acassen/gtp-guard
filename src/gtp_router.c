@@ -43,8 +43,16 @@ gtp_router_ingress_init(gtp_server_t *s)
 int
 gtp_router_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 {
-	return __test_bit(GTP_FL_UPF_BIT, &s->flags) ? gtpu_router_handle(s, addr_from) :
-						       gtpc_router_handle(s, addr_from);
+	int ret;
+
+	ret = __test_bit(GTP_FL_UPF_BIT, &s->flags) ? gtpu_router_handle(s, addr_from) :
+						      gtpc_router_handle(s, addr_from);
+	if (ret < 0)
+		return -1;
+
+	if (ret != GTP_ROUTER_DELAYED)
+		gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) addr_from);
+	return 0;
 }
 
 

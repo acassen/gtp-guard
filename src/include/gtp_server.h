@@ -20,8 +20,6 @@
  */
 #pragma once
 
-#define GTP_SERVER_DELAYED	2
-
 /* GTP Server context */
 typedef struct _gtp_server {
 	struct sockaddr_storage	addr;
