@@ -74,7 +74,8 @@ struct {
 } if_llattr SEC(".maps");
 
 
-static __always_inline __u16 csum_fold_helper(__u32 csum)
+static __always_inline
+__u16 csum_fold_helper(__u32 csum)
 {
 	__u32 sum;
 	sum = (csum>>16) + (csum & 0xffff);
@@ -82,10 +83,34 @@ static __always_inline __u16 csum_fold_helper(__u32 csum)
 	return ~sum;
 }
 
-static __always_inline void ipv4_csum(void *data_start, int data_size, __u32 *csum)
+static __always_inline
+void ipv4_csum(void *data_start, int data_size, __u32 *csum)
 {
 	*csum = bpf_csum_diff(0, 0, data_start, data_size, *csum);
 	*csum = csum_fold_helper(*csum);
+}
+
+static __always_inline int
+vlan_hdr_add(struct xdp_md *ctx, __be16 id)
+{
+	void *data = (void *) (long) ctx->data;
+	void *data_end = (void *) (long) ctx->data_end;
+	struct ethhdr *ethh;
+	struct _vlan_hdr *vlanh;
+
+	ethh = data;
+	if (ethh + 1 > data_end)
+		return -1;
+
+	ethh->h_proto = bpf_htons(ETH_P_8021Q);
+
+	vlanh = data + sizeof(*ethh);
+	if (vlanh + 1 > data_end)
+		return -1;
+
+	vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
+	vlanh->hvlan_TCI = bpf_htons(id);
+	return 0;
 }
 
 static __always_inline int
@@ -115,8 +140,7 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	void *data_end = (void *) (long) ctx->data_end;
 	struct bpf_fib_lookup fib_params;
 	struct ll_attr *attr;
-	struct ethhdr *new_eth;
-	struct _vlan_hdr *vlanh;
+	struct ethhdr *ethh;
 	struct iphdr *iph;
 	__u16 payload_len;
 	__u32 csum = 0;
@@ -153,27 +177,26 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
-	new_eth = data;
-	if (new_eth + 1 > data_end)
+	ethh = data;
+	if (ethh + 1 > data_end)
 		return XDP_DROP;
+	offset = sizeof(struct ethhdr);
 
 	/* Ethernet */
-	new_eth->h_proto = bpf_htons(ETH_P_IP);
-	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
-	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
+	ethh->h_proto = bpf_htons(ETH_P_IP);
+	__builtin_memcpy(ethh->h_dest, fib_params.dmac, ETH_ALEN);
+	__builtin_memcpy(ethh->h_source, fib_params.smac, ETH_ALEN);
 
+	/* VLAN */
 	if (vlan_id) {
-		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
-
-		vlanh = data + sizeof(*new_eth);
-		if (vlanh + 1 > data_end)
+		err = vlan_hdr_add(ctx, vlan_id);
+		if (err)
 			return XDP_DROP;
-		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
-		vlanh->hvlan_TCI = bpf_htons(vlan_id);
-		offset = sizeof(*vlanh);
+		offset += sizeof(struct _vlan_hdr);
 	}
 
-	iph = data + sizeof(*new_eth) + offset;
+	/* IP */
+	iph = data + offset;
 	if (iph + 1 > data_end)
 		return XDP_DROP;
 
@@ -264,14 +287,12 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	struct bpf_fib_lookup fib_params;
 	struct ll_attr *attr;
 	struct gtp_teid_rule *rule;
-	struct ethhdr *new_eth;
-	struct _vlan_hdr *vlanh = NULL;
+	struct ethhdr *ethh;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
-	int offset = sizeof(struct ethhdr);
 	__be16 payload_len, vlan_id = 0;
-	int err, headroom;
+	int err, headroom, offset;
 	__be32 daddr;
 
 	iph = data + pkt->l3_offset + sizeof(struct iphdr);
@@ -326,24 +347,25 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
 
-	new_eth = data;
-	if (new_eth + 1 > data_end)
+	ethh = data;
+	if (ethh + 1 > data_end)
 		return XDP_DROP;
+	offset = sizeof(struct ethhdr);
 
 	/* Ethernet */
-	new_eth->h_proto = bpf_htons(ETH_P_IP);
-	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
-	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
+	ethh->h_proto = bpf_htons(ETH_P_IP);
+	__builtin_memcpy(ethh->h_dest, fib_params.dmac, ETH_ALEN);
+	__builtin_memcpy(ethh->h_source, fib_params.smac, ETH_ALEN);
+
+	/* VLAN */
 	if (vlan_id) {
-		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
-		vlanh = data + offset;
-		if (vlanh + 1 > data_end)
+		err = vlan_hdr_add(ctx, vlan_id);
+		if (err)
 			return XDP_DROP;
-		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
-		vlanh->hvlan_TCI = bpf_htons(vlan_id);
 		offset += sizeof(struct _vlan_hdr);
 	}
 
+	/* IP */
 	iph = data + offset;
 	if (iph + 1 > data_end)
 		return XDP_DROP;
@@ -455,9 +477,8 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 	struct bpf_fib_lookup fib_params;
 	struct ll_attr *attr;
 	void *data, *data_end;
-	struct ethhdr *new_eth;
+	struct ethhdr *ethh;
 	int err, headroom = 0;
-	struct _vlan_hdr *vlanh;
 	__u16 payload_len;
 	__be16 vlan_id = 0;
 
@@ -484,22 +505,20 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 
 	data = (void *) (long) ctx->data;
 	data_end = (void *) (long) ctx->data_end;
-	new_eth = data;
-	if (new_eth + 1 > data_end)
+	ethh = data;
+	if (ethh + 1 > data_end)
 		return XDP_DROP;
 
 	/* Ethernet */
-	new_eth->h_proto = bpf_htons(ETH_P_IP);
-	__builtin_memcpy(new_eth->h_dest, fib_params.dmac, ETH_ALEN);
-	__builtin_memcpy(new_eth->h_source, fib_params.smac, ETH_ALEN);
-	if (vlan_id) {
-		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
+	ethh->h_proto = bpf_htons(ETH_P_IP);
+	__builtin_memcpy(ethh->h_dest, fib_params.dmac, ETH_ALEN);
+	__builtin_memcpy(ethh->h_source, fib_params.smac, ETH_ALEN);
 
-		vlanh = data + sizeof(*new_eth);
-		if (vlanh + 1 > data_end)
+	/* VLAN */
+	if (vlan_id) {
+		err = vlan_hdr_add(ctx, vlan_id);
+		if (err)
 			return XDP_DROP;
-		vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
-		vlanh->hvlan_TCI = bpf_htons(vlan_id);
 	}
 
 //	return bpf_redirect(fib_params->ifindex, 0);

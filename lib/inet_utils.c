@@ -838,7 +838,7 @@ inet_setsockopt_sndbuf(int fd, int val)
 {
 	int err;
 
-	/* rcvbuf option */
+	/* sndbuf option */
 	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
 	if (err)
 		log_message(LOG_INFO, "cant set SO_SNDBUF IP option. errno=%d (%m)", errno);
