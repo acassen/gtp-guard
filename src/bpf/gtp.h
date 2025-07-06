@@ -18,9 +18,11 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
+#pragma once
 
-#ifndef _GTP_H
-#define _GTP_H
+/* bpf_printk() output is available here:
+ *   /sys/kernel/debug/tracing/trace_pipe
+ */
 
 /* Global vars */
 const volatile int nr_cpus;
@@ -95,6 +97,7 @@ struct ip_frag_key {
 	__u32		daddr;
 	__u16		id;
 	__u8		protocol;
+	__u8		pad;
 };
 
 struct gtp_teid_frag {
@@ -211,4 +214,3 @@ struct metrics {
 	__u64		dropped_bytes;
 } __attribute__ ((__aligned__(8)));
 
-#endif

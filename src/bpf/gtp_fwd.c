@@ -35,7 +35,6 @@
 #include <uapi/linux/bpf.h>
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
-#include "gtp_bpf_utils.h"
 #include "gtp.h"
 
 
@@ -74,8 +73,8 @@ struct {
 } if_llattr SEC(".maps");
 
 
-static __always_inline
-__u16 csum_fold_helper(__u32 csum)
+static __always_inline __u16
+csum_fold_helper(__u32 csum)
 {
 	__u32 sum;
 	sum = (csum>>16) + (csum & 0xffff);
@@ -83,8 +82,8 @@ __u16 csum_fold_helper(__u32 csum)
 	return ~sum;
 }
 
-static __always_inline
-void ipv4_csum(void *data_start, int data_size, __u32 *csum)
+static __always_inline void
+ipv4_csum(void *data_start, int data_size, __u32 *csum)
 {
 	*csum = bpf_csum_diff(0, 0, data_start, data_size, *csum);
 	*csum = csum_fold_helper(*csum);
@@ -97,24 +96,26 @@ vlan_hdr_add(struct xdp_md *ctx, __be16 id)
 	void *data_end = (void *) (long) ctx->data_end;
 	struct ethhdr *ethh;
 	struct _vlan_hdr *vlanh;
+	__u16 proto;
 
 	ethh = data;
 	if (ethh + 1 > data_end)
 		return -1;
 
+	proto = ethh->h_proto;
 	ethh->h_proto = bpf_htons(ETH_P_8021Q);
 
 	vlanh = data + sizeof(*ethh);
 	if (vlanh + 1 > data_end)
 		return -1;
 
-	vlanh->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
+	vlanh->h_vlan_encapsulated_proto = proto;
 	vlanh->hvlan_TCI = bpf_htons(id);
 	return 0;
 }
 
 static __always_inline int
-gtpu_fib_lookup(struct xdp_md *ctx, __be32 saddr, __be32 daddr, __be16 len,
+gtpu_fib_lookup(struct xdp_md *ctx, __be32 saddr, __be32 daddr,
 		struct bpf_fib_lookup *fib_params)
 {
 	int ret;
@@ -122,8 +123,6 @@ gtpu_fib_lookup(struct xdp_md *ctx, __be32 saddr, __be32 daddr, __be16 len,
 	/* Keep in mind that forwarding need to be enabled */
 	fib_params->ifindex	= ctx->ingress_ifindex;
 	fib_params->family	= AF_INET;
-	fib_params->l4_protocol	= IPPROTO_UDP;
-	fib_params->tot_len	= bpf_ntohs(len);
 	fib_params->ipv4_src	= saddr;
 	fib_params->ipv4_dst	= daddr;
 	ret = bpf_fib_lookup(ctx, fib_params, sizeof(*fib_params)
@@ -156,7 +155,7 @@ gtpu_ipip_encap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule)
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	err = gtpu_fib_lookup(ctx, iptnl_rule->local_addr
 				 , iptnl_rule->remote_addr
-				 , payload_len, &fib_params);
+				 , &fib_params);
 	if (err)
 		return XDP_DROP;
 
@@ -266,11 +265,11 @@ gtpu_teid_frag_get(struct iphdr *iph, __u16 *frag_off, __u16 *ipfl)
 	*frag_off <<= 3;		/* 8-byte chunk */
 
 	if (*frag_off != 0) {
-		__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
 		frag_key.saddr = iph->saddr;
 		frag_key.daddr = iph->daddr;
 		frag_key.id = iph->id;
 		frag_key.protocol = iph->protocol;
+		frag_key.pad = 0;
 
 		gtpf = bpf_map_lookup_elem(&ip_frag, &frag_key);
 	}
@@ -291,14 +290,13 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
-	__be16 payload_len, vlan_id = 0;
+	__be16 vlan_id = 0;
 	int err, headroom, offset;
 	__be32 daddr;
 
 	iph = data + pkt->l3_offset + sizeof(struct iphdr);
 	if (iph + 1 > data_end)
 		return XDP_DROP;
-	payload_len = bpf_ntohs(iph->tot_len);
 
 	/* Destination resolution
 	 * We could make it more simple and readable but it will
@@ -325,7 +323,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
 	err = gtpu_fib_lookup(ctx, iph->saddr
 				 , daddr
-				 , payload_len, &fib_params);
+				 , &fib_params);
 	if (err)
 		return XDP_DROP;
 
@@ -479,14 +477,12 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 	void *data, *data_end;
 	struct ethhdr *ethh;
 	int err, headroom = 0;
-	__u16 payload_len;
 	__be16 vlan_id = 0;
 
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	payload_len = bpf_ntohs(iph->tot_len);
 	err = gtpu_fib_lookup(ctx, iph->saddr
 				 , iph->daddr
-				 , payload_len, &fib_params);
+				 , &fib_params);
 	if (err)
 		return XDP_DROP;
 
@@ -677,11 +673,11 @@ gtpu_traffic_selector(struct parse_pkt *pkt)
 	/* First fragment detected and handled only if related
 	 * to an existing F-TEID */
 	if ((ipfl & IP_MF) && (frag_off == 0)) {
-		__builtin_memset(&frag_key, 0, sizeof(struct ip_frag_key));
 		frag_key.saddr = iph->saddr;
 		frag_key.daddr = iph->daddr;
 		frag_key.id = iph->id;
 		frag_key.protocol = iph->protocol;
+		frag_key.pad = 0;
 
 		__builtin_memset(&frag, 0, sizeof(struct gtp_teid_frag));
 		frag.dst_addr = rule->dst_addr;

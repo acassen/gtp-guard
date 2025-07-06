@@ -36,7 +36,6 @@
 #include <uapi/linux/bpf.h>
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
-#include "gtp_bpf_utils.h"
 #include "gtp.h"
 
 /*
@@ -144,7 +143,6 @@ static __always_inline void ipv4_csum(void *data_start, int data_size, __u32 *cs
 	*csum = csum_fold_helper(*csum);
 }
 
-
 /*
  *	FIB Lookup
  */
@@ -154,10 +152,12 @@ gtp_route_fib_lookup(struct xdp_md *ctx, struct ethhdr *ethh, struct iphdr *iph,
 {
 	int ret;
 
+	fib_params->ifindex	= ctx->ingress_ifindex;
 	fib_params->family	= AF_INET;
 	fib_params->ipv4_src	= iph->saddr;
 	fib_params->ipv4_dst	= iph->daddr;
-	ret = bpf_fib_lookup(ctx, fib_params, sizeof(*fib_params), 0);
+	ret = bpf_fib_lookup(ctx, fib_params, sizeof(*fib_params)
+				, BPF_FIB_LOOKUP_DIRECT);
 
 	/* Keep in mind that forwarding need to be enabled
 	 * on interface we may need to redirect traffic to/from
@@ -283,7 +283,6 @@ gtp_route_ipip_encap(struct parse_pkt *pkt, struct gtp_rt_rule *rt_rule)
 	 * and not re-invent the wheel by storing it locally in ruleset
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	fib_params.ifindex = ctx->ingress_ifindex;
 	ret = gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
 	if_metrics_update(ret, fib_params.ifindex,
 			  IF_METRICS_IPIP, IF_DIRECTION_TX,
@@ -438,7 +437,6 @@ gtp_route_ipip_decap(struct parse_pkt *pkt)
 	 * and not re-invent the wheel by storing it locally in ruleset
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	fib_params.ifindex = ctx->ingress_ifindex;
 	ret = gtp_route_fib_lookup(ctx, new_eth, iph, &fib_params);
 	if_metrics_update(ret, fib_params.ifindex,
 			  IF_METRICS_GTP, IF_DIRECTION_TX,
@@ -773,7 +771,6 @@ gtp_route_ppp_decap(struct parse_pkt *pkt)
 	 * and not re-invent the wheel by storing it locally in ruleset
 	 */
 	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	fib_params.ifindex = ctx->ingress_ifindex;
 	ret = gtp_route_fib_lookup(ctx, ethh, iph, &fib_params);
 	if_metrics_update(ret, fib_params.ifindex,
 			  IF_METRICS_GTP, IF_DIRECTION_TX,

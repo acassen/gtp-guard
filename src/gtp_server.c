@@ -39,8 +39,6 @@ gtp_server_recvfrom(gtp_server_t *s, struct sockaddr *addr, socklen_t *addrlen)
 				       , 0, addr, addrlen);
 	/* metrics */
 	if (nbytes < 0) {
-		log_message(LOG_INFO, "%s(): error receiving (%m)"
-				    , __FUNCTION__);
 		s->rx_errors++;
 		return -1;
 	}
@@ -57,11 +55,8 @@ gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in
 
 	ssize_t nbytes = pkt_buffer_send(fd, pbuff, (struct sockaddr_storage *) addr);
 
-	if (nbytes < 0) {
-		log_message(LOG_INFO, "%s(): error sending (%m)"
-				    , __FUNCTION__);
+	if (nbytes < 0)
 		s->tx_errors++;
-	}
 
 	/* metrics */
 	gtp_metrics_pkt_update(&s->tx_metrics, nbytes);
