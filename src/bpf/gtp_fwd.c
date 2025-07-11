@@ -496,7 +496,7 @@ gtpu_xmit(struct parse_pkt *pkt, struct iphdr *iph)
 		headroom += (int)sizeof(struct _vlan_hdr);
 
 	/* expand headroom */
-	if (bpf_xdp_adjust_head(ctx, 0 - headroom))
+	if (headroom && bpf_xdp_adjust_head(ctx, 0 - headroom))
 		return XDP_DROP;
 
 	data = (void *) (long) ctx->data;
