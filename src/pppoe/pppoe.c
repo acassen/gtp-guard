@@ -201,7 +201,7 @@ pppoe_socket_init(pppoe_channel_t *ch, uint16_t proto)
 }
 
 static void
-pppoe_async_recv_thread(thread_ref_t thread)
+pppoe_async_recv_thread(thread_t *thread)
 {
 	pppoe_channel_t *ch = THREAD_ARG(thread);
 	pppoe_t *pppoe = ch->pppoe;

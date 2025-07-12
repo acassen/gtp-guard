@@ -145,8 +145,8 @@ typedef struct _pppoe_channel {
 	pkt_queue_t		pkt_q;
 
 	/* I/O MUX */
-	thread_ref_t		r_thread;
-	thread_ref_t		w_thread;
+	thread_t		*r_thread;
+	thread_t		*w_thread;
 
 	/* metrics */
 	gtp_metrics_pkt_t	rx_metrics;

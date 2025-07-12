@@ -256,9 +256,6 @@ main(int argc, char **argv)
 		goto end;
 	}
 
-	/* We are the parent process */
-	prog_type = PROG_TYPE_PARENT;
-
 	/* daemonize process */
 	if (!(debug & 2))
 		xdaemon(0, 0, 0);

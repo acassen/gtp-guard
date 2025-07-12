@@ -40,7 +40,7 @@ typedef struct _gtp_iptnl {
 	/* Dead-Peer-Detection */
 	int			fd_in;
 	int			fd_out;
-	thread_ref_t		r_thread;
+	thread_t		*r_thread;
 	uint8_t			recv_buffer[GTP_BUFFER_SIZE];
 	size_t			recv_buffer_size;
 	uint8_t			send_buffer[GTP_BUFFER_SIZE];

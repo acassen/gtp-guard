@@ -23,7 +23,7 @@
 
 #include <stdio.h>
 #include <pthread.h>
-#include "scheduler.h"
+#include "thread.h"
 
 
 /* Default values */
@@ -72,7 +72,7 @@ typedef struct _inet_worker {
 
 	/* I/O MUX related */
 	thread_master_t		*master;
-	thread_ref_t		r_thread;
+	thread_t		*r_thread;
 
 	list_head_t		next;
 

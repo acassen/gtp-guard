@@ -34,7 +34,7 @@
 #include "signals.h"
 #include "utils.h"
 #include "logger.h"
-#include "scheduler.h"
+#include "thread.h"
 
 /* We need to include the realtime signals, but
  * unfortunately SIGRTMIN/SIGRTMAX are not constants.
@@ -65,7 +65,7 @@ static sigset_t dfl_sig;
 static sigset_t parent_sig;
 
 /* Signal handling thread */
-static thread_ref_t signal_thread;
+static thread_t *signal_thread;
 
 int __attribute__((pure))
 get_signum(const char *sigfunc)
@@ -218,7 +218,7 @@ signal_ignore(int signo)
 
 /* Handlers callback  */
 static void
-signal_run_callback(thread_ref_t thread)
+signal_run_callback(thread_t *thread)
 {
 	uint32_t sig;
 	struct signalfd_siginfo siginfo;
@@ -292,7 +292,7 @@ open_signal_fd(void)
 	return signal_fd;
 }
 
-static void
+void
 signal_handler_parent_init(void)
 {
 	sigset_t sset;
@@ -346,19 +346,9 @@ signal_handler_init(void)
 {
 	int fd;
 
-#ifdef _ONE_PROCESS_DEBUG_
-	signal_handler_parent_init();
-#else
-	if (prog_type == PROG_TYPE_PARENT)
-		signal_handler_parent_init();
-	else
-		signal_handler_child_init();
-#endif
-
+	signal_handler_child_init();
 	sigemptyset(&parent_sig);
-
 	fd = open_signal_fd();
-
 	clear_signal_handler_addresses();
 
 	return fd;

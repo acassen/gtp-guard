@@ -18,7 +18,7 @@
 #include <sys/stat.h>
 #include <netinet/tcp.h>
 
-#include "scheduler.h"
+#include "thread.h"
 #include "vty.h"
 #include "timer.h"
 #include "utils.h"
@@ -29,7 +29,7 @@
 
 
 static void vty_event(thread_master_t *, event_t, int, void *);
-static void vty_timeout(thread_ref_t);
+static void vty_timeout(thread_t *);
 
 /* Extern host structure from command.c */
 extern host_t host;
@@ -1126,7 +1126,7 @@ vty_buffer_reset(vty_t *vty)
 
 /* Read data via vty socket. */
 static void
-vty_read(thread_ref_t thread)
+vty_read(thread_t *thread)
 {
 	int i, nbytes;
 	unsigned char buf[VTY_READ_BUFSIZ];
@@ -1326,7 +1326,7 @@ vty_read(thread_ref_t thread)
 
 /* Flush buffer to the vty. */
 static void
-vty_flush(thread_ref_t thread)
+vty_flush(thread_t *thread)
 {
 	int erase;
 	buffer_status_t flushrc;
@@ -1464,7 +1464,7 @@ vty_create(thread_master_t *m, int vty_sock, struct sockaddr_storage *addr)
 
 /* Accept connection from the network. */
 static void
-vty_accept(thread_ref_t thread)
+vty_accept(thread_t *thread)
 {
 	struct sockaddr_storage sock;
 	socklen_t len;
@@ -1610,7 +1610,7 @@ vty_close(vty_t *vty)
 
 /* When time out occur output message then close connection. */
 static void
-vty_timeout(thread_ref_t thread)
+vty_timeout(thread_t *thread)
 {
 	vty_t *vty;
 
@@ -1819,7 +1819,7 @@ vty_config_unlock(vty_t *vty)
 static void
 vty_event(thread_master_t *m, event_t event, int sock, void *arg)
 {
-	thread_ref_t vty_serv_thread;
+	thread_t *vty_serv_thread;
 	vty_t *vty;
 
 	switch (event) {

@@ -31,7 +31,7 @@
  *	Monitoring thread
  */
 static void
-pppoe_vrrp_timer_thread(thread_ref_t thread)
+pppoe_vrrp_timer_thread(thread_t *thread)
 {
 	pppoe_t *pppoe = THREAD_ARG(thread);
 
@@ -56,7 +56,7 @@ pppoe_vrrp_timer_thread(thread_ref_t thread)
 }
 
 static void
-pppoe_vrrp_read_thread(thread_ref_t thread)
+pppoe_vrrp_read_thread(thread_t *thread)
 {
 	pppoe_t *pppoe = THREAD_ARG(thread);
 	ssize_t len;

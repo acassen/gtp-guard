@@ -58,7 +58,7 @@ typedef struct _spppoe {
 	struct sockaddr_storage gtpc_peer_addr;	/* Remote GTP-C peer */
 
 	/* I/O MUX */
-	thread_ref_t		timer;
+	thread_t		*timer;
 
 	struct hlist_node	h_session;	/* h by {MAC,session_id}*/
 	struct hlist_node	h_unique;	/* h by unique*/

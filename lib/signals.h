@@ -25,7 +25,7 @@
 #include <signal.h>
 #include <stdbool.h>
 
-#include "scheduler.h"
+#include "thread.h"
 
 #define SIGJSON 		(SIGRTMIN + 2)
 #ifdef THREAD_DUMP

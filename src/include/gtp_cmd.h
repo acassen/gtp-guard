@@ -41,8 +41,8 @@ typedef struct _gtp_cmd_args {
 	char			buffer[GTP_CMD_BUFFER_SIZE];
 	size_t			buffer_len;
 	size_t			buffer_offset;
-	thread_ref_t		t_read;
-	thread_ref_t		t_write;
+	thread_t		*t_read;
+	thread_t		*t_write;
 } gtp_cmd_args_t;
 
 /* Prototypes */

@@ -65,7 +65,7 @@ struct cp {
 	void	(*Down) (sppp_t *);
 	void	(*Open) (sppp_t *);
 	void	(*Close) (sppp_t *);
-	void	(*TO) (thread_ref_t);
+	void	(*TO) (thread_t *);
 	int	(*RCR) (sppp_t *, lcp_hdr_t *, int);
 	void	(*RCN_rej) (sppp_t *, lcp_hdr_t *, int);
 	void	(*RCN_nak) (sppp_t *, lcp_hdr_t *, int);
@@ -1128,7 +1128,7 @@ sppp_lcp_close(sppp_t *sp)
 }
 
 void
-sppp_lcp_TO(thread_ref_t thread)
+sppp_lcp_TO(thread_t *thread)
 {
 	sppp_to_event(&lcp, (sppp_t *) THREAD_ARG(thread));
 }
@@ -1662,7 +1662,7 @@ sppp_ipcp_close(sppp_t *sp)
 }
 
 void
-sppp_ipcp_TO(thread_ref_t thread)
+sppp_ipcp_TO(thread_t *thread)
 {
 	sppp_to_event(&ipcp, (sppp_t *) THREAD_ARG(thread));
 }
@@ -2066,7 +2066,7 @@ sppp_ipv6cp_close(sppp_t *sp)
 }
 
 void
-sppp_ipv6cp_TO(thread_ref_t thread)
+sppp_ipv6cp_TO(thread_t *thread)
 {
 	sppp_to_event(&ipv6cp, (sppp_t *) THREAD_ARG(thread));
 }
@@ -2590,7 +2590,7 @@ sppp_pap_close(sppp_t *sp)
  * authenticator is basically passive in PAP, we can't do much here.
  */
 void
-sppp_pap_TO(thread_ref_t thread)
+sppp_pap_TO(thread_t *thread)
 {
 	sppp_t *sp = THREAD_ARG(thread);
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
@@ -2625,7 +2625,7 @@ sppp_pap_TO(thread_ref_t thread)
  * XXX We should impose a max counter.
  */
 void
-sppp_pap_my_TO(thread_ref_t thread)
+sppp_pap_my_TO(thread_t *thread)
 {
 	sppp_t *sp = THREAD_ARG(thread);
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
@@ -2695,7 +2695,7 @@ sppp_pap_scr(sppp_t *sp)
  *	PPP Timer related
  */
 static void
-sppp_keepalive(thread_ref_t thread)
+sppp_keepalive(thread_t *thread)
 {
 	sppp_t *sp = THREAD_ARG(thread);
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;

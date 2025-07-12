@@ -31,8 +31,8 @@ typedef struct _gtp_server {
 	void			*ctx;		/* backpointer */
 
 	/* I/O MUX */
-	thread_ref_t		r_thread;
-	thread_ref_t		w_thread;
+	thread_t		*r_thread;
+	thread_t		*w_thread;
 
 	/* Local method */
 	int (*init) (struct _gtp_server *);

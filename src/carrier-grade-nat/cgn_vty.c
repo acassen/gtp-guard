@@ -151,7 +151,7 @@ DEFUN(cgn_no_shutdown,
 
 	/*... Start stuffs ...
 	 *
-	 * To submit I/O MUX : scheduler.h :
+	 * To submit I/O MUX : thread.h :
 	 *   thread_add_event(master, ....);
 	 *   thread_add_read(master, ...);
 	 *   thread_add_write(master, ...);

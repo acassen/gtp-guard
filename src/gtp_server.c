@@ -109,7 +109,7 @@ gtp_server_udp_init(gtp_server_t *s)
 }
 
 static void
-gtp_server_async_recv_thread(thread_ref_t thread)
+gtp_server_async_recv_thread(thread_t *thread)
 {
 	gtp_server_t *s = THREAD_ARG(thread);
 	struct sockaddr_storage *addr = &s->addr;

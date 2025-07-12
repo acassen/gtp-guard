@@ -64,7 +64,7 @@ typedef struct _gtp_session {
 	struct tm		creation_time;
 
 	/* I/O MUX */
-	thread_ref_t		timer;
+	thread_t		*timer;
 
 	list_head_t		next;
 

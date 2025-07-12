@@ -35,7 +35,7 @@
 #include "signals.h"
 #include "timer.h"
 #include "timer_thread.h"
-#include "scheduler.h"
+#include "thread.h"
 #include "vector.h"
 #include "command.h"
 #include "rbtree.h"

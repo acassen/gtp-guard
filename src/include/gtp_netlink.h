@@ -27,7 +27,7 @@ typedef struct _nl_handle {
 	int			fd;
 	uint32_t		nl_pid;
 	__u32			seq;
-	thread_ref_t		thread;
+	thread_t		*thread;
 } nl_handle_t;
 
 

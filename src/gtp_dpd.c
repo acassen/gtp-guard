@@ -169,7 +169,7 @@ gtp_dpd_send_pkt(gtp_iptnl_t *t)
 
 
 static void
-gtp_dpd_timer_thread(thread_ref_t thread)
+gtp_dpd_timer_thread(thread_t *thread)
 {
 	gtp_iptnl_t *t = THREAD_ARG(thread);
 	ssize_t ret;
@@ -259,7 +259,7 @@ gtp_dpd_ingress_sanitize(gtp_iptnl_t *t)
 }
 
 static void
-gtp_dpd_read_thread(thread_ref_t thread)
+gtp_dpd_read_thread(thread_t *thread)
 {
 	gtp_iptnl_t *t = THREAD_ARG(thread);
 	ssize_t len;

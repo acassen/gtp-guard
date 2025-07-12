@@ -6,7 +6,7 @@
 
 #include <netinet/in.h>
 #include "timer.h"
-#include "scheduler.h"
+#include "thread.h"
 #include "buffer.h"
 
 #define VTY_BUFSIZ 512
@@ -77,10 +77,10 @@ typedef struct _vty {
 	int			monitor;			/* Terminal monitor */
 	int			config;				/* In configure mode */
 	thread_master_t		*master;			/* Master thread */
-	thread_ref_t		t_read;				/* Read thread */
-	thread_ref_t		t_write;			/* Write thread */
+	thread_t		*t_read;			/* Read thread */
+	thread_t		*t_write;			/* Write thread */
 	unsigned long		v_timeout;			/* Timeout seconds */
-	thread_ref_t		t_timeout;			/* Timeout thread */
+	thread_t		*t_timeout;			/* Timeout thread */
 	struct sockaddr_storage	address;			/* What address is this vty comming from. */
 } vty_t;
 

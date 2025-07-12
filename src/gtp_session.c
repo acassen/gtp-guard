@@ -29,7 +29,7 @@ extern thread_master_t *master;
 
 /* Local data */
 static uint32_t gtp_session_id;
-static void gtp_session_expire(thread_ref_t);
+static void gtp_session_expire(thread_t *);
 
 
 /*
@@ -451,7 +451,7 @@ gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
  *	Session expiration handling
  */
 static void
-gtp_session_expire(thread_ref_t thread)
+gtp_session_expire(thread_t *thread)
 {
 	gtp_session_t *s = THREAD_ARG(thread);
 

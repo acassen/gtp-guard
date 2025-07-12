@@ -365,7 +365,7 @@ pppoe_disconnect(spppoe_t *s)
 }
 
 void
-pppoe_timeout(thread_ref_t thread)
+pppoe_timeout(thread_t *thread)
 {
 	spppoe_t *s = THREAD_ARG(thread);
 	pppoe_t *pppoe = s->pppoe;

@@ -38,7 +38,7 @@ extern thread_master_t *master;
 /*
  *	Some GTP command tools
  */
-static void gtp_cmd_write_thread(thread_ref_t);
+static void gtp_cmd_write_thread(thread_t *);
 static int gtp_cmd_update_udp_hlen(char *, size_t);
 static int gtp_cmd_update_ip_hlen(char *, size_t);
 
@@ -210,7 +210,7 @@ gtp_cmd_args_destroy(gtp_cmd_args_t *args)
 }
 
 static void
-gtp_cmd_read_thread(thread_ref_t thread)
+gtp_cmd_read_thread(thread_t *thread)
 {
 	gtp_cmd_args_t *args = THREAD_ARG(thread);
 	struct sockaddr_storage addr_from;
@@ -271,7 +271,7 @@ gtp_cmd_read_thread(thread_ref_t thread)
 }
 
 static void
-gtp_cmd_write_thread(thread_ref_t thread)
+gtp_cmd_write_thread(thread_t *thread)
 {
 	gtp_cmd_args_t *args = THREAD_ARG(thread);
 	struct sockaddr_storage *addr = &args->dst_addr;

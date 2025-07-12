@@ -457,7 +457,7 @@ netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h)
 }
 
 static void
-kernel_netlink(thread_ref_t thread)
+kernel_netlink(thread_t *thread)
 {
 	nl_handle_t *nl = THREAD_ARG(thread);
 
@@ -651,7 +651,7 @@ netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, s
 }
 
 static void
-netlink_if_stats_update(thread_ref_t thread)
+netlink_if_stats_update(thread_t *thread)
 {
 	int err;
 

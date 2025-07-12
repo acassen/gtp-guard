@@ -31,7 +31,7 @@
 #include <errno.h>
 
 /* local includes */
-#include "scheduler.h"
+#include "thread.h"
 #include "logger.h"
 #include "bitops.h"
 #include "memory.h"
@@ -143,7 +143,7 @@ inet_server_tcp_thread(void *arg)
  *	Accept
  */
 static void
-inet_server_tcp_accept(thread_ref_t thread)
+inet_server_tcp_accept(thread_t *thread)
 {
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
@@ -331,7 +331,7 @@ error:
  *	Event thread
  */
 static void
-inet_server_event_read(thread_ref_t thread)
+inet_server_event_read(thread_t *thread)
 {
 	inet_worker_t *w = THREAD_ARG(thread);
 	int fd = THREAD_FD(thread);

@@ -25,9 +25,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/timerfd.h>
-#ifdef THREAD_DUMP
-#include <stdio.h>
-#endif
 
 #include "timer.h"
 #include "list_head.h"
@@ -39,8 +36,6 @@ typedef enum {
 	THREAD_WRITE,		/* thread_master.write rb tree */
 	THREAD_TIMER,		/* thread_master.timer rb tree */
 	THREAD_TIMER_SHUTDOWN,	/* thread_master.timer rb tree */
-	THREAD_CHILD,		/* thread_master.child rb tree */
-#define THREAD_MAX_WAITING THREAD_CHILD
 	THREAD_UNUSED,		/* thread_master.unuse list_head */
 
 	/* The following are all on the thread_master.e_list list_head */
@@ -48,8 +43,6 @@ typedef enum {
 	THREAD_EVENT,
 	THREAD_WRITE_TIMEOUT,
 	THREAD_READ_TIMEOUT,
-	THREAD_CHILD_TIMEOUT,
-	THREAD_CHILD_TERMINATED,
 	THREAD_TERMINATE_START,
 	THREAD_TERMINATE,
 	THREAD_READY_TIMER,
@@ -57,9 +50,6 @@ typedef enum {
 	THREAD_READY_WRITE_FD,
 	THREAD_READ_ERROR,
 	THREAD_WRITE_ERROR,
-#ifdef USE_SIGNAL_THREADS
-	THREAD_SIGNAL,
-#endif
 } thread_type_t;
 
 /* Thread Event flags */
@@ -79,8 +69,7 @@ enum thread_flags {
 #define THREAD_DESTROY_FREE_ARG	0x02
 
 typedef struct _thread thread_t;
-typedef const thread_t * thread_ref_t;
-typedef void (*thread_func_t)(thread_ref_t);
+typedef void (*thread_func_t)(thread_t *);
 
 typedef union {
 	int val;
@@ -129,18 +118,11 @@ typedef struct _thread_master {
 	rb_root_cached_t	read;
 	rb_root_cached_t	write;
 	rb_root_cached_t	timer;
-	rb_root_cached_t	child;
 	list_head_t		event;
-#ifdef USE_SIGNAL_THREADS
-	list_head_t		signal;
-#endif
 	list_head_t		ready;
 	list_head_t		unuse;
 
 	thread_t		*current_thread;
-
-	/* child process related */
-	rb_root_t		child_pid;
 
 	/* epoll related */
 	rb_root_t		io_events;
@@ -152,7 +134,7 @@ typedef struct _thread_master {
 
 	/* timer related */
 	int			timer_fd;
-	thread_ref_t		timer_thread;
+	thread_t		*timer_thread;
 
 	/* signal related */
 	int			signal_fd;
@@ -162,12 +144,6 @@ typedef struct _thread_master {
 	unsigned long		id;
 	bool			shutdown_timer_running;
 } thread_master_t;
-
-#ifndef _ONE_PROCESS_DEBUG_
-typedef enum {
-	PROG_TYPE_PARENT,
-} prog_type_t;
-#endif
 
 /* MICRO SEC def */
 #define BOOTSTRAP_DELAY TIMER_HZ
@@ -196,69 +172,31 @@ enum exit_code {
 
 /* global vars exported */
 extern thread_master_t *master;
-#ifndef _ONE_PROCESS_DEBUG_
-extern prog_type_t prog_type;		/* Parent/VRRP/Checker process */
-#endif
-#ifdef _EPOLL_DEBUG_
-extern bool do_epoll_debug;
-#endif
-#ifdef _EPOLL_THREAD_DUMP_
-extern bool do_epoll_thread_dump;
-#endif
-#ifdef _SCRIPT_DEBUG_
-extern bool do_script_debug;
-#endif
 
 /* Prototypes. */
-extern void set_child_finder_name(char const * (*)(pid_t));
-extern void save_cmd_line_options(int, char * const *);
-extern char * const * get_cmd_line_options(int *);
-extern void log_command_line(unsigned);
-#ifndef _ONE_PROCESS_DEBUG_
-extern unsigned calc_restart_delay(const timeval_t *, unsigned *, const char *);
-extern void log_child_died(const char *, pid_t);
-extern bool report_child_status(int, pid_t, const char *);
-#endif
 extern thread_master_t *thread_make_master(bool);
-extern thread_ref_t thread_add_terminate_event(thread_master_t *);
-extern thread_ref_t thread_add_start_terminate_event(thread_master_t *, thread_func_t);
-#ifdef THREAD_DUMP
-extern void dump_thread_data(const thread_master_t *, FILE *);
-#endif
-extern void thread_cleanup_master(thread_master_t *, bool);
+extern thread_t * thread_add_terminate_event(thread_master_t *);
+extern thread_t * thread_add_start_terminate_event(thread_master_t *, thread_func_t);
+extern void thread_cleanup_master(thread_master_t *);
 extern void thread_destroy_master(thread_master_t *);
-extern thread_ref_t thread_add_read_sands(thread_master_t *, thread_func_t, void *, int, const timeval_t *, unsigned);
-extern thread_ref_t thread_add_read(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
-extern void thread_del_read(thread_ref_t);
+extern thread_t * thread_add_read_sands(thread_master_t *, thread_func_t, void *, int, const timeval_t *, unsigned);
+extern thread_t * thread_add_read(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
+extern void thread_del_read(thread_t *);
 extern void thread_requeue_read(thread_master_t *, int, const timeval_t *);
-extern thread_ref_t thread_add_write(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
-extern void thread_del_write(thread_ref_t);
-extern void thread_close_fd(thread_ref_t);
-extern thread_ref_t thread_add_timer_uval(thread_master_t *, thread_func_t, void *, unsigned, unsigned long);
-extern thread_ref_t thread_add_timer(thread_master_t *, thread_func_t, void *, unsigned long);
-extern void thread_update_arg2(thread_ref_t, const thread_arg2 *);
-extern void thread_mod_timer(thread_ref_t, unsigned long);
-void thread_del_timer(thread_ref_t);
-extern thread_ref_t thread_add_timer_shutdown(thread_master_t *, thread_func_t, void *, unsigned long);
-extern thread_ref_t thread_add_child(thread_master_t *, thread_func_t, void *, pid_t, unsigned long);
-extern void thread_children_reschedule(thread_master_t *, thread_func_t, unsigned long);
-extern thread_ref_t thread_add_event(thread_master_t *, thread_func_t, void *, int);
-extern void thread_cancel(thread_ref_t);
+extern thread_t * thread_add_write(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
+extern void thread_del_write(thread_t *);
+extern void thread_close_fd(thread_t *);
+extern thread_t * thread_add_timer_uval(thread_master_t *, thread_func_t, void *, unsigned, unsigned long);
+extern thread_t * thread_add_timer(thread_master_t *, thread_func_t, void *, unsigned long);
+extern void thread_update_arg2(thread_t *, const thread_arg2 *);
+extern void thread_mod_timer(thread_t *, unsigned long);
+void thread_del_timer(thread_t *);
+extern thread_t * thread_add_timer_shutdown(thread_master_t *, thread_func_t, void *, unsigned long);
+extern thread_t * thread_add_event(thread_master_t *, thread_func_t, void *, int);
+extern void thread_cancel(thread_t *);
 extern void thread_cancel_read(thread_master_t *, int);
 extern void process_threads(thread_master_t *);
-extern void thread_child_handler(void *, int);
-extern void thread_add_base_threads(thread_master_t *, bool);
 extern void launch_thread_scheduler(thread_master_t *);
 #ifndef _ONE_PROCESS_DEBUG_
 extern void register_shutdown_function(void (*)(int));
-#endif
-#ifdef THREAD_DUMP
-extern const char *get_signal_function_name(void (*)(void *, int));
-extern void register_signal_handler_address(const char *, void (*)(void *, int));
-extern void register_thread_address(const char *, thread_func_t);
-extern void deregister_thread_addresses(void);
-extern void register_scheduler_addresses(void);
-#endif
-#ifdef _VRRP_FD_DEBUG_
-extern void set_extra_threads_debug(void (*)(void));
 #endif
