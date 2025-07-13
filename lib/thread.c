@@ -42,9 +42,6 @@
 #include "warnings.h"
 #include "process.h"
 
-/* local variables */
-static bool shutting_down;
-
 
 /* Move ready thread into ready queue */
 static void
@@ -240,6 +237,16 @@ thread_event_get(thread_master_t *m, int fd)
 	return rb_entry(node, thread_event_t, n);
 }
 
+static void
+thread_event_clean(thread_master_t *m)
+{
+	thread_event_t *tev, *tev_tmp;
+
+	rbtree_postorder_for_each_entry_safe(tev, tev_tmp, &m->io_events, n) {
+		free(tev);
+	}
+}
+
 static int
 thread_event_set(const thread_t *thread)
 {
@@ -395,7 +402,6 @@ thread_add_unuse(thread_master_t *m, thread_t *thread)
 
 	thread->type = THREAD_UNUSED;
 	thread->event = NULL;
-	INIT_LIST_HEAD(&thread->e_list);
 	list_add_tail(&thread->e_list, &m->unuse);
 }
 
@@ -413,12 +419,6 @@ thread_destroy_list(thread_master_t *m, list_head_t *l)
 		    thread->type == THREAD_WRITE_TIMEOUT ||
 		    thread->type == THREAD_READ_ERROR ||
 		    thread->type == THREAD_WRITE_ERROR) {
-			/* Do we have a thread_event, and does it need deleting? */
-			if (thread->event) {
-				thread_del_read(thread);
-				thread_del_write(thread);
-			}
-
 			/* Do we have a file descriptor that needs closing ? */
 			if (thread->u.f.flags & THREAD_DESTROY_CLOSE_FD)
 				thread_close_fd(thread);
@@ -443,12 +443,6 @@ thread_destroy_rb(thread_master_t *m, rb_root_cached_t *root)
 		/* The following are relevant for the read and write rb lists */
 		if (thread->type == THREAD_READ ||
 		    thread->type == THREAD_WRITE) {
-			/* Do we have a thread_event, and does it need deleting? */
-			if (thread->type == THREAD_READ)
-				thread_del_read(thread);
-			else if (thread->type == THREAD_WRITE)
-				thread_del_write(thread);
-
 			/* Do we have a file descriptor that needs closing ? */
 			if (thread->u.f.flags & THREAD_DESTROY_CLOSE_FD)
 				thread_close_fd(thread);
@@ -462,33 +456,6 @@ thread_destroy_rb(thread_master_t *m, rb_root_cached_t *root)
 	}
 
 	*root = RB_ROOT_CACHED;
-}
-
-/* Cleanup master */
-void
-thread_cleanup_master(thread_master_t *m)
-{
-	/* Unuse current thread lists */
-	m->current_event = NULL;
-	thread_destroy_rb(m, &m->read);
-	thread_destroy_rb(m, &m->write);
-	thread_destroy_rb(m, &m->timer);
-	thread_destroy_list(m, &m->event);
-	thread_destroy_list(m, &m->ready);
-
-	if (m->current_thread) {
-		thread_add_unuse(m, m->current_thread);
-		m->current_thread = NULL;
-	}
-
-	/* Clean garbage */
-	thread_clean_unuse(m);
-
-	FREE(m->epoll_events);
-	m->epoll_size = 0;
-	m->epoll_count = 0;
-
-	m->timer_thread = NULL;
 }
 
 /* Stop thread scheduler. */
@@ -506,8 +473,18 @@ thread_destroy_master(thread_master_t *m)
 	if (m->signal_fd != -1)
 		signal_handler_destroy();
 
-	thread_cleanup_master(m);
+	/* Unuse current thread lists */
+	thread_destroy_rb(m, &m->read);
+	thread_destroy_rb(m, &m->write);
+	thread_destroy_rb(m, &m->timer);
+	thread_destroy_list(m, &m->event);
+	thread_destroy_list(m, &m->ready);
 
+	/* Clean garbage */
+	thread_event_clean(m);
+	thread_clean_unuse(m);
+
+	FREE(m->epoll_events);
 	FREE(m);
 }
 
@@ -622,8 +599,9 @@ thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd, unsig
 	return thread_add_read_sands(m, func, arg, fd, &sands, flags);
 }
 
-static void
-thread_read_requeue(thread_master_t *m, int fd, const timeval_t *new_sands)
+/* Adjust the timeout of a read thread */
+void
+thread_requeue_read(thread_master_t *m, int fd, const timeval_t *sands)
 {
 	thread_t *thread;
 	thread_event_t *event;
@@ -639,16 +617,9 @@ thread_read_requeue(thread_master_t *m, int fd, const timeval_t *new_sands)
 		return;
 	}
 
-	thread->sands = *new_sands;
+	thread->sands = *sands;
 
 	rb_move_cached(&thread->n, &thread->master->read, thread_timer_less);
-}
-
-/* Adjust the timeout of a read thread */
-void
-thread_requeue_read(thread_master_t *m, int fd, const timeval_t *sands)
-{
-	thread_read_requeue(m, fd, sands);
 }
 
 /* Add new write thread. */
@@ -761,14 +732,6 @@ thread_add_timer(thread_master_t *m, thread_func_t func, void *arg, unsigned lon
 }
 
 void
-thread_update_arg2(thread_t * thread_cp, const thread_arg2 *u)
-{
-	thread_t *thread = no_const(thread_t, thread_cp);
-
-	thread->u = *u;
-}
-
-void
 thread_mod_timer(thread_t *thread, unsigned long timer)
 {
 	timeval_t sands;
@@ -782,21 +745,6 @@ thread_mod_timer(thread_t *thread, unsigned long timer)
 	thread->sands = sands;
 
 	rb_move_cached(&thread->n, &thread->master->timer, thread_timer_less);
-}
-
-thread_t *
-thread_add_timer_shutdown(thread_master_t *m, thread_func_t func, void *arg, unsigned long timer)
-{
-	union {
-		thread_t *p;
-		thread_t *cp;
-	} thread;
-
-	thread.cp = thread_add_timer(m, func, arg, timer);
-
-	thread.p->type = THREAD_TIMER_SHUTDOWN;
-
-	return thread.cp;
 }
 
 /* Add simple event thread. */
@@ -820,17 +768,17 @@ thread_add_event(thread_master_t *m, thread_func_t func, void *arg, int val)
 }
 
 /* Add terminate event thread. */
-static thread_t *
-thread_add_generic_terminate_event(thread_master_t *m, thread_type_t type, thread_func_t func)
+thread_t *
+thread_add_terminate_event(thread_master_t *m)
 {
 	thread_t *thread;
 
 	assert(m != NULL);
 
 	thread = thread_new(m);
-	thread->type = type;
+	thread->type = THREAD_TERMINATE;
 	thread->master = m;
-	thread->func = func;
+	thread->func = NULL;
 	thread->arg = NULL;
 	thread->u.val = 0;
 	INIT_LIST_HEAD(&thread->e_list);
@@ -839,17 +787,6 @@ thread_add_generic_terminate_event(thread_master_t *m, thread_type_t type, threa
 	return thread;
 }
 
-thread_t *
-thread_add_terminate_event(thread_master_t *m)
-{
-	return thread_add_generic_terminate_event(m, THREAD_TERMINATE, NULL);
-}
-
-thread_t *
-thread_add_start_terminate_event(thread_master_t *m, thread_func_t func)
-{
-	return thread_add_generic_terminate_event(m, THREAD_TERMINATE_START, func);
-}
 
 /* Remove thread from scheduler. */
 void
@@ -908,23 +845,6 @@ thread_del(thread_t *thread)
 	thread_add_unuse(m, thread);
 }
 
-
-void
-thread_cancel_read(thread_master_t *m, int fd)
-{
-	thread_t *thread, *thread_tmp;
-
-	rb_for_each_entry_safe_cached(thread, thread_tmp, &m->read, n) {
-		if (thread->u.f.fd == fd) {
-			if (thread->event->write) {
-				thread_cancel(thread->event->write);
-				thread->event->write = NULL;
-			}
-			thread_cancel(thread);
-			break;
-		}
-	}
-}
 
 /* Fetch next ready thread. */
 static list_head_t *
@@ -1068,14 +988,9 @@ launch_thread_scheduler(thread_master_t *m)
 
 	/*
 	 * Processing the master thread queues,
-	 * return and execute one ready thread.
+	 * return and execute all ready threads.
 	 */
 	while ((thread_list = thread_fetch_next_queue(m))) {
-		/* Run until error, used for debuging only */
-
-		/* If we are shutting down, only process relevant thread types.
-		 * We only want timer and signal fd, and don't want inotify, vrrp socket,
-		 * snmp_read, bfd_receiver, bfd pipe in vrrp/check, dbus pipe or netlink fds. */
 		if (!(thread = thread_trim_head(thread_list)))
 			continue;
 
@@ -1083,49 +998,11 @@ launch_thread_scheduler(thread_master_t *m)
 		m->current_event = thread->event;
 		thread_type = thread->type;
 
-		if (!shutting_down ||
-		    ((thread->type == THREAD_READY_READ_FD ||
-		      thread->type == THREAD_READY_WRITE_FD ||
-		      thread->type == THREAD_READ_ERROR ||
-		      thread->type == THREAD_WRITE_ERROR) &&
-		     (thread->u.f.fd == m->timer_fd ||
-		      thread->u.f.fd == m->signal_fd)) ||
-		    thread->type == THREAD_TIMER_SHUTDOWN ||
-		    thread->type == THREAD_TERMINATE) {
-			if (thread->func)
-				(*thread->func) (thread);
+		if (thread->func)
+			(*thread->func) (thread);
 
-			/* If m->current_thread has been cleared, the thread
-			 * has been freed. This happens during a reload. */
-			thread = m->current_thread;
-
-			if (thread_type == THREAD_TERMINATE_START)
-				shutting_down = true;
-		} else if (thread->type == THREAD_READY_READ_FD ||
-			   thread->type == THREAD_READY_WRITE_FD ||
-			   thread->type == THREAD_READ_TIMEOUT ||
-			   thread->type == THREAD_WRITE_TIMEOUT ||
-			   thread->type == THREAD_READ_ERROR ||
-			   thread->type == THREAD_WRITE_ERROR) {
-			thread_close_fd(thread);
-
-			if (thread->u.f.flags & THREAD_DESTROY_FREE_ARG)
-				FREE(thread->arg);
-		}
-
-		if (thread) {
-#if 0
-			m->current_event = (thread_type == THREAD_READY_READ_FD || thread_type == THREAD_READY_WRITE_FD) ? thread->event : NULL;
-#endif
-			thread_add_unuse(m, thread);
-			m->current_thread = NULL;
-		} else
-			m->current_event = NULL;
-
-		/* If we are shutting down, and the shutdown timer is not running 
-		 * then we can terminate */
-		if (shutting_down && !m->shutdown_timer_running)
-			break;
+		thread_add_unuse(m, thread);
+		m->current_thread = NULL;
 
 		/* If daemon hanging event is received stop processing */
 		if (thread_type == THREAD_TERMINATE)
