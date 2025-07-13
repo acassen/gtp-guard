@@ -622,15 +622,6 @@ thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd, unsig
 	return thread_add_read_sands(m, func, arg, fd, &sands, flags);
 }
 
-void
-thread_del_read(thread_t * thread)
-{
-	if (!thread || !thread->event)
-		return;
-
-	thread_event_del(thread, THREAD_FL_EPOLL_READ_BIT);
-}
-
 static void
 thread_read_requeue(thread_master_t *m, int fd, const timeval_t *new_sands)
 {
@@ -722,15 +713,6 @@ thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsi
 }
 
 void
-thread_del_write(thread_t *thread)
-{
-	if (!thread || !thread->event)
-		return;
-
-	thread_event_del(thread, THREAD_FL_EPOLL_WRITE_BIT);
-}
-
-void
 thread_close_fd(thread_t *thread)
 {
 	if (thread->u.f.fd == -1)
@@ -802,18 +784,6 @@ thread_mod_timer(thread_t *thread, unsigned long timer)
 	rb_move_cached(&thread->n, &thread->master->timer, thread_timer_less);
 }
 
-void
-thread_del_timer(thread_t *thread)
-{
-	thread_master_t *m;
-
-	if (!thread)
-		return;
-
-	m = thread->master;
-	rb_erase_cached(&thread->n, &m->timer);
-}
-
 thread_t *
 thread_add_timer_shutdown(thread_master_t *m, thread_func_t func, void *arg, unsigned long timer)
 {
@@ -881,13 +851,13 @@ thread_add_start_terminate_event(thread_master_t *m, thread_func_t func)
 	return thread_add_generic_terminate_event(m, THREAD_TERMINATE_START, func);
 }
 
-/* Cancel thread from scheduler. */
+/* Remove thread from scheduler. */
 void
-thread_cancel(thread_t *thread)
+thread_del(thread_t *thread)
 {
 	thread_master_t *m;
 
-	if (!thread || thread->type == THREAD_UNUSED)
+	if (!thread)
 		return;
 
 	m = thread->master;
@@ -909,6 +879,8 @@ thread_cancel(thread_t *thread)
 	case THREAD_READ_ERROR:
 		if (thread->event)
 			thread_event_del(thread, THREAD_FL_EPOLL_READ_BIT);
+		if (m->current_thread == thread)
+			return;
 		list_del_init(&thread->e_list);
 		break;
 	case THREAD_READY_WRITE_FD:
@@ -916,23 +888,26 @@ thread_cancel(thread_t *thread)
 	case THREAD_WRITE_ERROR:
 		if (thread->event)
 			thread_event_del(thread, THREAD_FL_EPOLL_WRITE_BIT);
+		if (m->current_thread == thread)
+			return;
 		list_del_init(&thread->e_list);
 		break;
-	case THREAD_EVENT:
-	case THREAD_READY:
 	case THREAD_READY_TIMER:
-	case THREAD_TIMER_SHUTDOWN:
-	case THREAD_TERMINATE_START:
-	case THREAD_TERMINATE:
-		log_message(LOG_WARNING, "ERROR - thread_cancel called for THREAD_%s", thread->type == THREAD_TIMER_SHUTDOWN ? "TIMER_SHUTDOWN" : thread->type == THREAD_TERMINATE ? "TERMINATE" : "TERMINATE_START");
+		if (m->current_thread == thread)
+			return;
+		list_del_init(&thread->e_list);
+		break;
+	case THREAD_UNUSED:
 		return;
 	default:
-		log_message(LOG_WARNING, "ERROR - thread_cancel called for unknown thread type %u", thread->type);
-		break;
+		log_message(LOG_WARNING, "ERROR - thread_cancel called for"
+			    "unknown thread type %u", thread->type);
+		return;
 	}
 
 	thread_add_unuse(m, thread);
 }
+
 
 void
 thread_cancel_read(thread_master_t *m, int fd)

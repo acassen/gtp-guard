@@ -39,7 +39,7 @@ typedef enum {
 	THREAD_UNUSED,		/* thread_master.unuse list_head */
 
 	/* The following are all on the thread_master.e_list list_head */
-	THREAD_READY,
+	THREAD_READY,		/* not used */
 	THREAD_EVENT,
 	THREAD_WRITE_TIMEOUT,
 	THREAD_READ_TIMEOUT,
@@ -181,22 +181,24 @@ extern void thread_cleanup_master(thread_master_t *);
 extern void thread_destroy_master(thread_master_t *);
 extern thread_t * thread_add_read_sands(thread_master_t *, thread_func_t, void *, int, const timeval_t *, unsigned);
 extern thread_t * thread_add_read(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
-extern void thread_del_read(thread_t *);
 extern void thread_requeue_read(thread_master_t *, int, const timeval_t *);
 extern thread_t * thread_add_write(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
-extern void thread_del_write(thread_t *);
 extern void thread_close_fd(thread_t *);
 extern thread_t * thread_add_timer_uval(thread_master_t *, thread_func_t, void *, unsigned, unsigned long);
 extern thread_t * thread_add_timer(thread_master_t *, thread_func_t, void *, unsigned long);
 extern void thread_update_arg2(thread_t *, const thread_arg2 *);
 extern void thread_mod_timer(thread_t *, unsigned long);
-void thread_del_timer(thread_t *);
 extern thread_t * thread_add_timer_shutdown(thread_master_t *, thread_func_t, void *, unsigned long);
 extern thread_t * thread_add_event(thread_master_t *, thread_func_t, void *, int);
-extern void thread_cancel(thread_t *);
+extern void thread_del(thread_t *);
 extern void thread_cancel_read(thread_master_t *, int);
 extern void process_threads(thread_master_t *);
 extern void launch_thread_scheduler(thread_master_t *);
 #ifndef _ONE_PROCESS_DEBUG_
 extern void register_shutdown_function(void (*)(int));
 #endif
+
+static inline void thread_cancel(thread_t *t) { thread_del(t); }
+static inline void thread_del_write(thread_t *t) { thread_del(t); }
+static inline void thread_del_read(thread_t *t) { thread_del(t); }
+static inline void thread_del_timer(thread_t *t) { thread_del(t); }
