@@ -252,7 +252,7 @@ signal_run_callback(thread_t *thread)
 #endif
 	}
 
-	signal_thread = thread_add_read(master, signal_run_callback, NULL, thread->u.f.fd, TIMER_NEVER, 0);
+	signal_thread = thread_add_read(thread->master, signal_run_callback, NULL, thread->u.f.fd, TIMER_NEVER, 0);
 }
 
 static void
