@@ -170,11 +170,12 @@ _server_connect_cb(struct _thread *ev)
 	struct cdr_fwd_server *sr = ev->arg;
 	struct _thread *io;
 	unsigned val;
-	int r, ret;
+	int r, status;
 	int fd = sr->io->u.f.fd;
+	timeval_t timer_min;
 
-	if (ev->type == THREAD_READ_TIMEOUT ||
-	    ev->type == THREAD_READ_ERROR) {
+	if (ev->type == THREAD_WRITE_TIMEOUT ||
+	    ev->type == THREAD_WRITE_ERROR) {
 		warn(sr->ctx->log, "%s: timeout while connecting",
 		     sr->addr_str);
 		_server_reconnect(sr);
@@ -182,18 +183,28 @@ _server_connect_cb(struct _thread *ev)
 	}
 
 	/* check if connect was successful */
-	val = sizeof (ret);
-	ret = 0;
-	r = getsockopt(fd, SOL_SOCKET, SO_ERROR,
-		       (void *)&ret, &val);
-	if (r < 0) {
+	val = sizeof (status);
+	status = 0;
+	r = getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&status, &val);
+	if (r) {
 		err(sr->ctx->log, "getsockopt: %m");
 		_server_reconnect(sr);
 		return;
 	}
 
-	if (ret) {
-		errno = ret;
+	if (status == EINPROGRESS) {
+		trace1(sr->ctx->log, "%s: connection still in-progress",
+		       sr->addr_str);
+		timer_min = timer_sub_now(ev->sands);
+		io = thread_add_write(ev->master, _server_connect_cb,
+				      sr, fd, -timer_long(timer_min), 0);
+		assert(io != NULL);
+		sr->io = io;
+		return;
+	}
+
+	if (status) {
+		errno = status;
 		err(sr->ctx->log, "%s: connect: %m", sr->addr_str);
 		_server_reconnect(sr);
 		return;
@@ -362,7 +373,7 @@ _server_connect(struct _thread *ev)
 
 	/* connect */
 	r = connect(fd, &sr->addr.sa, addr_len(&sr->addr));
-	if (r < 0 && errno != EINPROGRESS) {
+	if (r && errno != EINPROGRESS) {
 		err(sr->ctx->log, "%s: connect: %m", sr->addr_str);
 		close(fd);
 		_server_reconnect(sr);
