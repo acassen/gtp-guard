@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/libbpf/libbpf.git
+revision = v1.6.1
+depth = 1
+patch_directory = libbpf
+
+[provide]
+dependency_names = libbpf_dep

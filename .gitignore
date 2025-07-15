@@ -1,7 +1,4 @@
 # make and build files
-*.d
-*.o
-bin/gtp-guard
-*.bpf
-*.ll
-compile_commands.json
+bin
+build
+subprojects/libbpf

@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <unistd.h>
 
-#include "compat.h"
+#include "tools.h"
 #include "signals.h"
 #include "cdr_fwd-priv.h"
 #include "cdr_avp.h"
@@ -176,7 +176,7 @@ _server_io_cb(struct _thread *ev)
 	return;
 
  err:
-	thread_del_read(srv->io);
+	thread_del(srv->io);
 	close(fd);
 	free(srv);
 	return;

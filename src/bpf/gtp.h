@@ -27,9 +27,11 @@
 /* Global vars */
 const volatile int nr_cpus;
 
-
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
+/* defined in bpf_helpers.h since 1.6.0 */
+#ifndef likely
+# define likely(x) __builtin_expect(!!(x), 1)
+# define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
 
 /* linux/if_vlan.h have not exposed this as UAPI, thus mirror some here
  *

@@ -12,14 +12,15 @@ GTP-Guard is free software; you can redistribute it and/or modify it under the t
 # Build
 
 ```
-git clone --recursive git@github.com:acassen/gtp-guard.git
+git clone git@github.com:acassen/gtp-guard.git
 cd gtp-guard
-make -j $(nproc)
+make
 ```
 
-gcc is the default compiled. Should you prefer the usage of clang, then use:
+The meson build system is used, make sure to have it installed.
+gcc is the default compiler. Should you prefer the usage of clang, then use:
 ```
-CC=clang make -j $(nproc)
+CC=clang make
 ```
 
 # Basic Run
@@ -68,7 +69,7 @@ Then you can start sending your GTPc and GTPu workload to the UDP ports 2123 and
 For example, the following `test/testenv.sh` script can be used in order to perform a Basic Run
 along with a set of few GTPu and GTPc ping.
 
-It assumes that [gtping](https://github.com/ThomasHabets/gtping) has been isntalled.
+It assumes that [gtping](https://github.com/ThomasHabets/gtping) has been installed.
 
 ```
 cd test

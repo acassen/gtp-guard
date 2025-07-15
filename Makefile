@@ -9,6 +9,7 @@
 #              rewriting and redirecting.
 #
 # Authors:     Alexandre Cassen, <acassen@gmail.com>
+#              Olivier Gournet, <ogournet@gmail.com>
 #
 #              This program is free software; you can redistribute it and/or
 #              modify it under the terms of the GNU Affero General Public
@@ -16,63 +17,47 @@
 #              either version 3.0 of the License, or (at your option) any later
 #              version.
 #
-# Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+# Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
 #
 
 EXEC = gtp-guard
 BIN  = bin
-VERSION := $(shell cat VERSION)
-TARBALL = $(EXEC)-$(VERSION).tar.xz
-TARFILES = AUTHOR VERSION LICENSE README.md bin src lib Makefile libbpf
 
-prefix ?= /usr/local
-exec_prefix ?= ${prefix}
-sbindir     ?= ${exec_prefix}/sbin
-sysconfdir  ?= ${prefix}/etc
-init_script = etc/init.d/gtp-guard.init
-conf_file   = etc/gtp-guard/gtp-guard.conf
+BUILDDIR ?= build
+V ?= 0
+ifeq ($V,1)
+  ninja_opts = --verbose
+  Q =
+else
+  Q = @
+endif
 
-CC        ?= gcc
-LDFLAGS   = -lpthread -lcrypt -ggdb -lm -lz -lresolv -lelf
-SUBDIRS   = lib src src/bpf
-LIBBPF    = libbpf
-OBJDIR    = $(LIBBPF)/src
+all: $(BUILDDIR)/build.ninja
+	$Q ninja -C $(BUILDDIR) $(ninja_opts)
+	$Q ln -f $(BUILDDIR)/$(EXEC) $(BIN)/$(EXEC)
+	$Q export BPFS=$(BUILDDIR)/src/bpf/*.bpf; \
+	for f in $$BPFS; do ln -f "$$f" $(BIN); done
 
-all: $(OBJDIR)/libbpf.a
-	@set -e; \
-	for i in $(SUBDIRS); do \
-	$(MAKE) -C $$i || exit 1; done && \
-	echo "Building $(BIN)/$(EXEC)" && \
-	$(CC) -o $(BIN)/$(EXEC) `find $(SUBDIRS) -name '*.[oa]'` $(OBJDIR)/libbpf.a $(LDFLAGS)
-#	strip $(BIN)/$(EXEC)
-	@echo ""
-	@echo "Make complete"
-
-$(OBJDIR)/libbpf.a:
-	@$(MAKE) -C $(LIBBPF)/src BUILD_STATIC_ONLY=y NO_PKG_CONFIG=y
-	@ln -sf ../include/uapi $(OBJDIR)
+$(BUILDDIR)/build.ninja:
+	meson setup $(BUILDDIR) $(MESON_OPTS)
 
 clean:
-	@$(MAKE) -C $(LIBBPF)/src clean
-	@rm -f $(OBJDIR)/uapi
-	@set -e; \
-	for i in $(SUBDIRS); do \
-	$(MAKE) -C $$i clean; done
-	@rm -vf $(BIN)/$(EXEC)
-	@echo ""
-	@echo "Make complete"
+	$Q ninja -C $(BUILDDIR) clean $(ninja_opts)
+	$Q rm -f $(BIN)/*
 
-uninstall:
-	rm -f $(sbindir)/$(EXEC)
+install: $(BUILDDIR)/build.ninja
+	$Q meson install -C $(BUILDDIR)
 
-install:
-	install -d $(sbindir)
-	install -m 700 $(BIN)/$(EXEC) $(sbindir)/$(EXEC)-$(VERSION)
-	ln -sf $(sbindir)/$(EXEC)-$(VERSION) $(sbindir)/$(EXEC)
+uninstall: $(BUILDDIR)/build.ninja
+	$Q ninja -C $(BUILDDIR) $(ninja_opts)
 
-tarball: clean
-	@mkdir $(EXEC)-$(VERSION)
-	@cp -a $(TARFILES) $(EXEC)-$(VERSION)
-	@tar -cJf $(TARBALL) $(EXEC)-$(VERSION)
-	@rm -rf $(EXEC)-$(VERSION)
-	@echo $(TARBALL)
+test:
+	$Q meson test -C $(BUILDDIR)
+
+tarball: $(BUILDDIR)/build.ninja
+	$Q meson dist -C $(BUILDDIR) --no-test --allow-dirty >/dev/null
+	$Q export TAR=$(BUILDDIR)/meson-dist/*.xz; \
+	cp "$$TAR" .; \
+	echo `basename "$$TAR"`
+
+.PHONY: all clean install uninstall tarball test

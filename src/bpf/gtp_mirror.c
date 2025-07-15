@@ -23,8 +23,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <string.h>
-#include <uapi/linux/bpf.h>
-#include <uapi/linux/pkt_cls.h>
+#include <linux/bpf.h>
+#include <linux/pkt_cls.h>
 #include <linux/in.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
@@ -58,8 +58,8 @@ int tc_gtp_mirror(struct __sk_buff *skb)
 	struct udphdr *udph;
 	struct gtp_mirror_rule *rule;
 
-        if (unlikely(skb->protocol != __constant_htons(ETH_P_IP)))
-                return TC_ACT_OK;
+	if (unlikely(skb->protocol != __constant_htons(ETH_P_IP)))
+		return TC_ACT_OK;
 
 	iph = data + offset;
 	if (iph + 1 > data_end)
@@ -74,15 +74,15 @@ int tc_gtp_mirror(struct __sk_buff *skb)
 	if (iph->protocol != rule->protocol)
 		return TC_ACT_OK;
 
-        offset += sizeof(struct iphdr);
-        udph = data + offset;
+	offset += sizeof(struct iphdr);
+	udph = data + offset;
 	if (udph + 1 > data_end)
 		return TC_ACT_OK;
 
-        if (!(udph->dest == rule->port || udph->source == rule->port))
+	if (!(udph->dest == rule->port || udph->source == rule->port))
         	return TC_ACT_OK;
 
-        bpf_clone_redirect(skb, rule->ifindex, 0);
+	bpf_clone_redirect(skb, rule->ifindex, 0);
 
 	return TC_ACT_OK;
 }
