@@ -16,13 +16,13 @@
 #              either version 3.0 of the License, or (at your option) any later
 #              version.
 #
-# Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+# Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
 #
 
 CC	 ?= gcc
-INCLUDES = -Iinclude -I../include -I../pppoe/include	\
-	   -I../../lib -I../../libbpf/src -I../../libbpf/src/uapi
-CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes -D_GNU_SOURCE -MMD
+INCLUDES = -Iinclude -I../include -I../../lib
+CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Wall -Wunused -Wstrict-prototypes \
+	-D_GNU_SOURCE -MMD
 #DEFS	 = -D_DEBUG_
 DEFS	 =
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)

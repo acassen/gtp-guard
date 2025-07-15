@@ -20,12 +20,21 @@
  */
 
 /* system includes */
+#include <string.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <sys/prctl.h>
 
 /* local includes */
-#include "gtp_guard.h"
-
+#include "inet_server.h"
+#include "list_head.h"
+#include "vty.h"
+#include "command.h"
+#include "gtp_data.h"
+#include "cgn.h"
 
 /* Extern data */
 extern data_t *daemon_data;
@@ -74,12 +83,12 @@ cgn_alloc(const char *name)
 {
 	cgn_t *new = NULL;
 
-	PMALLOC(new);
+	new = malloc(sizeof (*new));
 	if (!new) {
 		errno = ENOMEM;
 		return NULL;
 	}
-	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN);
+	snprintf(new->name, GTP_NAME_MAX_LEN, "%s", name);
 	INIT_LIST_HEAD(&new->next);
 	cgn_add(new);
 
@@ -91,7 +100,7 @@ cgn_release(cgn_t *cgn)
 {
 	/*... all destroy stuffs ...*/
 	list_head_del(&cgn->next);
-	FREE(cgn);
+	free(cgn);
 	return 0;
 }
 
