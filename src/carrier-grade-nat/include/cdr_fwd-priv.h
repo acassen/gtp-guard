@@ -16,6 +16,7 @@
 #include "addr.h"
 #include "list_head.h"
 #include "thread.h"
+#include "inet_utils.h"
 
 #include "cdr_fwd.h"
 

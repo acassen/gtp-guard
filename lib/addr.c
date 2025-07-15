@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2024, 2025 Olivier Gournet, <gournet.olivier@gmail.com> */
 
 #include <linux/version.h>
 #include <sys/socket.h>
@@ -126,6 +127,11 @@ addr_cmp_port(const union addr *la, const union addr *ra)
 	}
 }
 
+int
+addr_cmp_ss(const union addr *la, const union addr *ra)
+{
+	return ss_cmp(&la->ss, &ra->ss);
+}
 
 uint16_t
 addr_get_port(const union addr *a)
@@ -318,24 +324,17 @@ addr_parse_const(const char *paddr, union addr *a)
 int
 addr_parse_iface(const char *iface_name, union addr *a)
 {
-	struct if_nameindex *if_nidxs, *itf;
+	int idx;
 
-	if_nidxs = if_nameindex();
-	if (if_nidxs == NULL)
+	idx = if_nametoindex(iface_name);
+	if (!idx)
 		return 1;
 
-	for (itf = if_nidxs; itf->if_index; itf++) {
-		if (!strcmp(itf->if_name, iface_name)) {
-			memset(a, 0x00, sizeof (a->sll));
-			a->sll.sll_family = AF_PACKET;
-			a->sll.sll_protocol = SOCK_RAW;
-			a->sll.sll_ifindex = itf->if_index;
-			if_freenameindex(if_nidxs);
-			return 0;
-		}
-	}
-	if_freenameindex(if_nidxs);
-	return 1;
+	memset(a, 0x00, sizeof (a->sll));
+	a->sll.sll_family = AF_PACKET;
+	a->sll.sll_protocol = SOCK_RAW;
+	a->sll.sll_ifindex = idx;
+	return 0;
 }
 
 

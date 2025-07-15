@@ -37,7 +37,7 @@ gtp_mirror_rule_get(const struct sockaddr_storage *addr, uint8_t protocol, int i
 	gtp_mirror_rule_t *r;
 
 	list_for_each_entry(r, l, next) {
-		if (sockstorage_equal(addr, &r->addr) &&
+		if (!ss_cmp(addr, &r->addr) &&
 		    r->protocol == protocol &&
 		    r->ifindex == ifindex) {
 			return r;

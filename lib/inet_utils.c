@@ -36,6 +36,7 @@
 
 #include "logger.h"
 #include "inet_utils.h"
+#include "addr.h"
 #include "utils.h"
 
 /* Compute a checksum */
@@ -349,7 +350,7 @@ inet_sockaddrifindex(struct sockaddr_storage *addr)
 			struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) addr;
 			struct sockaddr_in6 *ifa_addr6 = (struct sockaddr_in6 *) ifa->ifa_addr;
 
-			if (__ip6_addr_equal(&addr6->sin6_addr, &ifa_addr6->sin6_addr))
+			if (__addr_ip6_equal(&addr6->sin6_addr, &ifa_addr6->sin6_addr))
 				goto match;
 			continue;
 		}
@@ -842,6 +843,19 @@ inet_setsockopt_sndbuf(int fd, int val)
 	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
 	if (err)
 		log_message(LOG_INFO, "cant set SO_SNDBUF IP option. errno=%d (%m)", errno);
+
+	return err;
+}
+
+int
+inet_setsockopt_sndbufforce(int fd, int val)
+{
+	int err;
+
+	/* sndbuf option */
+	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, &val, sizeof(val));
+	if (err)
+		log_message(LOG_INFO, "cant set SO_SNDBUFFORCE IP option. errno=%d (%m)", errno);
 
 	return err;
 }

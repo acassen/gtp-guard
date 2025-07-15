@@ -106,11 +106,11 @@ gtp_interface_get_by_direct_tx(ip_address_t *addr)
 
 		switch (addr->family) {
 		case AF_INET:
-			addr_equal = __ip4_addr_equal(&addr_iface->u.sin_addr,
+			addr_equal = __addr_ip4_equal(&addr_iface->u.sin_addr,
 						      &addr->u.sin_addr);
 			break;
 		case AF_INET6:
-			addr_equal = __ip6_addr_equal(&addr_iface->u.sin6_addr,
+			addr_equal = __addr_ip6_equal(&addr_iface->u.sin6_addr,
 						      &addr->u.sin6_addr);
 			break;
 		}

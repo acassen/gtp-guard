@@ -634,6 +634,6 @@ cdr_fwd_ctx_release(struct cdr_fwd_context *ctx)
 		_del_remote(ctx, sr);
 	}
 	cdr_fwd_spool_release(ctx);
-	thread_cancel(ctx->active_tick);
+	thread_del(ctx->active_tick);
 	free(ctx);
 }

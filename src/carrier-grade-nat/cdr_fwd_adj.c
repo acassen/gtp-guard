@@ -313,7 +313,6 @@ static void
 _server_connect(struct _thread *ev)
 {
 	struct cdr_fwd_server *sr = ev->arg;
-	long val;
 	int fd;
 	int r;
 
@@ -335,19 +334,20 @@ _server_connect(struct _thread *ev)
 	}
 
 	/* increase write buffer */
-	val = 8 * 1024 * 1024;
-	setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &val, sizeof (val));
-	setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, &val, sizeof (val));
+	r = inet_setsockopt_sndbuf(fd, 8 * 1024 * 1024);
+	r = (r) ? : inet_setsockopt_sndbufforce(fd, 8 * 1024 * 1024);
 
 	/* set keepalive option */
-	val = 3;
-	setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof (val));
-	val = 60;
-	setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof (val));
-	val = 60;
-	setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof (val));
-	val = 1;
-	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof (val));
+	r = (r) ? : inet_setsockopt_tcp_keepcnt(fd, 3);
+	r = (r) ? : inet_setsockopt_tcp_keepidle(fd, 60);
+	r = (r) ? : inet_setsockopt_tcp_keepintvl(fd, 60);
+	r = (r) ? : inet_setsockopt_keepalive(fd, 1);
+	if (r) {
+		err(sr->ctx->log, "setsockopt: %m");
+		close(fd);
+		_server_reconnect(sr);
+		return;
+	}
 
 	/* local bind */
 	if (sr->ctx->cfg.addr_ip_bound.sa.sa_family) {
@@ -377,13 +377,13 @@ _server_connect(struct _thread *ev)
 		sr->flags |= CDR_FWD_FL_CONNECTED;
 		cdr_fwd_remote_connected(sr);
 		_server_sm(sr);
-
-	} else {
-		trace2(sr->ctx->log, "%s: connection in progress...",
-		       sr->addr_str);
-		sr->io = thread_add_write(sr->ctx->cfg.loop, _server_connect_cb,
-					  sr, fd, 8 * USEC_PER_SEC, 0);
+		return;
 	}
+
+	trace2(sr->ctx->log, "%s: connection in progress...",
+	       sr->addr_str);
+	sr->io = thread_add_write(sr->ctx->cfg.loop, _server_connect_cb,
+				  sr, fd, 8 * USEC_PER_SEC, 0);
 }
 
 

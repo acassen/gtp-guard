@@ -29,6 +29,7 @@
 #include "memory.h"
 #include "bitops.h"
 #include "utils.h"
+#include "addr.h"
 #include "inet_utils.h"
 #include "inet_server.h"
 #include "pidfile.h"
