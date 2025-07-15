@@ -20,7 +20,14 @@
  */
 
 /* local includes */
-#include "gtp_guard.h"
+#include "utils.h"
+#include "bitops.h"
+#include "inet_server.h"
+#include "list_head.h"
+#include "vty.h"
+#include "command.h"
+#include "gtp_data.h"
+#include "cgn.h"
 
 
 /* Extern data */
