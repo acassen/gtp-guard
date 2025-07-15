@@ -275,7 +275,7 @@ void
 cancel_signal_read_thread(void)
 {
 	if (signal_thread) {
-		thread_cancel(signal_thread);
+		thread_del(signal_thread);
 		signal_thread = NULL;
 	}
 }
@@ -374,7 +374,7 @@ void
 signal_handler_destroy(void)
 {
 	if (signal_thread) {
-		thread_cancel(signal_thread);
+		thread_del(signal_thread);
 		signal_thread = NULL;
 	}
 

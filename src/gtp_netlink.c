@@ -329,7 +329,7 @@ netlink_close(nl_handle_t *nl)
 		return;
 
 	if (nl->thread) {
-		thread_cancel(nl->thread);
+		thread_del(nl->thread);
 		nl->thread = NULL;
 	}
 

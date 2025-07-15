@@ -144,7 +144,7 @@ gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
 void
 gtp_session_mod_timer(gtp_session_t *s, int timeout)
 {
-	thread_del_timer(s->timer);
+	thread_del(s->timer);
 	s->timer = thread_add_timer(master, gtp_session_expire, s
 					  , timeout * TIMER_HZ);
 }
@@ -348,7 +348,7 @@ gtp_session_destroy(gtp_session_t *s)
 {
 	gtp_conn_t *c = s->conn;
 
-	thread_del_timer(s->timer);
+	thread_del(s->timer);
 
 	/* Send Delete-Bearer-Request if needed */
 	if (s->action == GTP_ACTION_SEND_DELETE_BEARER_REQUEST)
@@ -480,7 +480,7 @@ gtp_sessions_free(gtp_conn_t *c)
 	gtp_session_t *s, *_s;
 
 	list_for_each_entry_safe(s, _s, l, next) {
-		thread_del_timer(s->timer);
+		thread_del(s->timer);
 		gtp_session_free(s);
 	}
 

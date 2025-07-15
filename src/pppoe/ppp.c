@@ -293,7 +293,7 @@ sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
 	if (timo < 1)
 		timo = 1;
 
-	thread_del_timer(sp->ch[cp->protoidx]);
+	thread_del(sp->ch[cp->protoidx]);
 	timer = (unsigned long) (timo * sp->lcp.timeout) * TIMER_HZ;
 	sp->ch[cp->protoidx] = thread_add_timer(master, (cps[cp->protoidx])->TO, sp
 						      , timer);
@@ -321,7 +321,7 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
 	case STATE_CLOSED:
 	case STATE_STOPPED:
 	case STATE_OPENED:
-		thread_del_timer(sp->ch[cp->protoidx]);
+		thread_del(sp->ch[cp->protoidx]);
 		sp->ch[cp->protoidx] = NULL;
 		break;
 	case STATE_CLOSING:
@@ -2490,7 +2490,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 
 	/* ack and nak are his authproto */
 	case PAP_ACK:
-		thread_del_timer(sp->pap_my_to_ch);
+		thread_del(sp->pap_my_to_ch);
 		sp->pap_my_to_ch = NULL;
 		if (debug & 8) {
 			PPPDEBUG(("%s: pap success", pppoe->ifname));
@@ -2517,7 +2517,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		break;
 
 	case PAP_NAK:
-		thread_del_timer(sp->pap_my_to_ch);
+		thread_del(sp->pap_my_to_ch);
 		sp->pap_my_to_ch = NULL;
 		if (debug & 8) {
 			PPPDEBUG(("%s: pap failure", pppoe->ifname));
@@ -2570,7 +2570,7 @@ sppp_pap_open(sppp_t *sp)
 	if (sp->myauth.proto == PPP_PAP) {
 		/* we are peer, send a request, and start a timer */
 		pap.scr(sp);
-		thread_del_timer(sp->pap_my_to_ch);
+		thread_del(sp->pap_my_to_ch);
 		sp->pap_my_to_ch = thread_add_timer(master, sppp_pap_my_TO, sp
 							  , sp->lcp.timeout * TIMER_HZ);
 	}
@@ -2664,9 +2664,9 @@ sppp_pap_tld(sppp_t *sp)
 	pppoe_t *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
-	thread_del_timer(sp->ch[IDX_PAP]);
+	thread_del(sp->ch[IDX_PAP]);
 	sp->ch[IDX_PAP] = NULL;
-	thread_del_timer(sp->pap_my_to_ch);
+	thread_del(sp->pap_my_to_ch);
 	sp->pap_my_to_ch = NULL;
 	sp->lcp.protos &= ~(1 << IDX_PAP);
 
@@ -2785,16 +2785,16 @@ sppp_down(spppoe_t *s)
 	(sp->pp_down)(sp);
 
 	for (i = 0; i < IDX_COUNT; i++) {
-		thread_del_timer(sp->ch[i]);
+		thread_del(sp->ch[i]);
 		sp->ch[i] = NULL;
 	}
-	thread_del_timer(sp->pap_my_to_ch);
+	thread_del(sp->pap_my_to_ch);
 	sp->pap_my_to_ch = NULL;
 
 	/* Release keepalive timer */
 	if (__test_bit(PPPOE_FL_KEEPALIVE_BIT, &pppoe->flags)) {
 		sp->pp_flags &= ~PP_KEEPALIVE;
-		thread_del_timer(sp->keepalive);
+		thread_del(sp->keepalive);
 		sp->keepalive = NULL;
 	}
 	return 0;
@@ -2858,14 +2858,14 @@ sppp_destroy(sppp_t *sp)
 	sppp_ipv6cp_destroy(sp);
 
 	/* Stop timers. */
-	thread_del_timer(sp->keepalive);
+	thread_del(sp->keepalive);
 	sp->keepalive = NULL;
 
 	for (i = 0; i < IDX_COUNT; i++) {
-		thread_del_timer(sp->ch[i]);
+		thread_del(sp->ch[i]);
 		sp->ch[i] = NULL;
 	}
-	thread_del_timer(sp->pap_my_to_ch);
+	thread_del(sp->pap_my_to_ch);
 	sp->pap_my_to_ch = NULL;
 
 	/* release authentication data */

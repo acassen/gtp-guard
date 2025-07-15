@@ -346,7 +346,7 @@ pppoe_disconnect(spppoe_t *s)
 	PPPDEBUG(("%s: pppoe disconnect hunique:0x%.8x\n", s->pppoe->ifname, s->unique));
 
 	/* Release pending session timer */
-	thread_del_timer(s->timer);
+	thread_del(s->timer);
 	s->timer = NULL;
 
 	/* Send PADT if session is running */
@@ -692,7 +692,7 @@ breakbreak:
 
 		s->session_id = session;
 		spppoe_session_hash(s, &s->hw_src, s->session_id);
-		thread_del_timer(s->timer);
+		thread_del(s->timer);
 		s->timer = NULL;
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x hw:" ETHER_FMT " connected\n",
 			 pppoe->ifname, s->unique, session,
@@ -717,7 +717,7 @@ breakbreak:
 		}
 
 		/* stop timer (we might be about to transmit a PADT ourself) */
-		thread_del_timer(s->timer);
+		thread_del(s->timer);
 		s->timer = NULL;
 		PPPDEBUG(("%s: pppoe hunique:0x%.8x session:0x%.4x terminated, received PADT\n",
 			 pppoe->ifname, s->unique, session));

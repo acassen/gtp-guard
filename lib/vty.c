@@ -1144,7 +1144,7 @@ vty_read(thread_t *thread)
 	/* Time out treatment. */
 	if (vty->v_timeout) {
 		if (vty->t_timeout)
-			thread_cancel(vty->t_timeout);
+			thread_del(vty->t_timeout);
 		vty->t_timeout = thread_add_timer(thread->master, vty_timeout, vty,
 						  vty->v_timeout*TIMER_HZ);
 	}
@@ -1315,7 +1315,7 @@ vty_read(thread_t *thread)
 
 	/* Check status. */
 	if (vty->status == VTY_CLOSE) {
-		thread_del_read(thread);
+		thread_del(thread);
 		vty_close(vty);
 		return;
 	}
@@ -1343,7 +1343,7 @@ vty_flush(thread_t *thread)
 
 	/* Tempolary disable read thread. */
 	if ((vty->lines == 0) && vty->t_read) {
-		thread_cancel(vty->t_read);
+		thread_del(vty->t_read);
 		vty->t_read = NULL;
 	}
 
@@ -1369,11 +1369,11 @@ vty_flush(thread_t *thread)
 		log_message(LOG_WARNING, "buffer_flush failed on vty client fd %d, closing"
 				       , vty->fd);
 		buffer_reset(vty->obuf);
-		thread_del_write(thread);
+		thread_del(thread);
 		vty_close(vty);
 		break;
 	case BUFFER_EMPTY:
-		thread_del_write(thread);
+		thread_del(thread);
 		if (vty->status == VTY_CLOSE) {
 			vty_close(vty);
 			break;
@@ -1391,7 +1391,7 @@ vty_flush(thread_t *thread)
 			break;
 		}
 
-		thread_del_write(thread);
+		thread_del(thread);
 		break;
 	}
 }
@@ -1575,11 +1575,11 @@ vty_close(vty_t *vty)
 
 	/* Cancel threads.*/
 	if (vty->t_read)
-		thread_cancel(vty->t_read);
+		thread_del(vty->t_read);
 	if (vty->t_write)
-		thread_cancel(vty->t_write);
+		thread_del(vty->t_write);
 	if (vty->t_timeout)
-		thread_cancel(vty->t_timeout);
+		thread_del(vty->t_timeout);
 
 	/* Flush buffer. */
 	buffer_flush_all(vty->obuf, vty->fd);
@@ -1845,7 +1845,7 @@ vty_event(thread_master_t *m, event_t event, int sock, void *arg)
 	case VTY_TIMEOUT_RESET:
 		vty = (vty_t *) arg;
 		if (vty->t_timeout) {
-			thread_cancel(vty->t_timeout);
+			thread_del(vty->t_timeout);
 			vty->t_timeout = NULL;
 		}
 
@@ -2031,7 +2031,7 @@ DEFUN(no_vty_line_listen,
 		if ((vty_serv_thread = vector_slot(Vvty_serv_thread, i)) != NULL) {
 			vty_listen_addr = THREAD_ARG(vty_serv_thread);
 			if (memcmp(vty_listen_addr, &addr, sizeof(struct sockaddr_storage)) == 0) {
-				thread_cancel(vty_serv_thread);
+				thread_del(vty_serv_thread);
 				vector_slot(Vvty_serv_thread, i) = NULL;
 				log_message(LOG_INFO, "Vty stop listener on [%s]:%d"
 						    , inet_sockaddrtos(vty_listen_addr)
@@ -2183,7 +2183,7 @@ vty_reset(void)
 	for (i = 0; i < vector_active(Vvty_serv_thread); i++) {
 		if ((vty_serv_thread = vector_slot(Vvty_serv_thread, i)) != NULL) {
 			addr = THREAD_ARG(vty_serv_thread);
-			thread_cancel(vty_serv_thread);
+			thread_del(vty_serv_thread);
 			vector_slot(Vvty_serv_thread, i) = NULL;
 			log_message(LOG_INFO, "Vty stop listener on [%s]:%d"
 					    , inet_sockaddrtos(addr)

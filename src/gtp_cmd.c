@@ -220,7 +220,7 @@ gtp_cmd_read_thread(thread_t *thread)
 	off_t offset = 0;
 	int ret, fd;
 
-	thread_del_read(args->t_read);
+	thread_del(args->t_read);
 	args->t_read = NULL;
 
 	/* Handle read timeout */
@@ -278,7 +278,7 @@ gtp_cmd_write_thread(thread_t *thread)
 	vty_t *vty = args->vty;
 	int ret = 0;
 
-	thread_del_write(args->t_write);
+	thread_del(args->t_write);
 	args->t_write = NULL;
 
 	/* Handle read timeout */

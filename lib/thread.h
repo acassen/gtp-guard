@@ -179,8 +179,3 @@ extern void thread_mod_timer(thread_t *, unsigned long);
 extern thread_t * thread_add_event(thread_master_t *, thread_func_t, void *, int);
 extern void thread_del(thread_t *);
 extern void launch_thread_scheduler(thread_master_t *);
-
-static inline void thread_cancel(thread_t *t) { thread_del(t); }
-static inline void thread_del_write(thread_t *t) { thread_del(t); }
-static inline void thread_del_read(thread_t *t) { thread_del(t); }
-static inline void thread_del_timer(thread_t *t) { thread_del(t); }
