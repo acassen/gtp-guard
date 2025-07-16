@@ -9,6 +9,7 @@
  *              rewriting and redirecting.
  *
  * Authors:     Alexandre Cassen, <acassen@gmail.com>
+ *              Olivier Gournet, <gournet.olivier@gmail.com>
  *
  *              This program is free software; you can redistribute it and/or
  *              modify it under the terms of the GNU Affero General Public
@@ -16,30 +17,56 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
+
 #pragma once
+
+/* default protocol timeout values */
+#define CGN_PROTO_TIMEOUT_TCP_EST	600
+#define CGN_PROTO_TIMEOUT_TCP_SYNFIN	120
+#define CGN_PROTO_TIMEOUT_UDP		120
+#define CGN_PROTO_TIMEOUT_ICMP		120
+
+/* timeout are in seconds */
+struct port_timeout_config
+{
+	uint16_t udp;
+	uint16_t tcp_synfin;
+	uint16_t tcp_est;
+};
 
 enum cgn_flags {
 	CGN_FL_SHUTDOWN_BIT,
 };
 
-typedef struct _cgn {
+struct cgn_ctx
+{
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
-
-	/* metrics */
-
+	unsigned long		flags;
 	list_head_t		next;
 
-	unsigned long		flags;
-} cgn_t;
+	/* conf */
+	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */
+	uint32_t		cgn_addr_n;
+	uint16_t		port_start;
+	uint16_t		port_end;
+	uint16_t		block_size;	/* # of port per block */
+	uint16_t		block_count;	/* # of block per ip */
+	struct port_timeout_config timeout;
+	struct port_timeout_config timeout_by_port[0x10000];
+	uint16_t		timeout_icmp;
+
+	/* metrics */
+};
 
 /* Prototypes */
-extern void cgn_foreach(int (*hdl) (cgn_t *, void *), void *);
-extern cgn_t *cgn_get_by_name(const char *);
-extern int cgn_release(cgn_t *);
-extern cgn_t *cgn_alloc(const char *);
-extern int cgn_init(void);
-extern int cgn_destroy(void);
+int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
+int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
+struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
+void cgn_ctx_release(struct cgn_ctx *cgn);
+struct cgn_ctx *cgn_ctx_alloc(const char *name);
+int cgn_init(void);
+int cgn_destroy(void);
 
