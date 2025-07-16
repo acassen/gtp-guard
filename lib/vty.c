@@ -69,6 +69,7 @@ vty_out(vty_t *vty, const char *format, ...)
 	char buf[1024];
 	char *tmp = NULL;
 	char *p = NULL;
+	char *s, *e;
 
 	if (vty_shell(vty)) {
 		va_start(args, format);
@@ -110,8 +111,21 @@ vty_out(vty_t *vty, const char *format, ...)
 	if (!p)
 		p = buf;
 
-	/* Pointer p must point out buffer. */
-	buffer_put(vty->obuf, (u_char *) p, len);
+	/* Convert '\n' to '\r\n' if needed */
+	if (vty->type == VTY_TERM) {
+		for (s = p; s < p + len; s = e + 1) {
+			e = strchrnul(s, '\n');
+			buffer_put(vty->obuf, s, e - s);
+			if (e[0] == '\n' && e > s && e[-1] != '\r')
+				buffer_put(vty->obuf, "\r\n", 2);
+			else if (e[0] == '\n')
+				buffer_put(vty->obuf, "\n", 1);
+		}
+
+	} else {
+		/* Pointer p must point out buffer. */
+		buffer_put(vty->obuf, (u_char *) p, len);
+	}
 
 	/* If p is not different with buf, it is allocated buffer.  */
 	if (p != buf)
