@@ -237,9 +237,9 @@ write_cdr(const void *buf, size_t bsize)
 	int err, i;
 
 	PMALLOC(map_file);
-	bsd_strlcpy(map_file->path, gtp_cdr_file, GTP_PATH_MAX_LEN);
+	bsd_strlcpy(map_file->path, gtp_cdr_file, PATH_MAX_LEN);
 
-	err = gtp_disk_open(map_file, GTP_CDR_DEFAULT_FSIZE);
+	err = disk_open(map_file, GTP_CDR_DEFAULT_FSIZE);
 	if (err) {
 		fprintf(stderr, "error creating file:%s (%m)\n", gtp_cdr_file);
 		return -1;
@@ -247,7 +247,7 @@ write_cdr(const void *buf, size_t bsize)
 
 	/* writing */
 	for (i = 0, offset = 0; i < 1000; i++, offset += bsize) {
-		err = gtp_disk_write_sync(map_file, offset, buf, bsize);
+		err = disk_map_write_sync(map_file, offset, buf, bsize);
 		if (err) {
 			fprintf(stderr, "\n#%d error writing (%m)\n", i);
 			goto end;
@@ -269,7 +269,7 @@ write_cdr(const void *buf, size_t bsize)
 	printf("Success vrfy file content integrity\n");
 
 end:
-	gtp_disk_close(map_file);
+	disk_close(map_file);
 	FREE(map_file);
 	return 0;
 }

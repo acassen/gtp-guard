@@ -17,6 +17,7 @@
 #include "list_head.h"
 #include "thread.h"
 #include "inet_utils.h"
+#include "disk.h"
 
 #include "cdr_fwd.h"
 
@@ -106,8 +107,8 @@ struct cdr_fwd_server
 	time_t				try_last;
 	int				try_count;
 
-	struct _thread			*connect_ev;	/* timer */
-	struct _thread			*io;		/* fd */
+	thread_t			*connect_ev;	/* timer */
+	thread_t			*io;		/* fd */
 	int				state;
 	uint8_t				recv_buf[4];
 	uint32_t			recv_buf_size;
@@ -164,10 +165,6 @@ void cdr_fwd_adjacency_release(struct cdr_fwd_server *sr);
 
 
 /* cdr_fwd_disk.c */
-int cdr_fwd_disk_create(char *path, bool append);
-int cdr_fwd_disk_write(int fd, const void *buffer, int size);
-int cdr_fwd_disk_read(int fd, void *buffer, int size);
-void cdr_fwd_disk_close_file(int *fd);
 int cdr_fwd_disk_write_ticket(struct cdr_fwd_context *ctx, int fd,
 			      const struct cdr_fwd_ticket_buffer *t,
 			      const char *pathname);

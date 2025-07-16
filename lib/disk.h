@@ -20,6 +20,33 @@
  */
 #pragma once
 
+#include <sys/stat.h>
+
+/* defines */
+#define PATH_MAX_LEN	256
+#define DISK_ASYNC	0
+#define DISK_SYNC	1
+
+/* Map file */
+typedef struct _map_file {
+	char			path[PATH_MAX_LEN];
+	struct stat		fstat;
+	int			fd;
+	void			*map;
+} map_file_t;
+
 /* Prototypes */
-extern int gtp_disk_write_restart_counter(void);
-extern int gtp_disk_read_restart_counter(void);
+extern int disk_create(char *, bool);
+extern int disk_open(map_file_t *, size_t);
+extern void disk_close_fd(int *);
+extern int disk_close(map_file_t *);
+extern int disk_resize(map_file_t *, size_t);
+extern int disk_rm(const char *);
+extern int disk_mv(char *, char *);
+extern int disk_chown(const char *, uid_t, gid_t);
+extern int disk_msync_offset(map_file_t *, off_t, size_t, int);
+extern int disk_map_write(map_file_t *, off_t, const void *, size_t);
+extern int disk_map_write_sync(map_file_t *, off_t, const void *, size_t);
+extern int disk_map_write_async(map_file_t *, off_t, const void *, size_t);
+extern int disk_write(int, const void *, int);
+extern int disk_read(int, void *, int);

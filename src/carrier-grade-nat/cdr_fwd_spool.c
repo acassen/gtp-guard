@@ -421,7 +421,7 @@ cdr_fwd_spool_save_wincur(struct cdr_fwd_server *sr)
 		return;
 	}
 
-	fd = cdr_fwd_disk_create(sr->cur_filepath, false);
+	fd = disk_create(sr->cur_filepath, false);
 	if (fd < 0) {
 		err(ctx->log, "%s: create: %m", sr->cur_filepath);
 		return;
@@ -430,7 +430,7 @@ cdr_fwd_spool_save_wincur(struct cdr_fwd_server *sr)
 	ts = ctx->spool_f[sr->win_idx].ts;
 	l = scnprintf(buf, sizeof (buf), "spool %ld:%ld seq %u\n",
 		      ts, sr->win_off, sr->seq);
-	if (cdr_fwd_disk_write(fd, buf, l) < 0) {
+	if (disk_write(fd, buf, l) < 0) {
 		err(ctx->log, "%s: %m", sr->cur_filepath);
 		close(fd);
 		unlink(sr->cur_filepath);
@@ -498,7 +498,7 @@ cdr_fwd_spool_read_ticket(struct cdr_fwd_server *sr,
 		sr->cur_off += ret;
 		return 1;
 	}
-	cdr_fwd_disk_close_file(&sr->cur_fd);
+	disk_close_fd(&sr->cur_fd);
 
  skip_file:
 	/* go to next spool file */
@@ -534,7 +534,7 @@ cdr_fwd_spool_write_ticket(struct cdr_fwd_context *ctx,
 	if (ctx->spool_wr_idx != -1) {
 		ts = ctx->spool_f[ctx->spool_wr_idx].ts;
 		if (now - ts >= ctx->cfg.roll_period) {
-			cdr_fwd_disk_close_file(&ctx->spool_wr_fd);
+			disk_close_fd(&ctx->spool_wr_fd);
 			ts = now;
 			info(ctx->log, "spool: time to roll, to %ld", ts);
 		} else {
@@ -552,7 +552,7 @@ cdr_fwd_spool_write_ticket(struct cdr_fwd_context *ctx,
 			append ? ctx->spool_f[ctx->spool_wr_idx].size : 0;
 
 		/* open file */
-		ctx->spool_wr_fd = cdr_fwd_disk_create(path, append);
+		ctx->spool_wr_fd = disk_create(path, append);
 		if (ctx->spool_wr_fd < 0) {
 			err(ctx->log, "%s: create: %m", path);
 			goto err;
@@ -596,7 +596,7 @@ cdr_fwd_spool_write_ticket(struct cdr_fwd_context *ctx,
 	/* cannot write to disk */
 	ctx->spool_wr_idx = -1;
 	ctx->spool_wr_off = 0;
-	cdr_fwd_disk_close_file(&ctx->spool_wr_fd);
+	disk_close_fd(&ctx->spool_wr_fd);
 	ctx->spool_wr_last_try = now;
 
 	return 0;
@@ -626,7 +626,7 @@ cdr_fwd_spool_init(struct cdr_fwd_context *ctx)
 void
 cdr_fwd_spool_release(struct cdr_fwd_context *ctx)
 {
-	cdr_fwd_disk_close_file(&ctx->spool_wr_fd);
+	disk_close_fd(&ctx->spool_wr_fd);
 	free(ctx->spool_f);
 	ctx->spool_f = NULL;
 	ctx->spool_f_m = 0;

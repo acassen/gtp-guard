@@ -165,13 +165,13 @@ _server_got_ack(struct cdr_fwd_server *sr, bool need_retransmit)
 }
 
 static void
-_server_connect_cb(struct _thread *ev)
+_server_connect_cb(thread_t *ev)
 {
-	struct cdr_fwd_server *sr = ev->arg;
+	struct cdr_fwd_server *sr = THREAD_ARG(ev);
 	struct _thread *io;
 	unsigned val;
 	int r, status;
-	int fd = sr->io->u.f.fd;
+	int fd = THREAD_FD(ev);
 	timeval_t timer_min;
 
 	if (ev->type == THREAD_WRITE_TIMEOUT ||
@@ -212,7 +212,7 @@ _server_connect_cb(struct _thread *ev)
 
 	/* ok, ready to send tickets. switch to READ event */
 	trace1(sr->ctx->log, "%s: connected", sr->addr_str);
-	io = thread_add_read(sr->ctx->cfg.loop, _server_io_cb, sr,
+	io = thread_add_read(ev->master, _server_io_cb, sr,
 			     fd, TIMER_NEVER, 0);
 	assert(io != NULL);
 	thread_del(sr->io);
@@ -223,12 +223,12 @@ _server_connect_cb(struct _thread *ev)
 }
 
 static void
-_server_io_cb(struct _thread *ev)
+_server_io_cb(thread_t *ev)
 {
-	struct cdr_fwd_server *sr = ev->arg;
+	struct cdr_fwd_server *sr = THREAD_ARG(ev);
 	uint8_t recv_buf[4100];
 	int i, ret, seq;
-	int fd = ev->u.f.fd;
+	int fd = THREAD_FD(ev);
 
 	if (ev->type == THREAD_READ_ERROR) {
 		warn(sr->ctx->log, "%s: read error",
@@ -268,7 +268,7 @@ _server_io_cb(struct _thread *ev)
 	       sr->recv_buf_size);
 
 	if (sr->flags & CDR_FWD_FL_CONNECTED) {
-		sr->io = thread_add_read(sr->ctx->cfg.loop, _server_io_cb, sr,
+		sr->io = thread_add_read(ev->master, _server_io_cb, sr,
 					 fd, TIMER_NEVER, 0);
 	}
 }
@@ -283,7 +283,7 @@ _server_reconnect(struct cdr_fwd_server *sr)
 	       sr->addr_str, sr->flags & CDR_FWD_FL_CONNECTED);
 
 	if (sr->io != NULL) {
-		int fd = sr->io->u.f.fd;
+		int fd = THREAD_FD(sr->io);
 		thread_del(sr->io);
 		sr->io = NULL;
 		close(fd);
@@ -303,7 +303,7 @@ _server_reconnect(struct cdr_fwd_server *sr)
 		sr->state = 0;
 		sr->recv_buf_size = 0;
 
-		cdr_fwd_disk_close_file(&sr->cur_fd);
+		disk_close_fd(&sr->cur_fd);
 
 		debug(sr->ctx->log, "%s: closing connection", sr->addr_str);
 	}
@@ -321,9 +321,9 @@ _server_reconnect(struct cdr_fwd_server *sr)
  * async connect state machine
  */
 static void
-_server_connect(struct _thread *ev)
+_server_connect(thread_t *ev)
 {
-	struct cdr_fwd_server *sr = ev->arg;
+	struct cdr_fwd_server *sr = THREAD_ARG(ev);
 	int fd;
 	int r;
 
@@ -383,8 +383,8 @@ _server_connect(struct _thread *ev)
 	if (!r) {
 		/* ok, ready to send tickets */
 		trace1(sr->ctx->log, "%s: connected (early)", sr->addr_str);
-		sr->io = thread_add_read(sr->ctx->cfg.loop, _server_io_cb,
-					 sr, fd, TIMER_NEVER, 0);
+		sr->io = thread_add_read(ev->master, _server_io_cb, sr, fd,
+					 TIMER_NEVER, 0);
 		sr->flags |= CDR_FWD_FL_CONNECTED;
 		cdr_fwd_remote_connected(sr);
 		_server_sm(sr);
@@ -393,7 +393,7 @@ _server_connect(struct _thread *ev)
 
 	trace2(sr->ctx->log, "%s: connection in progress...",
 	       sr->addr_str);
-	sr->io = thread_add_write(sr->ctx->cfg.loop, _server_connect_cb,
+	sr->io = thread_add_write(ev->master, _server_connect_cb,
 				  sr, fd, 8 * USEC_PER_SEC, 0);
 }
 

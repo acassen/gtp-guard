@@ -30,9 +30,9 @@ gtp_cdr_file_header_sync(gtp_cdr_file_t *f)
 
 	map_file_t *map_file = f->file;
 	int hlen = sizeof(gtp_cdr_file_header_t);
-	int sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
-								       GTP_DISK_SYNC;
-	return gtp_disk_msync_offset(map_file, 0, hlen, sync);
+	int sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? DISK_ASYNC :
+								       DISK_SYNC;
+	return disk_msync_offset(map_file, 0, hlen, sync);
 }
 
 int
@@ -91,7 +91,7 @@ retry:
 	offset = ntohl(h->flen);
 
 	/* Write CDR */
-	err = gtp_disk_write(map_file, offset + sizeof(gtp_cdr_header_t), buf, bsize);
+	err = disk_map_write(map_file, offset + sizeof(gtp_cdr_header_t), buf, bsize);
 	if (err) {
 		if (errno == ENOSPC) {
 			log_message(LOG_INFO, "%s(): file:[%s] exceed max size."
@@ -117,9 +117,9 @@ retry:
 	cdrh->clen = htons(bsize);
 	cdrh->magic = GTP_CDR_MAGIC;
 
-	sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? GTP_DISK_ASYNC :
-								   GTP_DISK_SYNC;
-	err = gtp_disk_msync_offset(map_file, offset
+	sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? DISK_ASYNC :
+								   DISK_SYNC;
+	err = disk_msync_offset(map_file, offset
 					    , bsize + sizeof(gtp_cdr_header_t)
 					    , sync);
 	if (err) {
@@ -156,9 +156,9 @@ gtp_cdr_file_open(gtp_cdr_file_t *f)
 		return NULL;
 	}
 
-	bsd_strlcpy(n->path, s->document_root, GTP_PATH_MAX_LEN);
-	bsd_strlcat(n->path, "/current", GTP_PATH_MAX_LEN);
-	err = gtp_disk_open(n, (s->cdr_file_size) ? : GTP_CDR_DEFAULT_FSIZE);
+	bsd_strlcpy(n->path, s->document_root, PATH_MAX_LEN);
+	bsd_strlcat(n->path, "/current", PATH_MAX_LEN);
+	err = disk_open(n, (s->cdr_file_size) ? : GTP_CDR_DEFAULT_FSIZE);
 	if (err) {
 		FREE(n);
 		return NULL;
@@ -227,11 +227,11 @@ gtp_cdr_file_close(gtp_cdr_file_t *f)
 	log_message(LOG_INFO, "%s(): Closing cdr-file:%s (%ldBytes)"
 			    , __FUNCTION__
 			    , f->dst_path, ntohl(h->flen));
-	gtp_disk_resize(map_file, ntohl(h->flen));
-	gtp_disk_close(map_file);
-	gtp_disk_mv(map_file->path, f->dst_path);
+	disk_resize(map_file, ntohl(h->flen));
+	disk_close(map_file);
+	disk_mv(map_file->path, f->dst_path);
 	if (__test_bit(GTP_CDR_SPOOL_FL_OWNER_BIT, &s->flags))
-		gtp_disk_chown(f->dst_path, s->user, s->group);
+		disk_chown(f->dst_path, s->user, s->group);
 end:
 	FREE(map_file);
 	f->file = NULL;
@@ -254,7 +254,7 @@ gtp_cdr_file_create(gtp_cdr_file_t *f)
 		log_message(LOG_INFO, "%s(): error init header for cdr file:%s (%m)"
 				    , __FUNCTION__
 				    , map_file->path);
-		gtp_disk_close(f->file);
+		disk_close(f->file);
 		f->file = NULL;
 		return -1;
 	}

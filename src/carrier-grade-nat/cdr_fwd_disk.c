@@ -23,135 +23,6 @@
 
 
 /*
- *	Disk I/O stuff
- */
-static int
-cdr_fwd_disk_mkpath(char *path)
-{
-	struct stat sb;
-	int last;
-	char *p;
-	p = path;
-
-	if (p[0] == '/') ++p;
-	for (last = 0; !last ; ++p) {
-		if (p[0] == '\0')
-			last = 1;
-		else
-			if (p[0] != '/')
-				continue;
-
-		*p = '\0';
-		if (!last && p[1] == '\0')
-			last = 1;
-
-		if (mkdir(path, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {
-			if (errno == EEXIST || errno == EISDIR) {
-				if (stat(path, &sb) < 0)
-					return -1;
-				else
-					if (!S_ISDIR(sb.st_mode))
-						return -1;
-			} else
-				return -1;
-		}
-		if (!last) *p = '/';
-	}
-	return 0;
-}
-
-static int
-cdr_fwd_disk_mkdir(char *path)
-{
-	char *p;
-
-	p = path + strlen(path) - 1;
-	while (p-- != path) {
-		if (*p == '/')
-			break;
-	}
-
-	if (p != path) *p = '\0';
-	if (cdr_fwd_disk_mkpath(path) < 0)
-		return -1;
-	if (p != path) *p = '/';
-
-	return 0;
-}
-
-int
-cdr_fwd_disk_create(char *path, bool append)
-{
-	int ret, fd;
-
-	fd = open(path, O_CREAT | (append ? O_APPEND : O_TRUNC) | O_RDWR, 0644);
-	if (fd < 0) {
-		/* Try to create path */
-		ret = cdr_fwd_disk_mkdir(path);
-		if (ret < 0)
-			return -1;
-
-		/* Ok target dir is created */
-		fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0644);
-		if (fd < 0)
-			return -1;
-	}
-
-	return fd;
-}
-
-int
-cdr_fwd_disk_write(int fd, const void *buffer, int size)
-{
-	int offset = 0, ret;
-
-	if (fd < 0)
-		return -1;
-
-	while (offset < size) {
-		ret = write(fd, buffer + offset, size - offset);
-		if (ret < 0)
-			return -1;
-		offset += ret;
-	}
-
-	return 0;
-}
-
-int
-cdr_fwd_disk_read(int fd, void *buffer, int size)
-{
-	int offset = 0, ret = 0;
-
-	if (fd < 0)
-		return -1;
-
-	while (offset < size) {
-		ret = read(fd, buffer + offset, size - offset);
-		if (ret < 0)
-			return -1;
-		if (!ret) {
-			if (!offset)
-				return 0;
-			errno = ENOEXEC;
-			return -1;
-		}
-		offset += ret;
-	}
-
-	return size;
-}
-
-void
-cdr_fwd_disk_close_file(int *fd)
-{
-	if (*fd >= 0)
-		close(*fd);
-	*fd = -1;
-}
-
-
-/*
  * read a ticket from spool file
  */
 int
@@ -162,7 +33,7 @@ cdr_fwd_disk_read_ticket(struct cdr_fwd_context *ctx, int fd,
 	int ret;
 
 	/* read ticket size and magic (mtype) */
-	ret = cdr_fwd_disk_read(fd, ticket, 8);
+	ret = disk_read(fd, ticket, 8);
 	if (ret < 0) {
 		err(ctx->log, "%s: %m", pathname);
 		return -1;
@@ -187,7 +58,7 @@ cdr_fwd_disk_read_ticket(struct cdr_fwd_context *ctx, int fd,
 	}
 
 	/* read ticket payload */
-	ret = cdr_fwd_disk_read(fd, ticket->mtext, ticket->size);
+	ret = disk_read(fd, ticket->mtext, ticket->size);
 	if (ret != (int)ticket->size) {
 		if (ret < 0)
 			err(ctx->log, "%s: %m", pathname);
@@ -214,7 +85,7 @@ cdr_fwd_disk_write_ticket(struct cdr_fwd_context *ctx, int fd,
 	int ret = 0;
 
 	/* Write ticket size and magic */
-	ret = cdr_fwd_disk_write(fd, &v, 8);
+	ret = disk_write(fd, &v, 8);
 	if (ret < 0) {
 		err(ctx->log, "%s: %m", pathname);
 		return -1;
@@ -222,7 +93,7 @@ cdr_fwd_disk_write_ticket(struct cdr_fwd_context *ctx, int fd,
 
 	/* Write ticket data */
 	if (t->size > 0) {
-		ret = cdr_fwd_disk_write(fd, t->mtext, t->size);
+		ret = disk_write(fd, t->mtext, t->size);
 		if (ret < 0) {
 			err(ctx->log, "%s: %m", pathname);
 			return -1;

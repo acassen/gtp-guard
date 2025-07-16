@@ -532,7 +532,7 @@ _del_remote(struct cdr_fwd_context *ctx, struct cdr_fwd_server *sr)
 	if (sr->flags & CDR_FWD_FL_ACTIVE)
 		cdr_fwd_spool_save_wincur(sr);
 
-	cdr_fwd_disk_close_file(&sr->cur_fd);
+	disk_close_fd(&sr->cur_fd);
 	free(sr->cur_filepath);
 	list_del(&sr->list);
 	debug(ctx->log, "%s: peer removed", sr->addr_str);

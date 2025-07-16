@@ -44,7 +44,7 @@ struct cdr_fwd_config
 	int				rr_roll_period;
 
 	uint64_t			log;
-	struct _thread_master		*loop;
+	thread_master_t			*loop;
 };
 
 
