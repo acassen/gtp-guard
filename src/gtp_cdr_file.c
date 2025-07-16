@@ -158,7 +158,7 @@ gtp_cdr_file_open(gtp_cdr_file_t *f)
 
 	bsd_strlcpy(n->path, s->document_root, PATH_MAX_LEN);
 	bsd_strlcat(n->path, "/current", PATH_MAX_LEN);
-	err = disk_open(n, (s->cdr_file_size) ? : GTP_CDR_DEFAULT_FSIZE);
+	err = disk_map_open(n, (s->cdr_file_size) ? : GTP_CDR_DEFAULT_FSIZE);
 	if (err) {
 		FREE(n);
 		return NULL;
@@ -227,8 +227,8 @@ gtp_cdr_file_close(gtp_cdr_file_t *f)
 	log_message(LOG_INFO, "%s(): Closing cdr-file:%s (%ldBytes)"
 			    , __FUNCTION__
 			    , f->dst_path, ntohl(h->flen));
-	disk_resize(map_file, ntohl(h->flen));
-	disk_close(map_file);
+	disk_map_resize(map_file, ntohl(h->flen));
+	disk_map_close(map_file);
 	disk_mv(map_file->path, f->dst_path);
 	if (__test_bit(GTP_CDR_SPOOL_FL_OWNER_BIT, &s->flags))
 		disk_chown(f->dst_path, s->user, s->group);
@@ -254,7 +254,7 @@ gtp_cdr_file_create(gtp_cdr_file_t *f)
 		log_message(LOG_INFO, "%s(): error init header for cdr file:%s (%m)"
 				    , __FUNCTION__
 				    , map_file->path);
-		disk_close(f->file);
+		disk_map_close(f->file);
 		f->file = NULL;
 		return -1;
 	}

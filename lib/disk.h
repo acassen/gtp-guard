@@ -37,14 +37,14 @@ typedef struct _map_file {
 
 /* Prototypes */
 extern int disk_create(char *, bool);
-extern int disk_open(map_file_t *, size_t);
 extern void disk_close_fd(int *);
-extern int disk_close(map_file_t *);
-extern int disk_resize(map_file_t *, size_t);
 extern int disk_rm(const char *);
 extern int disk_mv(char *, char *);
 extern int disk_chown(const char *, uid_t, gid_t);
+extern int disk_map_open(map_file_t *, size_t);
+extern int disk_map_close(map_file_t *);
 extern int disk_msync_offset(map_file_t *, off_t, size_t, int);
+extern int disk_map_resize(map_file_t *, size_t);
 extern int disk_map_write(map_file_t *, off_t, const void *, size_t);
 extern int disk_map_write_sync(map_file_t *, off_t, const void *, size_t);
 extern int disk_map_write_async(map_file_t *, off_t, const void *, size_t);

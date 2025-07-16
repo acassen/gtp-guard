@@ -202,7 +202,7 @@ disk_map(map_file_t *map_file)
 }
 
 int
-disk_open(map_file_t *map_file, size_t size)
+disk_map_open(map_file_t *map_file, size_t size)
 {
 	int err = 0;
 
@@ -232,7 +232,7 @@ end:
 }
 
 int
-disk_close(map_file_t *map_file)
+disk_map_close(map_file_t *map_file)
 {
 	if (!map_file)
 		return -1;
@@ -264,7 +264,7 @@ disk_msync_offset(map_file_t *map_file, off_t offset, size_t ssize, int flags)
 }
 
 int
-disk_resize(map_file_t *map_file, size_t new_size)
+disk_map_resize(map_file_t *map_file, size_t new_size)
 {
 	int err = 0;
 
@@ -275,7 +275,7 @@ disk_resize(map_file_t *map_file, size_t new_size)
 	err = (err) ? : disk_msync_offset(map_file, 0
 						      , map_file->fstat.st_size
 						      , MS_ASYNC);
-	err = (err) ? : disk_close(map_file);
+	err = (err) ? : disk_map_close(map_file);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error closing file [%s] (%m)"
 					, __FUNCTION__, map_file->path);
