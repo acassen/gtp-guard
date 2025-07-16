@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <net/if.h>
+#include <ifaddrs.h>
 
 #include "addr.h"
 
@@ -337,6 +338,47 @@ addr_parse_iface(const char *iface_name, union addr *a)
 	return 0;
 }
 
+int
+addr_get_ifindex(const union addr *a)
+{
+	struct ifaddrs *ifaddr, *ifa;
+	int family, ifindex;
+
+	if (getifaddrs(&ifaddr) == -1)
+		return 0;
+
+	for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr)
+			continue;
+
+		family = ifa->ifa_addr->sa_family;
+		if (family != a->family)
+			continue;
+
+		if (family == AF_INET6) {
+			struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) a;
+			struct sockaddr_in6 *ifa_addr6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+
+			if (__addr_ip6_equal(&addr6->sin6_addr, &ifa_addr6->sin6_addr))
+				goto match;
+			continue;
+		}
+
+		struct sockaddr_in *addr4 = (struct sockaddr_in *) a;
+		struct sockaddr_in *ifa_addr4 = (struct sockaddr_in *) ifa->ifa_addr;
+
+		if (addr4->sin_addr.s_addr == ifa_addr4->sin_addr.s_addr)
+			goto match;
+	}
+
+	freeifaddrs(ifaddr);
+	return 0;
+
+  match:
+	ifindex = if_nametoindex(ifa->ifa_name);
+	freeifaddrs(ifaddr);
+	return ifindex;
+}
 
 
 /*

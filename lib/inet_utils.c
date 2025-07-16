@@ -328,49 +328,6 @@ inet_sockaddrip6(struct sockaddr_storage *addr, struct in6_addr *ip6)
 	return 0;
 }
 
-/* Get ifindex from IP Address */
-int
-inet_sockaddrifindex(struct sockaddr_storage *addr)
-{
-	struct ifaddrs *ifaddr, *ifa;
-	int family, ifindex;
-
-	if (getifaddrs(&ifaddr) == -1)
-		return -1;
-
-	for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr)
-			continue;
-
-		family = ifa->ifa_addr->sa_family;
-		if (family != addr->ss_family)
-			continue;
-
-		if (family == AF_INET6) {
-			struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) addr;
-			struct sockaddr_in6 *ifa_addr6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-
-			if (__addr_ip6_equal(&addr6->sin6_addr, &ifa_addr6->sin6_addr))
-				goto match;
-			continue;
-		}
-
-		struct sockaddr_in *addr4 = (struct sockaddr_in *) addr;
-		struct sockaddr_in *ifa_addr4 = (struct sockaddr_in *) ifa->ifa_addr;
-
-		if (addr4->sin_addr.s_addr == ifa_addr4->sin_addr.s_addr)
-			goto match;
-	}
-
-	freeifaddrs(ifaddr);
-	return -1;
-
-  match:
-	ifindex = if_nametoindex(ifa->ifa_name);
-	freeifaddrs(ifaddr);
-	return ifindex;
-}
-
 /*
  * IP string to network representation
  * Highly inspired from Paul Vixie code.
