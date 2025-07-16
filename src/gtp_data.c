@@ -271,6 +271,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->interfaces);
 	INIT_LIST_HEAD(&new->pppoe);
 	INIT_LIST_HEAD(&new->pppoe_bundle);
+	INIT_LIST_HEAD(&new->cgn);
 	INIT_LIST_HEAD(&new->gtp_apn);
 	INIT_LIST_HEAD(&new->gtp_cdr);
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
