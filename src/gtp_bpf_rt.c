@@ -30,50 +30,45 @@ extern data_t *daemon_data;
 /*
  *	XDP RT BPF related
  */
-int
-gtp_bpf_rt_load_maps(gtp_bpf_prog_t *p)
+static int
+gtp_bpf_rt_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
 {
 	struct bpf_map *map;
 
 	/* MAP ref for faster access */
 	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_RT_MAP_CNT);
-	map = gtp_bpf_load_map(p->bpf_obj, "teid_ingress");
+	map = gtp_bpf_load_map(bpf_obj, "teid_ingress");
 	if (!map)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_TEID_INGRESS].map = map;
 
-	map = gtp_bpf_load_map(p->bpf_obj, "teid_egress");
+	map = gtp_bpf_load_map(bpf_obj, "teid_egress");
 	if (!map)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_TEID_EGRESS].map = map;
 
-	map = gtp_bpf_load_map(p->bpf_obj, "ppp_ingress");
+	map = gtp_bpf_load_map(bpf_obj, "ppp_ingress");
 	if (!map)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map = map;
 
-	map = gtp_bpf_load_map(p->bpf_obj, "iptnl_info");
+	map = gtp_bpf_load_map(bpf_obj, "iptnl_info");
 	if (!map)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_IPTNL].map = map;
 
-	map = gtp_bpf_load_map(p->bpf_obj, "if_lladdr");
+	map = gtp_bpf_load_map(bpf_obj, "if_lladdr");
 	if (!map)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map = map;
 
-	map = gtp_bpf_load_map(p->bpf_obj, "if_stats");
+	map = gtp_bpf_load_map(bpf_obj, "if_stats");
 	if (!map)
 		return -1;
 	p->bpf_maps[XDP_RT_MAP_IF_STATS].map = map;
 	return 0;
 }
 
-void
-gtp_bpf_rt_unload_maps(gtp_bpf_prog_t *p)
-{
-	FREE_PTR(p->bpf_maps);
-}
 
 /*
  *	Statistics
@@ -671,4 +666,17 @@ gtp_bpf_rt_lladdr_vty(vty_t *vty)
 
 	free(ll);
 	return 0;
+}
+
+
+static gtp_bpf_prog_tpl_t gtp_bpf_tpl_rt = {
+	.name = "gtp-route",
+	.def_path = "/etc/gtp-guard/gtp-route.bpf",
+	.loaded = gtp_bpf_rt_load_maps,
+};
+
+static void __attribute__((constructor))
+gtp_bpf_rt_init(void)
+{
+	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_rt);
 }
