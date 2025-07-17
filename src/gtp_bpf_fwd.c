@@ -30,8 +30,8 @@ extern data_t *daemon_data;
 /*
  *	XDP FWD BPF related
  */
-int
-gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p)
+static int
+gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
 {
 	/* TODO: migrate to bpf-program paradigm */
 	return -1;
@@ -364,4 +364,17 @@ gtp_bpf_fwd_iptnl_vty(vty_t *vty)
 		return -1;
 
 	return gtp_bpf_iptnl_vty(vty, bpf_opts->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+}
+
+
+static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
+	.name = "gtp-forward",
+	.def_path = "/etc/gtp-guard/gtp-fwd.bpf",
+	.loaded = gtp_bpf_fwd_load_maps,
+};
+
+static void __attribute__((constructor))
+gtp_bpf_fwd_init(void)
+{
+	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_fwd);
 }

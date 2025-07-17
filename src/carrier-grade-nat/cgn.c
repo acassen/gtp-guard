@@ -34,6 +34,7 @@
 #include "vty.h"
 #include "command.h"
 #include "gtp_data.h"
+#include "gtp_bpf_prog.h"
 #include "cgn.h"
 
 /* Extern data */
@@ -44,6 +45,37 @@ extern thread_master_t *master;
 /*
  *	CGN utilities
  */
+
+
+/*
+ * BPF stuff
+ */
+
+static int
+cgn_bpf_opened(gtp_bpf_prog_t *p, struct bpf_object *obj)
+{
+	return 0;
+}
+
+static int
+cgn_bpf_loaded(gtp_bpf_prog_t *p, struct bpf_object *obj)
+{
+	return 0;
+}
+
+static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
+	.name = "cgn",
+	.def_path = "/etc/gtp-guard/cgn.bpf",
+	.opened = cgn_bpf_opened,
+	.loaded = cgn_bpf_loaded,
+};
+
+static void __attribute__((constructor))
+gtp_bpf_fwd_init(void)
+{
+	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_fwd);
+}
+
 
 
 /* compact addr/netmask from cgn_addr array.

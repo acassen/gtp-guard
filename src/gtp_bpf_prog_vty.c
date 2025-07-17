@@ -45,7 +45,7 @@ gtp_bpf_prog_show(gtp_bpf_prog_t *p, void *arg)
 
 	vty_out(vty, "gtp-program '%s' [%s] %s %s%s"
 		   , p->name, p->path
-		   , __test_bit(GTP_BPF_PROG_FL_RT_BIT, &p->flags) ? "route" : "forward"
+		   , p->tpl == NULL ? "(no-mode)" : p->tpl->name
 		   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "unloaded" : "loaded"
 		   , VTY_NEWLINE);
 	return 0;
@@ -70,7 +70,7 @@ DEFUN(bpf_prog,
 
 	new = gtp_bpf_prog_get(argv[0]);
 	if (new) {
-		vty->node = APN_NODE;
+		vty->node = BPF_PROG_NODE;
 		vty->index = new;
 		gtp_bpf_prog_put(new);
 		return CMD_SUCCESS;
@@ -171,52 +171,52 @@ DEFUN(bpf_prog_progname,
 	return CMD_SUCCESS;
 }
 
-DEFUN(bpf_prog_mode_rt,
-      bpf_prog_mode_rt_cmd,
-      "mode-gtp-route",
-      "Use GTP Routing mode\n")
+DEFUN(bpf_prog_mode,
+      bpf_prog_mode_cmd,
+      "(mode-gtp-route|mode-gtp-forward|mode-cgn)",
+      "Use GTP Routing mode\n"
+      "Use GTP Forward/Proxy mode\n"
+      "Use CGN mode\n")
 {
 	gtp_bpf_prog_t *p = vty->index;
+	const gtp_bpf_prog_tpl_t *tpl = NULL;
+	uint32_t dfl = 0;
 
-	if (__test_bit(GTP_BPF_PROG_FL_FWD_BIT, &p->flags)) {
-		vty_out(vty, "%% bpf-program:'%s' already in 'mode-gtp-forward'%s"
-			   , p->name, VTY_NEWLINE);
+	if (p->tpl != NULL) {
+		vty_out(vty, "%% bpf-program:'%s' already set with '%s'%s"
+			, p->name, p->tpl->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	if (__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% bpf-program already in 'mode-gtp-route'%s"
-			   , VTY_NEWLINE);
+	if (!strcmp(argv[0], "mode-gtp-route")) {
+		tpl = gtp_bpf_prog_tpl_get("gtp-route");
+		dfl = GTP_FL_GTP_ROUTE_LOADED_BIT;
+
+	} else if (!strcmp(argv[0], "mode-gtp-forward")) {
+		tpl = gtp_bpf_prog_tpl_get("gtp-forward");
+		dfl = GTP_FL_GTP_FORWARD_LOADED_BIT;
+
+	} else if (!strcmp(argv[0], "mode-cgn")) {
+		tpl = gtp_bpf_prog_tpl_get("cgn");
+	}
+
+	if (tpl == NULL) {
+		vty_out(vty, "%% bpf-program:'%s' template '%s' not loaded%s"
+			, p->name, argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	daemon_data->xdp_gtp_route = p;
-	__set_bit(GTP_BPF_PROG_FL_RT_BIT, &p->flags);
-	__set_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
+	/* attach template to bpf prog */
+	p->tpl = tpl;
 
-DEFUN(bpf_prog_mode_proxy,
-      bpf_prog_mode_proxy_cmd,
-      "mode-gtp-forward",
-      "Use GTP Forward/Proxy mode\n")
-{
-	gtp_bpf_prog_t *p = vty->index;
-
-	if (__test_bit(GTP_BPF_PROG_FL_RT_BIT, &p->flags)) {
-		vty_out(vty, "%% bpf-program:'%s' already in 'mode-gtp-route'%s"
-			   , p->name, VTY_NEWLINE);
-		return CMD_WARNING;
+	/* XXX maybe this could be more generic */
+	if (dfl == GTP_FL_GTP_ROUTE_LOADED_BIT) {
+		daemon_data->xdp_gtp_route = p;
+		__set_bit(dfl, &daemon_data->flags);
+	} else if (dfl == GTP_FL_GTP_FORWARD_LOADED_BIT) {
+		__set_bit(dfl, &daemon_data->flags);
 	}
 
-	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% bpf-program already in 'mode-gtp-forward'%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__set_bit(GTP_BPF_PROG_FL_FWD_BIT, &p->flags);
-	__set_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
 	return CMD_SUCCESS;
 }
 
@@ -254,27 +254,16 @@ DEFUN(bpf_prog_no_shutdown,
 		return CMD_WARNING;
 	}
 
+	if (p->tpl == NULL) {
+		vty_out(vty, "%% you MUST specify a mode for bpf-program:'%s'%s"
+			, p->name, VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	err = gtp_bpf_prog_load(p);
 	if (err) {
 		vty_out(vty, "%% unable to load bpf-program:'%s'%s"
 			   , p->path, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (__test_bit(GTP_BPF_PROG_FL_RT_BIT, &p->flags))
-		err = gtp_bpf_rt_load_maps(p);
-	else if (__test_bit(GTP_BPF_PROG_FL_FWD_BIT, &p->flags))
-		err = gtp_bpf_fwd_load_maps(p);
-	else {
-		vty_out(vty, "%% you MUST specify 'mode-gtp-route' or 'mode-gtp-forward'"
-			     " for bpf_program:'%s'%s"
-			   , p->name, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (err) {
-		vty_out(vty, "%% unable to load maps from bpf-program:'%s'%s"
-			   , p->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -327,10 +316,8 @@ bpf_prog_config_write(vty_t *vty)
 		vty_out(vty, " path %s%s", p->path, VTY_NEWLINE);
 		if (p->progname[0])
 			vty_out(vty, " prog-name %s%s", p->progname, VTY_NEWLINE);
-		if (__test_bit(GTP_BPF_PROG_FL_RT_BIT, &p->flags))
-			vty_out(vty, " mode-gtp-route%s", VTY_NEWLINE);
-		if (__test_bit(GTP_BPF_PROG_FL_FWD_BIT, &p->flags))
-			vty_out(vty, " mode-gtp-forward%s", VTY_NEWLINE);
+		if (p->tpl != NULL)
+			vty_out(vty, " mode-%s%s", p->tpl->name, VTY_NEWLINE);
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "" : "no "
 			   , VTY_NEWLINE);
@@ -356,8 +343,7 @@ gtp_bpf_prog_vty_init(void)
 	install_element(BPF_PROG_NODE, &bpf_prog_description_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_path_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_progname_cmd);
-	install_element(BPF_PROG_NODE, &bpf_prog_mode_rt_cmd);
-	install_element(BPF_PROG_NODE, &bpf_prog_mode_proxy_cmd);
+	install_element(BPF_PROG_NODE, &bpf_prog_mode_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_shutdown_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_no_shutdown_cmd);
 

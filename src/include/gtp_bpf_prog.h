@@ -16,14 +16,27 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 #pragma once
 
+typedef struct _gtp_bpf_prog gtp_bpf_prog_t;
+
+/* BPF prog template */
+typedef struct _gtp_bpf_prog_tpl {
+	char			name[GTP_STR_MAX_LEN];
+	char			def_path[GTP_PATH_MAX_LEN];
+	char			def_progname[GTP_STR_MAX_LEN];
+
+	int (*opened)(gtp_bpf_prog_t *, struct bpf_object *);
+	int (*loaded)(gtp_bpf_prog_t *, struct bpf_object *);
+
+	list_head_t		next;
+} gtp_bpf_prog_tpl_t;
+
+
 /* Flags */
 enum gtp_bpf_prog_flags {
-	GTP_BPF_PROG_FL_RT_BIT,
-	GTP_BPF_PROG_FL_FWD_BIT,
 	GTP_BPF_PROG_FL_SHUTDOWN_BIT,
 };
 
@@ -36,12 +49,14 @@ typedef struct _gtp_bpf_prog {
 	struct bpf_object	*bpf_obj;
 	struct bpf_program	*bpf_prog;
 	gtp_bpf_maps_t		*bpf_maps;
+	const gtp_bpf_prog_tpl_t *tpl;
 
 	list_head_t		next;
 
 	int			refcnt;
 	unsigned long		flags;
 } gtp_bpf_prog_t;
+
 
 /* Prototypes */
 extern struct bpf_link *gtp_bpf_prog_attach(gtp_bpf_prog_t *, int);
@@ -54,3 +69,5 @@ extern gtp_bpf_prog_t *gtp_bpf_prog_get(const char *);
 extern int gtp_bpf_prog_put(gtp_bpf_prog_t *);
 extern gtp_bpf_prog_t *gtp_bpf_prog_alloc(const char *);
 extern int gtp_bpf_progs_destroy(void);
+void gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *tpl);
+const gtp_bpf_prog_tpl_t *gtp_bpf_prog_tpl_get(const char *name);

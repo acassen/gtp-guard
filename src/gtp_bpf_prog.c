@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 /* local includes */
@@ -76,10 +76,13 @@ gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
 	bpf_obj = bpf_object__open(p->path);
 	if (!bpf_obj) {
 		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%% eBPF: error opening bpf file err:%d (%s)"
+		log_message(LOG_INFO, "eBPF: error opening bpf file err:%d (%s)"
 				    , errno, errmsg);
 		return NULL;
 	}
+
+	if (p->tpl->opened != NULL)
+		p->tpl->opened(p, bpf_obj);
 
 	/* Global vars update */
 	gtp_bpf_obj_update_global_vars(bpf_obj);
@@ -88,11 +91,14 @@ gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
 	err = bpf_object__load(bpf_obj);
 	if (err) {
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%% eBPF: error loading bpf_object err:%d (%s)"
+		log_message(LOG_INFO, "eBPF: error loading bpf_object err:%d (%s)"
 				    , err, errmsg);
 		bpf_object__close(bpf_obj);
 		return NULL;
 	}
+
+	if (p->tpl->loaded != NULL)
+		p->tpl->loaded(p, bpf_obj);
 
 	return bpf_obj;
 }
@@ -106,6 +112,20 @@ gtp_bpf_prog_load(gtp_bpf_prog_t *p)
 	/* Already loaded */
 	if (p->bpf_prog)
 		return 0;
+
+	/* a template should be attached */
+	if (p->tpl == NULL)
+		return -1;
+
+	/* get default path/programe if not set */
+	if (!*p->path && *p->tpl->def_path) {
+		bsd_strlcpy(p->path, p->tpl->def_path,
+			    GTP_PATH_MAX_LEN - 1);
+	}
+	if (!*p->progname && *p->tpl->def_progname) {
+		bsd_strlcpy(p->progname, p->tpl->def_progname,
+			    GTP_STR_MAX_LEN - 1);
+	}
 
 	/* Load object */
 	bpf_obj = gtp_bpf_prog_load_file(p);
@@ -124,7 +144,7 @@ gtp_bpf_prog_load(gtp_bpf_prog_t *p)
 
 	if (bpf_prog)
 		goto end;
-	
+
 	bpf_prog = bpf_object__next_program(bpf_obj, NULL);
 	if (!bpf_prog) {
 		log_message(LOG_INFO, "%s(): eBPF: no program found in file:%s"
@@ -206,7 +226,6 @@ gtp_bpf_prog_alloc(const char *name)
 	gtp_bpf_prog_t *new;
 
 	PMALLOC(new);
-	INIT_LIST_HEAD(&new->next);
 	bsd_strlcpy(new->name, name, GTP_STR_MAX_LEN - 1);
 
 	list_add_tail(&new->next, &daemon_data->bpf_progs);
@@ -226,4 +245,38 @@ gtp_bpf_progs_destroy(void)
 		FREE(p);
 	}
 	return 0;
+}
+
+
+
+/*
+ *	BPF progs template.
+ *
+ * each module handling bpf program (eg. gtp_fwd, cgn, ...) registers itself
+ * with its specific callbacks.
+ *
+ * then, a bpf program will be attached to a bpf program template.
+ * vty's mode-* command does it.
+ */
+
+
+/* local data */
+static LIST_HEAD(bpf_prog_tpl_list);
+
+void
+gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *tpl)
+{
+	list_add(&tpl->next, &bpf_prog_tpl_list);
+}
+
+const gtp_bpf_prog_tpl_t *
+gtp_bpf_prog_tpl_get(const char *name)
+{
+	gtp_bpf_prog_tpl_t *tpl;
+
+	list_for_each_entry(tpl, &bpf_prog_tpl_list, next) {
+		if (!strcmp(name, tpl->name))
+			return tpl;
+	}
+	return NULL;
 }
