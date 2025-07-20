@@ -284,8 +284,6 @@ alloc_daemon_data(void)
 void
 free_daemon_data(void)
 {
-	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
-		gtp_bpf_fwd_unload(&daemon_data->xdp_gtp_forward);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_bpf_mirror_unload(&daemon_data->xdp_mirror);
 	gtp_proxy_server_destroy();

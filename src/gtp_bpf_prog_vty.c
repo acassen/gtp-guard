@@ -45,7 +45,7 @@ gtp_bpf_prog_show(gtp_bpf_prog_t *p, void *arg)
 
 	vty_out(vty, "gtp-program '%s' [%s] %s %s%s"
 		   , p->name, p->path
-		   , p->tpl == NULL ? "(no-mode)" : p->tpl->name
+		   , p->tpl == NULL ? "(no-mode)" : p->tpl->description
 		   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "unloaded" : "loaded"
 		   , VTY_NEWLINE);
 	return 0;
@@ -180,43 +180,32 @@ DEFUN(bpf_prog_mode,
 {
 	gtp_bpf_prog_t *p = vty->index;
 	const gtp_bpf_prog_tpl_t *tpl = NULL;
-	uint32_t dfl = 0;
 
 	if (p->tpl != NULL) {
-		vty_out(vty, "%% bpf-program:'%s' already set with '%s'%s"
-			, p->name, p->tpl->name, VTY_NEWLINE);
+		vty_out(vty, "%% bpf-program:'%s' already set as '%s'%s"
+			   , p->description, p->tpl->description
+			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
 	if (!strcmp(argv[0], "mode-gtp-route")) {
-		tpl = gtp_bpf_prog_tpl_get("gtp-route");
-		dfl = GTP_FL_GTP_ROUTE_LOADED_BIT;
+		tpl = gtp_bpf_prog_tpl_get(GTP_ROUTE);
 
 	} else if (!strcmp(argv[0], "mode-gtp-forward")) {
-		tpl = gtp_bpf_prog_tpl_get("gtp-forward");
-		dfl = GTP_FL_GTP_FORWARD_LOADED_BIT;
+		tpl = gtp_bpf_prog_tpl_get(GTP_FORWARD);
 
 	} else if (!strcmp(argv[0], "mode-cgn")) {
-		tpl = gtp_bpf_prog_tpl_get("cgn");
+		tpl = gtp_bpf_prog_tpl_get(CGN);
 	}
 
 	if (tpl == NULL) {
-		vty_out(vty, "%% bpf-program:'%s' template '%s' not loaded%s"
-			, p->name, argv[0], VTY_NEWLINE);
+		vty_out(vty, "%% bpf-program:'%s' unknown template '%s'%s"
+			   , p->description, argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
 	/* attach template to bpf prog */
 	p->tpl = tpl;
-
-	/* XXX maybe this could be more generic */
-	if (dfl == GTP_FL_GTP_ROUTE_LOADED_BIT) {
-		daemon_data->xdp_gtp_route = p;
-		__set_bit(dfl, &daemon_data->flags);
-	} else if (dfl == GTP_FL_GTP_FORWARD_LOADED_BIT) {
-		__set_bit(dfl, &daemon_data->flags);
-	}
-
 	return CMD_SUCCESS;
 }
 
@@ -256,7 +245,7 @@ DEFUN(bpf_prog_no_shutdown,
 
 	if (p->tpl == NULL) {
 		vty_out(vty, "%% you MUST specify a mode for bpf-program:'%s'%s"
-			, p->name, VTY_NEWLINE);
+			   , p->name, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -285,21 +274,22 @@ DEFUN(show_bpf_prog,
 {
 	gtp_bpf_prog_t *p = NULL;
 
-	if (argc >= 1) {
-		p = gtp_bpf_prog_get(argv[0]);
-		if (!p) {
-			vty_out(vty, "%% Unknown bpf-program:'%s'%s", argv[0], VTY_NEWLINE);
-			return CMD_WARNING;
-		}
-
-		gtp_bpf_prog_show(p, vty);
-		gtp_bpf_prog_put(p);
+	if (!argc) {
+		gtp_bpf_prog_foreach_prog(gtp_bpf_prog_show, vty);
 		return CMD_SUCCESS;
 	}
 
-	gtp_bpf_prog_foreach_prog(gtp_bpf_prog_show, vty);
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% Unknown bpf-program:'%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_bpf_prog_show(p, vty);
+	gtp_bpf_prog_put(p);
 	return CMD_SUCCESS;
 }
+
 
 
 /* Configuration writer */
@@ -316,8 +306,11 @@ bpf_prog_config_write(vty_t *vty)
 		vty_out(vty, " path %s%s", p->path, VTY_NEWLINE);
 		if (p->progname[0])
 			vty_out(vty, " prog-name %s%s", p->progname, VTY_NEWLINE);
-		if (p->tpl != NULL)
-			vty_out(vty, " mode-%s%s", p->tpl->name, VTY_NEWLINE);
+		if (p->tpl != NULL) {
+			vty_out(vty, " %s%s"
+				   , gtp_bpf_prog_tpl_mode2str(p->tpl)
+				   , VTY_NEWLINE);
+		}
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "" : "no "
 			   , VTY_NEWLINE);

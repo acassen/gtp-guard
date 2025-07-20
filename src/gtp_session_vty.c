@@ -68,7 +68,7 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 				   , t->vid, ntohl(t->id), t->sqn, t->bearer_id, NIPQUAD(t->ipv4)
 				   , VTY_NEWLINE);
 			if (t->vid)
-				gtp_bpf_fwd_teid_vty(vty, ntohl(t->vid));
+				gtp_bpf_fwd_teid_vty(vty, t);
 		} else if (__test_bit(GTP_TEID_FL_RT, &t->flags)) {
 			vty_out(vty, "  [UP] teid:0x%.8x"
 				     " bearer-id:0x%.2x remote_ipaddr:%u.%u.%u.%u%s"

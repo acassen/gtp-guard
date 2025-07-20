@@ -22,9 +22,17 @@
 
 typedef struct _gtp_bpf_prog gtp_bpf_prog_t;
 
+/* BPF program type */
+typedef enum {
+	GTP_FORWARD,
+	GTP_ROUTE,
+	CGN,
+} gtp_bpf_prog_mode_t;
+
 /* BPF prog template */
 typedef struct _gtp_bpf_prog_tpl {
-	char			name[GTP_STR_MAX_LEN];
+	gtp_bpf_prog_mode_t	mode;
+	char			description[GTP_STR_MAX_LEN];
 	char			def_path[GTP_PATH_MAX_LEN];
 	char			def_progname[GTP_STR_MAX_LEN];
 
@@ -69,5 +77,7 @@ extern gtp_bpf_prog_t *gtp_bpf_prog_get(const char *);
 extern int gtp_bpf_prog_put(gtp_bpf_prog_t *);
 extern gtp_bpf_prog_t *gtp_bpf_prog_alloc(const char *);
 extern int gtp_bpf_progs_destroy(void);
-void gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *tpl);
-const gtp_bpf_prog_tpl_t *gtp_bpf_prog_tpl_get(const char *name);
+extern const char *gtp_bpf_prog_tpl_mode2str(const gtp_bpf_prog_tpl_t *);
+extern void gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *);
+extern const gtp_bpf_prog_tpl_t *gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t);
+extern gtp_bpf_prog_t *gtp_bpf_prog_get_first_by_tpl(gtp_bpf_prog_mode_t);

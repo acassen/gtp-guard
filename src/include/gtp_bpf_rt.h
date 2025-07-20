@@ -104,9 +104,9 @@ extern int gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *, int, int,
 extern int gtp_bpf_rt_key_set(gtp_teid_t *, struct ip_rt_key *);
 extern int gtp_bpf_rt_teid_action(int, gtp_teid_t *);
 extern int gtp_bpf_rt_teid_vty(vty_t *, gtp_teid_t *);
-extern int gtp_bpf_rt_vty(vty_t *);
+extern int gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg);
 extern int gtp_bpf_rt_teid_bytes(gtp_teid_t *, uint64_t *);
 extern int gtp_bpf_rt_iptnl_action(int, gtp_iptnl_t *);
-extern int gtp_bpf_rt_iptnl_vty(vty_t *);
+extern int gtp_bpf_rt_iptnl_vty(gtp_bpf_prog_t *p, void *arg);
 extern int gtp_bpf_rt_lladdr_update(void *);
-extern int gtp_bpf_rt_lladdr_vty(vty_t *);
+extern int gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg);

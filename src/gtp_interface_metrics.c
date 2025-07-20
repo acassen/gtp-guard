@@ -241,9 +241,12 @@ gtp_interface_metrics_var_dump(gtp_interface_t *iface, void *arg,
 			       const char *var, int var_type,
 			       __u8 type, __u8 direction)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	gtp_bpf_prog_t *p = gtp_bpf_prog_get_first_by_tpl(GTP_ROUTE);
 	__u16 inuse = type << 8;
 	FILE *fp = arg;
+
+	if (!p)
+		return -1;
 
 	gtp_interface_metric_inuse(iface, &inuse);
 	if (!(inuse & 0xff))

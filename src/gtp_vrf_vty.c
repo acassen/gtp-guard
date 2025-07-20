@@ -166,11 +166,6 @@ DEFUN(ip_vrf_encapsulation_dot1q,
 	gtp_iptnl_t *t = &vrf->iptnl;
 	int vlan_id;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-Route program not loaded!%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -195,11 +190,6 @@ DEFUN(ip_vrf_decapsulation_dot1q,
 	ip_vrf_t *vrf = vty->index;
 	gtp_iptnl_t *t = &vrf->iptnl;
 	int vlan_id;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-Route program not loaded!%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -231,11 +221,6 @@ DEFUN(ip_vrf_encapsulation_ipip,
 	gtp_iptnl_t *t = &vrf->iptnl;
 	uint32_t laddr, raddr;
 	int ret;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% eBPF GTP-Route program not loaded!%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	if (argc < 2) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);

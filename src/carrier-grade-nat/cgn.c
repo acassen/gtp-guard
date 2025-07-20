@@ -48,7 +48,7 @@ extern thread_master_t *master;
 
 
 /*
- * BPF stuff
+ *	BPF stuff
  */
 
 static int
@@ -63,8 +63,9 @@ cgn_bpf_loaded(gtp_bpf_prog_t *p, struct bpf_object *obj)
 	return 0;
 }
 
-static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
-	.name = "cgn",
+static gtp_bpf_prog_tpl_t gtp_bpf_tpl_cgn = {
+	.mode = CGN,
+	.description = "cgn",
 	.def_path = "/etc/gtp-guard/cgn.bpf",
 	.opened = cgn_bpf_opened,
 	.loaded = cgn_bpf_loaded,
@@ -73,7 +74,7 @@ static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
 static void __attribute__((constructor))
 gtp_bpf_fwd_init(void)
 {
-	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_fwd);
+	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_cgn);
 }
 
 

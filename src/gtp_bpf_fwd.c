@@ -186,8 +186,9 @@ gtp_bpf_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
 }
 
 static int
-gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, __be32 id)
+gtp_bpf_teid_vty(gtp_bpf_prog_t *p, int map_id, vty_t *vty, __be32 id)
 {
+	struct bpf_map *map = p->bpf_maps[map_id].map;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	__be32 key = 0, next_key = 0;
 	struct gtp_teid_rule *r;
@@ -283,7 +284,8 @@ gtp_bpf_teid_bytes(struct bpf_map *map, __be32 id, uint64_t *bytes)
 int
 gtp_bpf_fwd_teid_action(int action, gtp_teid_t *t)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
+	gtp_proxy_t *proxy = t->session->srv->ctx;
+	gtp_bpf_prog_t *p = proxy->bpf_prog;
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
@@ -291,33 +293,38 @@ gtp_bpf_fwd_teid_action(int action, gtp_teid_t *t)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+	if (!p)
 		return -1;
 
-	return gtp_bpf_teid_action(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, action, t);
+	return gtp_bpf_teid_action(p->bpf_maps[XDP_FWD_MAP_TEID].map, action, t);
 }
 
 int
-gtp_bpf_fwd_teid_vty(vty_t *vty, __be32 id)
+gtp_bpf_fwd_teid_vty(vty_t *vty, gtp_teid_t *t)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
+	gtp_proxy_t *proxy = t->session->srv->ctx;
+	gtp_bpf_prog_t *p = proxy->bpf_prog;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+	if (!p || !t)
 		return -1;
 
-	return gtp_bpf_teid_vty(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, vty, id);
+	return gtp_bpf_teid_vty(p, XDP_FWD_MAP_TEID, vty, ntohl(t->vid));
 }
 
 int
-gtp_bpf_fwd_vty(vty_t *vty)
+gtp_bpf_fwd_vty(gtp_bpf_prog_t *p, void *arg)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
+	vty_t *vty = arg;
+
+	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
+		return -1;
+	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_bpf_teid_vty(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, vty, 0);
+	gtp_bpf_teid_vty(p, XDP_FWD_MAP_TEID, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -326,49 +333,88 @@ gtp_bpf_fwd_vty(vty_t *vty)
 int
 gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
+	gtp_proxy_t *proxy = t->session->srv->ctx;
+	gtp_bpf_prog_t *p = proxy->bpf_prog;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+	if (!p)
 		return -1;
 
-	return gtp_bpf_teid_bytes(bpf_opts->bpf_maps[XDP_FWD_MAP_TEID].map, ntohl(t->vid), bytes);
+	return gtp_bpf_teid_bytes(p->bpf_maps[XDP_FWD_MAP_TEID].map, ntohl(t->vid), bytes);
 }
 
 
 /*
  *	IP Tunneling related
  */
-int
-gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t)
+static int
+gtp_bpf_fwd_iptnl_add(gtp_bpf_prog_t *p, void *arg)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
+	gtp_iptnl_t *t = arg;
 
-	/* If daemon is currently stopping, we simply skip action on ruleset.
-	 * This reduce daemon exit time and entries are properly released during
-	 * kernel BPF map release. */
-	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
-		return 0;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
 		return -1;
 
-	return gtp_bpf_iptnl_action(action, t, bpf_opts->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+	return gtp_bpf_iptnl_action(RULE_ADD, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+}
+
+static int
+gtp_bpf_fwd_iptnl_del(gtp_bpf_prog_t *p, void *arg)
+{
+	gtp_iptnl_t *t = arg;
+
+	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
+		return -1;
+
+	return gtp_bpf_iptnl_action(RULE_DEL, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+}
+
+static int
+gtp_bpf_fwd_iptnl_update(gtp_bpf_prog_t *p, void *arg)
+{
+	gtp_iptnl_t *t = arg;
+
+	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
+		return -1;
+
+	return gtp_bpf_iptnl_action(RULE_UPDATE, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
 }
 
 int
-gtp_bpf_fwd_iptnl_vty(vty_t *vty)
+gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t)
 {
-	gtp_bpf_opts_t *bpf_opts = &daemon_data->xdp_gtp_forward;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
+	switch (action) {
+	case RULE_ADD:
+		gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_add, t);
+		break;
+	case RULE_DEL:
+		gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_del, t);
+		break;
+	case RULE_UPDATE:
+		gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_update, t);
+		break;
+	default:
 		return -1;
+	}
 
-	return gtp_bpf_iptnl_vty(vty, bpf_opts->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+	return 0;
+}
+
+int
+gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
+{
+	vty_t *vty = arg;
+
+	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
+		return -1;
+	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
+
+	return gtp_bpf_iptnl_vty(vty, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
 }
 
 
 static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
-	.name = "gtp-forward",
+	.mode = GTP_FORWARD,
+	.description = "gtp-forward",
 	.def_path = "/etc/gtp-guard/gtp-fwd.bpf",
 	.loaded = gtp_bpf_fwd_load_maps,
 };

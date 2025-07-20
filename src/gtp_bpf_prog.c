@@ -113,7 +113,7 @@ gtp_bpf_prog_load(gtp_bpf_prog_t *p)
 	if (p->bpf_prog)
 		return 0;
 
-	/* a template should be attached */
+	/* a template MUST be attached */
 	if (p->tpl == NULL)
 		return -1;
 
@@ -263,6 +263,21 @@ gtp_bpf_progs_destroy(void)
 /* local data */
 static LIST_HEAD(bpf_prog_tpl_list);
 
+const char *
+gtp_bpf_prog_tpl_mode2str(const gtp_bpf_prog_tpl_t *tpl)
+{
+	switch (tpl->mode) {
+	case GTP_FORWARD:
+		return "mode-gtp-forward";
+	case GTP_ROUTE:
+		return "mode-gtp-route";
+	case CGN:
+		return "mode-cgn";
+	}
+
+	return NULL;
+}
+
 void
 gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *tpl)
 {
@@ -270,13 +285,31 @@ gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *tpl)
 }
 
 const gtp_bpf_prog_tpl_t *
-gtp_bpf_prog_tpl_get(const char *name)
+gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t mode)
 {
 	gtp_bpf_prog_tpl_t *tpl;
 
 	list_for_each_entry(tpl, &bpf_prog_tpl_list, next) {
-		if (!strcmp(name, tpl->name))
+		if (tpl->mode == mode)
 			return tpl;
 	}
+	return NULL;
+}
+
+gtp_bpf_prog_t *
+gtp_bpf_prog_get_first_by_tpl(gtp_bpf_prog_mode_t mode)
+{
+	gtp_bpf_prog_t *p;
+
+	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
+		if (!p->tpl)
+			continue;
+
+		if (p->tpl->mode == mode) {
+			__sync_add_and_fetch(&p->refcnt, 1);
+			return p;
+		}
+	}
+
 	return NULL;
 }

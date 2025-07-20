@@ -427,7 +427,8 @@ gtp_bpf_teid_bytes(gtp_bpf_prog_t *p, gtp_teid_t *t, uint64_t *bytes)
 int
 gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	gtp_router_t *router = t->session->srv->ctx;
+	gtp_bpf_prog_t *p = router->bpf_prog;
 	gtp_session_t *s;
 	gtp_apn_t *apn;
 	int direction;
@@ -438,7 +439,7 @@ gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
+	if (!p || !t)
 		return -1;
 
 	direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
@@ -459,12 +460,13 @@ gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
 int
 gtp_bpf_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	gtp_router_t *router = t->session->srv->ctx;
+	gtp_bpf_prog_t *p = router->bpf_prog;
 	gtp_session_t *s;
 	gtp_apn_t *apn;
 	int direction;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
+	if (!p || !t)
 		return -1;
 
 	direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
@@ -485,17 +487,18 @@ gtp_bpf_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 }
 
 int
-gtp_bpf_rt_vty(vty_t *vty)
+gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	vty_t *vty = arg;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
 		return -1;
+	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
-			"|    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
-			"+------------+------------------+-----------+--------------+---------------------+%s"
-			, VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
+		     "|    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
+		     "+------------+------------------+-----------+--------------+---------------------+%s"
+		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 	gtp_bpf_teid_vty(p, XDP_RT_MAP_TEID_INGRESS, vty, NULL);
 	gtp_bpf_teid_vty(p, XDP_RT_MAP_TEID_EGRESS, vty, NULL);
 	gtp_bpf_ppp_teid_vty(vty, NULL, p->bpf_maps[XDP_RT_MAP_PPP_INGRESS].map, NULL);
@@ -507,11 +510,12 @@ gtp_bpf_rt_vty(vty_t *vty)
 int
 gtp_bpf_rt_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	gtp_router_t *router = t->session->srv->ctx;
+	gtp_bpf_prog_t *p = router->bpf_prog;
 	gtp_session_t *s;
 	gtp_apn_t *apn;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags) || !t)
+	if (!p || !t)
 		return -1;
 
 	s = t->session;
@@ -534,32 +538,55 @@ gtp_bpf_rt_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
 /*
  *	IP Tunneling related
  */
+static int
+gtp_bpf_rt_iptnl_add(gtp_bpf_prog_t *p, void *arg)
+{
+	gtp_iptnl_t *t = arg;
+
+	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
+		return -1;
+
+	return gtp_bpf_iptnl_action(RULE_ADD, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
+}
+
+static int
+gtp_bpf_rt_iptnl_del(gtp_bpf_prog_t *p, void *arg)
+{
+	gtp_iptnl_t *t = arg;
+
+	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
+		return -1;
+
+	return gtp_bpf_iptnl_action(RULE_DEL, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
+}
+
 int
 gtp_bpf_rt_iptnl_action(int action, gtp_iptnl_t *t)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
-	int err = 0;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	switch (action) {
+	case RULE_ADD:
+		gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_add, t);
+		break;
+	case RULE_DEL:
+		gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_del, t);
+		break;
+	default:
 		return -1;
-
-	err = gtp_bpf_iptnl_action(action, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
-	if (err)
-		return err;
+	}
 
 	return 0;
 }
 
 int
-gtp_bpf_rt_iptnl_vty(vty_t *vty)
+gtp_bpf_rt_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	vty_t *vty = arg;
 
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags))
+	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
 		return -1;
+	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
-	gtp_bpf_iptnl_vty(vty, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
-	return 0;
+	return gtp_bpf_iptnl_vty(vty, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }
 
 
@@ -594,16 +621,21 @@ gtp_bpf_rt_lladdr_set(struct ll_addr *ll, gtp_interface_t *iface)
 	return 0;
 }
 
-int
-gtp_bpf_rt_lladdr_update(void *arg)
+
+static int
+gtp_bpf_rt_lladdr_update_prog(gtp_bpf_prog_t *p, void *arg)
 {
 	gtp_interface_t *iface = arg;
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
-	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
+	struct bpf_map *map;
 	struct ll_addr *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err = 0;
 	size_t sz;
+
+	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
+		return -1;
+
+	map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
 
 	new = gtp_bpf_rt_lladdr_alloc(&sz);
 	if (!new) {
@@ -628,16 +660,30 @@ gtp_bpf_rt_lladdr_update(void *arg)
 	return 0;
 }
 
+
 int
-gtp_bpf_rt_lladdr_vty(vty_t *vty)
+gtp_bpf_rt_lladdr_update(void *arg)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
-	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_update_prog, arg);
+	return 0;
+}
+
+int
+gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg)
+{
+	struct bpf_map *map;
 	struct ll_addr *ll;
+	vty_t *vty = arg;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	__u32 key = 0, next_key = 0;
 	size_t sz;
 	int err;
+
+	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
+		return -1;
+	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
+
+	map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
 
 	ll = gtp_bpf_rt_lladdr_alloc(&sz);
 	if (!ll) {
@@ -670,7 +716,8 @@ gtp_bpf_rt_lladdr_vty(vty_t *vty)
 
 
 static gtp_bpf_prog_tpl_t gtp_bpf_tpl_rt = {
-	.name = "gtp-route",
+	.mode = GTP_ROUTE,
+	.description = "gtp-route",
 	.def_path = "/etc/gtp-guard/gtp-route.bpf",
 	.loaded = gtp_bpf_rt_load_maps,
 };

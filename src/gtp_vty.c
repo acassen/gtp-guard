@@ -91,58 +91,6 @@ DEFUN(pdn_nameserver,
         return CMD_SUCCESS;
 }
 
-DEFUN(pdn_xdp_gtp_forward,
-      pdn_xdp_gtp_forward_cmd,
-      "xdp-gtp-forward STRING interface STRING [xdp-prog STRING]",
-      "GTP Forwarding channel XDP program\n"
-      "path to BPF file\n"
-      "Interface name\n"
-      "Name"
-      "XDP Program Name"
-      "Name")
-{
-	int err;
-
-	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% GTP-FORWARD XDP program already loaded.%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_opts_load(&daemon_data->xdp_gtp_forward, vty, argc, argv,
-				gtp_bpf_fwd_load);
-	if (err)
-		return CMD_WARNING;
-
-	__set_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(no_pdn_xdp_gtp_forward,
-      no_pdn_xdp_gtp_forward_cmd,
-      "no xdp-gtp-forward",
-      "GTP Forwarding channel XDP program\n")
-{
-	gtp_bpf_opts_t *opts = &daemon_data->xdp_gtp_forward;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% No GTP-FORWARD XDP program is currently configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-        gtp_bpf_fwd_unload(opts);
-
-        /* Reset data */
-	memset(opts, 0, sizeof(gtp_bpf_opts_t));
-
-        vty_out(vty, "Success unloading eBPF program:%s%s"
-                   , opts->filename
-                   , VTY_NEWLINE);
-	__clear_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags);
-	return CMD_SUCCESS;
-}
-
 DEFUN(pdn_xdp_mirror,
       pdn_xdp_mirror_cmd,
       "xdp-mirror STRING interface STRING [xdp-prog STRING]",
@@ -447,21 +395,7 @@ DEFUN(show_xdp_forwarding,
       SHOW_STR
       "XDP GTP Fowarding Dataplane ruleset\n")
 {
-	int err;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_fwd_vty(vty);
-	if (err) {
-		vty_out(vty, "%% Error displaying XDP ruleset%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty);
 	return CMD_SUCCESS;
 }
 
@@ -471,21 +405,7 @@ DEFUN(show_xdp_forwarding_iptnl,
       SHOW_STR
       "GTP XDP Forwarding IPIP Tunnel ruleset\n")
 {
-	int err;
-
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% XDP GTP-U is not configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_fwd_iptnl_vty(vty);
-	if (err) {
-		vty_out(vty, "%% Error displaying XDP ruleset%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty);
 	return CMD_SUCCESS;
 }
 
@@ -495,21 +415,7 @@ DEFUN(show_xdp_routing,
       SHOW_STR
       "GTP XDP Routing Dataplane ruleset\n")
 {
-	int err;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_rt_vty(vty);
-	if (err) {
-		vty_out(vty, "%% Error displaying XDP ruleset%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty);
 	return CMD_SUCCESS;
 }
 
@@ -519,21 +425,7 @@ DEFUN(show_xdp_routing_iptnl,
       SHOW_STR
       "GTP XDP Routing IPIP Tunnel ruleset\n")
 {
-	int err;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_rt_iptnl_vty(vty);
-	if (err) {
-		vty_out(vty, "%% Error displaying XDP ruleset%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty);
 	return CMD_SUCCESS;
 }
 
@@ -543,21 +435,7 @@ DEFUN(show_xdp_routing_lladdr,
       SHOW_STR
       "GTP XDP Routing link-layer Address\n")
 {
-	int err;
-
-	if (!__test_bit(GTP_FL_GTP_ROUTE_LOADED_BIT, &daemon_data->flags)) {
-		vty_out(vty, "%% XDP GTP-Route is not configured. Ignoring%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	err = gtp_bpf_rt_lladdr_vty(vty);
-	if (err) {
-		vty_out(vty, "%% Error displaying XDP ruleset%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty);
 	return CMD_SUCCESS;
 }
 
@@ -778,8 +656,6 @@ pdn_config_write(vty_t *vty)
 		vty_out(vty, " nameserver %s%s", inet_sockaddrtos(&daemon_data->nameserver), VTY_NEWLINE);
 	if (daemon_data->realm[0])
 		vty_out(vty, " realm %s%s", daemon_data->realm, VTY_NEWLINE);
-	if (__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags))
-		gtp_bpf_opts_config_write(vty, " xdp-gtp-forward", &daemon_data->xdp_gtp_forward);
 	if (__test_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags))
 		gtp_bpf_opts_config_write(vty, " xdp-mirror", &daemon_data->xdp_mirror);
 	if (__test_bit(GTP_FL_RESTART_COUNTER_LOADED_BIT, &daemon_data->flags)) {
@@ -806,8 +682,6 @@ gtp_vty_init(void)
 	install_default(PDN_NODE);
 	install_element(PDN_NODE, &pdn_nameserver_cmd);
 	install_element(PDN_NODE, &pdn_realm_cmd);
-	install_element(PDN_NODE, &pdn_xdp_gtp_forward_cmd);
-	install_element(PDN_NODE, &no_pdn_xdp_gtp_forward_cmd);
 	install_element(PDN_NODE, &pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &no_pdn_xdp_mirror_cmd);
 	install_element(PDN_NODE, &pdn_mirror_cmd);

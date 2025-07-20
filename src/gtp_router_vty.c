@@ -99,6 +99,31 @@ DEFUN(no_gtp_router,
 	return CMD_SUCCESS;
 }
 
+DEFUN(gtp_router_bpf_program,
+      gtp_router_bpf_program_cmd,
+      "bpf-program WORD",
+      "Use BPF Program\n"
+      "BPF Program name")
+{
+        gtp_router_t *ctx = vty->index;
+	gtp_bpf_prog_t *p;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% unknown bpf-program '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ctx->bpf_prog = p;
+	return CMD_SUCCESS;
+}
+
 DEFUN(gtpc_router_tunnel_endpoint,
       gtpc_router_tunnel_endpoint_cmd,
       "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
@@ -198,8 +223,11 @@ gtp_config_write(vty_t *vty)
 	gtp_server_t *srv;
 	gtp_router_t *ctx;
 
-        list_for_each_entry(ctx, l, next) {
-        	vty_out(vty, "gtp-router %s%s", ctx->name, VTY_NEWLINE);
+	list_for_each_entry(ctx, l, next) {
+		vty_out(vty, "gtp-router %s%s", ctx->name, VTY_NEWLINE);
+		if (ctx->bpf_prog)
+			vty_out(vty, " bpf-program %s%s"
+				   , ctx->bpf_prog->name, VTY_NEWLINE);
 		srv = &ctx->gtpc;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
@@ -362,6 +390,7 @@ gtp_router_vty_init(void)
 	install_element(CONFIG_NODE, &no_gtp_router_cmd);
 
 	install_default(GTP_ROUTER_NODE);
+	install_element(GTP_ROUTER_NODE, &gtp_router_bpf_program_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_cmd);
 

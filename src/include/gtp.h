@@ -563,12 +563,3 @@ typedef struct _gtp1_hdr {
 		uint32_t		teid_only;
 	};
 } __attribute__((packed)) gtp1_hdr_t;
-
-
-typedef union _gtp_packet {
-	union {
-		gtp1_hdr_t	hdr1;
-		gtp_hdr_t	hdr;
-	};
-	uint8_t		buffer[GTP_MAX_PACKET_SIZE];
-} __attribute__((packed)) gtp_packet_t;

@@ -50,6 +50,7 @@
 #include "asn1_encoder.h"
 #include "disk.h"
 #include "jhash.h"
+
 #include "gtp.h"
 #include "gtp_msg.h"
 #include "gtp_request.h"
@@ -84,10 +85,6 @@
 #include "gtp_dpd.h"
 #include "gtp_resolv.h"
 #include "gtp_sched.h"
-#include "gtp_proxy.h"
-#include "gtp_proxy_hdl.h"
-#include "gtp_proxy_hdl_v1.h"
-#include "gtp_proxy_hdl_v2.h"
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
 #include "gtp_utils_uli.h"
@@ -111,5 +108,9 @@
 
 #include "gtp_interface.h"
 #include "gtp_interface_vty.h"
+#include "gtp_proxy.h"
+#include "gtp_proxy_hdl.h"
+#include "gtp_proxy_hdl_v1.h"
+#include "gtp_proxy_hdl_v2.h"
 #include "gtp_router.h"
 #include "gtp_router_hdl.h"

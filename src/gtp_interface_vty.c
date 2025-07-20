@@ -56,7 +56,7 @@ gtp_interface_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics 
 static int
 gtp_interface_show(gtp_interface_t *iface, void *arg)
 {
-	gtp_bpf_prog_t *p = daemon_data->xdp_gtp_route;
+	gtp_bpf_prog_t *p = gtp_bpf_prog_get_first_by_tpl(GTP_ROUTE);
 	vty_t *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
 
@@ -73,6 +73,9 @@ gtp_interface_show(gtp_interface_t *iface, void *arg)
 		   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
 		   , ETHER_BYTES(iface->direct_tx_hw_addr)
 		   , VTY_NEWLINE);
+	if (!p)
+		goto end;
+
 	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_GTP
 			      , gtp_interface_metrics_show
 			      , vty);
@@ -82,6 +85,8 @@ gtp_interface_show(gtp_interface_t *iface, void *arg)
 	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_IPIP
 			      , gtp_interface_metrics_show
 			      , vty);
+
+  end:
 	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
 }

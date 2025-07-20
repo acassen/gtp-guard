@@ -24,6 +24,7 @@
 
 typedef struct _gtp_router {
 	char			name[GTP_NAME_MAX_LEN];
+	gtp_bpf_prog_t		*bpf_prog;
 	gtp_server_t		gtpc;
 	gtp_server_t		gtpu;
 

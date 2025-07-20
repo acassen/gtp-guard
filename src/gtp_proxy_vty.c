@@ -99,6 +99,31 @@ DEFUN(no_gtp_proxy,
 	return CMD_SUCCESS;
 }
 
+DEFUN(gtp_proxy_bpf_program,
+      gtp_proxy_bpf_program_cmd,
+      "bpf-program WORD",
+      "Use BPF Program\n"
+      "BPF Program name")
+{
+        gtp_proxy_t *ctx = vty->index;
+	gtp_bpf_prog_t *p;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% unknown bpf-program '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ctx->bpf_prog = p;
+	return CMD_SUCCESS;
+}
+
 DEFUN(gtp_proxy_direct_tx,
       gtp_proxy_direct_tx_cmd,
       "direct-tx",
@@ -366,7 +391,7 @@ DEFUN(gtpu_ipip,
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -434,7 +459,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	int credit, ifindex, plen, err;
 	uint32_t saddr;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -504,7 +529,7 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -534,7 +559,7 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -564,7 +589,7 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -594,7 +619,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int err, vlan;
 
-	if (!__test_bit(GTP_FL_GTP_FORWARD_LOADED_BIT, &daemon_data->flags)) {
+	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -635,6 +660,10 @@ gtp_config_write(vty_t *vty)
 
 	list_for_each_entry(ctx, l, next) {
 		vty_out(vty, "gtp-proxy %s%s", ctx->name, VTY_NEWLINE);
+		if (ctx->bpf_prog)
+			vty_out(vty, " bpf-program %s%s"
+				   , ctx->bpf_prog->name
+				   , VTY_NEWLINE);
 		if (__test_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags))
 			vty_out(vty, " direct-tx%s", VTY_NEWLINE);
 		if (__test_bit(GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT, &ctx->flags))
@@ -715,6 +744,7 @@ gtp_proxy_vty_init(void)
 	install_element(CONFIG_NODE, &no_gtp_proxy_cmd);
 
 	install_default(GTP_PROXY_NODE);
+	install_element(GTP_PROXY_NODE, &gtp_proxy_bpf_program_cmd);
 	install_element(GTP_PROXY_NODE, &gtp_proxy_direct_tx_cmd);
 	install_element(GTP_PROXY_NODE, &gtp_proxy_session_expiration_timeout_delete_cmd);
 	install_element(GTP_PROXY_NODE, &gtpc_proxy_tunnel_endpoint_cmd);

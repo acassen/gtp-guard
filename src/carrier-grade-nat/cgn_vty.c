@@ -322,7 +322,7 @@ cgn_vty(vty_t *vty, struct cgn_ctx *c)
 		c->name, c->description);
 
 	cgn_ctx_dump(c, buf, sizeof (buf));
-	vty_out(vty, buf);
+	vty_out(vty, "%s", buf);
 
 	return 0;
 }

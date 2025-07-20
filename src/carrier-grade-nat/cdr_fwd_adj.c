@@ -168,7 +168,7 @@ static void
 _server_connect_cb(thread_t *ev)
 {
 	struct cdr_fwd_server *sr = THREAD_ARG(ev);
-	struct _thread *io;
+	thread_t *io;
 	unsigned val;
 	int r, status;
 	int fd = THREAD_FD(ev);
