@@ -50,5 +50,5 @@ extern int gtp_bpf_fwd_teid_action(int, gtp_teid_t *);
 extern int gtp_bpf_fwd_teid_vty(vty_t *, gtp_teid_t *);
 extern int gtp_bpf_fwd_vty(gtp_bpf_prog_t *, void *);
 extern int gtp_bpf_fwd_teid_bytes(gtp_teid_t *, uint64_t *);
-extern int gtp_bpf_fwd_iptnl_action(int, gtp_iptnl_t *);
+extern int gtp_bpf_fwd_iptnl_action(int, gtp_iptnl_t *, gtp_bpf_prog_t *);
 extern int gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *, void *);

@@ -171,7 +171,8 @@ gtp_dpd_send_pkt(gtp_iptnl_t *t)
 static void
 gtp_dpd_timer_thread(thread_t *thread)
 {
-	gtp_iptnl_t *t = THREAD_ARG(thread);
+	gtp_proxy_t *p = THREAD_ARG(thread);
+	gtp_iptnl_t *t = &p->iptnl;
 	ssize_t ret;
 
 	ret = gtp_dpd_send_pkt(t);
@@ -189,7 +190,7 @@ gtp_dpd_timer_thread(thread_t *thread)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags &= ~IPTNL_FL_DEAD;
-		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, t);
+		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &p->iptnl, p->bpf_prog);
 		gtp_mirror_action(RULE_ADD, t->ifindex);
 		goto end;
 	}
@@ -202,12 +203,12 @@ gtp_dpd_timer_thread(thread_t *thread)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags |= IPTNL_FL_DEAD;
-		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, t);
+		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &p->iptnl, p->bpf_prog);
 		gtp_mirror_action(RULE_DEL, t->ifindex);
 	}
 
   end:
-	thread_add_timer(master, gtp_dpd_timer_thread, t, TIMER_HZ);
+	thread_add_timer(master, gtp_dpd_timer_thread, p, TIMER_HZ);
 }
 
 static int
@@ -261,7 +262,8 @@ gtp_dpd_ingress_sanitize(gtp_iptnl_t *t)
 static void
 gtp_dpd_read_thread(thread_t *thread)
 {
-	gtp_iptnl_t *t = THREAD_ARG(thread);
+	gtp_proxy_t *p = THREAD_ARG(thread);
+	gtp_iptnl_t *t = &p->iptnl;
 	ssize_t len;
 	int ret;
 
@@ -286,7 +288,7 @@ gtp_dpd_read_thread(thread_t *thread)
 	t->expire = timer_long(time_now) + t->credit;
 
   end:
-	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, t, t->fd_in, TIMER_HZ, 0);
+	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, p, t->fd_in, TIMER_HZ, 0);
 }
 
 /*
@@ -382,8 +384,10 @@ gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
  *      Dead-Peer-Detection channel
  */
 int
-gtp_dpd_init(gtp_iptnl_t *t)
+gtp_dpd_init(gtp_proxy_t *p)
 {
+	gtp_iptnl_t *t = &p->iptnl;
+
 	/* Ingress Channel */
 	t->fd_in = gtp_dpd_ingress_socket_init(t);
 	if (t->fd_in < 0) {
@@ -404,14 +408,16 @@ gtp_dpd_init(gtp_iptnl_t *t)
 	gtp_dpd_build_pkt(t);
 
 	/* Scheduling submition */
-	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, t, t->fd_in, TIMER_HZ, 0);
-	thread_add_event(master, gtp_dpd_timer_thread, t, 0);
+	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, p, t->fd_in, TIMER_HZ, 0);
+	thread_add_event(master, gtp_dpd_timer_thread, p, 0);
 	return 0;
 }
 
 int
-gtp_dpd_destroy(gtp_iptnl_t *t)
+gtp_dpd_destroy(gtp_proxy_t *p)
 {
+	gtp_iptnl_t *t = &p->iptnl;
+
 	if (!(t->flags & IPTNL_FL_DPD))
 		return -1;
 

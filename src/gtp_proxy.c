@@ -208,7 +208,7 @@ gtp_proxy_ctx_server_destroy(gtp_proxy_t *ctx)
 	gtp_server_destroy(&ctx->gtpc);
 	gtp_server_destroy(&ctx->gtpc_egress);
 	gtp_server_destroy(&ctx->gtpu);
-	gtp_dpd_destroy(&ctx->iptnl);
+	gtp_dpd_destroy(ctx);
 	return 0;
 }
 

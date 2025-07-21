@@ -346,57 +346,13 @@ gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
 /*
  *	IP Tunneling related
  */
-static int
-gtp_bpf_fwd_iptnl_add(gtp_bpf_prog_t *p, void *arg)
-{
-	gtp_iptnl_t *t = arg;
-
-	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
-		return -1;
-
-	return gtp_bpf_iptnl_action(RULE_ADD, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
-}
-
-static int
-gtp_bpf_fwd_iptnl_del(gtp_bpf_prog_t *p, void *arg)
-{
-	gtp_iptnl_t *t = arg;
-
-	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
-		return -1;
-
-	return gtp_bpf_iptnl_action(RULE_DEL, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
-}
-
-static int
-gtp_bpf_fwd_iptnl_update(gtp_bpf_prog_t *p, void *arg)
-{
-	gtp_iptnl_t *t = arg;
-
-	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
-		return -1;
-
-	return gtp_bpf_iptnl_action(RULE_UPDATE, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
-}
-
 int
-gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t)
+gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t, gtp_bpf_prog_t *p)
 {
-	switch (action) {
-	case RULE_ADD:
-		gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_add, t);
-		break;
-	case RULE_DEL:
-		gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_del, t);
-		break;
-	case RULE_UPDATE:
-		gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_update, t);
-		break;
-	default:
+	if (!p || !p->tpl || p->tpl->mode != GTP_FORWARD)
 		return -1;
-	}
 
-	return 0;
+	return gtp_bpf_iptnl_action(action, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
 }
 
 int
