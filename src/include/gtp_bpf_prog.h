@@ -67,6 +67,7 @@ typedef struct _gtp_bpf_prog {
 
 
 /* Prototypes */
+extern int gtp_bpf_prog_detach(struct bpf_link *);
 extern struct bpf_link *gtp_bpf_prog_attach(gtp_bpf_prog_t *, int);
 extern int gtp_bpf_prog_deattach(struct bpf_link *);
 extern int gtp_bpf_prog_load(gtp_bpf_prog_t *);
@@ -80,4 +81,3 @@ extern int gtp_bpf_progs_destroy(void);
 extern const char *gtp_bpf_prog_tpl_mode2str(const gtp_bpf_prog_tpl_t *);
 extern void gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *);
 extern const gtp_bpf_prog_tpl_t *gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t);
-extern gtp_bpf_prog_t *gtp_bpf_prog_get_first_by_tpl(gtp_bpf_prog_mode_t);

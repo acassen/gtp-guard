@@ -30,7 +30,7 @@ extern data_t *daemon_data;
  *	BPF helpers
  */
 int
-gtp_bpf_prog_deattach(struct bpf_link *link)
+gtp_bpf_prog_detach(struct bpf_link *link)
 {
 	return bpf_link__destroy(link);
 }
@@ -293,23 +293,5 @@ gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t mode)
 		if (tpl->mode == mode)
 			return tpl;
 	}
-	return NULL;
-}
-
-gtp_bpf_prog_t *
-gtp_bpf_prog_get_first_by_tpl(gtp_bpf_prog_mode_t mode)
-{
-	gtp_bpf_prog_t *p;
-
-	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
-		if (!p->tpl)
-			continue;
-
-		if (p->tpl->mode == mode) {
-			__sync_add_and_fetch(&p->refcnt, 1);
-			return p;
-		}
-	}
-
 	return NULL;
 }

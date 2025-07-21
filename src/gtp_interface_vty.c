@@ -56,7 +56,7 @@ gtp_interface_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics 
 static int
 gtp_interface_show(gtp_interface_t *iface, void *arg)
 {
-	gtp_bpf_prog_t *p = gtp_bpf_prog_get_first_by_tpl(GTP_ROUTE);
+	gtp_bpf_prog_t *p = iface->bpf_prog;
 	vty_t *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
 

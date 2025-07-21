@@ -391,7 +391,7 @@ DEFUN(gtpu_ipip,
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
 
-	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
+	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -459,7 +459,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	int credit, ifindex, plen, err;
 	uint32_t saddr;
 
-	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
+	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -529,7 +529,7 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
+	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -559,7 +559,7 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
+	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -589,7 +589,7 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int ret;
 
-	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
+	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
@@ -619,7 +619,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	gtp_iptnl_t *t = &ctx->iptnl;
 	int err, vlan;
 
-	if (!gtp_bpf_prog_get_first_by_tpl(GTP_FORWARD)) {
+	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}

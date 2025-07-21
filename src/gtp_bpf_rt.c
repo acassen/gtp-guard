@@ -197,6 +197,9 @@ gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *p, int ifindex, int type,
 		     int (*dump) (void *, __u8, __u8, struct metrics *),
 		     vty_t *vty)
 {
+	if (!p || !p->tpl || p->tpl->mode != GTP_ROUTE)
+		return -1;
+
 	vty_out(vty, " %s:%s", gtp_rt_stats_metrics_str(type), VTY_NEWLINE);
 	return gtp_bpf_rt_stats_dump(p, ifindex, type, dump, vty);
 }

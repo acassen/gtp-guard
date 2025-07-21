@@ -31,13 +31,6 @@ extern data_t *daemon_data;
  *	XDP FWD BPF related
  */
 static int
-gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
-{
-	/* TODO: migrate to bpf-program paradigm */
-	return -1;
-}
-
-static int
 gtp_bpf_fwd_ll_attr(gtp_interface_t *iface, void *arg)
 {
 	if (!iface->vlan_id)
@@ -48,49 +41,31 @@ gtp_bpf_fwd_ll_attr(gtp_interface_t *iface, void *arg)
 				      , iface->vlan_id, 0);
 }
 
-int
-gtp_bpf_fwd_load(gtp_bpf_opts_t *opts)
+static int
+gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
 {
 	struct bpf_map *map;
-	int err;
-
-	err = gtp_bpf_load(opts);
-	if (err < 0)
-		return -1;
 
 	/* MAP ref for faster access */
-	opts->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_FWD_MAP_CNT);
-	map = gtp_bpf_load_map(opts->bpf_obj, "teid_xlat");
-	if (!map) {
-		gtp_bpf_unload(opts);
+	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_FWD_MAP_CNT);
+	map = gtp_bpf_load_map(bpf_obj, "teid_xlat");
+	if (!map)
 		return -1;
-	}
-	opts->bpf_maps[XDP_FWD_MAP_TEID].map = map;
+	p->bpf_maps[XDP_FWD_MAP_TEID].map = map;
 
-	map = gtp_bpf_load_map(opts->bpf_obj, "iptnl_info");
-	if (!map) {
-		gtp_bpf_unload(opts);
+	map = gtp_bpf_load_map(bpf_obj, "iptnl_info");
+	if (!map)
 		return -1;
-	}
-	opts->bpf_maps[XDP_FWD_MAP_IPTNL].map = map;
+	p->bpf_maps[XDP_FWD_MAP_IPTNL].map = map;
 
-	map = gtp_bpf_load_map(opts->bpf_obj, "if_llattr");
-	if (!map) {
-		gtp_bpf_unload(opts);
+	map = gtp_bpf_load_map(bpf_obj, "if_llattr");
+	if (!map)
 		return -1;
-	}
-	opts->bpf_maps[XDP_FWD_MAP_IF_LLATTR].map = map;
+	p->bpf_maps[XDP_FWD_MAP_IF_LLATTR].map = map;
 
 	/* Populate interface attributes */
 	gtp_interface_foreach(gtp_bpf_fwd_ll_attr, map);
-
 	return 0;
-}
-
-void
-gtp_bpf_fwd_unload(gtp_bpf_opts_t *opts)
-{
-	gtp_bpf_unload(opts);
 }
 
 

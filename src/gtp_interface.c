@@ -154,10 +154,8 @@ gtp_interface_alloc(const char *name, int ifindex)
 int
 gtp_interface_unload_bpf(gtp_interface_t *iface)
 {
-	if (iface->bpf_prog)
-		gtp_bpf_prog_unload(iface->bpf_prog);
 	if (iface->bpf_lnk)
-		bpf_link__destroy(iface->bpf_lnk);
+		gtp_bpf_prog_detach(iface->bpf_lnk);
 	iface->bpf_prog = NULL;
 	iface->bpf_lnk = NULL;
 	return 0;

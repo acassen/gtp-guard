@@ -438,7 +438,6 @@ gtp_bpf_unload(gtp_bpf_opts_t *opts)
 }
 
 
-
 /*
  *	BPF init
  */
