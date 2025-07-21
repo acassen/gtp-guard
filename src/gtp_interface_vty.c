@@ -63,16 +63,20 @@ gtp_interface_show(gtp_interface_t *iface, void *arg)
 	vty_out(vty, "interface %s%s"
 		   , iface->ifname
 		   , VTY_NEWLINE);
+	vty_out(vty, " ifindex: %d%s"
+		   , iface->ifindex
+		   , VTY_NEWLINE);
 	vty_out(vty, " ll_addr:" ETHER_FMT "%s"
 		   , ETHER_BYTES(iface->hw_addr)
 		   , VTY_NEWLINE);
 	if (iface->vlan_id)
 		vty_out(vty, " vlan-id:%d%s"
 			   , iface->vlan_id, VTY_NEWLINE);
-	vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
-		   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
-		   , ETHER_BYTES(iface->direct_tx_hw_addr)
-		   , VTY_NEWLINE);
+	if (iface->direct_tx_gw.family)
+		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
+			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+			   , ETHER_BYTES(iface->direct_tx_hw_addr)
+			   , VTY_NEWLINE);
 	if (!p)
 		goto end;
 
@@ -128,7 +132,6 @@ DEFUN(interface,
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
 	gtp_interface_put(new);
-	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &new->flags);
 	return CMD_SUCCESS;
 }
 

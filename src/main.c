@@ -250,7 +250,8 @@ main(int argc, char **argv)
 
 	if (getenv("GTP_GUARD_PID_FILE"))
 		__prog_pid_file = getenv("GTP_GUARD_PID_FILE");
-	/* Check if ncsd is already running */
+
+	/* Check if gtp-guard is already running */
 	if (process_running(__prog_pid_file)) {
 		syslog(LOG_INFO, "daemon is already running");
 		goto end;

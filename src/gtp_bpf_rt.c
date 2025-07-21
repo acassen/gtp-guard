@@ -136,6 +136,10 @@ int
 gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *p, int ifindex, int type)
 {
 	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
+
+	if (!p || !p->tpl || p->tpl->mode != GTP_ROUTE)
+		return -1;
+
 	int err = gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_RX);
 	return (err) ? : gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_TX);
 }

@@ -144,6 +144,7 @@ gtp_interface_alloc(const char *name, int ifindex)
 	if (name)
 		bsd_strlcpy(new->ifname, name, GTP_STR_MAX_LEN - 1);
 	new->ifindex = ifindex;
+	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &new->flags);
 
 	list_add_tail(&new->next, &daemon_data->interfaces);
 	__sync_add_and_fetch(&new->refcnt, 1);

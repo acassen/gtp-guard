@@ -53,7 +53,9 @@ gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in
 {
 	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
 
-	ssize_t nbytes = pkt_buffer_send(fd, pbuff, (struct sockaddr_storage *) addr);
+	ssize_t nbytes = sendto(fd, pbuff->head
+				  , pkt_buffer_len(pbuff)
+				  , 0, addr, sizeof(*addr));
 
 	if (nbytes < 0)
 		s->tx_errors++;
