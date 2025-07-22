@@ -56,7 +56,6 @@ gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in
 	ssize_t nbytes = sendto(fd, pbuff->head
 				  , pkt_buffer_len(pbuff)
 				  , 0, addr, sizeof(*addr));
-
 	if (nbytes < 0)
 		s->tx_errors++;
 

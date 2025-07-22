@@ -21,6 +21,7 @@
 
 #include "config.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
@@ -52,10 +53,9 @@ bool do_timer_check;
  *	Timer related
  */
 timeval_t
-timer_add_long(timeval_t a, unsigned long b)
+timer_add_ll(timeval_t a, uint64_t b)
 {
-	if (b == TIMER_NEVER)
-	{
+	if (b == TIMER_NEVER) {
 		a.tv_usec = TIMER_HZ - 1;
 		a.tv_sec = TIMER_DISABLED;
 
@@ -74,7 +74,7 @@ timer_add_long(timeval_t a, unsigned long b)
 }
 
 timeval_t
-timer_sub_long(timeval_t a, unsigned long b)
+timer_sub_long(timeval_t a, uint64_t b)
 {
 	if (a.tv_usec < (suseconds_t)(b % TIMER_HZ)) {
 		a.tv_usec += TIMER_HZ;

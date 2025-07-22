@@ -139,5 +139,5 @@ extern void timespec_add_now_ms(struct timespec *, timeval_t *, unsigned long);
 extern timeval_t timer_now(void);
 extern timeval_t set_time_now(void);
 extern struct tm *time_now_to_calendar(struct tm *);
-extern timeval_t timer_add_long(timeval_t, unsigned long) __attribute__((const));
-extern timeval_t timer_sub_long(timeval_t, unsigned long) __attribute__((const));
+extern timeval_t timer_add_ll(timeval_t, uint64_t) __attribute__((const));
+extern timeval_t timer_sub_ll(timeval_t, uint64_t) __attribute__((const));

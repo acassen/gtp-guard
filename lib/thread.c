@@ -593,7 +593,7 @@ thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd, unsig
 		sands.tv_usec = 0;
 	} else {
 		set_time_now();
-		sands = timer_add_long(time_now, timer);
+		sands = timer_add_ll(time_now, timer);
 	}
 
 	return thread_add_read_sands(m, func, arg, fd, &sands, flags);
@@ -674,7 +674,7 @@ thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsi
 		thread->sands.tv_sec = TIMER_DISABLED;
 	else {
 		set_time_now();
-		thread->sands = timer_add_long(time_now, timer);
+		thread->sands = timer_add_ll(time_now, timer);
 	}
 
 	/* Sort the thread. */
@@ -698,7 +698,7 @@ thread_close_fd(thread_t *thread)
 
 /* Add timer event thread. */
 thread_t *
-thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigned val, unsigned long timer)
+thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigned val, uint64_t timer)
 {
 	thread_t *thread;
 
@@ -716,7 +716,7 @@ thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigne
 		thread->sands.tv_sec = TIMER_DISABLED;
 	else {
 		set_time_now();
-		thread->sands = timer_add_long(time_now, timer);
+		thread->sands = timer_add_ll(time_now, timer);
 	}
 
 	/* Sort by timeval. */
@@ -726,18 +726,18 @@ thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigne
 }
 
 thread_t *
-thread_add_timer(thread_master_t *m, thread_func_t func, void *arg, unsigned long timer)
+thread_add_timer(thread_master_t *m, thread_func_t func, void *arg, uint64_t timer)
 {
 	return thread_add_timer_uval(m, func, arg, 0, timer);
 }
 
 void
-thread_mod_timer(thread_t *thread, unsigned long timer)
+thread_mod_timer(thread_t *thread, uint64_t timer)
 {
 	timeval_t sands;
 
 	set_time_now();
-	sands = timer_add_long(time_now, timer);
+	sands = timer_add_ll(time_now, timer);
 
 	if (timercmp(&thread->sands, &sands, ==))
 		return;

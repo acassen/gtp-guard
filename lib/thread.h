@@ -23,6 +23,7 @@
 /* system includes */
 #include <sys/types.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <sys/timerfd.h>
 
@@ -173,9 +174,9 @@ extern thread_t * thread_add_read(thread_master_t *, thread_func_t, void *, int,
 extern void thread_requeue_read(thread_master_t *, int, const timeval_t *);
 extern thread_t * thread_add_write(thread_master_t *, thread_func_t, void *, int, unsigned long, unsigned);
 extern void thread_close_fd(thread_t *);
-extern thread_t * thread_add_timer_uval(thread_master_t *, thread_func_t, void *, unsigned, unsigned long);
-extern thread_t * thread_add_timer(thread_master_t *, thread_func_t, void *, unsigned long);
-extern void thread_mod_timer(thread_t *, unsigned long);
+extern thread_t * thread_add_timer_uval(thread_master_t *, thread_func_t, void *, unsigned, uint64_t);
+extern thread_t * thread_add_timer(thread_master_t *, thread_func_t, void *, uint64_t);
+extern void thread_mod_timer(thread_t *, uint64_t);
 extern thread_t * thread_add_event(thread_master_t *, thread_func_t, void *, int);
 extern void thread_del(thread_t *);
 extern void launch_thread_scheduler(thread_master_t *);

@@ -144,9 +144,12 @@ gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
 void
 gtp_session_mod_timer(gtp_session_t *s, int timeout)
 {
-	thread_del(s->timer);
-	s->timer = thread_add_timer(master, gtp_session_expire, s
-					  , timeout * TIMER_HZ);
+	if (!s->timer)
+		s->timer = thread_add_timer(master,
+					    gtp_session_expire, s,
+					    (uint64_t) timeout * TIMER_HZ);
+	else
+		thread_mod_timer(s->timer, (uint64_t) timeout * TIMER_HZ);
 }
 
 static void

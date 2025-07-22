@@ -309,7 +309,7 @@ gtpu_ipip_decap(struct parse_pkt *pkt, struct gtp_iptnl_rule *iptnl_rule, struct
 		daddr = gtpf->dst_addr;
 	} else if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
 		gtph = data + pkt->l3_offset
-			    + sizeof(struct iphdr)
+			    + 2*sizeof(struct iphdr)
 			    + sizeof(struct udphdr);
 		if (gtph + 1 > data_end)
 			return XDP_DROP;

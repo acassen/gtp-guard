@@ -39,16 +39,16 @@
 #define INET_DEFAULT_CONNECTION_KEEPINTVL	10
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-#define NIPQUAD(__addr)                         \
-	((unsigned char *)&(__addr))[0],        \
-	((unsigned char *)&(__addr))[1],        \
-	((unsigned char *)&(__addr))[2],        \
+#define NIPQUAD(__addr)				\
+	((unsigned char *)&(__addr))[0],	\
+	((unsigned char *)&(__addr))[1],	\
+	((unsigned char *)&(__addr))[2],	\
 	((unsigned char *)&(__addr))[3]
 #elif __BYTE_ORDER == __BIG_ENDIAN
-#define NIPQUAD(__addr)                         \
-	((unsigned char *)&(__addr))[3],        \
-	((unsigned char *)&(__addr))[2],        \
-	((unsigned char *)&(__addr))[1],        \
+#define NIPQUAD(__addr)				\
+	((unsigned char *)&(__addr))[3],	\
+	((unsigned char *)&(__addr))[2],	\
+	((unsigned char *)&(__addr))[1],	\
 	((unsigned char *)&(__addr))[0]
 #else
 #error "Please fix <bits/endian.h>"
