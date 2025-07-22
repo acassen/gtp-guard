@@ -27,6 +27,7 @@ typedef enum {
 	GTP_FORWARD,
 	GTP_ROUTE,
 	CGN,
+	BPF_PROG_MODE_MAX,
 } gtp_bpf_prog_mode_t;
 
 /* BPF prog template */
@@ -58,6 +59,7 @@ typedef struct _gtp_bpf_prog {
 	struct bpf_program	*bpf_prog;
 	gtp_bpf_maps_t		*bpf_maps;
 	const gtp_bpf_prog_tpl_t *tpl;
+	void			*data[BPF_PROG_MODE_MAX];
 
 	list_head_t		next;
 
