@@ -19,11 +19,133 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <btf.h>
+
 /* local includes */
 #include "gtp_guard.h"
 
 /* Extern data */
 extern data_t *daemon_data;
+
+
+/*
+ *	BPF Object variable update.
+ *
+ *  This only apply to global variables as present in .rodata section,
+ *  without using generated skeleton from libbpf.
+ *  They can be modified *only* before program is loaded into kernel.
+ *  it should be the same for variables in .data or .bss sections.
+ */
+static const char *
+gtp_bpf_prog_obj_get_rodata_name(struct bpf_object *obj)
+{
+	struct bpf_map *map;
+
+	bpf_object__for_each_map(map, obj) {
+		if (strstr(bpf_map__name(map), ".rodata"))
+			return bpf_map__name(map);
+	}
+
+	return NULL;
+}
+
+int
+gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *consts)
+{
+	struct bpf_map *map;
+	const char *name;
+	void *rodata;
+
+	name = gtp_bpf_prog_obj_get_rodata_name(obj);
+	if (!name) {
+		log_message(LOG_INFO, "%s(): cant find rodata !!!", __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* this open() subskeleton is only here to retrieve map's mmap address
+	 * libbpf doesn't provide other way to get this address */
+	struct bpf_map_skeleton ms[1] = { {
+		.name = name,
+		.map = &map,
+		.mmaped = &rodata,
+	} };
+	struct bpf_object_subskeleton ss = {
+		.sz = sizeof (struct bpf_object_subskeleton),
+		.obj = obj,
+		.map_cnt = 1,
+		.map_skel_sz = sizeof (struct bpf_map_skeleton),
+		.maps = ms,
+	};
+	if (bpf_object__open_subskeleton(&ss) < 0) {
+		log_message(LOG_INFO, "%s(): cant open subskeleton !!!", __FUNCTION__);
+		errno = EINVAL;
+		return -1;
+	}
+
+	/* now use btf info to find this variable */
+	struct btf *btf;
+	const struct btf_type *sec;
+	struct btf_var_secinfo *secinfo;
+	int sec_id, i, j;
+	int set = 0, to_be_set = 0;
+
+	btf = bpf_object__btf(obj);
+	if (btf == NULL) {
+		log_message(LOG_INFO, "%s(): cant get BTF handler !!!", __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* get secdata id */
+	sec_id = btf__find_by_name(btf, ".rodata");
+	if (sec_id < 0) {
+		log_message(LOG_INFO, "%s(): cant get .rodata section !!!", __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* get the actual BTF type from the ID */
+	sec = btf__type_by_id(btf, sec_id);
+	if (sec == NULL) {
+		log_message(LOG_INFO, "%s(): cant get BTF type from section ID !!!"
+				    , __FUNCTION__);
+		errno = ENOENT;
+		return -1;
+	}
+
+	/* Get all secinfos, each of which will be a global variable */
+	secinfo = btf_var_secinfos(sec);
+	for (i = 0; i < btf_vlen(sec); i++) {
+		const struct btf_type *t = btf__type_by_id(btf, secinfo[i].type);
+		const char *name = btf__name_by_offset(btf, t->name_off);
+		for (j = 0; consts[j].name != NULL; j++) {
+			if (!strcmp(name, consts[j].name)) {
+				if (secinfo[i].size != consts[j].size) {
+					log_message(LOG_INFO, "%s(): '%s' var size mismatch"
+						    " (btf:%d, userapp:%d)"
+						    , __FUNCTION__, name,
+						    secinfo[i].size, consts[j].size);
+					errno = EINVAL;
+					return -1;
+				}
+				memcpy(rodata + secinfo[i].offset,
+				       consts[j].value, consts[j].size);
+				++set;
+				break;
+			}
+		}
+		if (consts[j].name == NULL)
+			to_be_set = j;
+	}
+
+	if (set < to_be_set - 1) {
+		log_message(LOG_INFO, "%s(): not all .rodata var set (%d/%d) !!!"
+				, __FUNCTION__, set, to_be_set);
+	}
+
+	return 0;
+}
 
 
 /*
@@ -270,6 +392,8 @@ gtp_bpf_prog_tpl_mode2str(const gtp_bpf_prog_tpl_t *tpl)
 		return "mode-gtp-route";
 	case CGN:
 		return "mode-cgn";
+	case BPF_PROG_MODE_MAX:
+		return NULL;
 	}
 
 	return NULL;
