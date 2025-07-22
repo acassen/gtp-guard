@@ -203,8 +203,10 @@ gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
 		return NULL;
 	}
 
-	if (p->tpl->opened != NULL)
-		p->tpl->opened(p, bpf_obj);
+	if (p->tpl->opened != NULL && p->tpl->opened(p, bpf_obj)) {
+		bpf_object__close(bpf_obj);
+		return NULL;
+	}
 
 	/* Finally load it */
 	err = bpf_object__load(bpf_obj);
@@ -216,8 +218,10 @@ gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
 		return NULL;
 	}
 
-	if (p->tpl->loaded != NULL)
-		p->tpl->loaded(p, bpf_obj);
+	if (p->tpl->loaded != NULL && p->tpl->loaded(p, bpf_obj)) {
+		bpf_object__close(bpf_obj);
+		return NULL;
+	}
 
 	return bpf_obj;
 }
