@@ -84,9 +84,6 @@ gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
 	if (p->tpl->opened != NULL)
 		p->tpl->opened(p, bpf_obj);
 
-	/* Global vars update */
-	gtp_bpf_obj_update_global_vars(bpf_obj);
-
 	/* Finally load it */
 	err = bpf_object__load(bpf_obj);
 	if (err) {
