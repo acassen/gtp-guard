@@ -22,11 +22,20 @@
 
 typedef struct _gtp_bpf_prog gtp_bpf_prog_t;
 
+typedef struct _gtp_bpf_prog_var
+{
+	const char *name;
+	const void *value;
+	uint32_t size;
+} gtp_bpf_prog_var_t;
+
+
 /* BPF program type */
 typedef enum {
 	GTP_FORWARD,
 	GTP_ROUTE,
 	CGN,
+	BPF_PROG_MODE_MAX,
 } gtp_bpf_prog_mode_t;
 
 /* BPF prog template */
@@ -58,6 +67,7 @@ typedef struct _gtp_bpf_prog {
 	struct bpf_program	*bpf_prog;
 	gtp_bpf_maps_t		*bpf_maps;
 	const gtp_bpf_prog_tpl_t *tpl;
+	void			*data[BPF_PROG_MODE_MAX];
 
 	list_head_t		next;
 
@@ -67,6 +77,8 @@ typedef struct _gtp_bpf_prog {
 
 
 /* Prototypes */
+extern int gtp_bpf_prog_obj_update_var(struct bpf_object *obj,
+				       const gtp_bpf_prog_var_t *consts);
 extern int gtp_bpf_prog_detach(struct bpf_link *);
 extern struct bpf_link *gtp_bpf_prog_attach(gtp_bpf_prog_t *, int);
 extern int gtp_bpf_prog_deattach(struct bpf_link *);
