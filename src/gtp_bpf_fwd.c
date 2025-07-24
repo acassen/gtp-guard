@@ -291,8 +291,6 @@ gtp_bpf_fwd_vty(gtp_bpf_prog_t *p, void *arg)
 {
 	vty_t *vty = arg;
 
-	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
-		return -1;
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
@@ -324,7 +322,7 @@ gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
 int
 gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t, gtp_bpf_prog_t *p)
 {
-	if (!p || !p->tpl || p->tpl->mode != GTP_FORWARD)
+	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_FORWARD)
 		return -1;
 
 	return gtp_bpf_iptnl_action(action, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
@@ -335,8 +333,6 @@ gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
 {
 	vty_t *vty = arg;
 
-	if (!p->tpl || p->tpl->mode != GTP_FORWARD)
-		return -1;
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	return gtp_bpf_iptnl_vty(vty, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
@@ -344,9 +340,8 @@ gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
 
 
 static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
-	.mode = GTP_FORWARD,
+	.mode = BPF_PROG_MODE_GTP_FORWARD,
 	.description = "gtp-forward",
-	.def_path = "/etc/gtp-guard/gtp-fwd.bpf",
 	.loaded = gtp_bpf_fwd_load_maps,
 };
 

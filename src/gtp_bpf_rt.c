@@ -137,7 +137,7 @@ gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *p, int ifindex, int type)
 {
 	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
 
-	if (!p || !p->tpl || p->tpl->mode != GTP_ROUTE)
+	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
 		return -1;
 
 	int err = gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_RX);
@@ -201,7 +201,7 @@ gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *p, int ifindex, int type,
 		     int (*dump) (void *, __u8, __u8, struct metrics *),
 		     vty_t *vty)
 {
-	if (!p || !p->tpl || p->tpl->mode != GTP_ROUTE)
+	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
 		return -1;
 
 	vty_out(vty, " %s:%s", gtp_rt_stats_metrics_str(type), VTY_NEWLINE);
@@ -498,8 +498,6 @@ gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg)
 {
 	vty_t *vty = arg;
 
-	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
-		return -1;
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	vty_out(vty, "+------------+------------------+-----------+--------------+---------------------+%s"
@@ -550,9 +548,6 @@ gtp_bpf_rt_iptnl_add(gtp_bpf_prog_t *p, void *arg)
 {
 	gtp_iptnl_t *t = arg;
 
-	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
-		return -1;
-
 	return gtp_bpf_iptnl_action(RULE_ADD, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }
 
@@ -560,9 +555,6 @@ static int
 gtp_bpf_rt_iptnl_del(gtp_bpf_prog_t *p, void *arg)
 {
 	gtp_iptnl_t *t = arg;
-
-	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
-		return -1;
 
 	return gtp_bpf_iptnl_action(RULE_DEL, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }
@@ -572,10 +564,12 @@ gtp_bpf_rt_iptnl_action(int action, gtp_iptnl_t *t)
 {
 	switch (action) {
 	case RULE_ADD:
-		gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_add, t);
+		gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_add, t,
+					  BPF_PROG_MODE_GTP_ROUTE);
 		break;
 	case RULE_DEL:
-		gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_del, t);
+		gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_del, t,
+					  BPF_PROG_MODE_GTP_ROUTE);
 		break;
 	default:
 		return -1;
@@ -589,8 +583,6 @@ gtp_bpf_rt_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
 {
 	vty_t *vty = arg;
 
-	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
-		return -1;
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	return gtp_bpf_iptnl_vty(vty, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
@@ -639,9 +631,6 @@ gtp_bpf_rt_lladdr_update_prog(gtp_bpf_prog_t *p, void *arg)
 	int err = 0;
 	size_t sz;
 
-	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
-		return -1;
-
 	map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
 
 	new = gtp_bpf_rt_lladdr_alloc(&sz);
@@ -671,7 +660,8 @@ gtp_bpf_rt_lladdr_update_prog(gtp_bpf_prog_t *p, void *arg)
 int
 gtp_bpf_rt_lladdr_update(void *arg)
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_update_prog, arg);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_update_prog, arg,
+				  BPF_PROG_MODE_GTP_ROUTE);
 	return 0;
 }
 
@@ -686,8 +676,6 @@ gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg)
 	size_t sz;
 	int err;
 
-	if (!p->tpl || p->tpl->mode != GTP_ROUTE)
-		return -1;
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
 	map = p->bpf_maps[XDP_RT_MAP_IF_LLADDR].map;
@@ -723,9 +711,8 @@ gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg)
 
 
 static gtp_bpf_prog_tpl_t gtp_bpf_tpl_rt = {
-	.mode = GTP_ROUTE,
+	.mode = BPF_PROG_MODE_GTP_ROUTE,
 	.description = "gtp-route",
-	.def_path = "/etc/gtp-guard/gtp-route.bpf",
 	.loaded = gtp_bpf_rt_load_maps,
 };
 

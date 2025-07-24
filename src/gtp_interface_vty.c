@@ -210,7 +210,29 @@ DEFUN(interface_direct_tx_gw,
 	return CMD_SUCCESS;
 }
 
-DEFUN(interface_desciption,
+DEFUN(interface_carrier_grade_nat,
+      interface_carrier_grade_nat_cmd,
+      "carrier-grade-nat CGNBLOCK side (network-in|network-out)",
+      "Configure carrier-grade on this interface\n"
+      "carrier-grade-nat configuration bloc name\n"
+      "Side this interface is handling\n"
+      "Network's operator side (private,local,inside)\n"
+      "Internet side (public,remote,outside)\n")
+{
+	gtp_interface_t *iface = vty->index;
+
+	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
+	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
+	bsd_strlcpy(iface->cgn_name, argv[0], sizeof (iface->cgn_name) - 1);
+	if (!strcmp(argv[1], "network-in"))
+		__set_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
+	else
+		__set_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
+	return CMD_SUCCESS;
+}
+
+
+DEFUN(interface_description,
       interface_description_cmd,
       "description STRING",
       "Set Interface description\n"
@@ -361,8 +383,8 @@ DEFUN(interface_no_shutdown,
 			   , iface->ifname, VTY_NEWLINE);
 		goto end;
 	}
-	
-	lnk = gtp_bpf_prog_attach(iface->bpf_prog, iface->ifindex);
+
+	lnk = gtp_bpf_prog_attach(iface->bpf_prog, iface);
 	if (!lnk) {
 		vty_out(vty, "%% error attaching bpf-program:'%s' to interface:'%s'%s"
 			   , iface->bpf_prog->name, iface->ifname, VTY_NEWLINE);
@@ -442,6 +464,14 @@ interface_config_write(vty_t *vty)
 			vty_out(vty, " direct-tx-gw %s%s"
 				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
 				   , VTY_NEWLINE);
+		if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags))
+			vty_out(vty, " carrier-grade-nat %s side network-in%s"
+				   , iface->cgn_name
+				   , VTY_NEWLINE);
+		else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags))
+			vty_out(vty, " carrier-grade-nat %s side network-out%s"
+				   , iface->cgn_name
+				   , VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
 			vty_out(vty, " metrics gtp%s", VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
@@ -475,6 +505,7 @@ gtp_interface_vty_init(void)
 	install_element(INTERFACE_NODE, &interface_description_cmd);
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
+	install_element(INTERFACE_NODE, &interface_carrier_grade_nat_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_pppoe_cmd);

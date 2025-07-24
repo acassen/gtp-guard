@@ -27,6 +27,8 @@ enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_IPIP_BIT,
 	GTP_INTERFACE_FL_METRICS_LINK_BIT,
 	GTP_INTERFACE_FL_DIRECT_TX_GW_BIT,
+	GTP_INTERFACE_FL_CGNAT_NET_IN_BIT,
+	GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT,
 	GTP_INTERFACE_FL_SHUTDOWN_BIT,
 };
 
@@ -38,6 +40,7 @@ typedef struct _gtp_interface {
 	uint16_t		vlan_id;
 	ip_address_t		direct_tx_gw;
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
+	char			cgn_name[GTP_STR_MAX_LEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
 	gtp_bpf_prog_t		*bpf_prog;
