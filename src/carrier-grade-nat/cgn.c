@@ -64,9 +64,8 @@ cgn_bpf_loaded(gtp_bpf_prog_t *p, struct bpf_object *obj)
 }
 
 static gtp_bpf_prog_tpl_t gtp_bpf_tpl_cgn = {
-	.mode = CGN,
+	.mode = BPF_PROG_MODE_CGN,
 	.description = "cgn",
-	.def_path = "/etc/gtp-guard/cgn.bpf",
 	.opened = cgn_bpf_opened,
 	.loaded = cgn_bpf_loaded,
 };

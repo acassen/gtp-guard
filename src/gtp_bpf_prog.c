@@ -27,6 +27,9 @@
 /* Extern data */
 extern data_t *daemon_data;
 
+/* Forward declaration */
+static gtp_bpf_prog_mode_t gtp_bpf_prog_tpl_str2mode(const char *name);
+
 
 /*
  *	BPF Object variable update.
@@ -36,39 +39,37 @@ extern data_t *daemon_data;
  *  They can be modified *only* before program is loaded into kernel.
  *  it should be the same for variables in .data or .bss sections.
  */
-static const char *
-gtp_bpf_prog_obj_get_rodata_name(struct bpf_object *obj)
-{
-	struct bpf_map *map;
 
-	bpf_object__for_each_map(map, obj) {
-		if (strstr(bpf_map__name(map), ".rodata"))
-			return bpf_map__name(map);
-	}
-
-	return NULL;
-}
-
-int
-gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *consts)
+static const struct btf_type *
+_get_datasec_type(struct bpf_object *obj, const char *datasec_name, void **out_data)
 {
 	struct bpf_map *map;
 	const char *name;
-	void *rodata;
 
-	name = gtp_bpf_prog_obj_get_rodata_name(obj);
-	if (!name) {
-		log_message(LOG_INFO, "%s(): cant find rodata !!!", __FUNCTION__);
-		errno = ENOENT;
-		return -1;
+	name = datasec_name;
+#if 0
+	/* sometimes '.rodata' is called 'prgnam.rodata' ? */
+	/* XXX: if it's the case, re-enable this code */
+	bpf_object__for_each_map(map, obj) {
+		if (strstr(bpf_map__name(map), datasec_name)) {
+			name = bpf_map__name(map);
+			break;
+		}
 	}
+	if (!name) {
+		log_message(LOG_INFO, "%s(): cant find DATASEC=%s !!!",
+			    __FUNCTION__, datasec_name);
+		errno = ENOENT;
+		return NULL;
+	}
+#endif
 
 	/* this open() subskeleton is only here to retrieve map's mmap address
 	 * libbpf doesn't provide other way to get this address */
 	struct bpf_map_skeleton ms[1] = { {
 		.name = name,
 		.map = &map,
-		.mmaped = &rodata,
+		.mmaped = out_data,
 	} };
 	struct bpf_object_subskeleton ss = {
 		.sz = sizeof (struct bpf_object_subskeleton),
@@ -80,29 +81,28 @@ gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *co
 	if (bpf_object__open_subskeleton(&ss) < 0) {
 		log_message(LOG_INFO, "%s(): cant open subskeleton !!!", __FUNCTION__);
 		errno = EINVAL;
-		return -1;
+		return NULL;
 	}
 
 	/* now use btf info to find this variable */
 	struct btf *btf;
 	const struct btf_type *sec;
-	struct btf_var_secinfo *secinfo;
-	int sec_id, i, j;
-	int set = 0, to_be_set = 0;
+	int sec_id;
 
 	btf = bpf_object__btf(obj);
 	if (btf == NULL) {
 		log_message(LOG_INFO, "%s(): cant get BTF handler !!!", __FUNCTION__);
 		errno = ENOENT;
-		return -1;
+		return NULL;
 	}
 
 	/* get secdata id */
-	sec_id = btf__find_by_name(btf, ".rodata");
+	sec_id = btf__find_by_name(btf, datasec_name);
 	if (sec_id < 0) {
-		log_message(LOG_INFO, "%s(): cant get .rodata section !!!", __FUNCTION__);
+		log_message(LOG_INFO, "%s(): cant get %s section !!!",
+			    __FUNCTION__, datasec_name);
 		errno = ENOENT;
-		return -1;
+		return NULL;
 	}
 
 	/* get the actual BTF type from the ID */
@@ -111,10 +111,29 @@ gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *co
 		log_message(LOG_INFO, "%s(): cant get BTF type from section ID !!!"
 				    , __FUNCTION__);
 		errno = ENOENT;
-		return -1;
+		return NULL;
 	}
 
+	return sec;
+}
+
+
+int
+gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *consts)
+{
+	struct btf *btf;
+	const struct btf_type *sec;
+	struct btf_var_secinfo *secinfo;
+	void *rodata;
+	int set = 0, to_be_set = 0;
+	int i, j;
+
+	sec = _get_datasec_type(obj, ".rodata", &rodata);
+	if (sec == NULL)
+		return -1;
+
 	/* Get all secinfos, each of which will be a global variable */
+	btf = bpf_object__btf(obj);
 	secinfo = btf_var_secinfos(sec);
 	for (i = 0; i < btf_vlen(sec); i++) {
 		const struct btf_type *t = btf__type_by_id(btf, secinfo[i].type);
@@ -147,6 +166,45 @@ gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *co
 	return 0;
 }
 
+static const gtp_bpf_prog_tpl_t *
+gtp_bpf_prog_obj_get_mode(struct bpf_object *obj)
+{
+	struct btf *btf;
+	const struct btf_type *sec;
+	struct btf_var_secinfo *secinfo;
+	const gtp_bpf_prog_tpl_t *tpl;
+	char buf[GTP_STR_MAX_LEN];
+	void *data;
+	int i;
+
+	sec = _get_datasec_type(obj, ".rodata", &data);
+	if (sec == NULL)
+		return NULL;
+
+	btf = bpf_object__btf(obj);
+	secinfo = btf_var_secinfos(sec);
+	for (i = 0; i < btf_vlen(sec); i++) {
+		const struct btf_type *t = btf__type_by_id(btf, secinfo[i].type);
+		const char *name = btf__name_by_offset(btf, t->name_off);
+		if (strcmp(name, "_mode"))
+			continue;
+		memcpy(buf, data + secinfo[i].offset, secinfo[i].size);
+		buf[secinfo[i].size - 1] = 0;
+		tpl = gtp_bpf_prog_tpl_get(gtp_bpf_prog_tpl_str2mode(buf));
+		if (tpl == NULL)
+			log_message(LOG_INFO, "%s(): bpf program reference mode %s, "
+				    "but is not known to gtp-guard !!!",
+				    __FUNCTION__, name);
+		return tpl;
+	}
+
+	log_message(LOG_INFO, "%s(): cannot find var 'mode' in DATASEC(mode) !!!",
+		    __FUNCTION__);
+
+	return NULL;
+}
+
+
 
 /*
  *	BPF helpers
@@ -158,9 +216,10 @@ gtp_bpf_prog_detach(struct bpf_link *link)
 }
 
 struct bpf_link *
-gtp_bpf_prog_attach(gtp_bpf_prog_t *p, int ifindex)
+gtp_bpf_prog_attach(gtp_bpf_prog_t *p, gtp_interface_t *iface)
 {
 	struct bpf_link *link;
+	int ifindex = iface->ifindex;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
 
@@ -168,10 +227,18 @@ gtp_bpf_prog_attach(gtp_bpf_prog_t *p, int ifindex)
 	err = bpf_xdp_detach(ifindex, XDP_FLAGS_DRV_MODE, NULL);
 	if (err) {
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant detach previous XDP programm (%s)"
+		log_message(LOG_INFO, "%s(): Cant detach previous XDP program (%s)"
 				    , __FUNCTION__
 				    , errmsg);
 	}
+
+	/* Attach program to interface, let prog template know. */
+	if (p->tpl->bind_itf != NULL && p->tpl->bind_itf(p, iface))
+		return NULL;
+
+	/* Load program, if not already */
+	if (gtp_bpf_prog_load(p) < 0)
+		return NULL;
 
 	/* Attach XDP */
 	link = bpf_program__attach_xdp(p->bpf_prog, ifindex);
@@ -187,100 +254,95 @@ gtp_bpf_prog_attach(gtp_bpf_prog_t *p, int ifindex)
 	return NULL;
 }
 
-static struct bpf_object *
-gtp_bpf_prog_load_file(gtp_bpf_prog_t *p)
+int
+gtp_bpf_prog_open(gtp_bpf_prog_t *p)
 {
-	struct bpf_object *bpf_obj;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err;
+	struct bpf_object *bpf_obj;
+	const gtp_bpf_prog_tpl_t *t;
 
-	/* open eBPF file */
+	/* Already opened */
+	if (p->bpf_obj)
+		return 0;
+
+	/* Open eBPF file */
 	bpf_obj = bpf_object__open(p->path);
 	if (!bpf_obj) {
 		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "eBPF: error opening bpf file err:%d (%s)"
 				    , errno, errmsg);
-		return NULL;
+		return -1;
 	}
 
-	if (p->tpl->opened != NULL && p->tpl->opened(p, bpf_obj)) {
+	/* Get template mode, from const char *_mode */
+	t = gtp_bpf_prog_obj_get_mode(bpf_obj);
+	if (t == NULL) {
 		bpf_object__close(bpf_obj);
-		return NULL;
+		return -1;
 	}
 
-	/* Finally load it */
-	err = bpf_object__load(bpf_obj);
-	if (err) {
-		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "eBPF: error loading bpf_object err:%d (%s)"
-				    , err, errmsg);
-		bpf_object__close(bpf_obj);
-		return NULL;
+	/* Get default path/programe if not set */
+	if (!*p->progname && *t->def_progname) {
+		bsd_strlcpy(p->progname, t->def_progname,
+			    GTP_STR_MAX_LEN - 1);
 	}
 
-	if (p->tpl->loaded != NULL && p->tpl->loaded(p, bpf_obj)) {
-		bpf_object__close(bpf_obj);
-		return NULL;
-	}
-
-	return bpf_obj;
+	p->bpf_obj = bpf_obj;
+	p->tpl = t;
+	return 0;
 }
 
 int
 gtp_bpf_prog_load(gtp_bpf_prog_t *p)
 {
-	struct bpf_program *bpf_prog = NULL;
-	struct bpf_object *bpf_obj;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err;
 
 	/* Already loaded */
 	if (p->bpf_prog)
 		return 0;
 
-	/* a template MUST be attached */
-	if (p->tpl == NULL)
+	/* Open bpf file (if not done yet) */
+	if (gtp_bpf_prog_open(p) < 0)
 		return -1;
 
-	/* get default path/programe if not set */
-	if (!*p->path && *p->tpl->def_path) {
-		bsd_strlcpy(p->path, p->tpl->def_path,
-			    GTP_PATH_MAX_LEN - 1);
-	}
-	if (!*p->progname && *p->tpl->def_progname) {
-		bsd_strlcpy(p->progname, p->tpl->def_progname,
-			    GTP_STR_MAX_LEN - 1);
+	if (p->tpl->opened != NULL && p->tpl->opened(p, p->bpf_obj))
+		goto err;
+
+	/* Finally load it */
+	err = bpf_object__load(p->bpf_obj);
+	if (err) {
+		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "eBPF: error loading bpf_object err:%d (%s)"
+				    , err, errmsg);
+		goto err;
 	}
 
-	/* Load object */
-	bpf_obj = gtp_bpf_prog_load_file(p);
-	if (!bpf_obj)
-		return -1;
+	if (p->tpl->loaded != NULL && p->tpl->loaded(p, p->bpf_obj))
+		goto err;
 
 	/* prog lookup */
 	if (p->progname[0]) {
-		bpf_prog = bpf_object__find_program_by_name(bpf_obj, p->progname);
-		if (!bpf_prog) {
-			log_message(LOG_INFO, "%s(): eBPF: unknown program:%s (fallback to first one)"
-					    , __FUNCTION__
-					    , p->progname);
-		}
-	}
-
-	if (bpf_prog)
-		goto end;
-
-	bpf_prog = bpf_object__next_program(bpf_obj, NULL);
-	if (!bpf_prog) {
-		log_message(LOG_INFO, "%s(): eBPF: no program found in file:%s"
+		p->bpf_prog = bpf_object__find_program_by_name(p->bpf_obj, p->progname);
+		if (p->bpf_prog)
+			return 0;
+		log_message(LOG_INFO, "%s(): eBPF: unknown program:%s (fallback to first one)"
 				    , __FUNCTION__
-				    , p->path);
-		bpf_object__close(bpf_obj);
-		return -1;
+				    , p->progname);
 	}
+	p->bpf_prog = bpf_object__next_program(p->bpf_obj, NULL);
+	if (p->bpf_prog)
+		return 0;
 
-  end:
-	p->bpf_obj = bpf_obj;
-	p->bpf_prog = bpf_prog;
-	return 0;
+	log_message(LOG_INFO, "%s(): eBPF: no program found in file:%s"
+			    , __FUNCTION__
+			    , p->path);
+
+ err:
+	bpf_object__close(p->bpf_obj);
+	p->bpf_obj = NULL;
+	p->tpl = NULL;
+	return -1;
 }
 
 void
@@ -310,14 +372,18 @@ gtp_bpf_prog_destroy(gtp_bpf_prog_t *p)
  *	BPF progs related
  */
 void
-gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg)
+gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg,
+			  gtp_bpf_prog_mode_t filter_mode)
 {
 	gtp_bpf_prog_t *p;
 
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
-		__sync_add_and_fetch(&p->refcnt, 1);
-		(*(hdl)) (p, arg);
-		__sync_sub_and_fetch(&p->refcnt, 1);
+		if (filter_mode < BPF_PROG_MODE_MAX &&
+		    p->tpl && filter_mode == p->tpl->mode) {
+			__sync_add_and_fetch(&p->refcnt, 1);
+			(*(hdl)) (p, arg);
+			__sync_sub_and_fetch(&p->refcnt, 1);
+		}
 	}
 }
 
@@ -387,20 +453,33 @@ gtp_bpf_progs_destroy(void)
 static LIST_HEAD(bpf_prog_tpl_list);
 
 const char *
-gtp_bpf_prog_tpl_mode2str(const gtp_bpf_prog_tpl_t *tpl)
+gtp_bpf_prog_tpl_mode2str(gtp_bpf_prog_mode_t mode)
 {
-	switch (tpl->mode) {
-	case GTP_FORWARD:
-		return "mode-gtp-forward";
-	case GTP_ROUTE:
-		return "mode-gtp-route";
-	case CGN:
-		return "mode-cgn";
+	switch (mode) {
+	case BPF_PROG_MODE_GTP_FORWARD:
+		return "gtp_fwd";
+	case BPF_PROG_MODE_GTP_ROUTE:
+		return "gtp_route";
+	case BPF_PROG_MODE_CGN:
+		return "cgn";
 	case BPF_PROG_MODE_MAX:
 		return NULL;
 	}
 
 	return NULL;
+}
+
+static gtp_bpf_prog_mode_t
+gtp_bpf_prog_tpl_str2mode(const char *name)
+{
+	if (!strcmp(name, "gtp_fwd"))
+		return BPF_PROG_MODE_GTP_FORWARD;
+	else if (!strcmp(name, "gtp_route"))
+		return BPF_PROG_MODE_GTP_ROUTE;
+	else if (!strcmp(name, "cgn"))
+		return BPF_PROG_MODE_CGN;
+
+	return BPF_PROG_MODE_MAX;
 }
 
 void

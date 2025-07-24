@@ -29,10 +29,10 @@ extern thread_master_t *master;
 
 static int pdn_config_write(vty_t *vty);
 cmd_node_t pdn_node = {
-        .node = PDN_NODE,
-        .parent_node = CONFIG_NODE,
-        .prompt = "%s(pdn)# ",
-        .config_write = pdn_config_write,
+	.node = PDN_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(pdn)# ",
+	.config_write = pdn_config_write,
 };
 
 
@@ -54,14 +54,14 @@ DEFUN(pdn_realm,
       "Set Global PDN Realm\n"
       "name\n")
 {
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	strncpy(daemon_data->realm, argv[0], GTP_STR_MAX_LEN-1);
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(pdn_nameserver,
@@ -74,10 +74,10 @@ DEFUN(pdn_nameserver,
 	struct sockaddr_storage *addr = &daemon_data->nameserver;
 	int ret;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	ret = inet_stosockaddr(argv[0], 53, addr);
 	if (ret < 0) {
@@ -88,7 +88,7 @@ DEFUN(pdn_nameserver,
 
 	gtp_resolv_init();
 
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 DEFUN(pdn_xdp_mirror,
@@ -131,16 +131,16 @@ DEFUN(no_pdn_xdp_mirror,
 		return CMD_WARNING;
 	}
 
-        gtp_bpf_mirror_unload(opts);
+	gtp_bpf_mirror_unload(opts);
 
-        /* Reset data */
+	/* Reset data */
 	memset(opts, 0, sizeof(gtp_bpf_opts_t));
 
-        vty_out(vty, "Success unloading eBPF program:%s%s"
-                   , opts->filename
-                   , VTY_NEWLINE);
+	vty_out(vty, "Success unloading eBPF program:%s%s"
+		   , opts->filename
+		   , VTY_NEWLINE);
 	__clear_bit(GTP_FL_MIRROR_LOADED_BIT, &daemon_data->flags);
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 static int
@@ -287,28 +287,28 @@ DEFUN(restart_counter_file,
       "GTP-C Local restart counter file\n"
       "path to restart counter file\n")
 {
-        int ret;
+	int ret;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	strncpy(daemon_data->restart_counter_filename, argv[0], GTP_STR_MAX_LEN-1);
 
-        ret = gtp_disk_read_restart_counter();
-        if (ret < 0) {
-                daemon_data->restart_counter = 1;
-        } else {
+	ret = gtp_disk_read_restart_counter();
+	if (ret < 0) {
+		daemon_data->restart_counter = 1;
+	} else {
 		daemon_data->restart_counter = ret + 1;
-        }
-        gtp_disk_write_restart_counter();
+	}
+	gtp_disk_write_restart_counter();
 
-        vty_out(vty, "Success loading restart_counter:%d%s"
-                   , daemon_data->restart_counter
-                   , VTY_NEWLINE);
+	vty_out(vty, "Success loading restart_counter:%d%s"
+		   , daemon_data->restart_counter
+		   , VTY_NEWLINE);
 	__set_bit(GTP_FL_RESTART_COUNTER_LOADED_BIT, &daemon_data->flags);
-        return CMD_SUCCESS;
+	return CMD_SUCCESS;
 }
 
 static int
@@ -395,7 +395,7 @@ DEFUN(show_xdp_forwarding,
       SHOW_STR
       "XDP GTP Fowarding Dataplane ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
 	return CMD_SUCCESS;
 }
 
@@ -405,7 +405,7 @@ DEFUN(show_xdp_forwarding_iptnl,
       SHOW_STR
       "GTP XDP Forwarding IPIP Tunnel ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
 	return CMD_SUCCESS;
 }
 
@@ -415,7 +415,7 @@ DEFUN(show_xdp_routing,
       SHOW_STR
       "GTP XDP Routing Dataplane ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
 	return CMD_SUCCESS;
 }
 
@@ -425,7 +425,7 @@ DEFUN(show_xdp_routing_iptnl,
       SHOW_STR
       "GTP XDP Routing IPIP Tunnel ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
 	return CMD_SUCCESS;
 }
 
@@ -435,7 +435,7 @@ DEFUN(show_xdp_routing_lladdr,
       SHOW_STR
       "GTP XDP Routing link-layer Address\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
 	return CMD_SUCCESS;
 }
 

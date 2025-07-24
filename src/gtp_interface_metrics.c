@@ -43,7 +43,7 @@ gtp_interface_nl_rx_dump(gtp_interface_t *iface, FILE *fp,
 			  , var, iface->description, s->rx_bytes);
 		return 0;
 	}
-	
+
 	fprintf(fp, "%s{interface=\"%s\"} %lld\n"
 		  , var, iface->description, s->rx_packets);
 	fprintf(fp, "%s{interface=\"%s\",type=\"%s\"} %lld\n"
@@ -245,7 +245,7 @@ gtp_interface_metrics_var_dump(gtp_interface_t *iface, void *arg,
 	__u16 inuse = type << 8;
 	FILE *fp = arg;
 
-	if (!p || !p->tpl || p->tpl->mode != GTP_ROUTE)
+	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
 		return -1;
 
 	gtp_interface_metric_inuse(iface, &inuse);

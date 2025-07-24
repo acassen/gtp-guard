@@ -744,4 +744,5 @@ int xdp_fwd(struct xdp_md *ctx)
 	return gtpu_traffic_selector(&pkt);
 }
 
+const char _mode[] = "gtp_fwd";
 char _license[] SEC("license") = "GPL";

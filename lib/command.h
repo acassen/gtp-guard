@@ -46,6 +46,7 @@ typedef enum _node_type {
 	CFG_LOG_NODE,					/* Configure the logging */
 
 	PDN_NODE,					/* PDN daemon commands. */
+	CGN_NODE,					/* Carrier Grade NAT */
 	BPF_PROG_NODE,					/* BPF prog commands. */
 	INTERFACE_NODE,					/* Interface commands. */
 	PPPOE_NODE,					/* PPPoE commands. */
@@ -55,7 +56,6 @@ typedef enum _node_type {
 	CDR_NODE,					/* CDR commands. */
 	GTP_PROXY_NODE,					/* GTP Proxy commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
-	CGN_NODE,					/* Carrier Grade NAT */
 
 	VTY_NODE,					/* Vty node. */
 } node_type_t;
