@@ -56,6 +56,50 @@ gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *arg)
 	}
 }
 
+void
+gtp_interface_update_direct_tx_lladdr(ip_address_t *addr, const uint8_t *hw_addr)
+{
+	list_head_t *l = &daemon_data->interfaces;
+	gtp_interface_t *iface;
+	ip_address_t *addr_iface;
+
+	list_for_each_entry(iface, l, next) {
+		addr_iface = &iface->direct_tx_gw;
+		if (!addr_iface->family)
+			continue;
+
+		if (addr_iface->family != addr->family)
+			continue;
+
+		switch (addr->family) {
+		case AF_INET:
+			if (__addr_ip4_equal(&addr_iface->u.sin_addr,
+					     &addr->u.sin_addr))
+				goto found;
+			break;
+		case AF_INET6:
+			if (__addr_ip6_equal(&addr_iface->u.sin6_addr,
+					     &addr->u.sin6_addr))
+				goto found;
+			break;
+		}
+	}
+	return;
+
+ found:
+	if (!memcmp(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN))
+		return;
+
+	memcpy(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN);
+
+	/* Update BPF prog accordingly */
+	gtp_bpf_rt_lladdr_update(iface);
+	if (iface->bpf_prog && iface->bpf_prog->tpl)
+		iface->bpf_prog->tpl->direct_tx_lladdr_updated(iface->bpf_prog,
+							       iface);
+
+}
+
 gtp_interface_t *
 gtp_interface_get(const char *name)
 {
@@ -80,42 +124,6 @@ gtp_interface_get_by_ifindex(int ifindex)
 
 	list_for_each_entry(iface, l, next) {
 		if (iface->ifindex == ifindex) {
-			__sync_add_and_fetch(&iface->refcnt, 1);
-			return iface;
-		}
-	}
-
-	return NULL;
-}
-
-gtp_interface_t *
-gtp_interface_get_by_direct_tx(ip_address_t *addr)
-{
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface;
-	ip_address_t *addr_iface;
-	bool addr_equal = false;
-
-	list_for_each_entry(iface, l, next) {
-		addr_iface = &iface->direct_tx_gw;
-		if (!addr_iface->family)
-			continue;
-
-		if (addr_iface->family != addr->family)
-			continue;
-
-		switch (addr->family) {
-		case AF_INET:
-			addr_equal = __addr_ip4_equal(&addr_iface->u.sin_addr,
-						      &addr->u.sin_addr);
-			break;
-		case AF_INET6:
-			addr_equal = __addr_ip6_equal(&addr_iface->u.sin6_addr,
-						      &addr->u.sin6_addr);
-			break;
-		}
-
-		if (addr_equal) {
 			__sync_add_and_fetch(&iface->refcnt, 1);
 			return iface;
 		}
