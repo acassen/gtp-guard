@@ -52,6 +52,8 @@ typedef struct _gtp_bpf_prog_tpl {
 	int (*opened)(gtp_bpf_prog_t *, struct bpf_object *);
 	int (*loaded)(gtp_bpf_prog_t *, struct bpf_object *);
 
+	void (*direct_tx_lladdr_updated)(gtp_bpf_prog_t *, gtp_interface_t *);
+
 	list_head_t		next;
 } gtp_bpf_prog_tpl_t;
 

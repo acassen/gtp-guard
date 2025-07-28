@@ -347,7 +347,6 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 {
 	struct ndmsg *r = NLMSG_DATA(h);
 	struct rtattr *tb[NDA_MAX + 1];
-	gtp_interface_t *iface;
 	ip_address_t *addr;
 	int len = h->nlmsg_len;
 
@@ -361,7 +360,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 	parse_rtattr(tb, NDA_MAX, NDA_RTA(r), len, 0);
 
 	/* Only netlink broadcast related to IP Address matter */
-	if (!tb[NDA_DST] || !tb[NDA_LLADDR])
+	if (!tb[NDA_DST] || !tb[NDA_LLADDR] || RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
 		return -1;
 
 	PMALLOC(addr);
@@ -375,23 +374,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 		break;
 	}
 
-	iface = gtp_interface_get_by_direct_tx(addr);
-	if (!iface)
-		goto end;
-
-	if (RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
-		goto put;
-
-	if (!memcmp(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN))
-		goto put;
-
-	memcpy(iface->direct_tx_hw_addr, RTA_DATA(tb[NDA_LLADDR]), ETH_ALEN);
-
-	/* Update BPF prog accordingly */
-	gtp_bpf_rt_lladdr_update(iface);
-  put:
-	gtp_interface_put(iface);
-  end:
+	gtp_interface_update_direct_tx_lladdr(addr, RTA_DATA(tb[NDA_LLADDR]));
 	FREE(addr);
 	return 0;
 }
@@ -404,7 +387,7 @@ netlink_neigh_request(nl_handle_t *nl, unsigned char family, uint16_t type)
 	struct {
 		struct nlmsghdr nlh;
 		struct ndmsg ndm;
-		char buf[256];  
+		char buf[256];
 	} req = {
 		.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct ndmsg)),
 		.nlh.nlmsg_type = type,
@@ -432,8 +415,14 @@ netlink_neigh_lookup(void)
 	if (!err)
 		netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, false);
 
-	netlink_close(&nl_cmd);
 	return err;
+}
+
+static void
+netlink_neigh_lookup_event(thread_t *)
+{
+	netlink_neigh_lookup();
+	netlink_close(&nl_cmd);
 }
 
 
@@ -541,9 +530,9 @@ netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type, bool st
 static int
 netlink_if_link_info(struct rtattr *tb, gtp_interface_t *iface)
 {
-        struct rtattr *linkinfo[IFLA_INFO_MAX+1];
-        struct rtattr *attr[IFLA_VLAN_MAX+1], **data = NULL;
-        struct rtattr *linkdata;
+	struct rtattr *linkinfo[IFLA_INFO_MAX+1];
+	struct rtattr *attr[IFLA_VLAN_MAX+1], **data = NULL;
+	struct rtattr *linkdata;
 	const char *kind;
 
 	if (!tb)
@@ -701,7 +690,9 @@ netlink_if_init(void)
 	if (err)
 		return -1;
 
-	netlink_if_stats_update(NULL);
+	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update
+					       , NULL, 5*TIMER_HZ);
+	thread_add_event(master, netlink_neigh_lookup_event, NULL, 0);
 	return 0;
 }
 

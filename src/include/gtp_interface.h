@@ -67,9 +67,9 @@ extern int gtp_interface_metrics_dump(FILE *);
 extern void gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
 					  void *, const char *, int, __u8, __u8);
 extern void gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *);
+extern void gtp_interface_update_direct_tx_lladdr(ip_address_t *, const uint8_t *);
 extern gtp_interface_t *gtp_interface_get(const char *);
 extern gtp_interface_t *gtp_interface_get_by_ifindex(int);
-extern gtp_interface_t *gtp_interface_get_by_direct_tx(ip_address_t *);
 extern int gtp_interface_put(gtp_interface_t *);
 extern gtp_interface_t *gtp_interface_alloc(const char *, int);
 extern int gtp_interface_unload_bpf(gtp_interface_t *);
