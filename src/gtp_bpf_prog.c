@@ -341,7 +341,6 @@ gtp_bpf_prog_load(gtp_bpf_prog_t *p)
  err:
 	bpf_object__close(p->bpf_obj);
 	p->bpf_obj = NULL;
-	p->tpl = NULL;
 	return -1;
 }
 
