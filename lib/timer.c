@@ -74,7 +74,7 @@ timer_add_ll(timeval_t a, uint64_t b)
 }
 
 timeval_t
-timer_sub_long(timeval_t a, uint64_t b)
+timer_sub_ll(timeval_t a, uint64_t b)
 {
 	if (a.tv_usec < (suseconds_t)(b % TIMER_HZ)) {
 		a.tv_usec += TIMER_HZ;
