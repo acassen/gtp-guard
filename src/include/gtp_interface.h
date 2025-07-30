@@ -43,8 +43,7 @@ typedef struct _gtp_interface {
 	char			cgn_name[GTP_STR_MAX_LEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
-	gtp_bpf_prog_t		*bpf_prog;
-	struct bpf_link		*bpf_lnk;
+	gtp_bpf_prog_attr_t	bpf_prog_attr[GTP_BPF_PROG_TYPE_MAX];
 
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
@@ -72,6 +71,7 @@ extern gtp_interface_t *gtp_interface_get(const char *);
 extern gtp_interface_t *gtp_interface_get_by_ifindex(int);
 extern int gtp_interface_put(gtp_interface_t *);
 extern gtp_interface_t *gtp_interface_alloc(const char *, int);
+extern int gtp_interface_load_bpf(gtp_interface_t *);
 extern int gtp_interface_unload_bpf(gtp_interface_t *);
 extern int gtp_interface_destroy(gtp_interface_t *);
 extern int gtp_interfaces_destroy(void);

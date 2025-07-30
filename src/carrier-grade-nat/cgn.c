@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 
 /* local includes */
+#include "libbpf.h"
 #include "tools.h"
 #include "inet_server.h"
 #include "list_head.h"

@@ -38,43 +38,16 @@ enum daemon_flags {
 };
 
 /* Main control block */
-typedef struct _gtp_bpf_maps {
-	struct bpf_map		*map;
-} gtp_bpf_maps_t;
-
-typedef struct _gtp_bpf_opts {
-	char			filename[GTP_STR_MAX_LEN];
-	char			progname[GTP_STR_MAX_LEN];
-	int			ifindex;
-	char			pin_root_path[GTP_STR_MAX_LEN];
-	struct bpf_object	*bpf_obj;
-	struct bpf_link		*bpf_lnk;
-	gtp_bpf_maps_t		*bpf_maps;
-	vty_t			*vty;
-
-	list_head_t		next;
-} gtp_bpf_opts_t;
-
-typedef struct _gtp_mirror_rule {
-	struct sockaddr_storage	addr;
-	uint8_t			protocol;
-	int			ifindex;
-	bool			active;
-
-	list_head_t		next;
-} gtp_mirror_rule_t;
-
 typedef struct _data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
 	inet_server_t		request_channel;
 	inet_server_t		metrics_channel;
-	gtp_bpf_opts_t		xdp_mirror;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 	unsigned		nl_rcvbuf_size;
 
-	list_head_t		mirror_rules;
+	list_head_t		mirror;
 	list_head_t		cgn;
 	list_head_t		pppoe;
 	list_head_t		pppoe_bundle;
@@ -91,18 +64,5 @@ typedef struct _data {
 
 
 /* Prototypes */
-extern gtp_mirror_rule_t *gtp_mirror_rule_get(const struct sockaddr_storage *, uint8_t, int);
-extern gtp_mirror_rule_t *gtp_mirror_rule_add(const struct sockaddr_storage *, uint8_t, int);
-extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
-extern void gtp_mirror_action(int, int);
-extern int gtp_mirror_vty(vty_t *);
-extern gtp_bpf_opts_t *gtp_bpf_opts_alloc(void);
-extern int gtp_bpf_opts_add(gtp_bpf_opts_t *, list_head_t *);
-extern int gtp_bpf_opts_exist(list_head_t *, int, const char **);
-extern void gtp_bpf_opts_destroy(list_head_t *, void (*bpf_unload) (gtp_bpf_opts_t *));
-extern int gtp_bpf_opts_load(gtp_bpf_opts_t *, vty_t *, int, const char **,
-			     int (*bpf_load) (gtp_bpf_opts_t *));
-extern int gtp_bpf_opts_config_write(vty_t *, const char *, gtp_bpf_opts_t *);
-extern int gtp_bpf_opts_list_config_write(vty_t *, const char *, list_head_t *);
 extern data_t *alloc_daemon_data(void);
 extern void free_daemon_data(void);

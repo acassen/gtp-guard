@@ -26,8 +26,24 @@
 /* Extern data */
 extern data_t *daemon_data;
 
-/* Local data */
-static struct bpf_map *xdp_mirror_map;
+
+/*
+ *	MAP related
+ */
+static int
+gtp_bpf_mirror_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
+{
+	struct bpf_map *map;
+
+	/* MAP ref for faster access */
+	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * TC_MIRROR_MAP_CNT);
+	map = gtp_bpf_load_map(bpf_obj, "mirror_rules");
+	if (!map)
+		return -1;
+	p->bpf_maps[TC_MIRROR_MAP_RULES].map = map;
+
+	return 0;
+}
 
 
 /*
@@ -44,13 +60,18 @@ gtp_bpf_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
 }
 
 int
-gtp_bpf_mirror_action(int action, gtp_mirror_rule_t *m)
+gtp_bpf_mirror_action(int action, void *arg, gtp_bpf_prog_t *p)
 {
-	struct bpf_map *map = xdp_mirror_map;
+	gtp_mirror_rule_t *m = arg;
+	struct bpf_map *map;
 	struct gtp_mirror_rule r;
 	const char *action_str = "adding";
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
+
+	if (!p)
+		return -1;
+	map = p->bpf_maps[TC_MIRROR_MAP_RULES].map;
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
@@ -81,6 +102,8 @@ gtp_bpf_mirror_action(int action, gtp_mirror_rule_t *m)
 		return -1;
 	}
 
+	m->active = (action == RULE_ADD);
+
 	log_message(LOG_INFO, "%s(): %s XDP Mirroring rule "
 			      "{addr:%s port:%u, protocol:%s, ifindex:%d}"
 			    , __FUNCTION__
@@ -93,15 +116,19 @@ gtp_bpf_mirror_action(int action, gtp_mirror_rule_t *m)
 }
 
 int
-gtp_bpf_mirror_vty(vty_t *vty)
+gtp_bpf_mirror_vty(vty_t *vty, gtp_bpf_prog_t *p)
 {
-	struct bpf_map *map = xdp_mirror_map;
+	struct bpf_map *map;
 	__be32 key, next_key;
 	struct gtp_mirror_rule r;
 	size_t sz = sizeof(struct gtp_mirror_rule);
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char ipaddr[16], ifname[IF_NAMESIZE];
 	int err = 0;
+
+	if (!p)
+		return -1;
+	map = p->bpf_maps[TC_MIRROR_MAP_RULES].map;
 
 	vty_out(vty, "+------------------+--------+----------+-------------+%s"
 		     "|      Address     |  Port  | Protocol |  Interface  |%s"
@@ -133,91 +160,14 @@ gtp_bpf_mirror_vty(vty_t *vty)
 	return 0;
 }
 
-static int
-gtp_bpf_qdisc_clsact_add(struct bpf_tc_hook *q_hook)
+static gtp_bpf_prog_tpl_t gtp_bpf_tpl_mirror = {
+	.mode = BPF_PROG_MODE_GTP_MIRROR,
+	.description = "gtp-mirror",
+	.loaded = gtp_bpf_mirror_load_maps,
+};
+
+static void __attribute__((constructor))
+gtp_bpf_mirror_init(void)
 {
-	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err;
-
-	bpf_tc_hook_destroy(q_hook);	/* Release previously stalled entry */
-	err = bpf_tc_hook_create(q_hook);
-	if (err) {
-		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant create TC_HOOK to ifindex:%d (%s)"
-				    , __FUNCTION__
-				    , q_hook->ifindex
-				    , errmsg);
-		return 1;
-	}
-
-	return 0;
-}
-
-static int
-gtp_bpf_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direction,
-		      const struct bpf_program *bpf_prog)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_opts, tc_opts, .handle = 1, .priority = 0,
-			    .flags = BPF_TC_F_REPLACE);
-	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err;
-
-	q_hook->attach_point = direction;
-	tc_opts.prog_fd = bpf_program__fd(bpf_prog);
-	err = bpf_tc_attach(q_hook, &tc_opts);
-	if (err) {
-		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
-		log_message(LOG_INFO, "%s(): Cant attach eBPF prog_fd:%d to ifindex:%d %s (%s)"
-				    , __FUNCTION__
-				    , tc_opts.prog_fd
-				    , q_hook->ifindex
-				    , (direction == BPF_TC_INGRESS) ? "ingress" : "egress"
-				    , errmsg);
-		return 1;
-	}
-
-	return 0;
-}
-
-void
-gtp_bpf_mirror_unload(gtp_bpf_opts_t *opts)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
-			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
-	bpf_tc_hook_destroy(&q_hook);
-	bpf_object__close(opts->bpf_obj);
-	xdp_mirror_map = NULL;
-}
-
-int
-gtp_bpf_mirror_load(gtp_bpf_opts_t *opts)
-{
-	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = opts->ifindex,
-			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
-	struct bpf_program *bpf_prog = NULL;
-	struct bpf_map *map;
-	int err = 0;
-
-	/* Load eBPF prog */
-	bpf_prog = gtp_bpf_load_prog(opts);
-	if (!bpf_prog)
-		return -1;
-
-	/* Create Qdisc Clsact & attach {in,e}gress filters */
-	err = err ? : gtp_bpf_qdisc_clsact_add(&q_hook);
-	err = err ? : gtp_bpf_tc_filter_add(&q_hook, BPF_TC_INGRESS, bpf_prog);
-	err = err ? : gtp_bpf_tc_filter_add(&q_hook, BPF_TC_EGRESS, bpf_prog);
-	if (err) {
-		bpf_object__close(opts->bpf_obj);
-		return -1;
-	}
-
-	map = gtp_bpf_load_map(opts->bpf_obj, "mirror_rules");
-	if (!map) {
-		gtp_bpf_mirror_unload(opts);
-		return -1;
-	}
-	xdp_mirror_map = map;
-
-	return 0;
+	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_mirror);
 }

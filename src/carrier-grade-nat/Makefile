@@ -20,7 +20,7 @@
 #
 
 CC	 ?= gcc
-INCLUDES = -Iinclude -I../include -I../../lib
+INCLUDES = -Iinclude -I../include -I../../lib -I../../libbpf/src -I../../libbpf/src/uapi
 CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Wall -Wunused -Wstrict-prototypes \
 	-D_GNU_SOURCE -MMD
 #DEFS	 = -D_DEBUG_

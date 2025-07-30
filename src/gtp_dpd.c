@@ -191,7 +191,7 @@ gtp_dpd_timer_thread(thread_t *thread)
 				    , NIPQUAD(t->remote_addr));
 		t->flags &= ~IPTNL_FL_DEAD;
 		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &p->iptnl, p->bpf_prog);
-		gtp_mirror_action(RULE_ADD, t->ifindex);
+		gtp_mirror_brd_action(RULE_ADD, t->ifindex);
 		goto end;
 	}
 
@@ -204,7 +204,7 @@ gtp_dpd_timer_thread(thread_t *thread)
 				    , NIPQUAD(t->remote_addr));
 		t->flags |= IPTNL_FL_DEAD;
 		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &p->iptnl, p->bpf_prog);
-		gtp_mirror_action(RULE_DEL, t->ifindex);
+		gtp_mirror_brd_action(RULE_DEL, t->ifindex);
 	}
 
   end:

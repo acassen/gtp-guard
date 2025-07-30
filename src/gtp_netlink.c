@@ -692,6 +692,14 @@ netlink_if_init(void)
 
 	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update
 					       , NULL, 5*TIMER_HZ);
+
+	/* Interface configuration induces the fetching of information via
+	 * the netlink channel. However, interface configuration occurs
+	 * after the initial Netlink neighbor lookup. Therefore, if an
+	 * entry is already present in the neighbor table, we will never
+	 * receive a Netlink broadcast for it until next ARP state.
+	 * Register an I/O MUX event to force fetching after parsing the
+	 * configuration. */
 	thread_add_event(master, netlink_neigh_lookup_event, NULL, 0);
 	return 0;
 }

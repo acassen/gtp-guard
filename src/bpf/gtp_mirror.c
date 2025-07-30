@@ -87,4 +87,5 @@ int tc_gtp_mirror(struct __sk_buff *skb)
 	return TC_ACT_OK;
 }
 
+const char _mode[] = "gtp_mirror";
 char _license[] SEC("license") = "GPL";

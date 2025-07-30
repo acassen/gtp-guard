@@ -62,6 +62,7 @@ gtp_interface_update_direct_tx_lladdr(ip_address_t *addr, const uint8_t *hw_addr
 	list_head_t *l = &daemon_data->interfaces;
 	gtp_interface_t *iface;
 	ip_address_t *addr_iface;
+	gtp_bpf_prog_t *p;
 
 	list_for_each_entry(iface, l, next) {
 		addr_iface = &iface->direct_tx_gw;
@@ -93,11 +94,10 @@ gtp_interface_update_direct_tx_lladdr(ip_address_t *addr, const uint8_t *hw_addr
 	memcpy(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN);
 
 	/* Update BPF prog accordingly */
+	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
 	gtp_bpf_rt_lladdr_update(iface);
-	if (iface->bpf_prog && iface->bpf_prog->tpl)
-		iface->bpf_prog->tpl->direct_tx_lladdr_updated(iface->bpf_prog,
-							       iface);
-
+	if (p && p->tpl)
+		p->tpl->direct_tx_lladdr_updated(p, iface);
 }
 
 gtp_interface_t *
@@ -161,12 +161,48 @@ gtp_interface_alloc(const char *name, int ifindex)
 }
 
 int
+gtp_interface_load_bpf(gtp_interface_t *iface)
+{
+	gtp_bpf_prog_t *p;
+	struct bpf_link *lnk = NULL;
+	int err;
+
+	/* XDP*/
+	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
+	if (p) {
+		lnk = gtp_bpf_prog_attach_xdp(p, iface);
+		if (!lnk)
+			goto err;
+		iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk = lnk;
+	}
+
+	/* TC */
+	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog;
+	if (p) {
+		err = gtp_bpf_prog_attach_tc(p, iface);
+		if (err)
+			goto err;
+	}
+
+	return 0;
+
+  err:
+	log_message(LOG_INFO, "error attaching bpf-program:'%s'"
+			      " to interface:'%s'%s"
+			    , p->name, iface->ifname);
+	gtp_bpf_prog_detach_xdp(lnk);
+	iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk = NULL;
+	return -1;
+}
+
+int
 gtp_interface_unload_bpf(gtp_interface_t *iface)
 {
-	if (iface->bpf_lnk)
-		gtp_bpf_prog_detach(iface->bpf_lnk);
-	iface->bpf_prog = NULL;
-	iface->bpf_lnk = NULL;
+	gtp_bpf_prog_detach_xdp(iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk);
+	gtp_bpf_prog_detach_tc(iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog,
+			       iface);
+	gtp_bpf_prog_attr_reset(&iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP]);
+	gtp_bpf_prog_attr_reset(&iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC]);
 	return 0;
 }
 

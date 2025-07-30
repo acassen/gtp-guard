@@ -107,6 +107,8 @@
 
 #include "gtp_interface.h"
 #include "gtp_interface_vty.h"
+#include "gtp_mirror.h"
+#include "gtp_mirror_vty.h"
 #include "gtp_proxy.h"
 #include "gtp_proxy_hdl.h"
 #include "gtp_proxy_hdl_v1.h"
