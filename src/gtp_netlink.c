@@ -641,7 +641,6 @@ netlink_if_stats_update(thread_t *thread)
 {
 	int err;
 
-	nl_cmd.thread = NULL;
 	if (nl_cmd.fd == -1) {
 		err = netlink_open(&nl_cmd, daemon_data->nl_rcvbuf_size
 					  , SOCK_NONBLOCK, NETLINK_ROUTE, 0, 0);
@@ -690,8 +689,7 @@ netlink_if_init(void)
 	if (err)
 		return -1;
 
-	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update
-					       , NULL, 5*TIMER_HZ);
+	thread_add_event(master, netlink_if_stats_update, NULL, 0);
 
 	/* Interface configuration induces the fetching of information via
 	 * the netlink channel. However, interface configuration occurs

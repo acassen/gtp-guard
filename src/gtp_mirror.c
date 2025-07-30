@@ -70,21 +70,17 @@ gtp_mirror_rule_del(gtp_mirror_rule_t *r)
 	list_head_del(&r->next);
 }
 
-void
+static void
 gtp_mirror_action(gtp_mirror_t *m, int action, int ifindex)
 {
 	list_head_t *l = &m->rules;
 	gtp_mirror_rule_t *r;
-	int err;
 
 	list_for_each_entry(r, l, next) {
-		if (r->ifindex == ifindex &&
-		    ((action == RULE_ADD && !r->active) ||
-		     (action == RULE_DEL && r->active))) {
-			err = gtp_bpf_mirror_action(action, r, m->bpf_prog);
-			if (!err)
-				r->active = (action == RULE_ADD);
-		}
+		if (r->ifindex != ifindex)
+			continue;
+
+		gtp_bpf_mirror_action(action, r, m->bpf_prog);
 	}
 }
 
@@ -101,6 +97,28 @@ gtp_mirror_brd_action(int action, int ifindex)
 	}
 }
 
+static void
+gtp_mirror_action_bpf(gtp_mirror_t *m, int action)
+{
+	list_head_t *l = &m->rules;
+	gtp_mirror_rule_t *r;
+
+	list_for_each_entry(r, l, next) {
+		gtp_bpf_mirror_action(action, r, m->bpf_prog);
+	}
+}
+
+void
+gtp_mirror_load_bpf(gtp_mirror_t *m)
+{
+	gtp_mirror_action_bpf(m, RULE_ADD);
+}
+
+void
+gtp_mirror_unload_bpf(gtp_mirror_t *m)
+{
+	gtp_mirror_action_bpf(m, RULE_DEL);
+}
 
 /*
  *	Mirror helpers

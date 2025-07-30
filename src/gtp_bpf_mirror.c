@@ -73,6 +73,11 @@ gtp_bpf_mirror_action(int action, void *arg, gtp_bpf_prog_t *p)
 		return -1;
 	map = p->bpf_maps[TC_MIRROR_MAP_RULES].map;
 
+	/* skip inconsistent call */
+	if ((action == RULE_ADD && m->active) ||
+	    (action == RULE_DEL && !m->active))
+		return -1;
+
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
 	 * kernel BPF map release. */

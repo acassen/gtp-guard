@@ -56,8 +56,9 @@ extern gtp_mirror_rule_t *gtp_mirror_rule_add(gtp_mirror_t *,
 					      const struct sockaddr_storage *,
 					      uint8_t, int);
 extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
-extern void gtp_mirror_action(gtp_mirror_t *, int, int);
 extern void gtp_mirror_brd_action(int, int);
+extern void gtp_mirror_load_bpf(gtp_mirror_t *);
+extern void gtp_mirror_unload_bpf(gtp_mirror_t *);
 extern void gtp_mirror_foreach(int (*hdl) (gtp_mirror_t *, void *), void *);
 extern gtp_mirror_t *gtp_mirror_get(const char *);
 extern int gtp_mirror_put(gtp_mirror_t *m);

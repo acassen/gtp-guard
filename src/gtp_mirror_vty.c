@@ -169,7 +169,7 @@ DEFUN(mirror_shutdown,
 		return CMD_WARNING;
 	}
 
-//	gtp_mirror_unload_bpf(m->bpf_prog);
+	gtp_mirror_unload_bpf(m);
 	__set_bit(GTP_MIRROR_FL_SHUTDOWN_BIT, &m->flags);
 	return CMD_SUCCESS;
 }
@@ -195,7 +195,7 @@ DEFUN(mirror_no_shutdown,
 		return CMD_WARNING;
 	}
 
-//	gtp_mirror_load_bpf(m->bpf_prog);
+	gtp_mirror_load_bpf(m);
 	__clear_bit(GTP_MIRROR_FL_SHUTDOWN_BIT, &m->flags);
 	return CMD_SUCCESS;
 }
