@@ -49,6 +49,43 @@ static enum gtp_bpf_prog_mode gtp_bpf_prog_tpl_str2mode(const char *name);
  *  it should be the same for variables in .data or .bss sections.
  */
 
+
+/*
+ * split given buffer into array using delimiters, consecutive
+ * delimiters occurence are merged
+ * does *NOT* remove leading occurence of delimiter
+ */
+static void
+split_line(char *buf, int *argc, char **argv, const char *delim,
+	   int max_args)
+{
+	int scan;
+
+	*argc = 1;
+	argv[0] = buf;
+
+	scan = 0;
+	while (*buf) {
+		if (!scan) {
+			if (strchr(delim, *buf)) {
+				*buf = 0;
+				scan = 1;
+			}
+		} else {
+			if (!strchr(delim, *buf)) {
+				(*argc)++;
+				argv[*argc - 1] = buf;
+				scan = 0;
+
+				if (*argc == max_args)
+					return;
+			}
+		}
+		buf++;
+	}
+}
+
+
 static const struct btf_type *
 _get_datasec_type(struct bpf_object *obj, const char *datasec_name, void **out_data)
 {
@@ -175,20 +212,19 @@ gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const struct gtp_bpf_prog_va
 	return 0;
 }
 
-static const struct gtp_bpf_prog_tpl *
-gtp_bpf_prog_obj_get_mode(struct bpf_object *obj)
+static int
+gtp_bpf_prog_obj_get_mode_list(struct bpf_object *obj, char **tpl_names)
 {
 	struct btf *btf;
 	const struct btf_type *sec;
 	struct btf_var_secinfo *secinfo;
-	const struct gtp_bpf_prog_tpl *tpl;
 	char buf[GTP_STR_MAX_LEN];
 	void *data;
-	int i;
+	int i, argc;
 
 	sec = _get_datasec_type(obj, ".rodata", &data);
 	if (sec == NULL)
-		return NULL;
+		return -1;
 
 	btf = bpf_object__btf(obj);
 	secinfo = btf_var_secinfos(sec);
@@ -199,18 +235,14 @@ gtp_bpf_prog_obj_get_mode(struct bpf_object *obj)
 			continue;
 		memcpy(buf, data + secinfo[i].offset, secinfo[i].size);
 		buf[secinfo[i].size - 1] = 0;
-		tpl = gtp_bpf_prog_tpl_get(gtp_bpf_prog_tpl_str2mode(buf));
-		if (tpl == NULL)
-			log_message(LOG_INFO, "%s(): bpf program refers to "
-				    "mode '%s', which is unknown !!!",
-				    __FUNCTION__, name);
-		return tpl;
+		split_line(buf, &argc, tpl_names, ",; ", BPF_PROG_TPL_MAX);
+		return argc ?: -1;
 	}
 
 	log_message(LOG_INFO, "%s(): cannot find var '_mode' in DATASEC(mode) !!!",
 		    __FUNCTION__);
 
-	return NULL;
+	return -1;
 }
 
 
@@ -353,6 +385,8 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	struct bpf_object *bpf_obj;
 	const struct gtp_bpf_prog_tpl *t;
+	char *argv[BPF_PROG_TPL_MAX];
+	int i, n;
 
 	/* Already opened */
 	if (p->bpf_obj)
@@ -368,13 +402,29 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	}
 
 	/* Get template mode, from const char *_mode */
-	t = gtp_bpf_prog_obj_get_mode(bpf_obj);
+	n = gtp_bpf_prog_obj_get_mode_list(bpf_obj, argv);
+	if (n < 0) {
+		bpf_object__close(bpf_obj);
+		return -1;
+	}
+	for (i = 0; i < n; i++) {
+		p->tpl[i] = gtp_bpf_prog_tpl_get(gtp_bpf_prog_tpl_str2mode(argv[i]));
+		if (p->tpl[i] == NULL) {
+			log_message(LOG_INFO, "%s(): bpf program refers to "
+				    "mode '%s', which is unknown",
+				    __FUNCTION__, argv[i]);
+			bpf_object__close(bpf_obj);
+			return -1;
+		}
+	}
+	p->tpl_n = n;
+
 	if (t == NULL) {
 		bpf_object__close(bpf_obj);
 		return -1;
 	}
 
-	/* Get default path/programe if not set */
+	/* Get default prog-name if not set */
 	if (!*p->progname && *t->def_progname) {
 		bsd_strlcpy(p->progname, t->def_progname,
 			    GTP_STR_MAX_LEN - 1);
