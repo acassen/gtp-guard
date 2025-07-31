@@ -174,7 +174,7 @@ gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 }
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_mirror = {
-	.mode = BPF_PROG_MODE_GTP_MIRROR,
+	.name = "gtp_mirror",
 	.description = "gtp-mirror",
 	.loaded = gtp_bpf_mirror_load_maps,
 };

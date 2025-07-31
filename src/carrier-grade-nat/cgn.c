@@ -56,7 +56,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, struct bpf_object *obj)
 }
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
-	.mode = BPF_PROG_MODE_CGN,
+	.name = "cgn",
 	.description = "cgn",
 	.opened = cgn_bpf_opened,
 	.loaded = cgn_bpf_loaded,

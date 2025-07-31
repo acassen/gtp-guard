@@ -100,7 +100,7 @@ DEFUN(gtp_proxy_bpf_program,
       "Use BPF Program\n"
       "BPF Program name")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
@@ -124,7 +124,7 @@ DEFUN(gtp_proxy_direct_tx,
       "direct-tx",
       "xmit packet to the same interface it was received on\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 
 	__set_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags);
 	return CMD_SUCCESS;
@@ -136,7 +136,7 @@ DEFUN(gtp_proxy_session_expiration_timeout_delete,
       "Force session expiration if delete response is timeout\n"
       "number of seconds\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	int timeout;
 
 	if (argc < 1) {
@@ -160,8 +160,8 @@ DEFUN(gtpc_proxy_tunnel_endpoint,
       "listening UDP Port (default = 2123)\n"
       "Number\n")
 {
-        struct gtp_proxy *ctx = vty->index;
-        struct gtp_server *srv = &ctx->gtpc;
+	struct gtp_proxy *ctx = vty->index;
+	struct gtp_server *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
@@ -206,23 +206,23 @@ DEFUN(gtpc_proxy_egress_tunnel_endpoint,
       "listening UDP Port (default = 2123)\n"
       "Number\n")
 {
-        struct gtp_proxy *ctx = vty->index;
-        struct gtp_server *srv = &ctx->gtpc_egress;
+	struct gtp_proxy *ctx = vty->index;
+	struct gtp_server *srv = &ctx->gtpc_egress;
 	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
-                vty_out(vty, "%% GTP-C egress already configured!%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
+		vty_out(vty, "%% GTP-C egress already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (argc == 2)
-                VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+	if (argc == 2)
+		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
 	if (err) {
@@ -345,13 +345,13 @@ DEFUN(gtpc_force_pgw_selection,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct sockaddr_storage *addr = &ctx->pgw_addr;
 	int ret;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
 	}
 
 	ret = inet_stosockaddr(argv[0], 2123, addr);
@@ -361,7 +361,7 @@ DEFUN(gtpc_force_pgw_selection,
 		return CMD_WARNING;
 	}
 
-        __set_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags);
+	__set_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags);
 	return CMD_SUCCESS;
 }
 
@@ -381,7 +381,7 @@ DEFUN(gtpu_ipip,
       "Vlan ID\n"
       "Number\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct gtp_iptnl *t = &ctx->iptnl;
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
@@ -394,7 +394,7 @@ DEFUN(gtpu_ipip,
 	if (argc < 3) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
-        }
+	}
 
 	ret = inet_ston(argv[0], &saddr);
 	if (!ret) {
@@ -415,8 +415,8 @@ DEFUN(gtpu_ipip,
 	}
 
 	if (argc == 5) {
-                VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[4], 1, 4095);
-                if (vlan) {} ; /* dummy test */
+		VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[4], 1, 4095);
+		if (vlan) {} ; /* dummy test */
 	}
 
 	t->selector_addr = saddr;
@@ -430,7 +430,7 @@ DEFUN(gtpu_ipip,
 		return CMD_WARNING;
 	}
 
-        __set_bit(GTP_FL_IPTNL_BIT, &ctx->flags);
+	__set_bit(GTP_FL_IPTNL_BIT, &ctx->flags);
 
 	return CMD_SUCCESS;
 }
@@ -464,7 +464,7 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 
 	if (argc < 3) {
 		vty_out(vty, "%% Invalid arguments%s"
-		           , VTY_NEWLINE);
+			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -520,7 +520,7 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent ingress encapsulation mode\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct gtp_iptnl *t = &ctx->iptnl;
 	int ret;
 
@@ -550,7 +550,7 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent egress encapsulation mode\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct gtp_iptnl *t = &ctx->iptnl;
 	int ret;
 
@@ -580,7 +580,7 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Untag VLAN header during decap\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct gtp_iptnl *t = &ctx->iptnl;
 	int ret;
 
@@ -610,7 +610,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U tag VLAN header during decap\n")
 {
-        struct gtp_proxy *ctx = vty->index;
+	struct gtp_proxy *ctx = vty->index;
 	struct gtp_iptnl *t = &ctx->iptnl;
 	int err, vlan;
 
@@ -620,9 +620,9 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	}
 
 	if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	if (!t->selector_addr && !t->local_addr && !t->remote_addr) {
 		vty_out(vty, "%% You MUST configure IPIP-Tunnel before%s", VTY_NEWLINE);
@@ -650,7 +650,7 @@ DEFUN(show_bpf_forwarding,
       SHOW_STR
       "BPF GTP Fowarding Dataplane ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, "gtp_fwd");
 	return CMD_SUCCESS;
 }
 
@@ -660,7 +660,7 @@ DEFUN(show_bpf_forwarding_iptnl,
       SHOW_STR
       "BPF GTP Forwarding IPIP Tunnel ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty, "gtp_fwd");
 	return CMD_SUCCESS;
 }
 

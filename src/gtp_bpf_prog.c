@@ -36,9 +36,6 @@
 /* Extern data */
 extern struct data *daemon_data;
 
-/* Forward declaration */
-static enum gtp_bpf_prog_mode gtp_bpf_prog_tpl_str2mode(const char *name);
-
 
 /*
  *	BPF Object variable update.
@@ -408,7 +405,7 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 		return -1;
 	}
 	for (i = 0; i < n; i++) {
-		p->tpl[i] = gtp_bpf_prog_tpl_get(gtp_bpf_prog_tpl_str2mode(argv[i]));
+		p->tpl[i] = gtp_bpf_prog_tpl_get(argv[i]);
 		if (p->tpl[i] == NULL) {
 			log_message(LOG_INFO, "%s(): bpf program refers to "
 				    "mode '%s', which is unknown",
@@ -545,25 +542,17 @@ gtp_bpf_prog_destroy(struct gtp_bpf_prog *p)
  */
 void
 gtp_bpf_prog_foreach_prog(int (*hdl) (struct gtp_bpf_prog *, void *), void *arg,
-			  enum gtp_bpf_prog_mode filter_mode)
+			  const char *filter_mode)
 {
 	struct gtp_bpf_prog *p;
-	int i;
 
-	/* filter_mode == BPF_PROG_MODE_MAX means dump all */
+	/* filter_mode == NULL means dump all */
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
-		if (filter_mode == BPF_PROG_MODE_MAX) {
+		if (filter_mode == NULL ||
+		    gtp_bpf_prog_has_tpl_mode(p, filter_mode)) {
 			__sync_add_and_fetch(&p->refcnt, 1);
 			(*(hdl)) (p, arg);
 			__sync_sub_and_fetch(&p->refcnt, 1);
-		} else {
-			for (i = 0; i < p->tpl_n; i++) {
-				if (filter_mode == p->tpl[i]->mode) {
-					__sync_add_and_fetch(&p->refcnt, 1);
-					(*(hdl)) (p, arg);
-					__sync_sub_and_fetch(&p->refcnt, 1);
-				}
-			}
 		}
 	}
 }
@@ -633,40 +622,6 @@ gtp_bpf_progs_destroy(void)
 /* local data */
 static LIST_HEAD(bpf_prog_tpl_list);
 
-const char *
-gtp_bpf_prog_tpl_mode2str(enum gtp_bpf_prog_mode mode)
-{
-	switch (mode) {
-	case BPF_PROG_MODE_GTP_FORWARD:
-		return "gtp_fwd";
-	case BPF_PROG_MODE_GTP_ROUTE:
-		return "gtp_route";
-	case BPF_PROG_MODE_GTP_MIRROR:
-		return "gtp_mirror";
-	case BPF_PROG_MODE_CGN:
-		return "cgn";
-	case BPF_PROG_MODE_MAX:
-		return NULL;
-	}
-
-	return NULL;
-}
-
-static enum gtp_bpf_prog_mode
-gtp_bpf_prog_tpl_str2mode(const char *name)
-{
-	if (!strcmp(name, "gtp_fwd"))
-		return BPF_PROG_MODE_GTP_FORWARD;
-	else if (!strcmp(name, "gtp_route"))
-		return BPF_PROG_MODE_GTP_ROUTE;
-	else if (!strcmp(name, "gtp_mirror"))
-		return BPF_PROG_MODE_GTP_MIRROR;
-	else if (!strcmp(name, "cgn"))
-		return BPF_PROG_MODE_CGN;
-
-	return BPF_PROG_MODE_MAX;
-}
-
 void
 gtp_bpf_prog_tpl_register(struct gtp_bpf_prog_tpl *tpl)
 {
@@ -674,12 +629,12 @@ gtp_bpf_prog_tpl_register(struct gtp_bpf_prog_tpl *tpl)
 }
 
 const struct gtp_bpf_prog_tpl *
-gtp_bpf_prog_tpl_get(enum gtp_bpf_prog_mode mode)
+gtp_bpf_prog_tpl_get(const char *name)
 {
 	struct gtp_bpf_prog_tpl *tpl;
 
 	list_for_each_entry(tpl, &bpf_prog_tpl_list, next) {
-		if (tpl->mode == mode)
+		if (!strcmp(tpl->name, name))
 			return tpl;
 	}
 	return NULL;

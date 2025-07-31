@@ -98,7 +98,7 @@ DEFUN(gtp_router_bpf_program,
       "Use BPF Program\n"
       "BPF Program name")
 {
-        struct gtp_router *ctx = vty->index;
+	struct gtp_router *ctx = vty->index;
 	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
@@ -126,23 +126,23 @@ DEFUN(gtpc_router_tunnel_endpoint,
       "listening UDP Port (default = 2123)\n"
       "Number\n")
 {
-        struct gtp_router *ctx = vty->index;
-        struct gtp_server *srv = &ctx->gtpc;
+	struct gtp_router *ctx = vty->index;
+	struct gtp_server *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
-                vty_out(vty, "%% GTPc already configured!%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
+		vty_out(vty, "%% GTPc already configured!%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (argc == 2)
-                VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+	if (argc == 2)
+		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
 	if (err) {
@@ -336,7 +336,7 @@ DEFUN(show_gtp_router,
 	struct gtp_router *ctx;
 	struct gtp_server *srv;
 
-        list_for_each_entry(ctx, l, next) {
+	list_for_each_entry(ctx, l, next) {
 		char flags2str[BUFSIZ];
 
 		if ((name[0] != '*') && (strcmp(name, ctx->name) != 0))
@@ -376,7 +376,7 @@ DEFUN(show_bpf_routing,
       SHOW_STR
       "BPF GTP Routing Dataplane ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty, "gtp_route");
 	return CMD_SUCCESS;
 }
 
@@ -386,7 +386,7 @@ DEFUN(show_bpf_routing_iptnl,
       SHOW_STR
       "BPF GTP Routing IPIP Tunnel ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty, "gtp_route");
 	return CMD_SUCCESS;
 }
 
@@ -396,7 +396,7 @@ DEFUN(show_bpf_routing_lladdr,
       SHOW_STR
       "BPF GTP Routing link-layer Address\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty, "gtp_route");
 	return CMD_SUCCESS;
 }
 
