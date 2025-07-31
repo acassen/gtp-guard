@@ -21,18 +21,22 @@
 #pragma once
 
 #include <stdint.h>
+#include "vty.h"
 #include "list_head.h"
 #include "libbpf.h"
 #include "gtp_stddef.h"
 
-typedef struct gtp_bpf_prog gtp_bpf_prog_t;
-typedef struct gtp_interface gtp_interface_t;
+#define BPF_PROG_TPL_MAX	6
 
-typedef struct gtp_bpf_prog_var {
+struct gtp_bpf_prog;
+struct gtp_interface;
+struct bpf_object;
+
+struct gtp_bpf_prog_var {
 	const char *name;
 	const void *value;
 	uint32_t size;
-} gtp_bpf_prog_var_t;
+};
 
 /* BPF program mode & type */
 enum gtp_bpf_prog_mode {
@@ -55,14 +59,13 @@ struct gtp_bpf_prog_tpl {
 	char			description[GTP_STR_MAX_LEN];
 	char			def_progname[GTP_STR_MAX_LEN];
 
-	/* load bpf program on the latest moment: on xdp_attach */
-	bool			load_on_attach;
-
 	int (*bind_itf) (struct gtp_bpf_prog *, struct gtp_interface *);
 	int (*opened) (struct gtp_bpf_prog *, struct bpf_object *);
 	int (*loaded) (struct gtp_bpf_prog *, struct bpf_object *);
 
 	void (*direct_tx_lladdr_updated)(struct gtp_bpf_prog *, struct gtp_interface *);
+
+	void (*vty_iface_show)(struct gtp_bpf_prog *, struct gtp_interface *, struct vty *);
 
 	struct list_head		next;
 };
@@ -87,7 +90,8 @@ struct gtp_bpf_prog {
 	struct bpf_object	*bpf_obj;
 	struct bpf_program	*bpf_prog;
 	struct gtp_bpf_maps	*bpf_maps;
-	const struct gtp_bpf_prog_tpl *tpl;
+	const struct gtp_bpf_prog_tpl *tpl[BPF_PROG_TPL_MAX];
+	int			tpl_n;
 	void			*data;
 
 	struct list_head	next;
@@ -97,7 +101,7 @@ struct gtp_bpf_prog {
 };
 
 struct gtp_bpf_prog_attr {
-	gtp_bpf_prog_t		*prog;
+	struct gtp_bpf_prog	*prog;
 	struct bpf_link		*lnk;
 };
 
@@ -124,3 +128,14 @@ int gtp_bpf_progs_destroy(void);
 const char *gtp_bpf_prog_tpl_mode2str(enum gtp_bpf_prog_mode);
 void gtp_bpf_prog_tpl_register(struct gtp_bpf_prog_tpl *);
 const struct gtp_bpf_prog_tpl *gtp_bpf_prog_tpl_get(enum gtp_bpf_prog_mode);
+
+static inline bool
+gtp_bpf_prog_has_tpl_mode(struct gtp_bpf_prog *p, enum gtp_bpf_prog_mode mode)
+{
+	int i;
+
+	for (i = 0; i < p->tpl_n; i++)
+		if (mode == p->tpl[i]->mode)
+			return true;
+	return false;
+}

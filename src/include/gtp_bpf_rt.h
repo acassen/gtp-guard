@@ -102,12 +102,6 @@ int gtp_bpf_rt_metrics_init(struct gtp_bpf_prog *, int, int);
 int gtp_bpf_rt_metrics_dump(struct gtp_bpf_prog *,
 			    int (*dump) (void *, __u8, __u8, struct metrics *),
  			    void *, __u32, __u8, __u8);
-int gtp_bpf_rt_stats_dump(struct gtp_bpf_prog *, int, int,
- 			  int (*dump) (void *, __u8, __u8, struct metrics *),
- 			  void *);
-int gtp_bpf_rt_stats_vty(struct gtp_bpf_prog *, int, int,
- 			 int (*dump) (void *, __u8, __u8, struct metrics *),
- 			 struct vty *);
 int gtp_bpf_rt_key_set(struct gtp_teid *, struct ip_rt_key *);
 int gtp_bpf_rt_teid_action(int, struct gtp_teid *);
 int gtp_bpf_rt_teid_vty(struct vty *, struct gtp_teid *);
@@ -115,5 +109,4 @@ int gtp_bpf_rt_vty(struct gtp_bpf_prog *p, void *arg);
 int gtp_bpf_rt_teid_bytes(struct gtp_teid *, uint64_t *);
 int gtp_bpf_rt_iptnl_action(int, struct gtp_iptnl *);
 int gtp_bpf_rt_iptnl_vty(struct gtp_bpf_prog *p, void *arg);
-int gtp_bpf_rt_lladdr_update(void *);
 int gtp_bpf_rt_lladdr_vty(struct gtp_bpf_prog *p, void *arg);

@@ -70,6 +70,7 @@ gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw
 	struct gtp_interface *iface;
 	struct ip_address *addr_iface;
 	struct gtp_bpf_prog *p;
+	int i;
 
 	list_for_each_entry(iface, l, next) {
 		addr_iface = &iface->direct_tx_gw;
@@ -102,9 +103,10 @@ gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw
 
 	/* Update BPF prog accordingly */
 	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
-	gtp_bpf_rt_lladdr_update(iface);
-	if (p && p->tpl)
-		p->tpl->direct_tx_lladdr_updated(p, iface);
+	if (p != NULL) {
+		for (i = 0; i < p->tpl_n; i++)
+			p->tpl[i]->direct_tx_lladdr_updated(p, iface);
+	}
 }
 
 struct gtp_interface *
@@ -174,7 +176,7 @@ gtp_interface_load_bpf(struct gtp_interface *iface)
 	struct bpf_link *lnk = NULL;
 	int err;
 
-	/* XDP*/
+	/* XDP */
 	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
 	if (p) {
 		lnk = gtp_bpf_prog_attach_xdp(p, iface);

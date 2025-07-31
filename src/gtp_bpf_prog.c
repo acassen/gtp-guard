@@ -287,6 +287,10 @@ gtp_bpf_prog_attach_tc(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
 	int err;
 
+	/* Load program, if not already */
+	if (gtp_bpf_prog_load(p) < 0)
+		return -1;
+
 	/* TODO: Port this to new TCX interface so bpf_link will be used */
 
 	/* Create Qdisc Clsact & attach {in,e}gress filters */
@@ -309,7 +313,7 @@ gtp_bpf_prog_attach_xdp(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 	struct bpf_link *link;
 	int ifindex = iface->ifindex;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err;
+	int err, i;
 
 	/* Detach previously stalled XDP programm */
 	err = bpf_xdp_detach(ifindex, XDP_FLAGS_DRV_MODE, NULL);
@@ -321,8 +325,9 @@ gtp_bpf_prog_attach_xdp(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 	}
 
 	/* Attach program to interface, let prog template know. */
-	if (p->tpl->bind_itf != NULL && p->tpl->bind_itf(p, iface))
-		return NULL;
+	for (i = 0; i < p->tpl_n; i++)
+		if (p->tpl[i]->bind_itf != NULL && p->tpl[i]->bind_itf(p, iface))
+			return NULL;
 
 	/* Load program, if not already */
 	if (gtp_bpf_prog_load(p) < 0)
@@ -376,7 +381,7 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	}
 
 	p->bpf_obj = bpf_obj;
-	p->tpl = t;
+	p->tpl[p->tpl_n++] = t;
 	return 0;
 }
 
@@ -406,7 +411,7 @@ int
 gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err;
+	int i, err;
 
 	/* Already loaded */
 	if (p->bpf_prog)
@@ -416,8 +421,10 @@ gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 	if (gtp_bpf_prog_open(p) < 0)
 		return -1;
 
-	if (p->tpl->opened != NULL && p->tpl->opened(p, p->bpf_obj))
-		goto err;
+	for (i = 0; i < p->tpl_n; i++) {
+		if (p->tpl[i]->opened != NULL && p->tpl[i]->opened(p, p->bpf_obj))
+			goto err;
+	}
 
 	/* Finally load it */
 	err = bpf_object__load(p->bpf_obj);
@@ -428,8 +435,10 @@ gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 		goto err;
 	}
 
-	if (p->tpl->loaded != NULL && p->tpl->loaded(p, p->bpf_obj))
-		goto err;
+	for (i = 0; i < p->tpl_n; i++) {
+		if (p->tpl[i]->loaded != NULL && p->tpl[i]->loaded(p, p->bpf_obj))
+			goto err;
+	}
 
 	/* prog lookup */
 	if (p->progname[0]) {
@@ -489,15 +498,22 @@ gtp_bpf_prog_foreach_prog(int (*hdl) (struct gtp_bpf_prog *, void *), void *arg,
 			  enum gtp_bpf_prog_mode filter_mode)
 {
 	struct gtp_bpf_prog *p;
+	int i;
 
 	/* filter_mode == BPF_PROG_MODE_MAX means dump all */
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
-		if (filter_mode == BPF_PROG_MODE_MAX ||
-		    (filter_mode < BPF_PROG_MODE_MAX &&
-		     p->tpl && filter_mode == p->tpl->mode)) {
+		if (filter_mode == BPF_PROG_MODE_MAX) {
 			__sync_add_and_fetch(&p->refcnt, 1);
 			(*(hdl)) (p, arg);
 			__sync_sub_and_fetch(&p->refcnt, 1);
+		} else {
+			for (i = 0; i < p->tpl_n; i++) {
+				if (filter_mode == p->tpl[i]->mode) {
+					__sync_add_and_fetch(&p->refcnt, 1);
+					(*(hdl)) (p, arg);
+					__sync_sub_and_fetch(&p->refcnt, 1);
+				}
+			}
 		}
 	}
 }

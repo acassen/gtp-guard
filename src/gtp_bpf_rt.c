@@ -148,12 +148,13 @@ int
 gtp_bpf_rt_metrics_init(struct gtp_bpf_prog *p, int ifindex, int type)
 {
 	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
+	int err;
 
-	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
+	if (!gtp_bpf_prog_has_tpl_mode(p, BPF_PROG_MODE_GTP_ROUTE))
 		return -1;
 
-	int err = gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_RX);
-	return (err) ? : gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_TX);
+	err = gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_RX);
+	return err ?: gtp_bpf_rt_metrics_add(map, ifindex, type, IF_DIRECTION_TX);
 }
 
 int
@@ -194,31 +195,51 @@ gtp_bpf_rt_metrics_dump(struct gtp_bpf_prog *p,
 	return err;
 }
 
-int
+static int
 gtp_bpf_rt_stats_dump(struct gtp_bpf_prog *p, int ifindex, int type,
 		      int (*dump) (void *, __u8, __u8, struct metrics *),
-		      void *arg)
+		      struct vty *vty)
 {
 	int err;
 
-	err = gtp_bpf_rt_metrics_dump(p, dump, arg
+	vty_out(vty, " %s:%s", gtp_rt_stats_metrics_str(type), VTY_NEWLINE);
+	err = gtp_bpf_rt_metrics_dump(p, dump, vty
 				       , ifindex, type, IF_DIRECTION_RX);
-	err = (err) ? : gtp_bpf_rt_metrics_dump(p, dump, arg
+	err = (err) ? : gtp_bpf_rt_metrics_dump(p, dump, vty
 						 , ifindex, type, IF_DIRECTION_TX);
 	return err;
 }
 
-int
-gtp_bpf_rt_stats_vty(struct gtp_bpf_prog *p, int ifindex, int type,
-		     int (*dump) (void *, __u8, __u8, struct metrics *),
-		     struct vty *vty)
+static int
+gtp_bpf_rt_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics *m)
 {
-	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
-		return -1;
+	struct vty *vty = arg;
 
-	vty_out(vty, " %s:%s", gtp_rt_stats_metrics_str(type), VTY_NEWLINE);
-	return gtp_bpf_rt_stats_dump(p, ifindex, type, dump, vty);
+	vty_out(vty, "   %s: packets:%lld bytes:%lld%s"
+		   , (direction) ? "TX" : "RX"
+		   , m->packets, m->bytes
+		   , VTY_NEWLINE);
+	vty_out(vty, "       dropped_packets:%lld dropped_bytes:%lld%s"
+		   , m->dropped_packets, m->dropped_bytes
+		   , VTY_NEWLINE);
+	return 0;
 }
+
+static void
+gtp_bpf_rt_stats_vty(struct gtp_bpf_prog *p, struct gtp_interface *iface, struct vty *vty)
+{
+	gtp_bpf_rt_stats_dump(p, iface->ifindex, IF_METRICS_GTP
+			       , gtp_bpf_rt_metrics_show
+			       , vty);
+	gtp_bpf_rt_stats_dump(p, iface->ifindex, IF_METRICS_PPPOE
+			       , gtp_bpf_rt_metrics_show
+			       , vty);
+	gtp_bpf_rt_stats_dump(p, iface->ifindex, IF_METRICS_IPIP
+			       , gtp_bpf_rt_metrics_show
+			       , vty);
+}
+
+
 
 
 /*
@@ -633,10 +654,9 @@ gtp_bpf_rt_lladdr_set(struct ll_addr *ll, struct gtp_interface *iface)
 }
 
 
-static int
-gtp_bpf_rt_lladdr_update_prog(struct gtp_bpf_prog *p, void *arg)
+static void
+gtp_bpf_rt_lladdr_update_prog(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 {
-	struct gtp_interface *iface = arg;
 	struct bpf_map *map;
 	struct ll_addr *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -649,7 +669,7 @@ gtp_bpf_rt_lladdr_update_prog(struct gtp_bpf_prog *p, void *arg)
 	if (!new) {
 		log_message(LOG_INFO, "%s(): Cant allocate temp ll_addr"
 				    , __FUNCTION__);
-		return -1;
+		return;
 	}
 
 	gtp_bpf_rt_lladdr_set(new, iface);
@@ -660,22 +680,10 @@ gtp_bpf_rt_lladdr_update_prog(struct gtp_bpf_prog *p, void *arg)
 				    , __FUNCTION__
 				    , iface->ifname
 				    , errmsg);
-		free(new);
-		return -1;
 	}
-
 	free(new);
-	return 0;
 }
 
-
-int
-gtp_bpf_rt_lladdr_update(void *arg)
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_update_prog, arg,
-				  BPF_PROG_MODE_GTP_ROUTE);
-	return 0;
-}
 
 int
 gtp_bpf_rt_lladdr_vty(struct gtp_bpf_prog *p, void *arg)
@@ -726,6 +734,8 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_rt = {
 	.mode = BPF_PROG_MODE_GTP_ROUTE,
 	.description = "gtp-route",
 	.loaded = gtp_bpf_rt_load_maps,
+	.direct_tx_lladdr_updated = gtp_bpf_rt_lladdr_update_prog,
+	.vty_iface_show = gtp_bpf_rt_stats_vty,
 };
 
 static void __attribute__((constructor))

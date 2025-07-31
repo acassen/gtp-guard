@@ -246,7 +246,7 @@ gtp_interface_metrics_var_dump(struct gtp_interface *iface, void *arg,
 	__u16 inuse = type << 8;
 	FILE *fp = arg;
 
-	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
+	if (!gtp_bpf_prog_has_tpl_mode(p, BPF_PROG_MODE_GTP_ROUTE))
 		return -1;
 
 	gtp_interface_metric_inuse(iface, &inuse);

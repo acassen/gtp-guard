@@ -38,10 +38,14 @@ static int
 gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 {
 	struct vty *vty = arg;
+	int i;
 
-	vty_out(vty, "gtp-program '%s' [%s] %s %s%s"
-		   , p->name, p->path
-		   , p->tpl == NULL ? "(no-mode)" : p->tpl->description
+	vty_out(vty, "gtp-program '%s' [%s] "
+		   , p->name, p->path);
+	if (p->tpl_n)
+	for (i = 0; i < p->tpl_n; i++)
+		vty_out(vty, "%s%s", p->tpl[i]->description, i - 1 < p->tpl_n ? "," : "");
+	vty_out(vty, " %s%s"
 		   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "unloaded" : "loaded"
 		   , VTY_NEWLINE);
 	return 0;
@@ -206,20 +210,6 @@ DEFUN(bpf_prog_no_shutdown,
 		vty_out(vty, "%% unable to open bpf-program:'%s'%s"
 			   , p->path, VTY_NEWLINE);
 		return CMD_WARNING;
-	}
-
-	if (!p->tpl->load_on_attach) {
-		err = gtp_bpf_prog_load(p);
-		if (err) {
-			vty_out(vty, "%% unable to load bpf-program:'%s'%s"
-				   , p->path, VTY_NEWLINE);
-			return CMD_WARNING;
-		}
-
-		vty_out(vty, "Success loading bpf-program:'%s'%s"
-			   , p->name, VTY_NEWLINE);
-		log_message(LOG_INFO, "Success loading bpf-program:'%s'"
-				    , p->name);
 	}
 
 	__clear_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);

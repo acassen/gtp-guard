@@ -128,7 +128,7 @@ DEFUN(mirror_bpf_prog,
 		return CMD_WARNING;
 	}
 
-	if (!p->tpl || (p->tpl && p->tpl->mode != BPF_PROG_MODE_GTP_MIRROR)) {
+	if (!gtp_bpf_prog_has_tpl_mode(p, BPF_PROG_MODE_GTP_MIRROR)) {
 		vty_out(vty, "%% bpf-program:'%s' mode MUST be 'gtp_mirror'%s"
 			   , p->name
 			   , VTY_NEWLINE);
