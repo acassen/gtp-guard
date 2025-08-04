@@ -371,7 +371,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 
 	/* Only netlink broadcast related to IP Address matter */
 	if (!tb[NDA_DST] || !tb[NDA_LLADDR] || RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
-		return -1;
+		return 0;
 
 	PMALLOC(addr);
 	addr->family = r->ndm_family;
@@ -461,37 +461,21 @@ kernel_netlink(struct thread *thread)
  *	Netlink Interface lookup
  */
 static int
-netlink_if_get_ll_addr(struct gtp_interface *iface, struct rtattr *tb[], int type)
+netlink_if_get_ll_addr(struct gtp_interface *iface, struct rtattr *tb[])
 {
-	size_t i;
+	struct ether_addr zero_eth = {};
+	struct ether_addr *eth = RTA_DATA(tb[IFLA_ADDRESS]);
 
-	if (!tb[type])
+	/* Is address set ? */
+	if (!tb[IFLA_ADDRESS] || RTA_PAYLOAD(tb[IFLA_ADDRESS]) != ETH_ALEN)
 		return 0;
 
-	size_t hw_addr_len = RTA_PAYLOAD(tb[type]);
+	/* Don't allow a hardware address of all zeroes */
+	if (!memcmp(eth, &zero_eth, ETH_ALEN))
+		return 0;
 
-	if (hw_addr_len > sizeof(iface->hw_addr))
-		return -1;
-
-	switch (type) {
-	case IFLA_ADDRESS:
-		iface->hw_addr_len = hw_addr_len;
-		memcpy(iface->hw_addr, RTA_DATA(tb[type]), hw_addr_len);
-		/*
-		* Don't allow a hardware address of all zeroes
-		* Mark hw_addr_len as 0 to warn
-		*/
-		for (i = 0; i < hw_addr_len; i++)
-			if (iface->hw_addr[i] != 0)
-				break;
-		iface->hw_addr_len = (i == hw_addr_len) ? 0 : hw_addr_len;
-		break;
-	case IFLA_BROADCAST:
-		/* skip this one */
-		break;
-	default:
-		return -1;
-	}
+	memcpy(iface->hw_addr, eth, ETH_ALEN);
+	iface->hw_addr_len = ETH_ALEN;
 
 	return 0;
 }
@@ -600,15 +584,21 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
 		get_rtnl_link_stats_rta(iface->link_metrics, tb);
 
-	err = netlink_if_get_ll_addr(iface, tb, IFLA_ADDRESS);
-	if (err || !iface->hw_addr_len)
-		log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
-				    , __FUNCTION__
-				    , iface->ifname);
+	err = netlink_if_get_ll_addr(iface, tb);
+	if (err || !iface->hw_addr_len) {
+		/* ignore interface if it does not have a valid ethernet address */
+		if (err) {
+			log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
+					    , __FUNCTION__
+					    , iface->ifname);
+		}
+		gtp_interface_destroy(iface);
+		return err;
+	}
 
 	netlink_if_link_info(tb[IFLA_LINKINFO], iface);
 	gtp_interface_put(iface);
-	return err;
+	return 0;
 }
 
 static int
