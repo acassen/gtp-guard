@@ -22,13 +22,15 @@
 
 #include <assert.h>
 #include <arpa/inet.h>
+#include <libbpf.h>
 
 #include "tools.h"
 #include "utils.h"
 #include "list_head.h"
 #include "gtp_data.h"
-#include "gtp_bpf_prog.h"
 #include "cgn.h"
+#include "bpf/lib/cgn-def.h"
+
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -37,37 +39,6 @@ extern struct data *daemon_data;
 /*
  *	CGN utilities
  */
-
-
-/*
- *	BPF stuff
- */
-
-static int
-cgn_bpf_opened(struct gtp_bpf_prog *p, void *)
-{
-	return 0;
-}
-
-static int
-cgn_bpf_loaded(struct gtp_bpf_prog *p, void *)
-{
-	return 0;
-}
-
-static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
-	.name = "cgn",
-	.description = "cgn",
-	.opened = cgn_bpf_opened,
-	.loaded = cgn_bpf_loaded,
-};
-
-static void __attribute__((constructor))
-gtp_bpf_fwd_init(void)
-{
-	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_cgn);
-}
-
 
 
 /* compact addr/netmask from cgn_addr array.
@@ -177,11 +148,13 @@ cgn_ctx_alloc(const char *name)
 
 	c = calloc(1, sizeof (*c));
 	assert(c != NULL);
-	c->port_start = 1025;
+	c->port_start = 1500;
 	c->port_end = 65535;
-	c->block_size = 1000;
+	c->block_size = 500;
 	c->block_count = (c->port_end - c->port_start) / c->block_size;
 	c->port_end = c->port_start + c->block_size * c->block_count;
+	c->flow_per_user = 2000;
+	c->block_per_user = min(4, CGN_USER_BLOCKS_MAX);
 	c->timeout.udp = CGN_PROTO_TIMEOUT_UDP;
 	c->timeout.tcp_synfin = CGN_PROTO_TIMEOUT_TCP_SYNFIN;
 	c->timeout.tcp_est = CGN_PROTO_TIMEOUT_TCP_EST;
@@ -196,6 +169,7 @@ cgn_ctx_alloc(const char *name)
 void
 cgn_ctx_release(struct cgn_ctx *c)
 {
+	free(c->cgn_addr);
 	list_del(&c->next);
 	free(c);
 }

@@ -26,6 +26,11 @@
 #include "gtp_stddef.h"
 #include "list_head.h"
 
+#define CGN_IFACE_BIND_MAX		8
+
+typedef struct gtp_bpf_prog gtp_bpf_prog_t;
+typedef struct gtp_interface gtp_interface_t;
+
 /* default protocol timeout values */
 #define CGN_PROTO_TIMEOUT_TCP_EST	600
 #define CGN_PROTO_TIMEOUT_TCP_SYNFIN	120
@@ -40,32 +45,58 @@ struct port_timeout_config
 	uint16_t tcp_est;
 };
 
-enum cgn_flags {
-	CGN_FL_SHUTDOWN_BIT,
+/* bpf maps */
+enum {
+	BPF_CGN_MAP_V4_BLOCKS = 0,
+	BPF_CGN_MAP_V4_FREE_BLOCKS,
+	BPF_CGN_MAP_USERS,
+	BPF_CGN_MAP_FLOW_PORT_TIMEOUTS,
+	BPF_CGN_MAP_CNT
+};
+
+struct cgn_iface_bind
+{
+	gtp_interface_t		*iface[CGN_IFACE_BIND_MAX];
+	int			iface_n;
 };
 
 struct cgn_ctx
 {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
-	unsigned long		flags;
 	struct list_head	next;
 
-	/* conf */
+	/* links to bpf-prog and interfaces */
+	gtp_bpf_prog_t		*prg;
+	struct cgn_iface_bind	pub;
+	struct cgn_iface_bind	priv;
+
+	/* bpf maps */
+	struct bpf_map		*v4_blocks;
+	struct bpf_map		*v4_free_blocks;
+	struct bpf_map		*users;
+	struct bpf_map		*flow_port_timeouts;
+
+	/* conf. read-only after bpf prog is opened */
 	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */
 	uint32_t		cgn_addr_n;
 	uint16_t		port_start;
 	uint16_t		port_end;
-	uint16_t		block_size;	/* # of port per block */
-	uint16_t		block_count;	/* # of block per ip */
+	uint32_t		block_size;	/* # of port per block */
+	uint32_t		block_count;	/* # of block per ip */
+	uint32_t		flow_per_user;	/* max # of flow per user */
+	uint8_t			block_per_user;	/* max # of blocks per user */
 	struct port_timeout_config timeout;
 	struct port_timeout_config timeout_by_port[0x10000];
 	uint16_t		timeout_icmp;
 
+	/* internal */
+	int			block_msize;
+
 	/* metrics */
 };
 
-/* Prototypes */
+/* cgn.c */
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
 int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
 struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
@@ -73,4 +104,3 @@ void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);
 int cgn_init(void);
 int cgn_destroy(void);
-

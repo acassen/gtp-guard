@@ -5,7 +5,8 @@ fs = import('fs')
 bpf_sources = files(
   'gtp_fwd.c',
   'gtp_route.c',
-  'gtp_mirror.c'
+  'gtp_mirror.c',
+  'cgn.c',
 )
 
 clang_bpf_flags = [
@@ -18,8 +19,6 @@ clang_bpf_flags = [
   '-Wno-address-of-packed-member',
   '-fno-asynchronous-unwind-tables',
 ]
-
-libbpf_inc = libbpf_dep.get_variable('includedir') + '/bpf'
 
 foreach bsrc : bpf_sources
   name = fs.replace_suffix(fs.name(bsrc), '')

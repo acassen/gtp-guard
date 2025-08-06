@@ -22,6 +22,7 @@
 #include "gtp_data.h"
 #include "gtp_proxy.h"
 #include "gtp_router.h"
+#include "cgn.h"
 #include "gtp_request.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"

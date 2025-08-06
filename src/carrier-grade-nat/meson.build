@@ -6,8 +6,9 @@ src += files(
   'cdr_fwd_disk.c',
   'cdr_fwd_spool.c',
   'cgn.c',
+  'cgn_bpf.c',
   'cgn_vty.c',
   'tools.c',
 )
 
-inc += include_directories('include')
+inc += include_directories('include', '..')
