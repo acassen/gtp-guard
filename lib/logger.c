@@ -16,15 +16,17 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdlib.h>
 #include <syslog.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
 
-/* Boolean flag - send messages to console as well as syslog */
+/* Boolean flag - send messages to console instead of syslog */
 static bool log_console = false;
 
 void
@@ -34,20 +36,39 @@ enable_console_log(void)
 }
 
 void
-log_message(const int facility, const char *fmt, ...)
+log_message(const int priority, const char *fmt, ...)
 {
 	va_list args;
-	char buf[256];
+	char buf[512];
+	int n;
 
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	n = vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
 
 	if (log_console) {
-		fprintf(stderr, "%s\n", buf);
-	}
+		char *p = NULL;
 
-	syslog(facility, "%s", buf);
+		/* output was truncated, we want full output on stderr */
+		if (n >= sizeof (buf)) {
+			p = malloc(n + 2);
+			if (!p)
+				return;
+			va_start(args, fmt);
+			n = vsnprintf(p, n + 1, fmt, args);
+			va_end(args);
+		} else {
+			p = buf;
+		}
+		/* add trailing '\n' if there is none */
+		if (n > 0 && p[n - 1] == '\n')
+			p[n - 1] = 0;
+		fprintf(stderr, "%s\n", p);
+		if (p != buf)
+			free(p);
+	} else {
+		syslog(priority, "%s", buf);
+	}
 }
 
 void
