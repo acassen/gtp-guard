@@ -18,11 +18,11 @@ int cgn_entry(struct xdp_md *ctx)
 	/* phase 2: execute action */
 	if (action == 10) {
 		/* packet from private-network */
-		ret = cgn_pkt_handle(ctx, d.payload, 1);
+		ret = cgn_pkt_handle(ctx, &d, 1);
 
 	} else if (action == 11) {
 		/* packet from public-network */
-		ret = cgn_pkt_handle(ctx, d.payload, 0);
+		ret = cgn_pkt_handle(ctx, &d, 0);
 
 	} else {
 		/* not expected */
@@ -38,6 +38,7 @@ int cgn_entry(struct xdp_md *ctx)
 	/* phase 3: rewrite interface encap */
 	return if_rule_rewrite_pkt(ctx, &d);
 }
+
 
 const char _mode[] = "if_rules,cgn";
 char _license[] SEC("license") = "GPL";
