@@ -30,6 +30,7 @@ src += files(
   'gtp_htab.c',
   'gtp_interface.c',
   'gtp_interface_metrics.c',
+  'gtp_interface_rule.c',
   'gtp_interface_vty.c',
   'gtp_metrics.c',
   'gtp_mirror.c',

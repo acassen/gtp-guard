@@ -5,6 +5,7 @@ test_src = files(
   '../../../src/gtp_resolv.c',
   '../../../src/gtp_sched.c',
   '../../../src/gtp_interface.c',
+  '../../../src/gtp_interface_rule.c',
   '../../../src/gtp_bpf_prog.c',
   '../../../src/gtp_bpf.c',
 )
