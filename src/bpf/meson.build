@@ -32,6 +32,7 @@ foreach bsrc : bpf_sources
 				     '-emit-llvm',
 				     '-target', 'bpf',
 				     '-D__TARGET_ARCH_' + arch,
+				     '-DEBPF_SRC',
 				     '-I' + meson.current_source_dir(),
 				     '-I' + libbpf_inc,
 				     clang_bpf_flags,

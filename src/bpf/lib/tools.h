@@ -95,6 +95,8 @@ struct gre_hdr
 /*********************************/
 /* checksum helpers */
 
+#ifdef EBPF_SRC
+
 static __always_inline __u32
 csum_add(__u32 csum, __u32 addend)
 {
@@ -123,6 +125,23 @@ csum_replace(__u16 old_csum, __u32 diff)
 	return (__u16)~csum;
 }
 
+static __always_inline __u16
+csum_fold_helper(__u32 csum)
+{
+	__u32 sum;
+	sum = (csum>>16) + (csum & 0xffff);
+	sum += (sum>>16);
+	return ~sum;
+}
+
+static __always_inline void
+csum_ipv4(void *data_start, int data_size, __u32 *csum)
+{
+	*csum = bpf_csum_diff(0, 0, data_start, data_size, *csum);
+	*csum = csum_fold_helper(*csum);
+}
+
+#endif /* EBPF_SRC */
 
 /*********************************/
 /* ipfrag */

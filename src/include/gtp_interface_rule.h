@@ -25,4 +25,3 @@ struct gtp_bpf_interface_rule;
 /* Prototypes */
 void gtp_interface_rule_add(struct gtp_interface *, struct gtp_interface *, int);
 void gtp_interface_rule_del(struct gtp_interface *);
-void gtp_interface_rule_lladdr_updated(struct gtp_interface *);

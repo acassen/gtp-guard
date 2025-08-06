@@ -101,7 +101,6 @@ gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw
 
 	/* Update BPF prog accordingly */
 	gtp_bpf_rt_lladdr_update(iface);
-	gtp_interface_rule_lladdr_updated(iface);
 }
 
 struct gtp_interface *

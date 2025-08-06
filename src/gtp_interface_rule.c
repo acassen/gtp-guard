@@ -42,10 +42,8 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to, int
 	k.vlan_id = from->vlan_id;
 
 	ar.action = action;
-	ar.ifindex = to->ifindex;
+	//ar.table = to->force_ip_table;
 	ar.vlan_id = to->vlan_id;
-	memcpy(ar.h_local, to->hw_addr, ETH_ALEN);
-	memcpy(ar.h_remote, to->direct_tx_hw_addr, ETH_ALEN);
 
 	printf("add acl if:%d vlan:%d gre:%d sizeof:%ld\n", k.ifindex, k.vlan_id,
 	       k.gre_remote, sizeof (k));
@@ -68,42 +66,6 @@ gtp_interface_rule_del(struct gtp_interface *from)
 
 	bpf_map__delete_elem(r->acl, &k, sizeof (k), 0);
 }
-
-/* called by netlink when an ethernet address change */
-void
-gtp_interface_rule_lladdr_updated(struct gtp_interface *iface)
-{
-	struct gtp_bpf_interface_rule *r = iface->bpf_itf;
-	struct if_rule_key key = {}, next_key;
-	struct if_rule ifr = {};
-	int err;
-
-	if (r == NULL)
-		return;
-
-	/* walk if_rule and replace all occurences HW of iface->ifindex  */
-	while (bpf_map__get_next_key(r->acl, &key, &next_key, sizeof(key)) == 0) {
-		key = next_key;
-		err = bpf_map__lookup_elem(r->acl, &key, sizeof(key),
-					   &ifr, sizeof (ifr), 0);
-		if (err) {
-			printf("cannot get/update rule! (%d)\n", err);
-			break;
-		}
-
-		if (ifr.ifindex != iface->ifindex)
-			continue;
-
-		/* update iface's eth_dst address */
-		memcpy(ifr.h_remote, iface->direct_tx_hw_addr, ETH_ALEN);
-		err = bpf_map__update_elem(r->acl, &key, sizeof(key),
-					   &ifr, sizeof(ifr), BPF_EXIST);
-		if (err) {
-			printf("cannot update rule! (%d)\n", err);
-		}
-	}
-}
-
 
 
 /*

@@ -7,6 +7,9 @@
 #include <linux/ip.h>
 #include <linux/if_ether.h>
 #include <linux/if_vlan.h>
+#include <linux/types.h>
+#include <linux/ip.h>
+#include <sys/socket.h>
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
 
@@ -23,38 +26,27 @@ struct {
 struct if_rule_data
 {
 	struct if_rule_key k;
-	struct if_rule r;
+	struct if_rule *r;
 	void *payload;
+	__u32 dst_addr;
 };
 
 
 
-static inline void
-swap_src_dst_mac(struct ethhdr *eth)
-{
-	__u8 h_tmp[ETH_ALEN];
-	__builtin_memcpy(h_tmp, eth->h_source, ETH_ALEN);
-	__builtin_memcpy(eth->h_source, eth->h_dest, ETH_ALEN);
-	__builtin_memcpy(eth->h_dest, h_tmp, ETH_ALEN);
-}
-
 static inline int
-_acl_ipv4(struct if_rule_key *k, struct if_rule *out_rule)
+_acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
 {
-	struct if_rule *r;
-
 	bpf_printk("acl: searching if:%d vlan:%d gre:%x",
 		   k->ifindex, k->vlan_id, k->gre_remote);
 
-	r = bpf_map_lookup_elem(&if_rule, k);
-	if (r == NULL)
+	d->r = bpf_map_lookup_elem(&if_rule, k);
+	if (d->r == NULL)
 		return XDP_PASS;
 
-	bpf_printk("got the rule ! ifindex:%d vlan:%d action:%d",
-		   r->ifindex, r->vlan_id, r->action);
+	bpf_printk("got the rule ! table:%d vlan:%d action:%d",
+		   d->r->table, d->r->vlan_id, d->r->action);
 
-	*out_rule = *r;
-	return r->action;
+	return d->r->action;
 }
 
 
@@ -73,7 +65,7 @@ _acl_ipv4(struct if_rule_key *k, struct if_rule *out_rule)
  * returns action's rule, or any of XDP_*. unsupported protocols
  * will XDP_PASS, obviously invalid packets will XDP_DROP.
  */
-static int
+static __attribute__((noinline)) int
 if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 {
 	void *data = (void *)(long)ctx->data;
@@ -107,6 +99,8 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 
 	switch (eth_type) {
 	case __constant_htons(ETH_P_IP):
+		//d->family = AF_INET;
+
 		/* check ipv4 header */
 		ip4h = payload;
 		if ((void *)(ip4h + 1) > data_end)
@@ -125,7 +119,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 				d->k.gre_remote = ip4h->saddr;
 				switch (gre->proto) {
 				case __constant_htons(ETH_P_IP):
-					return _acl_ipv4(&d->k, &d->r);
+					return _acl_ipv4(&d->k, d);
 				default:
 					return XDP_PASS;
 				}
@@ -133,7 +127,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		}
 		/* handle this ipv4 payload */
 		d->payload = payload;
-		return _acl_ipv4(&d->k, &d->r);
+		return _acl_ipv4(&d->k, d);
 
 	case __constant_htons(ETH_P_IPV6):
 		/* XXX: todo */
@@ -155,46 +149,113 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
  * if packet is going to be processed locally, then return XDP_PASS
  * before.
  */
-static int
+static __attribute__((noinline)) int
 if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)ctx->data;
-	void *data_end = (void *)(long)ctx->data_end;
-	struct ethhdr *ethh = data;
-	struct vlan_hdr *vlanh = (struct vlan_hdr *)(ethh + 1);
+	void *data, *data_end, *payload;
+	struct ethhdr *ethh;
+	int adjust_sz = 0;
+	int ret;
 
-	/* handle vlan id */
-	if (d->k.vlan_id || d->r.vlan_id) {
+	struct bpf_fib_lookup fibp = {
+		.ifindex = ctx->ingress_ifindex,
+	};
+	fibp.family = AF_INET;
+	fibp.ipv4_dst = d->dst_addr;
+
+	__u32 flags = BPF_FIB_LOOKUP_DIRECT;
+	if (d->r->table) {
+		flags |= BPF_FIB_LOOKUP_TBID;
+		fibp.tbid = d->r->table;
+	}
+
+	ret = bpf_fib_lookup(ctx, &fibp, sizeof (fibp), flags);
+	bpf_printk("bpf_fib_lookup: %d if:%d->%d from %x nh %x",
+		   ret, ctx->ingress_ifindex, fibp.ifindex,
+		   fibp.ipv4_src, fibp.ipv4_dst);
+	if (ret < 0) {
+		bpf_printk("fib_lookup failed: %d", ret);
+		return XDP_ABORTED;
+	}
+	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
+		return XDP_DROP;
+
+	/* compute how much we need to shrink/expand pkt */
+	if (!d->k.vlan_id && d->r->vlan_id) {
+		adjust_sz -= sizeof (struct vlan_hdr);
+	} else if (d->k.vlan_id && !d->r->vlan_id) {
+		adjust_sz += sizeof (struct vlan_hdr);
+	}
+	if (!d->k.gre_remote && d->r->gre_remote) {
+		adjust_sz -= sizeof (struct gre_hdr) + sizeof (struct iphdr *);
+	} else if (d->k.gre_remote && !d->r->gre_remote) {
+		adjust_sz += sizeof (struct gre_hdr) + sizeof (struct iphdr *);
+	}
+
+	/* and adjust it */
+	if (adjust_sz && bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
+		return XDP_ABORTED;
+
+	/* build output packet iface encap */
+	ethh = data = (void *)(long)ctx->data;
+	data_end = (void *)(long)ctx->data_end;
+
+	if (d->r->vlan_id && (d->r->vlan_id != d->r->vlan_id || adjust_sz)) {
+		/* need to set/modify vlan hdr */
 		struct vlan_hdr *vlanh = (struct vlan_hdr *)(ethh + 1);
 		if ((void *)(vlanh + 1) > data_end)
 			return XDP_DROP;
 
-		if (!d->k.vlan_id && d->r.vlan_id) {
-			/* add vlan */
+		vlanh->vlan_tci = d->r->vlan_id;
+		vlanh->next_proto = __constant_htons(ETH_P_IP);
+		ethh->h_proto = __constant_htons(ETH_P_8021Q);
+		payload = vlanh + 1;
 
-		} else if (d->k.vlan_id && !d->r.vlan_id) {
-			/* remove vlan */
-
-		} else {
-			/* modify vlan */
-			vlanh->vlan_tci = d->r.vlan_id;
-		}
 	} else {
 		if ((void *)(ethh + 1) > data_end)
 			return XDP_DROP;
+
+		/* remove vlan header */
+		if (d->k.vlan_id && !d->r->vlan_id)
+			ethh->h_proto = __constant_htons(ETH_P_IP);
+
+		payload = ethh + 1;
 	}
 
-	/* XXX: handle gre tunnel */
+	/* add gre tunnel if necessary */
+	if (d->r->gre_remote) {
+		struct iphdr *ip4h = payload;
+		if ((void *)(ip4h + 1) > data_end)
+			return XDP_DROP;
+		barrier_var(ip4h);
 
-	/* going back from the same interface.
-	 * it is enough to swap mac address */
-	if (d->k.ifindex == d->r.ifindex) {
-		swap_src_dst_mac(ethh);
-		return XDP_TX;
+		struct gre_hdr *gre = (struct gre_hdr *)(ip4h + 1);
+		if ((void *)(gre + 1) > data_end)
+			return XDP_DROP;
+
+		__u32 csum = 0;
+
+		ip4h->version = 4;
+		ip4h->ihl = 5;
+		ip4h->tos = 0;
+		ip4h->tot_len = bpf_htons(data_end - payload);
+		ip4h->id = 0;
+		ip4h->frag_off = 0;
+		ip4h->ttl = 64;
+		ip4h->protocol = IPPROTO_GRE;
+		ip4h->check = 0;
+		ip4h->saddr = fibp.ipv4_src;
+		ip4h->daddr = d->r->gre_remote;
+		csum_ipv4(ip4h, sizeof(struct iphdr), &csum);
+		ip4h->check = csum;
+		gre->flags = 0;
+		gre->version = GRE_VERSION_1701;
+		gre->proto = __constant_htons(ETH_P_IP);
 	}
 
-	__builtin_memcpy(ethh->h_source, d->r.h_local, ETH_ALEN);
-	__builtin_memcpy(ethh->h_dest, d->r.h_remote, ETH_ALEN);
+	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);
+	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);
 
-	return bpf_redirect(d->r.ifindex, 0);
+	/* remember that forwarding must be enabled on these interfaces ! */
+	return bpf_redirect(fibp.ifindex, 0);
 }

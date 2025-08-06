@@ -577,7 +577,7 @@ _flow_timer_cb(void *_map, struct cgn_v4_flow_priv_key *key,
 	return 0;
 }
 
-static int
+static inline int
 _flow_add_entry(const struct cgn_packet *pp, struct cgn_v4_block *bl,
 		__u16 cgn_port, struct cgn_v4_flow_priv **out_f)
 {
@@ -951,7 +951,7 @@ cgn_flow_handle_pub(struct cgn_packet *cp)
  */
 
 
-static int
+static inline int
 cgn_pkt_rewrite_src(struct cgn_packet *cp, struct iphdr *ip4h, struct udphdr *udp,
 		    __u32 addr, __u16 port)
 {
@@ -1014,7 +1014,7 @@ cgn_pkt_rewrite_src(struct cgn_packet *cp, struct iphdr *ip4h, struct udphdr *ud
 }
 
 
-static int
+static inline int
 cgn_pkt_rewrite_dst(struct cgn_packet *cp, struct iphdr *ip4h, struct udphdr *udp,
 		    __u32 addr, __u16 port)
 {
@@ -1083,47 +1083,43 @@ cgn_pkt_rewrite_dst(struct cgn_packet *cp, struct iphdr *ip4h, struct udphdr *ud
 static inline int
 _handle_pkt_icmp_error(struct xdp_md *ctx, struct iphdr *outer_ip4h,
 		       struct icmphdr *outer_icmp, struct iphdr *ip4h,
-		       __u8 from_priv)
+		       struct cgn_packet *cp)
 {
-	void *data_end = (void *)(long)ctx->data_end;
 	struct udphdr *udp;
 	struct icmphdr *icmp;
 	__u32 sum, addr;
 	int ret;
 
-	if ((void *)(ip4h + 1) > data_end || ip4h->version != 4)
+	if ((void *)(ip4h + 1) > cp->data_end || ip4h->version != 4)
 		return 2;
 
 	/* parse packet with swapped src/dst, in order to be able
 	 * to lookup flow */
-	struct cgn_packet cp = {
-		.data_end = data_end,
-		.icmp_err = outer_icmp,
-		.proto = ip4h->protocol,
-		.src_addr = bpf_ntohl(ip4h->daddr),
-		.dst_addr = bpf_ntohl(ip4h->saddr),
-	};
+	cp->icmp_err = outer_icmp;
+	cp->proto = ip4h->protocol;
+	cp->src_addr = bpf_ntohl(ip4h->daddr);
+	cp->dst_addr = bpf_ntohl(ip4h->saddr);
 
 	udp = (void *)(ip4h) + ip4h->ihl * 4;
-	if ((void *)(udp + 1) > data_end)
+	if ((void *)(udp + 1) > cp->data_end)
 		return 2;
 
 	switch (ip4h->protocol) {
 	case IPPROTO_UDP:
 	case IPPROTO_TCP:
-		cp.dst_port = bpf_ntohs(udp->source);
-		cp.src_port = bpf_ntohs(udp->dest);
+		cp->dst_port = bpf_ntohs(udp->source);
+		cp->src_port = bpf_ntohs(udp->dest);
 		break;
 	case IPPROTO_ICMP:
 		icmp = (struct icmphdr *)udp;
 		switch (icmp->type) {
 		case ICMP_ECHO:
-			cp.dst_port = bpf_ntohs(icmp->un.echo.id);
-			cp.src_port = 0;
+			cp->dst_port = bpf_ntohs(icmp->un.echo.id);
+			cp->src_port = 0;
 			break;
 		case ICMP_ECHOREPLY:
-			cp.dst_port = 0;
-			cp.src_port = bpf_ntohs(icmp->un.echo.id);
+			cp->dst_port = 0;
+			cp->src_port = bpf_ntohs(icmp->un.echo.id);
 			break;
 		default:
 			return 3;
@@ -1134,27 +1130,27 @@ _handle_pkt_icmp_error(struct xdp_md *ctx, struct iphdr *outer_ip4h,
 	}
 
 	/* lookup and process flow, then rewrite inner l3/l4 and outer l3 */
-	if (from_priv) {
-		ret = cgn_flow_handle_priv(&cp);
+	if (cp->from_priv) {
+		ret = cgn_flow_handle_priv(cp);
 		if (ret)
 			return ret;
-		ret = cgn_pkt_rewrite_dst(&cp, ip4h, udp, cp.src_addr, cp.src_port);
+		ret = cgn_pkt_rewrite_dst(cp, ip4h, udp, cp->src_addr, cp->src_port);
 		if (ret)
 			return ret;
 
-		addr = bpf_htonl(cp.src_addr);
+		addr = bpf_htonl(cp->src_addr);
 		sum = csum_diff32(0, outer_ip4h->saddr, addr);
 		outer_ip4h->saddr = addr;
 
 	} else {
-		ret = cgn_flow_handle_pub(&cp);
+		ret = cgn_flow_handle_pub(cp);
 		if (ret)
 			return ret;
-		ret = cgn_pkt_rewrite_src(&cp, ip4h, udp, cp.dst_addr, cp.dst_port);
+		ret = cgn_pkt_rewrite_src(cp, ip4h, udp, cp->dst_addr, cp->dst_port);
 		if (ret)
 			return ret;
 
-		addr = bpf_htonl(cp.dst_addr);
+		addr = bpf_htonl(cp->dst_addr);
 		sum = csum_diff32(0, outer_ip4h->daddr, addr);
 		outer_ip4h->daddr = addr;
 	}
@@ -1181,10 +1177,11 @@ _handle_pkt_icmp_error(struct xdp_md *ctx, struct iphdr *outer_ip4h,
  *   11: user alloc error
  *   12: flow alloc error
  */
-static int
-cgn_pkt_handle(struct xdp_md *ctx, struct iphdr *ip4h, __u8 from_priv)
+static __attribute__((noinline)) int
+cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 {
 	void *data_end = (void *)(long)ctx->data_end;
+	struct iphdr *ip4h = d->payload;
 	struct udphdr *udp;
 	struct tcphdr *tcp;
 	struct icmphdr *icmp;
@@ -1236,7 +1233,7 @@ cgn_pkt_handle(struct xdp_md *ctx, struct iphdr *ip4h, __u8 from_priv)
 		case ICMP_TIME_EXCEEDED:
 			return _handle_pkt_icmp_error(ctx, ip4h, icmp,
 						      (struct iphdr *)(icmp + 1),
-						      from_priv);
+						      &cp);
 		default:
 			return 3;
 		}
@@ -1256,5 +1253,7 @@ cgn_pkt_handle(struct xdp_md *ctx, struct iphdr *ip4h, __u8 from_priv)
 			return ret;
 		ret = cgn_pkt_rewrite_dst(&cp, ip4h, udp, cp.dst_addr, cp.dst_port);
 	}
+
+	d->dst_addr = cp.dst_addr;
 	return ret;
 }
