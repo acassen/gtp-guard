@@ -44,13 +44,13 @@ extern struct data *daemon_data;
  */
 
 static int
-cgn_bpf_opened(struct gtp_bpf_prog *p, struct bpf_object *obj)
+cgn_bpf_opened(struct gtp_bpf_prog *p, void *)
 {
 	return 0;
 }
 
 static int
-cgn_bpf_loaded(struct gtp_bpf_prog *p, struct bpf_object *obj)
+cgn_bpf_loaded(struct gtp_bpf_prog *p, void *)
 {
 	return 0;
 }

@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include "gtp_interface.h"
@@ -36,6 +36,14 @@
 extern struct data *daemon_data;
 
 
+struct gtp_bpf_fwd
+{
+	struct bpf_map *teid_xlat;
+	struct bpf_map *iptnl_info;
+	struct bpf_map *if_llattr;
+};
+
+
 /*
  *	XDP FWD BPF related
  */
@@ -51,29 +59,26 @@ gtp_bpf_fwd_ll_attr(struct gtp_interface *iface, void *arg)
 }
 
 static int
-gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, struct bpf_object *bpf_obj)
+gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata)
 {
-	struct bpf_map *map;
+	struct gtp_bpf_fwd *pf = udata;
 
 	/* MAP ref for faster access */
-	p->bpf_maps = MALLOC(sizeof(struct gtp_bpf_maps) * XDP_FWD_MAP_CNT);
-	map = gtp_bpf_load_map(bpf_obj, "teid_xlat");
-	if (!map)
+	pf->teid_xlat = gtp_bpf_load_map(p->bpf_obj, "teid_xlat");
+	if (!pf->teid_xlat)
 		return -1;
-	p->bpf_maps[XDP_FWD_MAP_TEID].map = map;
 
-	map = gtp_bpf_load_map(bpf_obj, "iptnl_info");
-	if (!map)
+	pf->iptnl_info = gtp_bpf_load_map(p->bpf_obj, "iptnl_info");
+	if (!pf->iptnl_info)
 		return -1;
-	p->bpf_maps[XDP_FWD_MAP_IPTNL].map = map;
 
-	map = gtp_bpf_load_map(bpf_obj, "if_llattr");
-	if (!map)
+	pf->if_llattr = gtp_bpf_load_map(p->bpf_obj, "if_llattr");
+	if (!pf->if_llattr)
 		return -1;
-	p->bpf_maps[XDP_FWD_MAP_IF_LLATTR].map = map;
 
 	/* Populate interface attributes */
-	gtp_interface_foreach(gtp_bpf_fwd_ll_attr, map);
+	gtp_interface_foreach(gtp_bpf_fwd_ll_attr, pf->if_llattr);
+
 	return 0;
 }
 
@@ -170,9 +175,8 @@ end:
 }
 
 static int
-gtp_bpf_teid_vty(struct gtp_bpf_prog *p, int map_id, struct vty *vty, __be32 id)
+gtp_bpf_teid_vty(struct bpf_map *map, struct vty *vty, __be32 id)
 {
-	struct bpf_map *map = p->bpf_maps[map_id].map;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	__be32 key = 0, next_key = 0;
 	struct gtp_teid_rule *r;
@@ -270,6 +274,7 @@ gtp_bpf_fwd_teid_action(int action, struct gtp_teid *t)
 {
 	struct gtp_proxy *proxy = t->session->srv->ctx;
 	struct gtp_bpf_prog *p = proxy->bpf_prog;
+	struct gtp_bpf_fwd *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
@@ -277,10 +282,10 @@ gtp_bpf_fwd_teid_action(int action, struct gtp_teid *t)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	if (!p)
+	if (!pf)
 		return -1;
 
-	return gtp_bpf_teid_action(p->bpf_maps[XDP_FWD_MAP_TEID].map, action, t);
+	return gtp_bpf_teid_action(pf->teid_xlat, action, t);
 }
 
 int
@@ -288,17 +293,22 @@ gtp_bpf_fwd_teid_vty(struct vty *vty, struct gtp_teid *t)
 {
 	struct gtp_proxy *proxy = t->session->srv->ctx;
 	struct gtp_bpf_prog *p = proxy->bpf_prog;
+	struct gtp_bpf_fwd *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
 
-	if (!p || !t)
+	if (!p || !t || !pf)
 		return -1;
 
-	return gtp_bpf_teid_vty(p, XDP_FWD_MAP_TEID, vty, ntohl(t->vid));
+	return gtp_bpf_teid_vty(pf->teid_xlat, vty, ntohl(t->vid));
 }
 
 int
 gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 {
+	struct gtp_bpf_fwd *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
 	struct vty *vty = arg;
+
+	if (!pf)
+		return -1;
 
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
@@ -306,7 +316,7 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 		     "|    VTEID   |    TEID    | Endpoint Address | Direction |   Packets    |        Bytes        |%s"
 		     "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_bpf_teid_vty(p, XDP_FWD_MAP_TEID, vty, 0);
+	gtp_bpf_teid_vty(pf->teid_xlat, vty, 0);
 	vty_out(vty, "+------------+------------+------------------+-----------+--------------+---------------------+%s"
 		   , VTY_NEWLINE);
 	return 0;
@@ -317,11 +327,12 @@ gtp_bpf_fwd_teid_bytes(struct gtp_teid *t, uint64_t *bytes)
 {
 	struct gtp_proxy *proxy = t->session->srv->ctx;
 	struct gtp_bpf_prog *p = proxy->bpf_prog;
+	struct gtp_bpf_fwd *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
 
-	if (!p)
+	if (!p || !pf)
 		return -1;
 
-	return gtp_bpf_teid_bytes(p->bpf_maps[XDP_FWD_MAP_TEID].map, ntohl(t->vid), bytes);
+	return gtp_bpf_teid_bytes(pf->teid_xlat, ntohl(t->vid), bytes);
 }
 
 
@@ -331,26 +342,30 @@ gtp_bpf_fwd_teid_bytes(struct gtp_teid *t, uint64_t *bytes)
 int
 gtp_bpf_fwd_iptnl_action(int action, struct gtp_iptnl *t, struct gtp_bpf_prog *p)
 {
-	if (!gtp_bpf_prog_has_tpl_mode(p, "gtp_fwd"))
+	struct gtp_bpf_fwd *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
+
+	if (!pf)
 		return -1;
 
-	return gtp_bpf_iptnl_action(action, t, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+	return gtp_bpf_iptnl_action(action, t, pf->teid_xlat);
 }
 
 int
 gtp_bpf_fwd_iptnl_vty(struct gtp_bpf_prog *p, void *arg)
 {
+	struct gtp_bpf_fwd *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
 	struct vty *vty = arg;
 
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
-	return gtp_bpf_iptnl_vty(vty, p->bpf_maps[XDP_FWD_MAP_IPTNL].map);
+	return gtp_bpf_iptnl_vty(vty, pf->teid_xlat);
 }
 
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_fwd = {
 	.name = "gtp_fwd",
 	.description = "gtp-forward",
+	.udata_alloc_size = sizeof (struct gtp_bpf_fwd),
 	.loaded = gtp_bpf_fwd_load_maps,
 };
 

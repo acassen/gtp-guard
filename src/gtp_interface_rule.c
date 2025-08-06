@@ -20,20 +20,20 @@
  */
 
 /* local includes */
-#include "gtp_guard.h"
+#include "gtp_interface.h"
 #include "bpf/lib/if_rule-def.h"
 
 
-typedef struct _gtp_bpf_interface_rule
+struct gtp_bpf_interface_rule
 {
 	struct bpf_map		*acl;
-} gtp_bpf_interface_rule_t;
+};
 
 
 void
-gtp_interface_rule_add(gtp_interface_t *from, gtp_interface_t *to, int action)
+gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to, int action)
 {
-	gtp_bpf_interface_rule_t *r = from->bpf_itf;
+	struct gtp_bpf_interface_rule *r = from->bpf_itf;
 	struct if_rule_key k = {};
 	struct if_rule ar = {};
 	int ret;
@@ -58,9 +58,9 @@ gtp_interface_rule_add(gtp_interface_t *from, gtp_interface_t *to, int action)
 }
 
 void
-gtp_interface_rule_del(gtp_interface_t *from)
+gtp_interface_rule_del(struct gtp_interface *from)
 {
-	gtp_bpf_interface_rule_t *r = from->bpf_itf;
+	struct gtp_bpf_interface_rule *r = from->bpf_itf;
 	struct if_rule_key k = {};
 
 	k.ifindex = from->ifindex;
@@ -71,9 +71,9 @@ gtp_interface_rule_del(gtp_interface_t *from)
 
 /* called by netlink when an ethernet address change */
 void
-gtp_interface_rule_lladdr_updated(gtp_interface_t *iface)
+gtp_interface_rule_lladdr_updated(struct gtp_interface *iface)
 {
-	gtp_bpf_interface_rule_t *r = iface->bpf_itf;
+	struct gtp_bpf_interface_rule *r = iface->bpf_itf;
 	struct if_rule_key key = {}, next_key;
 	struct if_rule ifr = {};
 	int err;
@@ -111,9 +111,9 @@ gtp_interface_rule_lladdr_updated(gtp_interface_t *iface)
  */
 
 static int
-gtp_ifrule_opened(gtp_bpf_prog_t *p, void *udata)
+gtp_ifrule_opened(struct gtp_bpf_prog *p, void *udata)
 {
-	gtp_bpf_interface_rule_t *r = udata;
+	struct gtp_bpf_interface_rule *r = udata;
 
 	r->acl = bpf_object__find_map_by_name(p->bpf_obj, "if_rule");
 	if (r->acl == NULL)
@@ -123,9 +123,9 @@ gtp_ifrule_opened(gtp_bpf_prog_t *p, void *udata)
 }
 
 static int
-gtp_ifrule_bind_itf(gtp_bpf_prog_t *p, void *udata, gtp_interface_t *iface)
+gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	gtp_bpf_interface_rule_t *r = udata;
+	struct gtp_bpf_interface_rule *r = udata;
 
 	iface->bpf_itf = r;
 
@@ -133,10 +133,10 @@ gtp_ifrule_bind_itf(gtp_bpf_prog_t *p, void *udata, gtp_interface_t *iface)
 }
 
 
-static gtp_bpf_prog_tpl_t gtp_interface_rule_module = {
+static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 	.name = "if_rules",
 	.description = "iface-rule-dispatcher",
-	.udata_alloc_size = sizeof (gtp_bpf_interface_rule_t),
+	.udata_alloc_size = sizeof (struct gtp_bpf_interface_rule),
 	.opened = gtp_ifrule_opened,
 	.iface_bind = gtp_ifrule_bind_itf,
 };

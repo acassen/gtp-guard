@@ -242,7 +242,7 @@ gtp_interface_metrics_var_dump(struct gtp_interface *iface, void *arg,
 			       const char *var, int var_type,
 			       __u8 type, __u8 direction)
 {
-	struct gtp_bpf_prog *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
+	struct gtp_bpf_prog *p = iface->bpf_prog;
 	__u16 inuse = type << 8;
 	FILE *fp = arg;
 

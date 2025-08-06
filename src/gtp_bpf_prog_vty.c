@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include "gtp_data.h"
@@ -120,7 +120,7 @@ DEFUN(no_bpf_prog,
 	return CMD_SUCCESS;
 }
 
-DEFUN(bpf_prog_desciption,
+DEFUN(bpf_prog_description,
       bpf_prog_description_cmd,
       "description STRING",
       "Set BPF Program description\n"
@@ -144,30 +144,34 @@ DEFUN(bpf_prog_path,
       "path\n")
 {
 	struct gtp_bpf_prog *p = vty->index;
+	int err;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+	bsd_strlcpy(p->path, argv[0], GTP_PATH_MAX_LEN - 1);
+
+	/* we need to open bpf file as soon as possible (when we have
+	 * filename) to setup prog template and prog udata memory */
+	err = gtp_bpf_prog_open(p);
+	if (err) {
+		vty_out(vty, "%% unable to open bpf-program:'%s'%s"
+			   , p->path, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	bsd_strlcpy(p->path, argv[0], GTP_PATH_MAX_LEN - 1);
 	return CMD_SUCCESS;
 }
 
 DEFUN(bpf_prog_progname,
       bpf_prog_progname_cmd,
-      "prog-name STRING",
+      "prog-name (xdp|tc) NAME",
       "Set BPF Program name\n"
       "name\n")
 {
 	struct gtp_bpf_prog *p = vty->index;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	bsd_strlcpy(p->progname, argv[0], GTP_PATH_MAX_LEN - 1);
+	if (!strcmp(argv[0], "xdp"))
+		bsd_strlcpy(p->xdp.progname, argv[0], GTP_STR_MAX_LEN - 1);
+	else
+		bsd_strlcpy(p->tc.progname, argv[0], GTP_STR_MAX_LEN - 1);
 	return CMD_SUCCESS;
 }
 
@@ -256,8 +260,10 @@ bpf_prog_config_write(struct vty *vty)
 		if (p->description[0])
 			vty_out(vty, " description %s%s", p->description, VTY_NEWLINE);
 		vty_out(vty, " path %s%s", p->path, VTY_NEWLINE);
-		if (p->progname[0])
-			vty_out(vty, " prog-name %s%s", p->progname, VTY_NEWLINE);
+		if (p->xdp.progname[0])
+			vty_out(vty, " prog-name xdp %s%s", p->xdp.progname, VTY_NEWLINE);
+		if (p->tc.progname[0])
+			vty_out(vty, " prog-name tc %s%s", p->tc.progname, VTY_NEWLINE);
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "" : "no "
 			   , VTY_NEWLINE);

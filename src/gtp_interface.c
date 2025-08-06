@@ -69,8 +69,6 @@ gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
 	struct ip_address *addr_iface;
-	struct gtp_bpf_prog *p;
-	int i;
 
 	list_for_each_entry(iface, l, next) {
 		addr_iface = &iface->direct_tx_gw;
@@ -102,11 +100,8 @@ gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw
 	memcpy(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN);
 
 	/* Update BPF prog accordingly */
-	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
-	if (p != NULL) {
-		for (i = 0; i < p->tpl_n; i++)
-			p->tpl[i]->direct_tx_lladdr_updated(p, iface);
-	}
+	gtp_bpf_rt_lladdr_update(iface);
+	gtp_interface_rule_lladdr_updated(iface);
 }
 
 struct gtp_interface *
@@ -169,67 +164,16 @@ gtp_interface_alloc(const char *name, int ifindex)
 	return new;
 }
 
-int
-gtp_interface_load_bpf(struct gtp_interface *iface)
+void
+gtp_interface_destroy(struct gtp_interface *iface)
 {
-	struct gtp_bpf_prog *p;
-	struct bpf_link *lnk = NULL;
-	int err;
-
-	/* XDP */
-	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
-	if (p) {
-		lnk = gtp_bpf_prog_attach_xdp(p, iface);
-		if (!lnk)
-			goto err;
-		iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk = lnk;
+	if (iface->bpf_prog) {
+		printf("detach interface %s\n", iface->ifname);
+		gtp_bpf_prog_detach(iface->bpf_prog, iface);
 	}
-
-	/* TC */
-	p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog;
-	if (p) {
-		err = gtp_bpf_prog_attach_tc(p, iface);
-		if (err)
-			goto err;
-	}
-
-	return 0;
-
-  err:
-	log_message(LOG_INFO, "error attaching bpf-program:'%s'"
-			      " to interface:'%s'"
-			    , p->name, iface->ifname);
-	gtp_bpf_prog_detach_xdp(lnk);
-	iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk = NULL;
-	return -1;
-}
-
-int
-gtp_interface_unload_bpf(struct gtp_interface *iface)
-{
-	gtp_bpf_prog_detach_xdp(iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk);
-	gtp_bpf_prog_detach_tc(iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog,
-			       iface);
-	gtp_bpf_prog_attr_reset(&iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP]);
-	gtp_bpf_prog_attr_reset(&iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC]);
-	return 0;
-}
-
-int
-__gtp_interface_destroy(struct gtp_interface *iface)
-{
-	gtp_interface_unload_bpf(iface);
 	FREE_PTR(iface->link_metrics);
 	list_head_del(&iface->next);
 	FREE(iface);
-	return 0;
-}
-
-int
-gtp_interface_destroy(struct gtp_interface *iface)
-{
-	__gtp_interface_destroy(iface);
-	return 0;
 }
 
 int
@@ -239,6 +183,6 @@ gtp_interfaces_destroy(void)
 	struct gtp_interface *iface, *_iface;
 
 	list_for_each_entry_safe(iface, _iface, l, next)
-		__gtp_interface_destroy(iface);
+		gtp_interface_destroy(iface);
 	return 0;
 }

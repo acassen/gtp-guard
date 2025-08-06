@@ -42,7 +42,7 @@ extern struct data *daemon_data;
 static int
 gtp_interface_show(struct gtp_interface *iface, void *arg)
 {
-	struct gtp_bpf_prog *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
+	struct gtp_bpf_prog *p = iface->bpf_prog;
 	struct vty *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
 	int i;
@@ -85,11 +85,6 @@ DEFUN(interface,
 {
 	struct gtp_interface *new;
 	int ifindex;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	new = gtp_interface_get(argv[0]);
 	if (new) {
@@ -157,15 +152,15 @@ DEFUN(interface_bpf_prog,
 		return CMD_WARNING;
 	}
 
-	if (iface->bpf_prog_attr[p->type].prog) {
-		vty_out(vty, "%% bpf-program:'%s' already in-use for type:%s%s"
-			   , iface->bpf_prog_attr[p->type].prog->name
-			   , (p->type == GTP_BPF_PROG_TYPE_XDP) ? "XDP" : "TC"
+	if (iface->bpf_prog && iface->bpf_prog != p) {
+		vty_out(vty, "%% bpf-program:'%s' already loaded on this interface%s"
+			   , iface->bpf_prog->name
 			   , VTY_NEWLINE);
+		gtp_bpf_prog_put(p);
 		return CMD_WARNING;
 	}
 
-	iface->bpf_prog_attr[p->type].prog = p;
+	iface->bpf_prog = p;
 	return CMD_SUCCESS;
 }
 
@@ -343,7 +338,9 @@ DEFUN(interface_shutdown,
 		return CMD_WARNING;
 	}
 
-	gtp_interface_unload_bpf(iface);
+	if (iface->bpf_prog)
+		gtp_bpf_prog_detach(iface->bpf_prog, iface);
+
 	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
 	return CMD_SUCCESS;
 }
@@ -354,8 +351,8 @@ DEFUN(interface_no_shutdown,
       "Activate interface\n")
 {
 	struct gtp_interface *iface = vty->index;
-	struct gtp_bpf_prog *p, *p_xdp = NULL;
-	int err = 0, i;
+	struct gtp_bpf_prog *p = iface->bpf_prog;
+	int err = 0;
 
 	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
 		vty_out(vty, "%% interface:'%s' is already running%s"
@@ -364,47 +361,33 @@ DEFUN(interface_no_shutdown,
 		return CMD_WARNING;
 	}
 
-	if (!iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog &&
-	    !iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog) {
+	if (!p) {
 		vty_out(vty, "%% no bpf-program configured for interface:'%s'%s"
 			   , iface->ifname, VTY_NEWLINE);
 		goto end;
 	}
 
-	err = gtp_interface_load_bpf(iface);
+	err = gtp_bpf_prog_attach(p, iface);
 	if (err) {
 		vty_out(vty, "%% error attaching bpf-program to interface:'%s'%s"
 			   , iface->ifname, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	for (i = 0; i < GTP_BPF_PROG_TYPE_MAX; i++) {
-		p = iface->bpf_prog_attr[i].prog;
-		if (!p)
-			continue;
-		if (p->type == GTP_BPF_PROG_TYPE_XDP)
-			p_xdp = p;
-
-		vty_out(vty, "Success attaching bpf-program:'%s' to interface:'%s'%s"
-			   , p->name
-			   , iface->ifname, VTY_NEWLINE);
-		log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
-				    , p->name
-				    , iface->ifname);
-	}
-
-	if (!p_xdp)
-		goto end;
+	vty_out(vty, "Success attaching bpf-program:'%s' to interface:'%s'%s"
+		   , p->name, iface->ifname, VTY_NEWLINE);
+	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
+			    , p->name, iface->ifname);
 
 	/* Metrics init */
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p_xdp,
+		err = (err) ? : gtp_bpf_rt_metrics_init(p,
 							iface->ifindex, IF_METRICS_GTP);
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p_xdp,
+		err = (err) ? : gtp_bpf_rt_metrics_init(p,
 							iface->ifindex, IF_METRICS_PPPOE);
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p_xdp,
+		err = (err) ? : gtp_bpf_rt_metrics_init(p,
 							iface->ifindex, IF_METRICS_IPIP);
 	if (err) {
 		vty_out(vty, "%% !!!Warning!!! error initializing metrics for interface:'%s'%s"
@@ -447,23 +430,6 @@ DEFUN(show_interface,
 
 /* Configuration writer */
 static int
-interface_config_bpf_write(struct vty *vty, struct gtp_interface *iface)
-{
-	struct gtp_bpf_prog *p;
-	int i;
-
-	for (i = 0; i < GTP_BPF_PROG_TYPE_MAX; i++) {
-		p = iface->bpf_prog_attr[i].prog;
-		if (!p)
-			continue;
-
-		vty_out(vty, " bpf-program %s%s", p->name, VTY_NEWLINE);
-	}
-
-	return 0;
-}
-
-static int
 interface_config_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->interfaces;
@@ -474,7 +440,8 @@ interface_config_write(struct vty *vty)
 		vty_out(vty, "interface %s%s", iface->ifname, VTY_NEWLINE);
 		if (iface->description[0])
 			vty_out(vty, " description %s%s", iface->description, VTY_NEWLINE);
-		interface_config_bpf_write(vty, iface);
+		if (iface->bpf_prog)
+			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"
 				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)

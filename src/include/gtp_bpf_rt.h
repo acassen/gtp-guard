@@ -109,4 +109,5 @@ int gtp_bpf_rt_vty(struct gtp_bpf_prog *p, void *arg);
 int gtp_bpf_rt_teid_bytes(struct gtp_teid *, uint64_t *);
 int gtp_bpf_rt_iptnl_action(int, struct gtp_iptnl *);
 int gtp_bpf_rt_iptnl_vty(struct gtp_bpf_prog *p, void *arg);
+int gtp_bpf_rt_lladdr_update(void *);
 int gtp_bpf_rt_lladdr_vty(struct gtp_bpf_prog *p, void *arg);

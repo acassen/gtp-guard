@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 #pragma once
 
@@ -25,6 +25,8 @@
 #include <netinet/if_ether.h>
 #include "inet_utils.h"
 #include "gtp_bpf_prog.h"
+#include "gtp_interface_rule.h"
+
 
 /* Flags */
 enum gtp_interface_flags {
@@ -49,10 +51,15 @@ struct gtp_interface {
 	char			cgn_name[GTP_STR_MAX_LEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
-	struct gtp_bpf_prog_attr bpf_prog_attr[GTP_BPF_PROG_TYPE_MAX];
+	struct gtp_bpf_prog	*bpf_prog;
+	struct bpf_link		*bpf_xdp_lnk;
+	struct bpf_link		*bpf_tc_lnk;
 
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
+
+	/* bpf rules */
+	struct gtp_bpf_interface_rule *bpf_itf;
 
 	struct list_head	next;
 
@@ -77,7 +84,5 @@ struct gtp_interface *gtp_interface_get(const char *);
 struct gtp_interface *gtp_interface_get_by_ifindex(int);
 int gtp_interface_put(struct gtp_interface *);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
-int gtp_interface_load_bpf(struct gtp_interface *);
-int gtp_interface_unload_bpf(struct gtp_interface *);
-int gtp_interface_destroy(struct gtp_interface *);
+void gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);

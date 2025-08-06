@@ -20,9 +20,9 @@
  */
 #pragma once
 
-typedef struct _gtp_bpf_interface_rule gtp_bpf_interface_rule_t;
+struct gtp_bpf_interface_rule;
 
 /* Prototypes */
-extern void gtp_interface_rule_add(gtp_interface_t *, gtp_interface_t *, int);
-extern void gtp_interface_rule_del(gtp_interface_t *);
-extern void gtp_interface_rule_lladdr_updated(gtp_interface_t *);
+void gtp_interface_rule_add(struct gtp_interface *, struct gtp_interface *, int);
+void gtp_interface_rule_del(struct gtp_interface *);
+void gtp_interface_rule_lladdr_updated(struct gtp_interface *);
