@@ -57,5 +57,8 @@ libbpf_dep = declare_dependency(
   link_with: libbpf_lib,
   include_directories: ['src'],
   dependencies: [libelf_dep, zlib_dep],
-  variables: [ 'includedir=' + meson.project_source_root() ],
+  variables: [
+    'includedir=' + meson.project_source_root(),
+    'includeuapidir=' + meson.project_source_root() + '/include/uapi'
+  ],
 )

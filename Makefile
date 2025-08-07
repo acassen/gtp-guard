@@ -52,7 +52,7 @@ uninstall: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) $(ninja_opts)
 
 test:
-	$Q meson test -C $(BUILDDIR)
+	$Q meson test -C $(BUILDDIR) $(TEST)
 
 tarball: $(BUILDDIR)/build.ninja
 	$Q meson dist -C $(BUILDDIR) --no-test --allow-dirty >/dev/null
