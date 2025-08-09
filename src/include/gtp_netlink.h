@@ -47,5 +47,6 @@ struct nl_handle {
 #define RTA_TAIL(rta)	(struct rtattr *) (char *)(rta) + RTA_ALIGN((rta)->rta_len)
 
 /* Prototypes */
+int gtp_netlink_if_lookup(int ifindex);
 int gtp_netlink_init(void);
 int gtp_netlink_destroy(void);
