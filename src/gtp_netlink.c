@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <unistd.h>
@@ -34,6 +34,9 @@
 #include "logger.h"
 #include "bitops.h"
 
+
+/* Fwd declaration  */
+static int netlink_if_link_del(struct nlmsghdr *h);
 
 /* Local data */
 static struct nl_handle nl_kernel = { .fd = -1 };	/* Kernel reflection channel */
@@ -439,7 +442,8 @@ netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h, void *)
 	case RTM_NEWNEIGH:
 		netlink_neigh_filter(snl, h, NULL);
 		break;
-	default:
+	case RTM_DELLINK:
+		netlink_if_link_del(h);
 		break;
 	}
 	return 0;
@@ -460,6 +464,29 @@ kernel_netlink(struct thread *thread)
 /*
  *	Netlink Interface lookup
  */
+static int
+netlink_if_link_del(struct nlmsghdr *h)
+{
+	struct ifinfomsg *ifi = NLMSG_DATA(h);
+	struct gtp_interface *iface;
+	int len = h->nlmsg_len;
+
+	len -= NLMSG_LENGTH(sizeof(*ifi));
+	if (len < 0)
+		return -1;
+
+	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
+	if (!iface)
+		return 0;
+
+	log_message(LOG_INFO, "Netlink: deleting interface '%s'", iface->ifname);
+
+	gtp_interface_put(iface);
+	gtp_interface_destroy(iface);
+
+	return 0;
+}
+
 static int
 netlink_if_get_ll_addr(struct gtp_interface *iface, struct rtattr *tb[])
 {
@@ -691,7 +718,7 @@ gtp_netlink_init(void)
 
 	/* Register Kernel netlink reflector */
 	err = netlink_open(&nl_kernel, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
-				     , RTNLGRP_NEIGH, 0);
+				     , RTNLGRP_NEIGH, RTNLGRP_LINK, 0);
 	if (err) {
 		log_message(LOG_INFO, "Error while registering Kernel netlink reflector channel");
 		return -1;

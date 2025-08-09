@@ -26,6 +26,7 @@
 #include "gtp_bpf_rt.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
+#include "gtp_netlink.h"
 #include "command.h"
 #include "bitops.h"
 #include "utils.h"
