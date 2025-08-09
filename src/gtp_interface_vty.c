@@ -87,12 +87,8 @@ DEFUN(interface,
 	int ifindex;
 
 	new = gtp_interface_get(argv[0]);
-	if (new) {
-		vty->node = INTERFACE_NODE;
-		vty->index = new;
-		gtp_interface_put(new);
-		return CMD_SUCCESS;
-	}
+	if (new)
+		goto end;
 
 	ifindex = if_nametoindex(argv[0]);
 	if (!ifindex) {
@@ -101,7 +97,19 @@ DEFUN(interface,
 		return CMD_WARNING;
 	}
 
-	new = gtp_interface_alloc(argv[0], ifindex);
+	/* use netlink to get this link, along with necessary data (eth addr).
+	 * it will alloc the gtp_interface data */
+	if (gtp_netlink_if_lookup(ifindex) < 0)
+		return CMD_WARNING;
+
+	new = gtp_interface_get(argv[0]);
+	if (!new) {
+		vty_out(vty, "%% cannot get interface %s%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+ end:
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
 	gtp_interface_put(new);
