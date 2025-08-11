@@ -161,22 +161,24 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		.ifindex = ctx->ingress_ifindex,
 	};
 	fibp.family = AF_INET;
-	fibp.ipv4_dst = d->dst_addr;
+	fibp.ipv4_dst = bpf_ntohl(d->dst_addr);
 
 	__u32 flags = BPF_FIB_LOOKUP_DIRECT;
+	if (d->r->gre_remote)
+		flags |= BPF_FIB_LOOKUP_SRC;
 	if (d->r->table) {
 		flags |= BPF_FIB_LOOKUP_TBID;
 		fibp.tbid = d->r->table;
 	}
 
 	ret = bpf_fib_lookup(ctx, &fibp, sizeof (fibp), flags);
-	bpf_printk("bpf_fib_lookup: %d if:%d->%d from %x nh %x",
-		   ret, ctx->ingress_ifindex, fibp.ifindex,
-		   fibp.ipv4_src, fibp.ipv4_dst);
 	if (ret < 0) {
 		bpf_printk("fib_lookup failed: %d", ret);
 		return XDP_ABORTED;
 	}
+	bpf_printk("bpf_fib_lookup: dst:%x if:%d->%d from %x nh %x mac_src:%02x mac_dst:%02x",
+		   d->dst_addr, ctx->ingress_ifindex, fibp.ifindex,
+		   fibp.ipv4_src, fibp.ipv4_dst, fibp.smac[5], fibp.dmac[5]);
 	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
 		return XDP_DROP;
 

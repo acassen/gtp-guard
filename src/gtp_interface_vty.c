@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <linux/types.h>
@@ -60,6 +60,9 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	if (iface->vlan_id)
 		vty_out(vty, " vlan-id:%d%s"
 			   , iface->vlan_id, VTY_NEWLINE);
+	if (iface->ip_table)
+		vty_out(vty, " ip-table:%d%s"
+			   , iface->ip_table, VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
 			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
@@ -221,6 +224,20 @@ DEFUN(interface_carrier_grade_nat,
 	return CMD_SUCCESS;
 }
 
+
+DEFUN(interface_ip_table,
+      interface_ip_table_cmd,
+      "ip table <0-32767>",
+      "IP Interface\n"
+      "Set ip table used for fib_lookup (0 for main table)\n"
+      "IP table\n")
+{
+	struct gtp_interface *iface = vty->index;
+
+	VTY_GET_INTEGER_RANGE("IP table", iface->ip_table, argv[0], 0, 32767);
+
+	return CMD_SUCCESS;
+}
 
 DEFUN(interface_description,
       interface_description_cmd,
@@ -459,6 +476,8 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " carrier-grade-nat %s side network-in%s"
 				   , iface->cgn_name
 				   , VTY_NEWLINE);
+		if (iface->ip_table)
+			vty_out(vty, " ip table %d%s", iface->ip_table, VTY_NEWLINE);
 		else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags))
 			vty_out(vty, " carrier-grade-nat %s side network-out%s"
 				   , iface->cgn_name
@@ -496,6 +515,7 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
 	install_element(INTERFACE_NODE, &interface_carrier_grade_nat_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_table_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_pppoe_cmd);
