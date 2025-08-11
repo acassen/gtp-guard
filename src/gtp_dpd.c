@@ -51,20 +51,21 @@ gtp_dpd_build_gtpu(gtp_iptnl_t *t, uint8_t *buffer)
 	gtph->length = htons(t->payload_len);
 	gtph->sqn_only = htonl(0x8badf00d);
 
-	if (t->payload_len) {
-		ie = (gtpu_ie_t *) (buffer + offset);
-		ie->type = 0xff;
-		ie->length = htons(t->payload_len-sizeof(gtpu_ie_t)-1);
+	if (!t->payload_len)
+		return sizeof(gtp_hdr_t);
 
-		offset += sizeof(gtpu_ie_t);
-		priv = (gtpu_ie_private_t *) (buffer + offset);
-		priv->type = 0;
-		priv->id = htons(0);
-		offset += sizeof(gtpu_ie_private_t);
+	ie = (gtpu_ie_t *) (buffer + offset);
+	ie->type = 0xff;
+	ie->length = htons(t->payload_len-sizeof(gtpu_ie_t)-1);
 
-		payload = buffer + offset;
-		memset(payload, '!', t->payload_len-sizeof(gtpu_ie_t)-sizeof(gtpu_ie_private_t));
-	}
+	offset += sizeof(gtpu_ie_t);
+	priv = (gtpu_ie_private_t *) (buffer + offset);
+	priv->type = 0;
+	priv->id = htons(0);
+	offset += sizeof(gtpu_ie_private_t);
+
+	payload = buffer + offset;
+	memset(payload, '!', t->payload_len-sizeof(gtpu_ie_t)-sizeof(gtpu_ie_private_t));
 
 	return sizeof(gtp_hdr_t) + t->payload_len;
 }
@@ -87,15 +88,15 @@ gtp_dpd_build_ip(gtp_iptnl_t *t, uint8_t *buffer)
 {
 	struct iphdr *iph = (struct iphdr *) buffer;
 
-        iph->ihl = sizeof(struct iphdr) >> 2;
-        iph->version = 4;
-        /* set tos to internet network control */
-        iph->tos = 0xc0;
-        iph->tot_len = (uint16_t)(sizeof(struct iphdr) + sizeof(struct udphdr) + GTPV1U_HEADER_LEN + t->payload_len);
-        iph->tot_len = htons(iph->tot_len);
-        iph->id = 0;
-        iph->frag_off = 0;
-        iph->ttl = 64;
+	iph->ihl = sizeof(struct iphdr) >> 2;
+	iph->version = 4;
+	/* set tos to internet network control */
+	iph->tos = 0xc0;
+	iph->tot_len = (uint16_t)(sizeof(struct iphdr) + sizeof(struct udphdr) + GTPV1U_HEADER_LEN + t->payload_len);
+	iph->tot_len = htons(iph->tot_len);
+	iph->id = 0;
+	iph->frag_off = 0;
+	iph->ttl = 64;
 	iph->protocol = IPPROTO_UDP;
 	iph->saddr = t->dpd_saddr;
 	iph->daddr = htonl(DEFAULT_DST_ADDR);
@@ -110,15 +111,15 @@ gtp_dpd_build_ip_encap(gtp_iptnl_t *t, uint8_t *buffer)
 {
 	struct iphdr *iph = (struct iphdr *) buffer;
 
-        iph->ihl = sizeof(struct iphdr) >> 2;
-        iph->version = 4;
-        /* set tos to internet network control */
-        iph->tos = 0xc0;
-        iph->tot_len = (uint16_t)(2*sizeof(struct iphdr) + sizeof(struct udphdr) + GTPV1U_HEADER_LEN + t->payload_len);
-        iph->tot_len = htons(iph->tot_len);
-        iph->id = 0;
-        iph->frag_off = 0;
-        iph->ttl = 64;
+	iph->ihl = sizeof(struct iphdr) >> 2;
+	iph->version = 4;
+	/* set tos to internet network control */
+	iph->tos = 0xc0;
+	iph->tot_len = (uint16_t)(2*sizeof(struct iphdr) + sizeof(struct udphdr) + GTPV1U_HEADER_LEN + t->payload_len);
+	iph->tot_len = htons(iph->tot_len);
+	iph->id = 0;
+	iph->frag_off = 0;
+	iph->ttl = 64;
 	iph->protocol = IPPROTO_IPIP;
 	iph->saddr = t->local_addr;
 	iph->daddr = t->remote_addr;

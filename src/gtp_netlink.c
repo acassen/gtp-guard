@@ -406,23 +406,16 @@ netlink_neigh_request(nl_handle_t *nl, unsigned char family, uint16_t type)
 	return 0;
 }
 
-static int
-netlink_neigh_lookup(void)
+static void
+netlink_neigh_lookup(__attribute__((unused)) thread_t *thread)
 {
 	int err;
 
 	err = netlink_neigh_request(&nl_cmd, AF_UNSPEC, RTM_GETNEIGH);
-	if (!err)
-		netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, false);
+	if (err)
+		return;
 
-	return err;
-}
-
-static void
-netlink_neigh_lookup_event(__attribute__((unused)) thread_t *thread)
-{
-	netlink_neigh_lookup();
-	netlink_close(&nl_cmd);
+	netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, false);
 }
 
 
@@ -685,7 +678,6 @@ netlink_if_init(void)
 	}
 
 	err = netlink_if_lookup();
-	err = (err) ? : netlink_neigh_lookup();
 	if (err)
 		return -1;
 
@@ -698,7 +690,7 @@ netlink_if_init(void)
 	 * receive a Netlink broadcast for it until next ARP state.
 	 * Register an I/O MUX event to force fetching after parsing the
 	 * configuration. */
-	thread_add_event(master, netlink_neigh_lookup_event, NULL, 0);
+	thread_add_event(master, netlink_neigh_lookup, NULL, 0);
 	return 0;
 }
 
