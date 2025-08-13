@@ -28,6 +28,8 @@
 #include "gtp_interface_rule.h"
 
 
+typedef struct _gtp_bpf_interface_rule gtp_bpf_interface_rule_t;
+
 /* Flags */
 enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_GTP_BIT,
@@ -63,6 +65,8 @@ struct gtp_interface {
 	struct gtp_bpf_interface_rule *bpf_itf;
 
 	struct list_head	next;
+
+	struct _gtp_interface	*parent;
 
 	int			refcnt;
 	unsigned long		flags;

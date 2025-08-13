@@ -166,10 +166,14 @@ gtp_interface_alloc(const char *name, int ifindex)
 void
 gtp_interface_destroy(struct gtp_interface *iface)
 {
-	if (iface->bpf_prog) {
-		printf("detach interface %s\n", iface->ifname);
-		gtp_bpf_prog_detach(iface->bpf_prog, iface);
+	gtp_interface_t *if_child;
+
+	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
+		if (if_child->parent == iface)
+			if_child->parent = NULL;
 	}
+	if (iface->bpf_prog)
+		gtp_bpf_prog_detach(iface->bpf_prog, iface);
 	FREE_PTR(iface->link_metrics);
 	list_head_del(&iface->next);
 	FREE(iface);
