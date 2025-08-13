@@ -48,7 +48,6 @@ struct gtp_bpf_prog_tpl {
 	int (*loaded)(struct gtp_bpf_prog *, void *);
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
-	int (*iface_bound)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 
 	void (*vty_iface_show)(struct gtp_bpf_prog *, struct gtp_interface *, struct vty *);

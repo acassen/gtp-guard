@@ -27,9 +27,6 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_interface_rule.h"
 
-
-typedef struct _gtp_bpf_interface_rule gtp_bpf_interface_rule_t;
-
 /* Flags */
 enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_GTP_BIT,
@@ -37,8 +34,6 @@ enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_IPIP_BIT,
 	GTP_INTERFACE_FL_METRICS_LINK_BIT,
 	GTP_INTERFACE_FL_DIRECT_TX_GW_BIT,
-	GTP_INTERFACE_FL_CGNAT_NET_IN_BIT,
-	GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT,
 	GTP_INTERFACE_FL_SHUTDOWN_BIT,
 };
 
@@ -51,22 +46,19 @@ struct gtp_interface {
 	uint16_t		ip_table;
 	struct ip_address	direct_tx_gw;
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
-	char			cgn_name[GTP_STR_MAX_LEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
 	struct gtp_bpf_prog	*bpf_prog;
 	struct bpf_link		*bpf_xdp_lnk;
 	struct bpf_link		*bpf_tc_lnk;
+	struct gtp_bpf_interface_rule *bpf_itf;
 
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
 
-	/* bpf rules */
-	struct gtp_bpf_interface_rule *bpf_itf;
-
 	struct list_head	next;
 
-	struct _gtp_interface	*parent;
+	struct gtp_interface	*parent;
 
 	int			refcnt;
 	unsigned long		flags;

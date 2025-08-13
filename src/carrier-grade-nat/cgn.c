@@ -20,14 +20,26 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
+/* system includes */
+#include <errno.h>
+#include <string.h>
 #include <assert.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <linux/if_ether.h>
 #include <libbpf.h>
 
+/* local includes */
+#include "libbpf.h"
+#include "inet_server.h"
+#include "inet_utils.h"
 #include "tools.h"
 #include "utils.h"
 #include "list_head.h"
 #include "gtp_data.h"
+#include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
+#include "gtp_interface_rule.h"
 #include "cgn.h"
 #include "bpf/lib/cgn-def.h"
 
@@ -127,6 +139,31 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 	return k;
 }
 
+int
+cgn_ctx_attach_interface(struct cgn_ctx *c, gtp_interface_t *iface, bool from_priv)
+{
+	gtp_interface_t **cifin = from_priv ? &c->priv : &c->pub;
+	gtp_interface_t **cifout = from_priv ? &c->pub : &c->priv;
+
+	if (*cifin != NULL) {
+		log_message(LOG_INFO, "{cgn:%s} cannot bind to iface '%s', "
+			    "already bound to iface '%s'",
+			    c->name, iface->ifname, (*cifin)->ifname);
+		return -1;
+	}
+	*cifin = iface;
+
+	/* 2 sides are specified, add rules */
+	if (*cifout != NULL) {
+		gtp_interface_rule_add(iface, *cifout, from_priv ? 10 : 11,
+				       from_priv ? 500 : 100);
+		gtp_interface_rule_add(*cifout, iface, from_priv ? 11 : 10,
+				       from_priv ? 100 : 500);
+	}
+
+	return 0;
+}
+
 struct cgn_ctx *
 cgn_ctx_get_by_name(const char *name)
 {
@@ -145,9 +182,21 @@ struct cgn_ctx *
 cgn_ctx_alloc(const char *name)
 {
 	struct cgn_ctx *c = NULL;
+	gtp_bpf_prog_t *p;
+
+	/* cgn configure a bpf-program. it must exists */
+	p = gtp_bpf_prog_get(name);
+	if (p == NULL) {
+		errno = ENODEV;
+		return NULL;
+	}
 
 	c = calloc(1, sizeof (*c));
-	assert(c != NULL);
+	if (c == NULL)
+		return NULL;
+
+	assert(gtp_bpf_prog_tpl_data_set(p, "cgn", c) == 0);
+	c->prg = p;
 	c->port_start = 1500;
 	c->port_end = 65535;
 	c->block_size = 500;

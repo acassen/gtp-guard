@@ -20,9 +20,16 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
-#include <string.h>
+/* system includes */
+#include <net/if.h>
 #include <arpa/inet.h>
+#include <linux/if_ether.h>
+#include <errno.h>
 
+/* local includes */
+#include "utils.h"
+#include "inet_server.h"
+#include "inet_utils.h"
 #include "bitops.h"
 #include "addr.h"
 #include "tools.h"
@@ -30,6 +37,7 @@
 #include "command.h"
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
 #include "cgn.h"
 
 
@@ -50,8 +58,15 @@ DEFUN(cgn,
 	struct cgn_ctx *c;
 
 	c = cgn_ctx_get_by_name(argv[0]);
-	if (c == NULL)
+	if (c == NULL) {
 		c = cgn_ctx_alloc(argv[0]);
+		if (c == NULL) {
+			if (errno == ENODEV)
+				vty_out(vty, "%% bpf-program '%s' must be configured "
+					"before carrier-grade-nat\n", argv[0]);
+			return CMD_WARNING;
+		}
+	}
 	vty->node = CGN_NODE;
 	vty->index = c;
 
@@ -90,35 +105,6 @@ DEFUN(cgn_desciption,
 
 	return CMD_SUCCESS;
 }
-
-#if 0
-DEFUN(cgn_bpf_program,
-      cgn_bpf_program_cmd,
-      "bpf-program NAME",
-      "Attach a bpf program\n")
-{
-	struct cgn_ctx *c = vty->index;
-	gtp_bpf_prog_t *prg;
-
-	prg = gtp_bpf_prog_get(argv[0]);
-	if (prg == NULL) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' bpf program "
-			"'%s' not found\n", c->name, argv[0]);
-		return CMD_WARNING;
-	}
-
-	if (c->prg != NULL && c->prg != prg) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' already attached to bpf "
-			"program '%s'\n", c->name, prg->name);
-		return CMD_WARNING;
-	}
-
-	prg->data = c;
-	c->prg = prg;
-
-	return CMD_SUCCESS;
-}
-#endif
 
 DEFUN(cgn_ip_pool,
       cgn_ip_pool_cmd,
@@ -253,6 +239,36 @@ DEFUN(cgn_protocol_tcp_port_conf_pool,
 	return CMD_SUCCESS;
 }
 
+/* attached on INTERFACE_NODE */
+DEFUN(cgn_interface,
+      cgn_interface_cmd,
+      "carrier-grade-nat CGNBLOCK side (network-in|network-out)",
+      "Configure carrier-grade on this interface\n"
+      "carrier-grade-nat configuration bloc name\n"
+      "Side this interface is handling\n"
+      "Network's operator side (private,local,inside)\n"
+      "Internet side (public,remote,outside)\n")
+{
+	gtp_interface_t *iface = vty->index;
+	struct cgn_ctx *c;
+
+	c = cgn_ctx_get_by_name(argv[0]);
+	if (c == NULL) {
+		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined",
+			iface->ifname, argv[0]);
+		return CMD_WARNING;
+	}
+
+	if (cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "network-in")) < 0) {
+		vty_out(vty, "%% {itf:%s} cannot attach to carrier-grade-nat bloc '%s'",
+			iface->ifname, argv[0]);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+
 
 /*
  *	Show commands
@@ -361,13 +377,13 @@ cmd_ext_cgn_install(void)
 
 	install_default(CGN_NODE);
 	install_element(CGN_NODE, &cgn_description_cmd);
-	//install_element(CGN_NODE, &cgn_bpf_program_cmd);
 	install_element(CGN_NODE, &cgn_ip_pool_cmd);
 	install_element(CGN_NODE, &cgn_block_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_tcp_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_udp_port_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_tcp_port_conf_cmd);
+	install_element(INTERFACE_NODE, &cgn_interface_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cgn_cmd);

@@ -12,6 +12,7 @@ struct if_rule_key
 struct if_rule
 {
 	int action;
+	int ifindex;	/* 0 to use fib_lookup output */
 	__u32 table;
 	__u32 gre_remote;
 	__u16 vlan_id;

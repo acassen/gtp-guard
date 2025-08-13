@@ -470,12 +470,6 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 		}
 	}
 
-	/* After program attach to interface. */
-	for (i = 0; i < p->tpl_n; i++)
-		if (p->tpl[i]->iface_bound != NULL &&
-		    p->tpl[i]->iface_bound(p, p->tpl_data[i], iface))
-			return -1;
-
 	return 0;
 }
 

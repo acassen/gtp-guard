@@ -52,131 +52,16 @@
  *	BPF stuff
  */
 
-/*
- *
- * this is were we bind things together:
- *   - one carrier-grade-nat
- *   - one bfp-program
- *   - one or many interfaces
- */
+
 static int
 cgn_bpf_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	struct cgn_iface_bind *ib;
-	struct cgn_ctx *c = udata;
-
-	/* interface references carrier-grade-nat config bloc */
-	if (!*iface->cgn_name) {
-		log_message(LOG_INFO, "iface '%s': mandatory config "
-			    "carrier-grade-nat is not set",
-			    iface->ifname, iface->cgn_name);
-		return -1;
-	}
-
-	c = cgn_ctx_get_by_name(iface->cgn_name);
-	if (c == NULL) {
-		log_message(LOG_INFO, "iface '%s': carrier-grade-nat '%s'"
-			    " is not defined", iface->ifname, iface->cgn_name);
-		return -1;
-	}
-
-	if (udata == NULL) {
-		/* this is the first interface 'bind' */
-		assert(gtp_bpf_prog_tpl_data_set(p, "cgn", c) == 0);
-		c->prg = p;
-
-	} else {
-		/* interface previously referenced another cgn bloc... */
-		if (udata != c) {
-			struct cgn_ctx *oc = udata;
-			log_message(LOG_INFO, "carrier-grade-nat '%s'"
-				    " already bound to '%s'",
-				    c->name, oc->name);
-			return -1;
-		}
-
-		/* ... or another program */
-		if (c->prg != p) {
-			log_message(LOG_INFO, "carrier-grade-nat '%s'"
-				    " already bound to bpf-pgrogram '%s'",
-				    c->name, c->prg->name);
-			return -1;
-		}
-	}
-
-	/* register interface on pub or priv iface list */
-	if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags))
-		ib = &c->priv;
-	else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags))
-		ib = &c->pub;
-	else
-		abort();
-
-	if (ib->iface_n >= CGN_IFACE_BIND_MAX)
-		return -1;
-
-	ib->iface[ib->iface_n++] = iface;
-
-	return 0;
-}
-
-static int
-cgn_bpf_bound_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
-{
-	struct cgn_ctx *c = udata;
-
-	assert(c != NULL);
-
-	if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags)) {
-		if (!c->pub.iface_n)
-			return 0;
-		gtp_interface_rule_add(iface, c->pub.iface[0], 10);
-		gtp_interface_rule_add(c->pub.iface[0], iface, 11);
-
-	} else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags)) {
-		if (!c->priv.iface_n)
-			return 0;
-		gtp_interface_rule_add(iface, c->priv.iface[0], 11);
-		gtp_interface_rule_add(c->priv.iface[0], iface, 10);
-
-	} else {
-		abort();
-	}
-
-	/* XXX start thread etc... */
 	return 0;
 }
 
 static void
 cgn_bpf_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	struct cgn_ctx *c = udata;
-	struct cgn_iface_bind *ib;
-	int i;
-
-	assert(c != NULL);
-
-	if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags)) {
-		ib = &c->priv;
-	} else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags)) {
-		ib = &c->pub;
-	} else {
-		abort();
-	}
-
-	gtp_interface_rule_del(iface);
-
-	for (i = 0; i < ib->iface_n; i++) {
-		if (ib->iface[i] == iface) {
-			ib->iface[i] = ib->iface[--ib->iface_n];
-			return;
-		}
-	}
-
-	log_message(LOG_INFO, "carrier-grade-nat '%s'"
-		    " cannot unbind iface '%s', not found",
-		    c->name, iface->ifname);
-	return;
 }
 
 
@@ -324,7 +209,6 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.description = "carrier-grade-nat",
 	.iface_bind = cgn_bpf_bind_itf,
 	.iface_unbind = cgn_bpf_unbind_itf,
-	.iface_bound = cgn_bpf_bound_itf,
 	.opened = cgn_bpf_opened,
 	.loaded = cgn_bpf_loaded,
 };

@@ -19,9 +19,22 @@
  * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <assert.h>
+
 /* local includes */
 #include "gtp_interface.h"
 #include "bpf/lib/if_rule-def.h"
+
+
+/*
+ * TODO:
+ *
+ * save rules in userspace,
+ * and if there are multiple rules on one interface,
+ * then apply (write on bpf map) the one with highest prio.
+ *
+ * if rules gets added/modified, update bpf map accordingly.
+ */
 
 
 struct gtp_bpf_interface_rule
@@ -31,19 +44,36 @@ struct gtp_bpf_interface_rule
 
 
 void
-gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to, int action)
+gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
+		       int action, int prio)
 {
-	struct gtp_bpf_interface_rule *r = from->bpf_itf;
+	struct gtp_bpf_interface_rule *r;
+	struct gtp_interface *iface = from;
 	struct if_rule_key k = {};
 	struct if_rule ar = {};
 	int ret;
 
-	k.ifindex = from->ifindex;
+	/* if program is not loaded on this interface, and this interface has
+	 * a parent, then use parent ifindex/bpf map, and everything else from
+	 * child (vlan/tunnel info) */
+	if (from->bpf_prog == NULL && from->parent)
+		iface = from->parent;
+
+	r = iface->bpf_itf;
+	if (!r)
+		return;
+
+	k.ifindex = iface->ifindex;
 	k.vlan_id = from->vlan_id;
 
 	ar.action = action;
-	ar.table = to->ip_table;
+	ar.table = from->ip_table;
 	ar.vlan_id = to->vlan_id;
+
+	/* when output interface is a sub-interface, we force output
+	 * ifindex to it (otherwise bpf_fib_lookup will send from it) */
+	if (to->parent)
+		ar.ifindex = to->parent->ifindex;
 
 	printf("add acl if:%d vlan:%d ip-table:%d gre:%d sizeof:%ld\n",
 	       k.ifindex, k.vlan_id, ar.table,
@@ -59,10 +89,18 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to, int
 void
 gtp_interface_rule_del(struct gtp_interface *from)
 {
-	struct gtp_bpf_interface_rule *r = from->bpf_itf;
+	struct gtp_bpf_interface_rule *r;
+	struct gtp_interface *iface = from;
 	struct if_rule_key k = {};
 
-	k.ifindex = from->ifindex;
+	if (from->bpf_prog == NULL && from->parent)
+		iface = from->parent;
+
+	r = iface->bpf_itf;
+	if (!r)
+		return;
+
+	k.ifindex = iface->ifindex;
 	k.vlan_id = from->vlan_id;
 
 	bpf_map__delete_elem(r->acl, &k, sizeof (k), 0);
@@ -95,6 +133,12 @@ gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *i
 	return 0;
 }
 
+static void
+gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
+{
+	assert(iface->bpf_itf == udata);
+	iface->bpf_itf = NULL;
+}
 
 static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 	.name = "if_rules",
@@ -102,6 +146,7 @@ static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 	.udata_alloc_size = sizeof (struct gtp_bpf_interface_rule),
 	.opened = gtp_ifrule_opened,
 	.iface_bind = gtp_ifrule_bind_itf,
+	.iface_unbind = gtp_ifrule_unbind_itf,
 };
 
 static void __attribute__((constructor))

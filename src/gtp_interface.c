@@ -166,7 +166,7 @@ gtp_interface_alloc(const char *name, int ifindex)
 void
 gtp_interface_destroy(struct gtp_interface *iface)
 {
-	gtp_interface_t *if_child;
+	struct gtp_interface *if_child;
 
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->parent == iface)

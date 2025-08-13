@@ -206,28 +206,6 @@ DEFUN(interface_direct_tx_gw,
 	return CMD_SUCCESS;
 }
 
-DEFUN(interface_carrier_grade_nat,
-      interface_carrier_grade_nat_cmd,
-      "carrier-grade-nat CGNBLOCK side (network-in|network-out)",
-      "Configure carrier-grade on this interface\n"
-      "carrier-grade-nat configuration bloc name\n"
-      "Side this interface is handling\n"
-      "Network's operator side (private,local,inside)\n"
-      "Internet side (public,remote,outside)\n")
-{
-	struct gtp_interface *iface = vty->index;
-
-	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
-	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
-	bsd_strlcpy(iface->cgn_name, argv[0], sizeof (iface->cgn_name) - 1);
-	if (!strcmp(argv[1], "network-in"))
-		__set_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
-	else
-		__set_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
-	return CMD_SUCCESS;
-}
-
-
 DEFUN(interface_ip_table,
       interface_ip_table_cmd,
       "ip table <0-32767>",
@@ -248,7 +226,7 @@ DEFUN(interface_parent,
       "Set parent interface\n"
       "Parent interface name\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	iface->parent = gtp_interface_get(argv[0]);
 	if (!iface->parent) {
@@ -407,11 +385,8 @@ DEFUN(interface_no_shutdown,
 		return CMD_WARNING;
 	}
 
-	if (!p) {
-		vty_out(vty, "%% no bpf-program configured for interface:'%s'%s"
-			   , iface->ifname, VTY_NEWLINE);
+	if (!p)
 		goto end;
-	}
 
 	err = gtp_bpf_prog_attach(p, iface);
 	if (err) {
@@ -492,6 +467,8 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " direct-tx-gw %s%s"
 				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
 				   , VTY_NEWLINE);
+#if 0
+		// XXX: add conf_writer callback
 		if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags))
 			vty_out(vty, " carrier-grade-nat %s side network-in%s"
 				   , iface->cgn_name
@@ -500,6 +477,7 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " carrier-grade-nat %s side network-out%s"
 				   , iface->cgn_name
 				   , VTY_NEWLINE);
+#endif
 		if (iface->ip_table)
 			vty_out(vty, " ip table %d%s", iface->ip_table, VTY_NEWLINE);
 		if (iface->parent)
@@ -536,7 +514,6 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &interface_description_cmd);
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
-	install_element(INTERFACE_NODE, &interface_carrier_grade_nat_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_table_cmd);
 	install_element(INTERFACE_NODE, &interface_parent_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);

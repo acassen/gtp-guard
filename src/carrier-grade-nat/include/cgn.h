@@ -26,8 +26,6 @@
 #include "gtp_stddef.h"
 #include "list_head.h"
 
-#define CGN_IFACE_BIND_MAX		8
-
 typedef struct gtp_bpf_prog gtp_bpf_prog_t;
 typedef struct gtp_interface gtp_interface_t;
 
@@ -54,12 +52,6 @@ enum {
 	BPF_CGN_MAP_CNT
 };
 
-struct cgn_iface_bind
-{
-	gtp_interface_t		*iface[CGN_IFACE_BIND_MAX];
-	int			iface_n;
-};
-
 struct cgn_ctx
 {
 	char			name[GTP_NAME_MAX_LEN];
@@ -68,8 +60,8 @@ struct cgn_ctx
 
 	/* links to bpf-prog and interfaces */
 	gtp_bpf_prog_t		*prg;
-	struct cgn_iface_bind	pub;
-	struct cgn_iface_bind	priv;
+	gtp_interface_t		*priv;
+	gtp_interface_t		*pub;
 
 	/* bpf maps */
 	struct bpf_map		*v4_blocks;
@@ -99,6 +91,8 @@ struct cgn_ctx
 /* cgn.c */
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
 int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
+int cgn_ctx_attach_interface(struct cgn_ctx *c, gtp_interface_t *iface,
+			     bool from_priv);
 struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
 void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);

@@ -176,8 +176,10 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		bpf_printk("fib_lookup failed: %d", ret);
 		return XDP_ABORTED;
 	}
-	bpf_printk("bpf_fib_lookup: dst:%x if:%d->%d from %x nh %x mac_src:%02x mac_dst:%02x",
+	bpf_printk("bpf_fib_lookup: dst:%x if:%d->%d(=>%d) "
+		   "from %x nh %x mac_src:%02x mac_dst:%02x",
 		   d->dst_addr, ctx->ingress_ifindex, fibp.ifindex,
+		   d->r->ifindex ?: fibp.ifindex,
 		   fibp.ipv4_src, fibp.ipv4_dst, fibp.smac[5], fibp.dmac[5]);
 	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
 		return XDP_DROP;
@@ -202,13 +204,13 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	ethh = data = (void *)(long)ctx->data;
 	data_end = (void *)(long)ctx->data_end;
 
-	if (d->r->vlan_id && (d->r->vlan_id != d->r->vlan_id || adjust_sz)) {
+	if (d->r->vlan_id && (d->k.vlan_id != d->r->vlan_id || adjust_sz)) {
 		/* need to set/modify vlan hdr */
 		struct vlan_hdr *vlanh = (struct vlan_hdr *)(ethh + 1);
 		if ((void *)(vlanh + 1) > data_end)
 			return XDP_DROP;
 
-		vlanh->vlan_tci = d->r->vlan_id;
+		vlanh->vlan_tci = bpf_ntohs(d->r->vlan_id);
 		vlanh->next_proto = __constant_htons(ETH_P_IP);
 		ethh->h_proto = __constant_htons(ETH_P_8021Q);
 		payload = vlanh + 1;
@@ -222,6 +224,9 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			ethh->h_proto = __constant_htons(ETH_P_IP);
 
 		payload = ethh + 1;
+		__u8 *p = payload;
+		if ((void *)(p + 1) > data_end)
+			return XDP_DROP;
 	}
 
 	/* add gre tunnel if necessary */
@@ -259,5 +264,5 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);
 
 	/* remember that forwarding must be enabled on these interfaces ! */
-	return bpf_redirect(fibp.ifindex, 0);
+	return bpf_redirect(d->r->ifindex ?: fibp.ifindex, 0);
 }

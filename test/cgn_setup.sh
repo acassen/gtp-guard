@@ -38,7 +38,7 @@
 # how to use:
 #   after this script is run, execute these commands in 2 terminals:
 #    # sudo ./bin/gtp-guard -l -D -n -f /tmp/cgn-test.conf
-#    # sudo ip netns exec cgn-priv ping -c 1 8.8.8.8
+#    # sudo ip netns exec cgn-priv ping -I 10.0.0.1 -c 1 8.8.8.8
 #
 
 setup_netns "cgn-pub" "cgn-priv"
@@ -92,9 +92,6 @@ ip netns exec cgn-priv ethtool -K priv tx-checksumming off >/dev/null
 # enabling gro does it too
 ip netns exec cgn-pub ethtool -K pub gro on
 ip netns exec cgn-priv ethtool -K priv gro on
-
-# to test, run
-#ip netns exec cgn-priv ping -I 10.0.0.1 -c 1 8.8.8.8
 
 
 # gtp-guard must be running, started with test/conf/minimal.conf
