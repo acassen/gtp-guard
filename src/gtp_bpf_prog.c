@@ -481,9 +481,11 @@ gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg,
 {
 	gtp_bpf_prog_t *p;
 
+	/* filter_mode == BPF_PROG_MODE_MAX means dump all */
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
-		if (filter_mode < BPF_PROG_MODE_MAX &&
-		    p->tpl && filter_mode == p->tpl->mode) {
+		if (filter_mode == BPF_PROG_MODE_MAX ||
+		    (filter_mode < BPF_PROG_MODE_MAX &&
+		     p->tpl && filter_mode == p->tpl->mode)) {
 			__sync_add_and_fetch(&p->refcnt, 1);
 			(*(hdl)) (p, arg);
 			__sync_sub_and_fetch(&p->refcnt, 1);

@@ -41,7 +41,7 @@ cmd_node_t mirror_node = {
 static int
 gtp_mirror_show(gtp_mirror_t *m, void *arg)
 {
-	return 0;
+	return gtp_bpf_mirror_vty((vty_t *) arg, m->bpf_prog);
 }
 
 
@@ -354,9 +354,9 @@ DEFUN(mirror_no_rule,
 
 
 /* Show */
-DEFUN(show_mirror,
-      show_mirror_cmd,
-      "show mirror [STRING]",
+DEFUN(show_bpf_mirror,
+      show_bpf_mirror_cmd,
+      "show bpf mirror [STRING]",
       SHOW_STR
       "mirror\n")
 {
@@ -443,8 +443,8 @@ gtp_mirror_vty_init(void)
 	install_element(MIRROR_NODE, &mirror_no_rule_cmd);
 
 	/* Install show commands */
-	install_element(VIEW_NODE, &show_mirror_cmd);
-	install_element(ENABLE_NODE, &show_mirror_cmd);
+	install_element(VIEW_NODE, &show_bpf_mirror_cmd);
+	install_element(ENABLE_NODE, &show_bpf_mirror_cmd);
 
 	return 0;
 }

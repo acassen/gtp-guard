@@ -324,7 +324,7 @@ vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
 	return CMD_SUCCESS;
 }
 
-/* show handlers */
+/* Show */
 DEFUN(show_gtp_router,
       show_gtp_router_cmd,
       "show gtp-router (*|STRING) [plane (gtpu|gtpc|both)]",
@@ -377,6 +377,36 @@ DEFUN(show_gtp_router,
 	return CMD_SUCCESS;
 }
 
+DEFUN(show_bpf_routing,
+      show_bpf_routing_cmd,
+      "show bpf routing",
+      SHOW_STR
+      "BPF GTP Routing Dataplane ruleset\n")
+{
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_bpf_routing_iptnl,
+      show_bpf_routing_iptnl_cmd,
+      "show bpf routing iptunnel",
+      SHOW_STR
+      "BPF GTP Routing IPIP Tunnel ruleset\n")
+{
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_bpf_routing_lladdr,
+      show_bpf_routing_lladdr_cmd,
+      "show bpf routing lladdr",
+      SHOW_STR
+      "BPF GTP Routing link-layer Address\n")
+{
+	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	VTY init
@@ -394,8 +424,15 @@ gtp_router_vty_init(void)
 	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_cmd);
 
+	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_router_cmd);
+	install_element(VIEW_NODE, &show_bpf_routing_cmd);
+	install_element(VIEW_NODE, &show_bpf_routing_iptnl_cmd);
+	install_element(VIEW_NODE, &show_bpf_routing_lladdr_cmd);
 	install_element(ENABLE_NODE, &show_gtp_router_cmd);
+	install_element(ENABLE_NODE, &show_bpf_routing_cmd);
+	install_element(ENABLE_NODE, &show_bpf_routing_iptnl_cmd);
+	install_element(ENABLE_NODE, &show_bpf_routing_lladdr_cmd);
 
 	return 0;
 }

@@ -197,59 +197,6 @@ DEFUN(metrics_channel,
 
 
 /*
- *	Show
- */
-DEFUN(show_xdp_forwarding,
-      show_xdp_forwarding_cmd,
-      "show xdp forwarding",
-      SHOW_STR
-      "XDP GTP Fowarding Dataplane ruleset\n")
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_xdp_forwarding_iptnl,
-      show_xdp_forwarding_iptnl_cmd,
-      "show xdp forwarding iptunnel",
-      SHOW_STR
-      "GTP XDP Forwarding IPIP Tunnel ruleset\n")
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_xdp_routing,
-      show_xdp_routing_cmd,
-      "show xdp routing",
-      SHOW_STR
-      "GTP XDP Routing Dataplane ruleset\n")
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_xdp_routing_iptnl,
-      show_xdp_routing_iptnl_cmd,
-      "show xdp routing iptunnel",
-      SHOW_STR
-      "GTP XDP Routing IPIP Tunnel ruleset\n")
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_iptnl_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_xdp_routing_lladdr,
-      show_xdp_routing_lladdr_cmd,
-      "show xdp routing lladdr",
-      SHOW_STR
-      "GTP XDP Routing link-layer Address\n")
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_rt_lladdr_vty, vty, BPF_PROG_MODE_GTP_ROUTE);
-	return CMD_SUCCESS;
-}
-
-/*
  *	Command
  */
 DEFUN(gtp_send_echo_request_standard,
@@ -402,6 +349,7 @@ vty_request_worker(inet_worker_t *w, void *arg)
 	return 0;
 }
 
+/* Show */
 DEFUN(show_workers_request_channel,
       show_workers_request_channel_cmd,
       "show workers request-channel",
@@ -471,19 +419,9 @@ gtp_vty_init(void)
 	install_element(PDN_NODE, &metrics_channel_cmd);
 
 	/* Install show commands */
-	install_element(VIEW_NODE, &show_xdp_forwarding_cmd);
-	install_element(VIEW_NODE, &show_xdp_forwarding_iptnl_cmd);
-	install_element(VIEW_NODE, &show_xdp_routing_cmd);
-	install_element(VIEW_NODE, &show_xdp_routing_iptnl_cmd);
-	install_element(VIEW_NODE, &show_xdp_routing_lladdr_cmd);
 	install_element(VIEW_NODE, &show_workers_request_channel_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
-	install_element(ENABLE_NODE, &show_xdp_forwarding_cmd);
-	install_element(ENABLE_NODE, &show_xdp_forwarding_iptnl_cmd);
-	install_element(ENABLE_NODE, &show_xdp_routing_cmd);
-	install_element(ENABLE_NODE, &show_xdp_routing_iptnl_cmd);
-	install_element(ENABLE_NODE, &show_xdp_routing_lladdr_cmd);
 	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);

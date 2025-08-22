@@ -648,6 +648,27 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 	return CMD_SUCCESS;
 }
 
+/* Show */
+DEFUN(show_bpf_forwarding,
+      show_bpf_forwarding_cmd,
+      "show bpf forwarding",
+      SHOW_STR
+      "BPF GTP Fowarding Dataplane ruleset\n")
+{
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_bpf_forwarding_iptnl,
+      show_bpf_forwarding_iptnl_cmd,
+      "show bpf forwarding iptunnel",
+      SHOW_STR
+      "BPF GTP Forwarding IPIP Tunnel ruleset\n")
+{
+	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty, BPF_PROG_MODE_GTP_FORWARD);
+	return CMD_SUCCESS;
+}
+
 
 /* Configuration writer */
 static int
@@ -758,6 +779,12 @@ gtp_proxy_vty_init(void)
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
+
+	/* Install show commands */
+	install_element(VIEW_NODE, &show_bpf_forwarding_cmd);
+	install_element(VIEW_NODE, &show_bpf_forwarding_iptnl_cmd);
+	install_element(ENABLE_NODE, &show_bpf_forwarding_cmd);
+	install_element(ENABLE_NODE, &show_bpf_forwarding_iptnl_cmd);
 
 	return 0;
 }
