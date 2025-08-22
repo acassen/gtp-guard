@@ -188,7 +188,7 @@ gtp_interface_load_bpf(gtp_interface_t *iface)
 
   err:
 	log_message(LOG_INFO, "error attaching bpf-program:'%s'"
-			      " to interface:'%s'%s"
+			      " to interface:'%s'"
 			    , p->name, iface->ifname);
 	gtp_bpf_prog_detach_xdp(lnk);
 	iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk = NULL;
