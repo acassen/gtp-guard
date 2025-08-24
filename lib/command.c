@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#include "list_head.h"
 #include "memory.h"
 #include "config.h"
 #include "vector.h"
@@ -2539,6 +2540,29 @@ install_default(node_type_t node)
 	install_element(node, &show_running_config_cmd);
 }
 
+/* Register add-on commands */
+static LIST_HEAD(cmd_ext_list);
+
+void
+cmd_ext_register(cmd_ext_t *ext)
+{
+	list_add(&ext->next, &cmd_ext_list);
+}
+
+static void
+cmd_ext_install(void)
+{
+	cmd_ext_t *ext;
+
+	list_for_each_entry(ext, &cmd_ext_list, next) {
+		if (ext->node)
+			install_node(ext->node);
+
+		if (ext->install)
+			(*ext->install) ();
+	}
+}
+
 /* Initialize command interface. Install basic nodes and commands. */
 void
 cmd_init(void)
@@ -2608,6 +2632,9 @@ cmd_init(void)
 	install_element(CONFIG_NODE, &no_banner_motd_cmd);
 	install_element(CONFIG_NODE, &service_terminal_length_cmd);
 	install_element(CONFIG_NODE, &no_service_terminal_length_cmd);
+
+	/* Install ext commands */
+	cmd_ext_install();
 
 	srand(time(NULL));
 }

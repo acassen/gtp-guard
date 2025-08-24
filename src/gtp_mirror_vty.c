@@ -26,14 +26,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int mirror_config_write(vty_t *vty);
-cmd_node_t mirror_node = {
-	.node = MIRROR_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt = "%s(mirror)# ",
-	.config_write = mirror_config_write,
-};
-
 
 /*
  *	VTY helpers
@@ -426,11 +418,10 @@ mirror_config_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-gtp_mirror_vty_init(void)
+static int
+cmd_ext_mirror_install(void)
 {
 	/* Install Interface commands. */
-	install_node(&mirror_node);
 	install_element(CONFIG_NODE, &mirror_cmd);
 	install_element(CONFIG_NODE, &no_mirror_cmd);
 
@@ -447,4 +438,22 @@ gtp_mirror_vty_init(void)
 	install_element(ENABLE_NODE, &show_bpf_mirror_cmd);
 
 	return 0;
+}
+
+cmd_node_t mirror_node = {
+	.node = MIRROR_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(mirror)# ",
+	.config_write = mirror_config_write,
+};
+
+static cmd_ext_t cmd_ext_mirror = {
+	.node = &mirror_node,
+	.install = cmd_ext_mirror_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_mirror);
 }

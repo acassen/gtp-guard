@@ -28,14 +28,6 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 
-static int gtp_config_cdr_write(vty_t *vty);
-cmd_node_t cdr_node = {
-	.node = CDR_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt ="%s(cdr-spool)# ",
-	.config_write = gtp_config_cdr_write,
-};
-
 /*
  *	CDR Commands
  */
@@ -365,11 +357,9 @@ gtp_config_cdr_write(vty_t *vty)
  *	VTY init
  */
 int
-gtp_cdr_vty_init(void)
+cmd_ext_cdr_install(void)
 {
-
 	/* Install CDR commands. */
-	install_node(&cdr_node);
 	install_element(CONFIG_NODE, &cdr_spool_cmd);
 	install_element(CONFIG_NODE, &no_cdr_spool_cmd);
 
@@ -389,4 +379,22 @@ gtp_cdr_vty_init(void)
 	install_element(ENABLE_NODE, &show_cdr_cmd);
 
 	return 0;
+}
+
+cmd_node_t cdr_node = {
+	.node = CDR_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(cdr-spool)# ",
+	.config_write = gtp_config_cdr_write,
+};
+
+static cmd_ext_t cmd_ext_cdr = {
+	.node = &cdr_node,
+	.install = cmd_ext_cdr_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_cdr);
 }

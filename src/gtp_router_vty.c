@@ -34,14 +34,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int gtp_config_write(vty_t *vty);
-cmd_node_t gtp_router_node = {
-        .node = GTP_ROUTER_NODE,
-        .parent_node = CONFIG_NODE,
-        .prompt = "%s(gtp-router)# ",
-	.config_write = gtp_config_write,
-};
-
 
 /*
  *	Command
@@ -412,10 +404,9 @@ DEFUN(show_bpf_routing_lladdr,
  *	VTY init
  */
 int
-gtp_router_vty_init(void)
+cmd_ext_gtp_router_install(void)
 {
 	/* Install PDN commands. */
-	install_node(&gtp_router_node);
 	install_element(CONFIG_NODE, &gtp_router_cmd);
 	install_element(CONFIG_NODE, &no_gtp_router_cmd);
 
@@ -435,4 +426,22 @@ gtp_router_vty_init(void)
 	install_element(ENABLE_NODE, &show_bpf_routing_lladdr_cmd);
 
 	return 0;
+}
+
+cmd_node_t gtp_router_node = {
+	.node = GTP_ROUTER_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(gtp-router)# ",
+	.config_write = gtp_config_write,
+};
+
+static cmd_ext_t cmd_ext_gtp_router = {
+	.node = &gtp_router_node,
+	.install = cmd_ext_gtp_router_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_gtp_router);
 }

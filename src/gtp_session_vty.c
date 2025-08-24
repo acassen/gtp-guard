@@ -211,7 +211,7 @@ DEFUN(clear_gtp_session,
  *	VTY init
  */
 int
-gtp_session_vty_init(void)
+cmd_ext_gtp_session_install(void)
 {
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_session_cmd);
@@ -219,4 +219,14 @@ gtp_session_vty_init(void)
 	install_element(ENABLE_NODE, &clear_gtp_session_cmd);
 
 	return 0;
+}
+
+static cmd_ext_t cmd_ext_gtp_session = {
+	.install = cmd_ext_gtp_session_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_gtp_session);
 }

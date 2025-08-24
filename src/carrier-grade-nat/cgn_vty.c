@@ -38,15 +38,6 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 
-
-static int config_cgn_write(vty_t *);
-cmd_node_t cgn_node = {
-	.node = CGN_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt ="%s(carrier-grade-nat)# ",
-	.config_write = config_cgn_write,
-};
-
 /*
  *	Carrier-Grade-NAT Commands
  */
@@ -410,11 +401,10 @@ config_cgn_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-cgn_vty_init(void)
+static int
+cmd_ext_cgn_install(void)
 {
 	/* Install Carrier Grade NAT commands. */
-	install_node(&cgn_node);
 	install_element(CONFIG_NODE, &cgn_cmd);
 	install_element(CONFIG_NODE, &no_cgn_cmd);
 
@@ -434,4 +424,22 @@ cgn_vty_init(void)
 	install_element(ENABLE_NODE, &show_cgn_cmd);
 
 	return 0;
+}
+
+cmd_node_t cgn_node = {
+	.node = CGN_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(carrier-grade-nat)# ",
+	.config_write = config_cgn_write,
+};
+
+static cmd_ext_t cmd_ext_cgn = {
+	.node = &cgn_node,
+	.install = cmd_ext_cgn_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_cgn);
 }

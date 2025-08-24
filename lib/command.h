@@ -85,6 +85,13 @@ typedef struct _cmd_node {
 	vector_t		*cmd_vector;		/* Vector of this node's command list. */
 } cmd_node_t;
 
+typedef struct _cmd_ext {
+	cmd_node_t		*node;
+	int (*install) (void);
+
+	list_head_t		next;
+} cmd_ext_t;
+
 /* Structure of command element. */
 typedef struct _cmd_element {
 	const char		*string;		/* Command specification by string. */
@@ -278,6 +285,7 @@ extern node_type_t node_parent(node_type_t);
 extern int cmd_execute_command(vector_t *, vty_t *, cmd_element_t **, int);
 extern int cmd_execute_command_strict(vector_t *, vty_t *, cmd_element_t **);
 extern void config_replace_string(cmd_element_t *, char *, ...);
+void cmd_ext_register(cmd_ext_t *);
 extern void cmd_init(void);
 extern void cmd_terminate(void);
 extern char *host_config_file(void);

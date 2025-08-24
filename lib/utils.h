@@ -64,6 +64,10 @@
            !!__builtin_types_compatible_p(typeof(arr), \
                  typeof(&arr[0]))])) * 0)
 
+/* STR(MACRO) stringifies MACRO */
+#define _STR(x) #x
+#define STR(x) _STR(x)
+
 /* global vars exported */
 extern unsigned long debug;
 

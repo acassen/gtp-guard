@@ -26,14 +26,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int apn_config_write(vty_t *vty);
-cmd_node_t apn_node = {
-	.node = APN_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt = "%s(gtp-apn)# ",
-	.config_write = apn_config_write,
-};
-
 
 /*
  *	VTY utilities
@@ -1138,11 +1130,9 @@ apn_config_write(vty_t *vty)
  *	VTY init
  */
 int
-gtp_apn_vty_init(void)
+cmd_ext_apn_install(void)
 {
-
 	/* Install PDN commands. */
-	install_node(&apn_node);
 	install_element(CONFIG_NODE, &apn_cmd);
 
 	install_default(APN_NODE);
@@ -1182,3 +1172,22 @@ gtp_apn_vty_init(void)
 
 	return 0;
 }
+
+cmd_node_t apn_node = {
+	.node = APN_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(gtp-apn)# ",
+	.config_write = apn_config_write,
+};
+
+static cmd_ext_t cmd_ext_apn = {
+	.node = &apn_node,
+	.install = cmd_ext_apn_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_apn);
+}
+

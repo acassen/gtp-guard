@@ -29,14 +29,6 @@ extern data_t *daemon_data;
 /* Local data */
 static uint32_t gtp_vrf_id;
 
-static int gtp_config_write(vty_t *vty);
-cmd_node_t ip_vrf_node = {
-	.node = IP_VRF_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt ="%s(ip-vrf)# ",
-	.config_write = gtp_config_write,
-};
-
 
 /*
  *	Command
@@ -403,11 +395,10 @@ gtp_config_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-gtp_vrf_vty_init(void)
+static int
+cmd_ext_ip_vrf_install(void)
 {
 	/* Install PDN commands. */
-	install_node(&ip_vrf_node);
 	install_element(CONFIG_NODE, &ip_vrf_cmd);
 	install_element(CONFIG_NODE, &no_ip_vrf_cmd);
 
@@ -428,4 +419,22 @@ gtp_vrf_vty_init(void)
 	install_element(ENABLE_NODE, &show_ip_vrf_cmd);
 
 	return 0;
+}
+
+cmd_node_t ip_vrf_node = {
+	.node = IP_VRF_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(ip-vrf)# ",
+	.config_write = gtp_config_write,
+};
+
+static cmd_ext_t cmd_ext_ip_vrf = {
+	.node = &ip_vrf_node,
+	.install = cmd_ext_ip_vrf_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_ip_vrf);
 }

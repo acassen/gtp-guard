@@ -26,14 +26,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int interface_config_write(vty_t *vty);
-cmd_node_t interface_node = {
-	.node = INTERFACE_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt = "%s(interface)# ",
-	.config_write = interface_config_write,
-};
-
 
 /*
  *	VTY helpers
@@ -530,11 +522,10 @@ interface_config_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-gtp_interface_vty_init(void)
+static int
+cmd_ext_interface_install(void)
 {
 	/* Install Interface commands. */
-	install_node(&interface_node);
 	install_element(CONFIG_NODE, &interface_cmd);
 	install_element(CONFIG_NODE, &no_interface_cmd);
 
@@ -559,4 +550,22 @@ gtp_interface_vty_init(void)
 	install_element(ENABLE_NODE, &show_interface_cmd);
 
 	return 0;
+}
+
+cmd_node_t interface_node = {
+	.node = INTERFACE_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(interface)# ",
+	.config_write = interface_config_write,
+};
+
+static cmd_ext_t cmd_ext_interface = {
+	.node = &interface_node,
+	.install = cmd_ext_interface_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_interface);
 }

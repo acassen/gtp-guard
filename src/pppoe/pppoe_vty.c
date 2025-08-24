@@ -28,21 +28,6 @@ extern data_t *daemon_data;
 extern thread_master_t *master;
 
 
-static int gtp_config_pppoe_write(vty_t *vty);
-static int gtp_config_pppoe_bundle_write(vty_t *vty);
-cmd_node_t pppoe_node = {
-	.node = PPPOE_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt ="%s(pppoe)# ",
-	.config_write = gtp_config_pppoe_write,
-};
-cmd_node_t pppoe_bundle_node = {
-	.node = PPPOE_BUNDLE_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt ="%s(pppoe-bundle)# ",
-	.config_write = gtp_config_pppoe_bundle_write,
-};
-
 /*
  *	PPPoE Commands
  */
@@ -823,12 +808,10 @@ gtp_config_pppoe_bundle_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-pppoe_vty_init(void)
+static int
+cmd_ext_pppoe_install(void)
 {
-
 	/* Install PPPoE commands. */
-	install_node(&pppoe_node);
 	install_element(CONFIG_NODE, &pppoe_cmd);
 	install_element(CONFIG_NODE, &no_pppoe_cmd);
 
@@ -858,8 +841,17 @@ pppoe_vty_init(void)
 	install_element(PPPOE_NODE, &reset_pppoe_metric_pppoe_cmd);
 	install_element(PPPOE_NODE, &no_pppoe_metric_pppoe_cmd);
 
+	/* Install show commands. */
+	install_element(VIEW_NODE, &show_pppoe_cmd);
+	install_element(ENABLE_NODE, &show_pppoe_cmd);
+
+	return 0;
+}
+
+static int
+cmd_ext_pppoe_bundle_install(void)
+{
 	/* Install PPPoE Bundle commands. */
-	install_node(&pppoe_bundle_node);
 	install_element(CONFIG_NODE, &pppoe_bundle_cmd);
 	install_element(CONFIG_NODE, &no_pppoe_bundle_cmd);
 
@@ -867,9 +859,35 @@ pppoe_vty_init(void)
 	install_element(PPPOE_BUNDLE_NODE, &pppoe_bundle_ignore_ingress_ppp_brd_cmd);
 	install_element(PPPOE_BUNDLE_NODE, &no_pppoe_bundle_ignore_ingress_ppp_brd_cmd);
 
-	/* Install show commands. */
-	install_element(VIEW_NODE, &show_pppoe_cmd);
-	install_element(ENABLE_NODE, &show_pppoe_cmd);
-
 	return 0;
 }
+
+cmd_node_t pppoe_node = {
+	.node = PPPOE_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(pppoe)# ",
+	.config_write = gtp_config_pppoe_write,
+};
+static cmd_ext_t cmd_ext_pppoe = {
+	.node = &pppoe_node,
+	.install = cmd_ext_pppoe_install,
+};
+
+cmd_node_t pppoe_bundle_node = {
+	.node = PPPOE_BUNDLE_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt ="%s(pppoe-bundle)# ",
+	.config_write = gtp_config_pppoe_bundle_write,
+};
+static cmd_ext_t cmd_ext_pppoe_bundle = {
+	.node = &pppoe_bundle_node,
+	.install = cmd_ext_pppoe_bundle_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_pppoe);
+	cmd_ext_register(&cmd_ext_pppoe_bundle);
+}
+

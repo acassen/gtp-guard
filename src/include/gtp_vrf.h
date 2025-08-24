@@ -52,4 +52,3 @@ extern ip_vrf_t *gtp_ip_vrf_alloc(const char *);
 extern int gtp_ip_vrf_destroy(ip_vrf_t *);
 extern int gtp_vrf_init(void);
 extern int gtp_vrf_destroy(void);
-extern int gtp_vrf_vty_init(void);

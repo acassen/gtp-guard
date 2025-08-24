@@ -72,7 +72,6 @@ start_gtp(void)
 	gtp_netlink_init();
 	cmd_init();
 	vty_init();
-	gtp_vty_init();
 	sort_node();
 	gtp_bpf_init();
 	gtp_conn_init();

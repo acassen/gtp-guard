@@ -33,14 +33,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int gtp_config_write(vty_t *vty);
-cmd_node_t gtp_proxy_node = {
-        .node = GTP_PROXY_NODE,
-        .parent_node = CONFIG_NODE,
-        .prompt = "%s(gtp-proxy)# ",
-        .config_write = gtp_config_write,
-};
-
 
 /*
  *	Command
@@ -757,10 +749,9 @@ gtp_config_write(vty_t *vty)
  *	VTY init
  */
 int
-gtp_proxy_vty_init(void)
+cmd_ext_gtp_proxy_install(void)
 {
 	/* Install PDN commands. */
-	install_node(&gtp_proxy_node);
 	install_element(CONFIG_NODE, &gtp_proxy_cmd);
 	install_element(CONFIG_NODE, &no_gtp_proxy_cmd);
 
@@ -787,4 +778,22 @@ gtp_proxy_vty_init(void)
 	install_element(ENABLE_NODE, &show_bpf_forwarding_iptnl_cmd);
 
 	return 0;
+}
+
+cmd_node_t gtp_proxy_node = {
+	.node = GTP_PROXY_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(gtp-proxy)# ",
+	.config_write = gtp_config_write,
+};
+
+static cmd_ext_t cmd_ext_gtp_proxy = {
+	.node = &gtp_proxy_node,
+	.install = cmd_ext_gtp_proxy_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_gtp_proxy);
 }

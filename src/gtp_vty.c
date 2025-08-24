@@ -27,14 +27,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int pdn_config_write(vty_t *vty);
-cmd_node_t pdn_node = {
-	.node = PDN_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt = "%s(pdn)# ",
-	.config_write = pdn_config_write,
-};
-
 
 /*
  *	Command
@@ -404,11 +396,10 @@ pdn_config_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-gtp_vty_init(void)
+static int
+cmd_ext_pdn_install(void)
 {
 	/* Install PDN commands. */
-	install_node(&pdn_node);
 	install_element(CONFIG_NODE, &pdn_cmd);
 
 	install_default(PDN_NODE);
@@ -426,17 +417,23 @@ gtp_vty_init(void)
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
 
-	/* Install other VTY */
-	gtp_bpf_prog_vty_init();
-	gtp_interface_vty_init();
-	gtp_mirror_vty_init();
-	pppoe_vty_init();
-	cgn_vty_init();
-	gtp_vrf_vty_init();
-	gtp_cdr_vty_init();
-	gtp_apn_vty_init();
-	gtp_proxy_vty_init();
-	gtp_router_vty_init();
-	gtp_session_vty_init();
 	return 0;
+}
+
+cmd_node_t pdn_node = {
+	.node = PDN_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(pdn)# ",
+	.config_write = pdn_config_write,
+};
+
+static cmd_ext_t cmd_ext_pdn = {
+	.node = &pdn_node,
+	.install = cmd_ext_pdn_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_pdn);
 }

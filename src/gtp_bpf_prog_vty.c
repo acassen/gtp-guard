@@ -26,14 +26,6 @@
 extern data_t *daemon_data;
 extern thread_master_t *master;
 
-static int bpf_prog_config_write(vty_t *vty);
-cmd_node_t bpf_prog_node = {
-	.node = BPF_PROG_NODE,
-	.parent_node = CONFIG_NODE,
-	.prompt = "%s(bpf-program)# ",
-	.config_write = bpf_prog_config_write,
-};
-
 
 /*
  *	VTY helpers
@@ -285,11 +277,10 @@ bpf_prog_config_write(vty_t *vty)
 /*
  *	VTY init
  */
-int
-gtp_bpf_prog_vty_init(void)
+static int
+cmd_ext_bpf_prog_install(void)
 {
 	/* Install BPF_PROG commands. */
-	install_node(&bpf_prog_node);
 	install_element(CONFIG_NODE, &bpf_prog_cmd);
 	install_element(CONFIG_NODE, &no_bpf_prog_cmd);
 
@@ -305,4 +296,22 @@ gtp_bpf_prog_vty_init(void)
 	install_element(ENABLE_NODE, &show_bpf_prog_cmd);
 
 	return 0;
+}
+
+cmd_node_t bpf_prog_node = {
+	.node = BPF_PROG_NODE,
+	.parent_node = CONFIG_NODE,
+	.prompt = "%s(bpf-program)# ",
+	.config_write = bpf_prog_config_write,
+};
+
+static cmd_ext_t cmd_ext_bpf_prog = {
+	.node = &bpf_prog_node,
+	.install = cmd_ext_bpf_prog_install,
+};
+
+static void __attribute__((constructor))
+gtp_vty_init(void)
+{
+	cmd_ext_register(&cmd_ext_bpf_prog);
 }
