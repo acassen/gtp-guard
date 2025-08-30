@@ -110,12 +110,12 @@ udp_csum(const void *buffer, size_t len, uint32_t src_addr, uint32_t dest_addr)
 
 /* IP network to ascii representation */
 char *
-inet_ntop2(uint32_t ip)
+inet_ntop2(uint32_t addr)
 {
 	static char buf[16];
 	unsigned char *bytep;
 
-	bytep = (unsigned char *) &(ip);
+	bytep = (unsigned char *) &(addr);
 	sprintf(buf, "%d.%d.%d.%d", bytep[0], bytep[1], bytep[2], bytep[3]);
 	return buf;
 }
@@ -125,23 +125,23 @@ inet_ntop2(uint32_t ip)
  * for multiple IP address convertion into the same call.
  */
 char *
-inet_ntoa2(uint32_t ip, char *buf)
+inet_ntoa2(uint32_t addr, char *buffer)
 {
 	unsigned char *bytep;
 
-	bytep = (unsigned char *) &(ip);
-	sprintf(buf, "%d.%d.%d.%d", bytep[0], bytep[1], bytep[2], bytep[3]);
-	return buf;
+	bytep = (unsigned char *) &(addr);
+	sprintf(buffer, "%d.%d.%d.%d", bytep[0], bytep[1], bytep[2], bytep[3]);
+	return buffer;
 }
 
 /* IP string to network mask representation. CIDR notation. */
 uint8_t
-inet_stom(char *addr)
+inet_stom(char *str)
 {
 	uint8_t mask = 32;
-	char *cp = addr;
+	char *cp = str;
 
-	if (!strstr(addr, "/"))
+	if (!strstr(str, "/"))
 		return mask;
 	while (*cp != '/' && *cp != '\0')
 		cp++;
@@ -152,16 +152,16 @@ inet_stom(char *addr)
 
 /* IP string to network range representation. */
 uint8_t
-inet_stor(char *addr)
+inet_stor(char *str)
 {
-	char *cp = addr;
+	char *cp = str;
 
-	if (!strstr(addr, "-"))
+	if (!strstr(str, "-"))
 		return 0;
 	while (*cp != '-' && *cp != '\0')
 		cp++;
 	if (*cp == '-')
-		return strtoul(++cp, NULL, (strchr(addr, ':')) ? 16 : 10);
+		return strtoul(++cp, NULL, (strchr(str, ':')) ? 16 : 10);
 	return 0;
 }
 
@@ -189,7 +189,7 @@ inet_stoipaddress(const char *str, ip_address_t *addr)
 }
 
 char *
-inet_ipaddresstos(ip_address_t *addr, char *addr_str)
+inet_ipaddresstos(ip_address_t *addr, char *str)
 {
 	void *addr_ip;
 
@@ -204,10 +204,10 @@ inet_ipaddresstos(ip_address_t *addr, char *addr_str)
 		return NULL;
 	}
 
-	if (!inet_ntop(addr->family, addr_ip, addr_str, INET6_ADDRSTRLEN))
+	if (!inet_ntop(addr->family, addr_ip, str, INET6_ADDRSTRLEN))
 		return NULL;
 
-	return addr_str;
+	return str;
 }
 
 /* IP string to sockaddr_storage */
@@ -329,7 +329,7 @@ inet_sockaddrip6(struct sockaddr_storage *addr, struct in6_addr *ip6)
  * Highly inspired from Paul Vixie code.
  */
 int
-inet_ston(const char *addr, uint32_t * dst)
+inet_ston(const char *str, uint32_t *addr)
 {
 	static char digits[] = "0123456789";
 	int saw_digit, octets, ch;
@@ -339,7 +339,7 @@ inet_ston(const char *addr, uint32_t * dst)
 	octets = 0;
 	*(tp = tmp) = 0;
 
-	while ((ch = *addr++) != '\0' && ch != '/' && ch != '-') {
+	while ((ch = *str++) != '\0' && ch != '/' && ch != '-') {
 		const char *pch;
 		if ((pch = strchr(digits, ch)) != NULL) {
 			u_int new = *tp * 10 + (pch - digits);
@@ -363,7 +363,7 @@ inet_ston(const char *addr, uint32_t * dst)
 	if (octets < 4)
 		return 0;
 
-	memcpy(dst, tmp, INADDRSZ);
+	memcpy(addr, tmp, INADDRSZ);
 	return 1;
 }
 
@@ -775,12 +775,12 @@ inet_setsockopt_no_receive(int fd)
 }
 
 int
-inet_setsockopt_rcvbuf(int fd, int val)
+inet_setsockopt_rcvbuf(int fd, int optval)
 {
 	int err;
 
 	/* rcvbuf option */
-	err = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
+	err = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &optval, sizeof(optval));
 	if (err)
 		log_message(LOG_INFO, "cant set SO_RCVBUF IP option. errno=%d (%m)", errno);
 
@@ -788,12 +788,12 @@ inet_setsockopt_rcvbuf(int fd, int val)
 }
 
 int
-inet_setsockopt_sndbuf(int fd, int val)
+inet_setsockopt_sndbuf(int fd, int optval)
 {
 	int err;
 
 	/* sndbuf option */
-	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
+	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &optval, sizeof(optval));
 	if (err)
 		log_message(LOG_INFO, "cant set SO_SNDBUF IP option. errno=%d (%m)", errno);
 
@@ -801,12 +801,12 @@ inet_setsockopt_sndbuf(int fd, int val)
 }
 
 int
-inet_setsockopt_sndbufforce(int fd, int val)
+inet_setsockopt_sndbufforce(int fd, int optval)
 {
 	int err;
 
 	/* sndbuf option */
-	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, &val, sizeof(val));
+	err = setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, &optval, sizeof(optval));
 	if (err)
 		log_message(LOG_INFO, "cant set SO_SNDBUFFORCE IP option. errno=%d (%m)", errno);
 

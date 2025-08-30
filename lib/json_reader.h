@@ -48,13 +48,18 @@ typedef struct _json_node {
 
 
 /* Walk the line */
-extern json_node_t *json_find_member_boolvalue(json_node_t *, const char *, bool *);
-extern json_node_t *json_find_member_strvalue(json_node_t *, const char *, char **);
-extern json_node_t *json_find_member_numbervalue(json_node_t *, const char *, double *);
-extern json_node_t *json_find_member_doublevalue(json_node_t *, const char *, double *);
-extern json_node_t *json_find_member_intvalue(json_node_t *, const char *, int *);
-extern json_node_t *json_find_member(json_node_t *, const char *);
-extern json_node_t *json_first_child(const json_node_t *);
+json_node_t *json_find_member_boolvalue(json_node_t *node, const char *name,
+					bool *value);
+json_node_t *json_find_member_strvalue(json_node_t *node, const char *name,
+				       char **value);
+json_node_t *json_find_member_numbervalue(json_node_t *node, const char *name,
+					  double *value);
+json_node_t *json_find_member_doublevalue(json_node_t *node, const char *name,
+					  double *value);
+json_node_t *json_find_member_intvalue(json_node_t *node, const char *name,
+				       int *value);
+json_node_t *json_find_member(json_node_t *node, const char *name);
+json_node_t *json_first_child(const json_node_t *);
 #define json_for_each_node(pos, head)		\
 	for (pos = json_first_child(head);	\
 		pos != NULL;			\
@@ -67,6 +72,6 @@ extern json_node_t *json_first_child(const json_node_t *);
 
 
 /* Prototypes */
-extern json_node_t *json_decode(const char *);
-extern void json_dump(json_node_t *);
-extern void json_destroy(json_node_t *);
+json_node_t *json_decode(const char *str);
+void json_dump(json_node_t *node);
+void json_destroy(json_node_t *node);

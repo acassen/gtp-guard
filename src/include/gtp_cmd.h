@@ -31,7 +31,7 @@ enum {
 	GTP_CMD_ECHO_REQUEST_EXTENDED,
 };
 
-typedef struct _gtp_cmd_args {
+typedef struct gtp_cmd_args {
 	int			type;
 	struct sockaddr_storage src_addr;
 	struct sockaddr_storage dst_addr;
@@ -50,4 +50,4 @@ typedef struct _gtp_cmd_args {
 } gtp_cmd_args_t;
 
 /* Prototypes */
-extern int gtp_cmd_echo_request(gtp_cmd_args_t *);
+int gtp_cmd_echo_request(gtp_cmd_args_t *);

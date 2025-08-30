@@ -26,5 +26,5 @@
 #define DEFAULT_DST_ADDR	0x8badf00d
 
 /* prototypes */
-extern int gtp_dpd_init(gtp_proxy_t *);
-extern int gtp_dpd_destroy(gtp_proxy_t *);
+int gtp_dpd_init(gtp_proxy_t *);
+int gtp_dpd_destroy(gtp_proxy_t *);

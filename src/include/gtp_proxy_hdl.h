@@ -26,7 +26,7 @@
 #include "gtp_session.h"
 
 /* Prototypes */
-extern gtp_session_t *gtpc_retransmit_detected(gtp_server_t *);
-extern gtp_teid_t *gtpu_proxy_handle(gtp_server_t *, struct sockaddr_storage *);
-extern gtp_teid_t *gtpc_proxy_handle(gtp_server_t *, struct sockaddr_storage *);
-extern int gtpc_proxy_handle_post(gtp_server_t *, gtp_teid_t *);
+gtp_session_t *gtpc_retransmit_detected(gtp_server_t *);
+gtp_teid_t *gtpu_proxy_handle(gtp_server_t *, struct sockaddr_storage *);
+gtp_teid_t *gtpc_proxy_handle(gtp_server_t *, struct sockaddr_storage *);
+int gtpc_proxy_handle_post(gtp_server_t *, gtp_teid_t *);

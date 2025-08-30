@@ -25,10 +25,10 @@
 
 /* extern types */
 extern unsigned long mem_allocated;
-extern void *xalloc(unsigned long);
-extern void *zalloc(unsigned long);
-extern void *xcalloc(size_t, unsigned long);
-extern void xfree(void *);
+void *xalloc(unsigned long size);
+void *zalloc(unsigned long size);
+void *xcalloc(size_t nmemb, unsigned long size);
+void xfree(void *p);
 
 /* Global alloc macro */
 #define ALLOC(n) (xalloc(n))

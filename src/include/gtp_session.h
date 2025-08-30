@@ -40,7 +40,7 @@ enum {
 };
 
 /* GTP session */
-typedef struct _gtp_session {
+typedef struct gtp_session {
 	uint32_t		id;
 	uint32_t		charging_id;
 	uint32_t		ipv4;
@@ -59,7 +59,7 @@ typedef struct _gtp_session {
 	int (*gtpu_teid_destroy) (gtp_teid_t *);
 
 	gtp_conn_t		*conn;		/* backpointer */
-	struct _spppoe		*s_pppoe;	/* PPPoE session peer */
+	struct spppoe		*s_pppoe;	/* PPPoE session peer */
 	gtp_server_t		*srv;		/* Server used */
 
 	uint8_t			action;
@@ -79,27 +79,27 @@ typedef struct _gtp_session {
 } gtp_session_t;
 
 /* Prototypes */
-extern int gtp_sessions_count_read(void);
-extern void gtp_session_dump(gtp_session_t *s);
-extern gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
-extern int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
-extern int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *);
-extern int gtp_session_gtpu_teid_xdp_add(gtp_session_t *);
-extern void gtp_session_mod_timer(gtp_session_t *, int);
-extern const char *gtp_session_roaming_status_str(gtp_session_t *);
-extern int gtp_session_roaming_status_set(gtp_session_t *);
-extern gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *,
-					int (*gtpc_destroy) (gtp_teid_t *),
-					int (*gtpu_destroy) (gtp_teid_t *));
-extern int gtp_session_gtpu_teid_destroy(gtp_teid_t *);
-extern int gtp_session_gtpc_teid_destroy(gtp_teid_t *);
-extern int gtp_session_destroy(gtp_session_t *);
-extern int gtp_session_set_delete_bearer(gtp_session_t *, gtp_ie_eps_bearer_id_t *);
-extern int gtp_session_destroy_bearer(gtp_session_t *);
-extern int gtp_session_destroy_teid(gtp_teid_t *);
-extern int gtp_session_uniq_ptype(gtp_conn_t *, uint8_t);
-extern int gtp_session_expire_now(gtp_session_t *);
-extern int gtp_sessions_release(gtp_conn_t *);
-extern int gtp_sessions_free(gtp_conn_t *);
-extern int gtp_sessions_init(void);
-extern int gtp_sessions_destroy(void);
+int gtp_sessions_count_read(void);
+void gtp_session_dump(gtp_session_t *s);
+gtp_teid_t *gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *, uint32_t);
+int gtp_session_gtpc_teid_add(gtp_session_t *, gtp_teid_t *);
+int gtp_session_gtpu_teid_add(gtp_session_t *, gtp_teid_t *);
+int gtp_session_gtpu_teid_xdp_add(gtp_session_t *);
+void gtp_session_mod_timer(gtp_session_t *, int);
+const char *gtp_session_roaming_status_str(gtp_session_t *);
+int gtp_session_roaming_status_set(gtp_session_t *);
+gtp_session_t *gtp_session_alloc(gtp_conn_t *, gtp_apn_t *,
+				 int (*gtpc_destroy) (gtp_teid_t *),
+				 int (*gtpu_destroy) (gtp_teid_t *));
+int gtp_session_gtpu_teid_destroy(gtp_teid_t *);
+int gtp_session_gtpc_teid_destroy(gtp_teid_t *);
+int gtp_session_destroy(gtp_session_t *);
+int gtp_session_set_delete_bearer(gtp_session_t *, gtp_ie_eps_bearer_id_t *);
+int gtp_session_destroy_bearer(gtp_session_t *);
+int gtp_session_destroy_teid(gtp_teid_t *);
+int gtp_session_uniq_ptype(gtp_conn_t *, uint8_t);
+int gtp_session_expire_now(gtp_session_t *);
+int gtp_sessions_release(gtp_conn_t *);
+int gtp_sessions_free(gtp_conn_t *);
+int gtp_sessions_init(void);
+int gtp_sessions_destroy(void);

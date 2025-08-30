@@ -24,6 +24,6 @@
 #include "gtp_teid.h"
 
 /* Prototypes */
-extern int gtpc_send_delete_bearer_request(gtp_teid_t *);
-extern int gtpc_router_handle(gtp_server_t *, struct sockaddr_storage *);
-extern int gtpu_router_handle(gtp_server_t *, struct sockaddr_storage *);
+int gtpc_send_delete_bearer_request(gtp_teid_t *);
+int gtpc_router_handle(gtp_server_t *, struct sockaddr_storage *);
+int gtpu_router_handle(gtp_server_t *, struct sockaddr_storage *);

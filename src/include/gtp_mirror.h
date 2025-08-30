@@ -39,7 +39,7 @@ typedef struct _gtp_mirror_rule {
 	list_head_t		next;
 } gtp_mirror_rule_t;
 
-typedef struct _gtp_mirror {
+typedef struct gtp_mirror {
 	char			name[GTP_STR_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	gtp_bpf_prog_t		*bpf_prog;
@@ -53,19 +53,19 @@ typedef struct _gtp_mirror {
 
 
 /* Prototypes */
-extern gtp_mirror_rule_t *gtp_mirror_rule_get(gtp_mirror_t *,
-					      const struct sockaddr_storage *,
-					      uint8_t, int);
-extern gtp_mirror_rule_t *gtp_mirror_rule_add(gtp_mirror_t *,
-					      const struct sockaddr_storage *,
-					      uint8_t, int);
-extern void gtp_mirror_rule_del(gtp_mirror_rule_t *);
-extern void gtp_mirror_brd_action(int, int);
-extern void gtp_mirror_load_bpf(gtp_mirror_t *);
-extern void gtp_mirror_unload_bpf(gtp_mirror_t *);
-extern void gtp_mirror_foreach(int (*hdl) (gtp_mirror_t *, void *), void *);
-extern gtp_mirror_t *gtp_mirror_get(const char *);
-extern int gtp_mirror_put(gtp_mirror_t *m);
-extern gtp_mirror_t *gtp_mirror_alloc(const char *);
-extern int gtp_mirror_destroy(gtp_mirror_t *);
-extern int gtp_mirrors_destroy(void);
+gtp_mirror_rule_t *gtp_mirror_rule_get(gtp_mirror_t *,
+				       const struct sockaddr_storage *,
+				       uint8_t, int);
+gtp_mirror_rule_t *gtp_mirror_rule_add(gtp_mirror_t *,
+				       const struct sockaddr_storage *,
+				       uint8_t, int);
+void gtp_mirror_rule_del(gtp_mirror_rule_t *);
+void gtp_mirror_brd_action(int, int);
+void gtp_mirror_load_bpf(gtp_mirror_t *);
+void gtp_mirror_unload_bpf(gtp_mirror_t *);
+void gtp_mirror_foreach(int (*hdl) (gtp_mirror_t *, void *), void *);
+gtp_mirror_t *gtp_mirror_get(const char *);
+int gtp_mirror_put(gtp_mirror_t *m);
+gtp_mirror_t *gtp_mirror_alloc(const char *);
+int gtp_mirror_destroy(gtp_mirror_t *);
+int gtp_mirrors_destroy(void);

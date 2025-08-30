@@ -131,11 +131,11 @@ vector_set(vector_t *v, void *val)
 
 /* Set a vector slot value */
 void
-vector_set_slot(vector_t *v, void *value)
+vector_set_slot(vector_t *v, void *val)
 {
 	unsigned int i = v->allocated - 1;
 
-	v->slot[i] = value;
+	v->slot[i] = val;
 }
 
 /* Set value to specified index slot. */

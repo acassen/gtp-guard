@@ -32,7 +32,7 @@ enum daemon_flags {
 };
 
 /* Main control block */
-typedef struct _data {
+typedef struct data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
 	inet_server_t		request_channel;
@@ -58,5 +58,5 @@ typedef struct _data {
 
 
 /* Prototypes */
-extern data_t *alloc_daemon_data(void);
-extern void free_daemon_data(void);
+data_t *alloc_daemon_data(void);
+void free_daemon_data(void);

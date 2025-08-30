@@ -25,5 +25,5 @@
 #include <syslog.h>
 
 void enable_console_log(void);
-void log_message(int, const char * , ...);
-void conf_write(FILE *, const char *, ...);
+void log_message(const int facility, const char *fmt, ...);
+void conf_write(FILE *fp, const char *fmt, ...);

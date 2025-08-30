@@ -271,23 +271,24 @@ extern char *command_cr;
 /*
  *	Prototypes
  */
-extern void install_node(cmd_node_t *);
-extern void install_default(node_type_t);
-extern void install_element(node_type_t, cmd_element_t *);
-extern void sort_node(void);
-extern char *argv_concat(const char **, int, int);
-extern vector_t *cmd_make_strvec(const char *);
-extern void cmd_free_strvec(vector_t *);
-extern vector_t *cmd_describe_command(vector_t *, vty_t *, int *);
-extern char **cmd_complete_command(vector_t *, vty_t *, int *);
-extern const char *cmd_prompt(node_type_t);
-extern int config_from_file(vty_t *, FILE *);
-extern node_type_t node_parent(node_type_t);
-extern int cmd_execute_command(vector_t *, vty_t *, cmd_element_t **, int);
-extern int cmd_execute_command_strict(vector_t *, vty_t *, cmd_element_t **);
-extern void config_replace_string(cmd_element_t *, char *, ...);
-void cmd_ext_register(cmd_ext_t *);
-extern void cmd_init(void);
-extern void cmd_terminate(void);
-extern char *host_config_file(void);
-extern void host_config_set(char *);
+void install_node(cmd_node_t *node);
+void install_default(node_type_t ntype);
+void install_element(node_type_t ntype, cmd_element_t *cmd);
+void sort_node(void);
+char *argv_concat(const char **argv, int argc, int shift);
+vector_t *cmd_make_strvec(const char *string);
+void cmd_free_strvec(vector_t *v);
+vector_t *cmd_describe_command(vector_t *vline, vty_t *vty, int *status);
+char **cmd_complete_command(vector_t *vline, vty_t *vty, int *status);
+const char *cmd_prompt(node_type_t ntype);
+int config_from_file(vty_t *vty, FILE *fp);
+node_type_t node_parent(node_type_t ntype);
+int cmd_execute_command(vector_t *vline, vty_t *vty, cmd_element_t **cmd,
+			int vtysh);
+int cmd_execute_command_strict(vector_t *vline, vty_t *vty,
+			       cmd_element_t **cmd);
+void cmd_ext_register(cmd_ext_t *ext);
+void cmd_init(void);
+void cmd_terminate(void);
+char *host_config_file(void);
+void host_config_set(char *filename);

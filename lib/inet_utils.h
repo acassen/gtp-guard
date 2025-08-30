@@ -72,43 +72,48 @@ typedef struct _ip_address {
 
 
 /* Prototypes defs */
-extern uint16_t in_csum(uint16_t *, int, uint16_t);
-extern uint16_t udp_csum(const void *, size_t, uint32_t, uint32_t);
-extern char *inet_ntop2(uint32_t);
-extern char *inet_ntoa2(uint32_t, char *);
-extern uint8_t inet_stom(char *);
-extern uint8_t inet_stor(char *);
-extern int inet_stoipaddress(const char *, ip_address_t *);
-extern char *inet_ipaddresstos(ip_address_t *, char *);
-extern int inet_stosockaddr(const char *, const uint16_t, struct sockaddr_storage *);
-extern int inet_ip4tosockaddr(uint32_t, struct sockaddr_storage *);
-extern char *inet_sockaddrtos(struct sockaddr_storage *);
-extern char *inet_sockaddrtos2(struct sockaddr_storage *, char *);
-extern uint16_t inet_sockaddrport(struct sockaddr_storage *);
-extern uint32_t inet_sockaddrip4(struct sockaddr_storage *);
-extern int inet_sockaddrip6(struct sockaddr_storage *, struct in6_addr *);
-extern int inet_ston(const char *, uint32_t *);
-extern uint32_t inet_broadcast(uint32_t, uint32_t);
-extern uint32_t inet_cidrtomask(uint8_t);
-extern char *inet_fd2str(int, char *, size_t);
-extern int inet_setsockopt_reuseaddr(int, int);
-extern int inet_setsockopt_nolinger(int, int);
-extern int inet_setsockopt_tcpcork(int, int);
-extern int inet_setsockopt_nodelay(int, int);
-extern int inet_setsockopt_keepalive(int, int);
-extern int inet_setsockopt_tcp_keepidle(int, int);
-extern int inet_setsockopt_tcp_keepcnt(int, int);
-extern int inet_setsockopt_tcp_keepintvl(int, int);
-extern int inet_setsockopt_rcvtimeo(int, int);
-extern int inet_setsockopt_sndtimeo(int, int);
-extern int inet_setsockopt_reuseport(int, int);
-extern int inet_setsockopt_hdrincl(int);
-extern int inet_setsockopt_broadcast(int);
-extern int inet_setsockopt_promisc(int, int, bool);
-extern int inet_setsockopt_attach_bpf(int, int);
-extern int inet_setsockopt_no_receive(int);
-extern int inet_setsockopt_rcvbuf(int, int);
-extern int inet_setsockopt_sndbuf(int, int);
-extern int inet_setsockopt_sndbufforce(int, int);
-extern int inet_setsockopt_bindtodevice(int, const char *);
-extern int inet_setsockopt_priority(int, int);
+uint16_t in_csum(uint16_t *addr, int, uint16_t csum);
+uint16_t udp_csum(const void *buffer, size_t len,
+		  uint32_t src_addr, uint32_t dst_addr);
+char *inet_ntop2(uint32_t addr);
+char *inet_ntoa2(uint32_t addr, char *buffer);
+uint8_t inet_stom(char *str);
+uint8_t inet_stor(char *str);
+int inet_stoipaddress(const char *str, ip_address_t *addr);
+char *inet_ipaddresstos(ip_address_t *addr, char *str);
+int inet_stosockaddr(const char *str, const uint16_t port,
+		     struct sockaddr_storage *addr);
+int inet_ip4tosockaddr(uint32_t addr_ip,
+		       struct sockaddr_storage *addr);
+char *inet_sockaddrtos2(struct sockaddr_storage *addr,
+			char *addr_str);
+char *inet_sockaddrtos(struct sockaddr_storage *addr);
+uint16_t inet_sockaddrport(struct sockaddr_storage *addr);
+uint32_t inet_sockaddrip4(struct sockaddr_storage *addr);
+int inet_sockaddrip6(struct sockaddr_storage *addr,
+		     struct in6_addr *ip6);
+int inet_ston(const char *str, uint32_t *addr);
+uint32_t inet_broadcast(uint32_t network, uint32_t netmask);
+uint32_t inet_cidrtomask(uint8_t cidr);
+char *inet_fd2str(int fd, char *dst, size_t dsize);
+int inet_setsockopt_reuseaddr(int fd, int onoff);
+int inet_setsockopt_nolinger(int fd, int onoff);
+int inet_setsockopt_tcpcork(int fd, int onoff);
+int inet_setsockopt_nodelay(int fd, int onoff);
+int inet_setsockopt_keepalive(int fd, int optval);
+int inet_setsockopt_tcp_keepidle(int fd, int optval);
+int inet_setsockopt_tcp_keepcnt(int fd, int optval);
+int inet_setsockopt_tcp_keepintvl(int fd, int optval);
+int inet_setsockopt_rcvtimeo(int fd, int timeout);
+int inet_setsockopt_sndtimeo(int fd, int timeout);
+int inet_setsockopt_reuseport(int fd, int onoff);
+int inet_setsockopt_hdrincl(int fd);
+int inet_setsockopt_broadcast(int fd);
+int inet_setsockopt_promisc(int fd, int ifindex, bool enable);
+int inet_setsockopt_attach_bpf(int fd, int prog_fd);
+int inet_setsockopt_no_receive(int fd);
+int inet_setsockopt_rcvbuf(int fd, int optval);
+int inet_setsockopt_sndbuf(int fd, int optval );
+int inet_setsockopt_sndbufforce(int fd, int optval);
+int inet_setsockopt_bindtodevice(int fd, const char *ifname);
+int inet_setsockopt_priority(int fd, int family);

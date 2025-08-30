@@ -254,7 +254,7 @@ cdr_fwd_remote_check(struct cdr_fwd_context *ctx)
 }
 
 static void
-_tick_remote_check(struct _thread *ev)
+_tick_remote_check(struct thread *ev)
 {
 	struct cdr_fwd_context *ctx = ev->arg;
 

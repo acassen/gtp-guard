@@ -158,7 +158,7 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 struct cgn_ctx *
 cgn_ctx_get_by_name(const char *name)
 {
-	list_head_t *l = &daemon_data->cgn;
+	struct list_head *l = &daemon_data->cgn;
 	struct cgn_ctx *c;
 
 	list_for_each_entry(c, l, next) {
@@ -211,7 +211,7 @@ cgn_init(void)
 int
 cgn_destroy(void)
 {
-	list_head_t *l = &daemon_data->cgn;
+	struct list_head *l = &daemon_data->cgn;
 	struct cgn_ctx *cgn, *cgn_tmp;
 
 	list_for_each_entry_safe(cgn, cgn_tmp, l, next) {

@@ -36,7 +36,7 @@ enum conn_flags {
 	GTP_CONN_F_DEBUG,
 };
 
-typedef struct _gtp_conn {
+typedef struct gtp_conn {
         uint64_t                imsi;
 	struct sockaddr_in	sgw_addr;
 
@@ -55,13 +55,13 @@ typedef struct _gtp_conn {
 
 
 /* Prototypes */
-extern int gtp_conn_count_read(void);
-extern int gtp_conn_get(gtp_conn_t *);
-extern int gtp_conn_put(gtp_conn_t *);
-extern gtp_conn_t *gtp_conn_alloc(uint64_t);
-extern gtp_conn_t *gtp_conn_get_by_imsi(uint64_t);
-extern int gtp_conn_hash(gtp_conn_t *);
-extern int gtp_conn_unhash(gtp_conn_t *);
-extern int gtp_conn_vty(vty_t *, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t);
-extern int gtp_conn_init(void);
-extern int gtp_conn_destroy(void);
+int gtp_conn_count_read(void);
+int gtp_conn_get(gtp_conn_t *);
+int gtp_conn_put(gtp_conn_t *);
+gtp_conn_t *gtp_conn_alloc(uint64_t);
+gtp_conn_t *gtp_conn_get_by_imsi(uint64_t);
+int gtp_conn_hash(gtp_conn_t *);
+int gtp_conn_unhash(gtp_conn_t *);
+int gtp_conn_vty(vty_t *, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t);
+int gtp_conn_init(void);
+int gtp_conn_destroy(void);

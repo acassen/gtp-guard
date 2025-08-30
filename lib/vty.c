@@ -57,7 +57,7 @@ static int no_password_check = 0;
 
 /* VTY standard output function. */
 int
-vty_out(vty_t *vty, const char *format, ...)
+vty_out(vty_t *vty, const char *fmt, ...)
 {
 	va_list args;
 	int len = 0;
@@ -68,15 +68,15 @@ vty_out(vty_t *vty, const char *format, ...)
 	char *s, *e;
 
 	if (vty_shell(vty)) {
-		va_start(args, format);
-		vprintf(format, args);
+		va_start(args, fmt);
+		vprintf(fmt, args);
 		va_end(args);
 		return len;
 	}
 
 	/* Try to write to initial buffer.  */
-	va_start(args, format);
-	len = vsnprintf(buf, sizeof buf, format, args);
+	va_start(args, fmt);
+	len = vsnprintf(buf, sizeof buf, fmt, args);
 	va_end(args);
 
 	/* Initial buffer is not enough.  */
@@ -94,8 +94,8 @@ vty_out(vty_t *vty, const char *format, ...)
 			}
 			p = tmp;
 
-			va_start(args, format);
-			len = vsnprintf(p, size, format, args);
+			va_start(args, fmt);
+			len = vsnprintf(p, size, fmt, args);
 			va_end(args);
 
 			if (len > -1 && len < size)
@@ -131,15 +131,15 @@ vty_out(vty_t *vty, const char *format, ...)
 }
 
 ssize_t
-vty_send_out(vty_t *vty, const char *format, ...)
+vty_send_out(vty_t *vty, const char *fmt, ...)
 {
 	va_list args;
 	int len = 0;
 	char buf[1024];
 
 	/* Try to write to initial buffer.  */
-	va_start(args, format);
-	len = vsnprintf(buf, sizeof(buf), format, args);
+	va_start(args, fmt);
+	len = vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
 
 	return write(vty->fd, buf, len);
@@ -1136,18 +1136,18 @@ vty_buffer_reset(vty_t *vty)
 
 /* Read data via vty socket. */
 static void
-vty_read(thread_t *thread)
+vty_read(thread_t *t)
 {
 	int i, nbytes;
 	unsigned char buf[VTY_READ_BUFSIZ];
 
-	int vty_sock = THREAD_FD(thread);
-	vty_t *vty = THREAD_ARG(thread);
+	int vty_sock = THREAD_FD(t);
+	vty_t *vty = THREAD_ARG(t);
 	vty->t_read = NULL;
 
 	/* Handle Read Timeout */
-	if (thread->type == THREAD_READ_TIMEOUT) {
-		vty_event(thread->master, VTY_READ, vty_sock, vty);
+	if (t->type == THREAD_READ_TIMEOUT) {
+		vty_event(t->master, VTY_READ, vty_sock, vty);
 		return;
 	}
 
@@ -1155,7 +1155,7 @@ vty_read(thread_t *thread)
 	if (vty->v_timeout) {
 		if (vty->t_timeout)
 			thread_del(vty->t_timeout);
-		vty->t_timeout = thread_add_timer(thread->master, vty_timeout, vty,
+		vty->t_timeout = thread_add_timer(t->master, vty_timeout, vty,
 						  vty->v_timeout*TIMER_HZ);
 	}
 
@@ -1163,7 +1163,7 @@ vty_read(thread_t *thread)
 	if ((nbytes = read(vty->fd, buf, VTY_READ_BUFSIZ)) <= 0) {
 		if (nbytes < 0) {
 			if (ERRNO_IO_RETRY(errno)) {
-				vty_event(thread->master, VTY_READ, vty_sock, vty);
+				vty_event(t->master, VTY_READ, vty_sock, vty);
 				return;
 			}
 			vty->monitor = 0; /* disable monitoring to avoid infinite recursion */
@@ -1325,29 +1325,29 @@ vty_read(thread_t *thread)
 
 	/* Check status. */
 	if (vty->status == VTY_CLOSE) {
-		thread_del(thread);
+		thread_del(t);
 		vty_close(vty);
 		return;
 	}
 
-	vty_event(thread->master, VTY_WRITE, vty_sock, vty);
-	vty_event(thread->master, VTY_READ, vty_sock, vty);
+	vty_event(t->master, VTY_WRITE, vty_sock, vty);
+	vty_event(t->master, VTY_READ, vty_sock, vty);
 }
 
 /* Flush buffer to the vty. */
 static void
-vty_flush(thread_t *thread)
+vty_flush(thread_t *t)
 {
 	int erase;
 	buffer_status_t flushrc;
-	int vty_sock = THREAD_FD(thread);
-	vty_t *vty = THREAD_ARG(thread);
+	int vty_sock = THREAD_FD(t);
+	vty_t *vty = THREAD_ARG(t);
 
 	vty->t_write = NULL;
 
 	/* Handle Write Timeout */
-	if (thread->type == THREAD_WRITE_TIMEOUT) {
-		vty_event(thread->master, VTY_WRITE, vty_sock, vty);
+	if (t->type == THREAD_WRITE_TIMEOUT) {
+		vty_event(t->master, VTY_WRITE, vty_sock, vty);
 		return;
 	}
 
@@ -1379,11 +1379,11 @@ vty_flush(thread_t *thread)
 		log_message(LOG_WARNING, "buffer_flush failed on vty client fd %d, closing"
 				       , vty->fd);
 		buffer_reset(vty->obuf);
-		thread_del(thread);
+		thread_del(t);
 		vty_close(vty);
 		break;
 	case BUFFER_EMPTY:
-		thread_del(thread);
+		thread_del(t);
 		if (vty->status == VTY_CLOSE) {
 			vty_close(vty);
 			break;
@@ -1391,17 +1391,17 @@ vty_flush(thread_t *thread)
 
 		vty->status = VTY_NORMAL;
 		if (vty->lines == 0)
-			vty_event(thread->master, VTY_READ, vty_sock, vty);
+			vty_event(t->master, VTY_READ, vty_sock, vty);
 		break;
 	case BUFFER_PENDING:
 		/* There is more data waiting to be written. */
 		vty->status = VTY_MORE;
 		if (vty->lines == 0) {
-			vty_event(thread->master, VTY_WRITE, vty_sock, vty);
+			vty_event(t->master, VTY_WRITE, vty_sock, vty);
 			break;
 		}
 
-		thread_del(thread);
+		thread_del(t);
 		break;
 	}
 }
@@ -1474,22 +1474,22 @@ vty_create(thread_master_t *m, int vty_sock, struct sockaddr_storage *addr)
 
 /* Accept connection from the network. */
 static void
-vty_accept(thread_t *thread)
+vty_accept(thread_t *t)
 {
 	struct sockaddr_storage sock;
 	socklen_t len;
 	int vty_sock, ret;
 	unsigned int on = 1;
-	int accept_sock = THREAD_FD(thread);
+	int accept_sock = THREAD_FD(t);
 
 	/* Handle Read Timeout */
-	if (thread->type == THREAD_READ_TIMEOUT) {
-		vty_event(thread->master, VTY_SERV, accept_sock, thread->arg);
+	if (t->type == THREAD_READ_TIMEOUT) {
+		vty_event(t->master, VTY_SERV, accept_sock, t->arg);
 		return;
 	}
 
 	/* We continue hearing vty socket. */
-	vty_event(thread->master, VTY_SERV, accept_sock, thread->arg);
+	vty_event(t->master, VTY_SERV, accept_sock, t->arg);
 
 	/* We can handle IPv4 or IPv6 socket. */
 	memset(&sock, 0, sizeof(struct sockaddr_storage));
@@ -1510,7 +1510,7 @@ vty_accept(thread_t *thread)
 
 	log_message(LOG_INFO, "Vty connection from %s" , inet_sockaddrtos(&sock));
 
-	vty_create(thread->master, vty_sock, &sock);
+	vty_create(t->master, vty_sock, &sock);
 }
 
 /* Start listner thread */
@@ -1620,11 +1620,11 @@ vty_close(vty_t *vty)
 
 /* When time out occur output message then close connection. */
 static void
-vty_timeout(thread_t *thread)
+vty_timeout(thread_t *t)
 {
 	vty_t *vty;
 
-	vty = THREAD_ARG(thread);
+	vty = THREAD_ARG(t);
 	vty->t_timeout = NULL;
 	vty->v_timeout = 0;
 

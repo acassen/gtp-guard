@@ -22,6 +22,6 @@
 #pragma once
 
 /* Prototypes */
-extern int pidfile_write(char *, int);
-extern void pidfile_rm(char *);
-extern int process_running(char *);
+int pidfile_write(char *pathname, int pid);
+void pidfile_rm(char *pathname);
+int process_running(char *pathname);

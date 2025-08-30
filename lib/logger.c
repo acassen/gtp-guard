@@ -34,13 +34,13 @@ enable_console_log(void)
 }
 
 void
-log_message(const int facility, const char *format, ...)
+log_message(const int facility, const char *fmt, ...)
 {
 	va_list args;
 	char buf[256];
 
-	va_start(args, format);
-	vsnprintf(buf, sizeof(buf), format, args);
+	va_start(args, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
 
 	if (log_console) {
@@ -51,16 +51,16 @@ log_message(const int facility, const char *format, ...)
 }
 
 void
-conf_write(FILE *fp, const char *format, ...)
+conf_write(FILE *fp, const char *fmt, ...)
 {
 	va_list args;
 
-	va_start(args, format);
+	va_start(args, fmt);
 	if (fp) {
-		vfprintf(fp, format, args);
+		vfprintf(fp, fmt, args);
 		fprintf(fp, "\n");
 	} else
-		log_message(LOG_INFO, format, args);
+		log_message(LOG_INFO, fmt, args);
 
 	va_end(args);
 }

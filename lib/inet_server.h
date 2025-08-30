@@ -100,10 +100,11 @@ typedef struct _inet_server {
 } inet_server_t;
 
 
-
 /* Prototypes */
-extern ssize_t inet_http_read(inet_cnx_t *);
-extern int inet_server_worker_start(inet_server_t *);
-extern int inet_server_init(inet_server_t *);
-extern int inet_server_destroy(inet_server_t *);
-extern int inet_server_for_each_worker(inet_server_t *, int (*cb) (inet_worker_t *, void *), void *);
+ssize_t inet_http_read(inet_cnx_t *c);
+int inet_server_worker_start(inet_server_t *s);
+int inet_server_init(inet_server_t *s);
+int inet_server_destroy(inet_server_t *s);
+int inet_server_for_each_worker(inet_server_t *s,
+				int (*cb) (inet_worker_t *, void *),
+				void *arg);

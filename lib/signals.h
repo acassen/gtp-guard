@@ -43,18 +43,14 @@ sigmask_func(int how, const sigset_t *set, sigset_t *oldset)
 }
 
 /* Prototypes */
-extern int get_signum(const char *);
-extern void signal_set(int, void (*) (void *, int), void *);
-extern void signal_ignore(int);
-extern int signal_handler_init(void);
-extern void signal_handler_destroy(void);
-extern void signal_handler_script(void);
-extern void add_signal_read_thread(thread_master_t *);
-extern void cancel_signal_read_thread(void);
-extern void set_sigxcpu_handler(void);
-extern void signal_noignore_sigchld(void);
-extern void signal_noignore_sig(int);
-
-#ifdef THREAD_DUMP
-extern void register_signal_thread_addresses(void);
-#endif
+int get_signum(const char *sigfunc);
+void signal_set(int signo, void (*func) (void *, int), void *v);
+void signal_ignore(int signo);
+int signal_handler_init(void);
+void signal_handler_destroy(void);
+void signal_handler_script(void);
+void add_signal_read_thread(thread_master_t *m);
+void cancel_signal_read_thread(void);
+void set_sigxcpu_handler(void);
+void signal_noignore_sigchld(void);
+void signal_noignore_sig(int sig);

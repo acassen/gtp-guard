@@ -36,7 +36,7 @@ enum pppoe_session_flags {
 	GTP_PPPOE_FL_AUTH_FAILED,
 };
 
-typedef struct _spppoe {
+typedef struct spppoe {
 	uint8_t			id;		/* Local id */
 	int			state;		/* [K] discovery phase or session connected */
 	struct ether_addr	hw_src;		/* [K] our hardware address */
@@ -57,8 +57,8 @@ typedef struct _spppoe {
 
 	time_t	 		session_time;	/* time the session was established */
 
-	struct _gtp_session	*s_gtp;		/* our GTP Session peer */
-	struct _sppp		*s_ppp;		/* PPP session */
+	struct gtp_session	*s_gtp;		/* our GTP Session peer */
+	struct sppp		*s_ppp;		/* PPP session */
 	pppoe_t			*pppoe;		/* back-pointer */
 	gtp_teid_t		*teid;		/* TEID we are linked to */
 	struct sockaddr_storage gtpc_peer_addr;	/* Remote GTP-C peer */
@@ -76,18 +76,18 @@ typedef struct _spppoe {
 
 
 /* Prototypes */
-extern int spppoe_sessions_count_read(void);
-extern spppoe_t *spppoe_get_by_unique(uint32_t);
-extern spppoe_t *spppoe_get_by_session(struct ether_addr *, uint16_t);
-extern int spppoe_session_hash(spppoe_t *, struct ether_addr *, uint16_t);
-extern void spppoe_free(spppoe_t *);
-extern int spppoe_destroy(spppoe_t *);
-extern spppoe_t *spppoe_alloc(pppoe_t *, gtp_conn_t *,
-			      void (*pp_tls)(struct _sppp *), void (*pp_tlf)(struct _sppp *),
-			      void (*pp_con)(struct _sppp *), void (*pp_chg)(struct _sppp *, int),
-			      const uint64_t, const uint64_t, const char *,
-			      gtp_id_ecgi_t *, gtp_ie_ambr_t *);
-extern int spppoe_close(spppoe_t *);
-extern int spppoe_disconnect(spppoe_t *);
-extern int spppoe_tracking_init(void);
-extern int spppoe_tracking_destroy(void);
+int spppoe_sessions_count_read(void);
+spppoe_t *spppoe_get_by_unique(uint32_t);
+spppoe_t *spppoe_get_by_session(struct ether_addr *, uint16_t);
+int spppoe_session_hash(spppoe_t *, struct ether_addr *, uint16_t);
+void spppoe_free(spppoe_t *);
+int spppoe_destroy(spppoe_t *);
+spppoe_t *spppoe_alloc(pppoe_t *, gtp_conn_t *,
+		       void (*pp_tls)(struct sppp *), void (*pp_tlf)(struct sppp *),
+		       void (*pp_con)(struct sppp *), void (*pp_chg)(struct sppp *, int),
+		       const uint64_t, const uint64_t, const char *,
+		       gtp_id_ecgi_t *, gtp_ie_ambr_t *);
+int spppoe_close(spppoe_t *);
+int spppoe_disconnect(spppoe_t *);
+int spppoe_tracking_init(void);
+int spppoe_tracking_destroy(void);

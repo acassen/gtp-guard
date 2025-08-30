@@ -80,10 +80,10 @@ prefix6_bit(const struct in6_addr *prefix, const uint8_t prefixlen)
 /*
  *	Prototypes
  */
-extern int prefix_match(const prefix_t *, const prefix_t *);
-extern int prefix_copy(prefix_t *, const prefix_t *);
-extern int str2prefix(const char *, prefix_t *);
-extern int ip2prefix_ipv4(const uint32_t, prefix_t *);
-extern prefix_t *prefix_alloc(void);
-extern void prefix_free(prefix_t *);
-extern void prefix_dump(prefix_t *);
+int prefix_match(const prefix_t *n, const prefix_t *p);
+int prefix_copy(prefix_t *dst, const prefix_t *src);
+int str2prefix(const char *str, prefix_t *p);
+int ip2prefix_ipv4(const uint32_t addr, prefix_t *p);
+prefix_t *prefix_alloc(void);
+void prefix_free(prefix_t *p);
+void prefix_dump(prefix_t *p);

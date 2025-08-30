@@ -50,7 +50,7 @@ enum gtp_teid_flags {
 #define TEID_IS_DUMMY(X)	((X)->type == 0xff)
 
 /* GTP Connection tracking */
-typedef struct _gtp_teid {
+typedef struct gtp_teid {
 	uint8_t			version;	/* GTPv1 or GTPv2 */
 	uint8_t			type;		/* User or Contrlo plane */
 	uint32_t		id;		/* Remote TEID */
@@ -64,10 +64,10 @@ typedef struct _gtp_teid {
 	uint32_t		sqn;		/* Local Seqnum */
 	uint32_t		vsqn;		/* Local Virtual Seqnum */
 
-	struct _gtp_session	*session;	/* backpointer */
-	struct _gtp_teid	*peer_teid;	/* Linked TEID */
-	struct _gtp_teid	*old_teid;	/* Old Linked TEID */
-	struct _gtp_teid	*bearer_teid;	/* GTP-C Bearer TEID */
+	struct gtp_session	*session;	/* backpointer */
+	struct gtp_teid		*peer_teid;	/* Linked TEID */
+	struct gtp_teid		*old_teid;	/* Old Linked TEID */
+	struct gtp_teid		*bearer_teid;	/* GTP-C Bearer TEID */
 
 	uint8_t			action;
 	struct hlist_node	hlist_teid;
@@ -79,7 +79,7 @@ typedef struct _gtp_teid {
 	int			refcnt;
 } gtp_teid_t;
 
-typedef struct _gtp_f_teid {
+typedef struct gtp_f_teid {
 	uint8_t			version;
 	uint32_t		*teid_grekey;
 	union {
@@ -90,32 +90,32 @@ typedef struct _gtp_f_teid {
 
 
 /* Prototypes */
-extern int gtp_teid_init(void);
-extern int gtp_teid_destroy(void);
-extern void gtp_teid_free(gtp_teid_t *);
-extern int gtp_teid_unuse_queue_size(void);
-extern int gtp_teid_put(gtp_teid_t *);
-extern gtp_teid_t *gtp_teid_get(gtp_htab_t *, gtp_f_teid_t *);
-extern gtp_teid_t *gtpc_teid_get(gtp_f_teid_t *);
-extern gtp_teid_t *gtpu_teid_get(gtp_f_teid_t *);
-extern gtp_teid_t *gtp_teid_alloc_peer(gtp_htab_t *, gtp_teid_t *, uint32_t,
-				       gtp_ie_eps_bearer_id_t *, unsigned int *);
-extern gtp_teid_t *gtpc_teid_alloc_peer(gtp_teid_t *, uint32_t,
-				        gtp_ie_eps_bearer_id_t *, unsigned int *);
-extern gtp_teid_t *gtpu_teid_alloc_peer(gtp_teid_t *, uint32_t,
-				        gtp_ie_eps_bearer_id_t *, unsigned int *);
-extern gtp_teid_t *gtp_teid_alloc(gtp_htab_t *, gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
-extern gtp_teid_t *gtpc_teid_alloc(gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
-extern gtp_teid_t *gtpu_teid_alloc(gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
-extern int gtp_teid_unhash(gtp_htab_t *, gtp_teid_t *);
-extern int gtpc_teid_unhash(gtp_teid_t *);
-extern int gtpu_teid_unhash(gtp_teid_t *);
-extern void gtp_teid_bind(gtp_teid_t *, gtp_teid_t *);
-extern int gtp_teid_masq(gtp_f_teid_t *, struct sockaddr_storage *, uint32_t);
-extern int gtp_teid_restore(gtp_teid_t *, gtp_f_teid_t *);
-extern int gtp_teid_update_sgw(gtp_teid_t *, struct sockaddr_storage *);
-extern int gtp_teid_update_pgw(gtp_teid_t *, struct sockaddr_storage *);
-extern void gtp_teid_dump(gtp_teid_t *);
-extern int gtp_vteid_alloc(gtp_htab_t *, gtp_teid_t *, unsigned int *);
-extern int gtp_vteid_unhash(gtp_htab_t *, gtp_teid_t *);
-extern gtp_teid_t *gtp_vteid_get(gtp_htab_t *, uint32_t);
+int gtp_teid_init(void);
+int gtp_teid_destroy(void);
+void gtp_teid_free(gtp_teid_t *);
+int gtp_teid_unuse_queue_size(void);
+int gtp_teid_put(gtp_teid_t *);
+gtp_teid_t *gtp_teid_get(gtp_htab_t *, gtp_f_teid_t *);
+gtp_teid_t *gtpc_teid_get(gtp_f_teid_t *);
+gtp_teid_t *gtpu_teid_get(gtp_f_teid_t *);
+gtp_teid_t *gtp_teid_alloc_peer(gtp_htab_t *, gtp_teid_t *, uint32_t,
+				gtp_ie_eps_bearer_id_t *, unsigned int *);
+gtp_teid_t *gtpc_teid_alloc_peer(gtp_teid_t *, uint32_t,
+				 gtp_ie_eps_bearer_id_t *, unsigned int *);
+gtp_teid_t *gtpu_teid_alloc_peer(gtp_teid_t *, uint32_t,
+				 gtp_ie_eps_bearer_id_t *, unsigned int *);
+gtp_teid_t *gtp_teid_alloc(gtp_htab_t *, gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
+gtp_teid_t *gtpc_teid_alloc(gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
+gtp_teid_t *gtpu_teid_alloc(gtp_f_teid_t *, gtp_ie_eps_bearer_id_t *);
+int gtp_teid_unhash(gtp_htab_t *, gtp_teid_t *);
+int gtpc_teid_unhash(gtp_teid_t *);
+int gtpu_teid_unhash(gtp_teid_t *);
+void gtp_teid_bind(gtp_teid_t *, gtp_teid_t *);
+int gtp_teid_masq(gtp_f_teid_t *, struct sockaddr_storage *, uint32_t);
+int gtp_teid_restore(gtp_teid_t *, gtp_f_teid_t *);
+int gtp_teid_update_sgw(gtp_teid_t *, struct sockaddr_storage *);
+int gtp_teid_update_pgw(gtp_teid_t *, struct sockaddr_storage *);
+void gtp_teid_dump(gtp_teid_t *);
+int gtp_vteid_alloc(gtp_htab_t *, gtp_teid_t *, unsigned int *);
+int gtp_vteid_unhash(gtp_htab_t *, gtp_teid_t *);
+gtp_teid_t *gtp_vteid_get(gtp_htab_t *, uint32_t);

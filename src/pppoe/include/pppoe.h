@@ -94,19 +94,19 @@
 #define PPPOE_MPKT		10
 #define PPPOE_BUNDLE_MAXSIZE	5
 
-typedef struct _pppoe_hdr {
+typedef struct pppoe_hdr {
 	uint8_t		vertype;
 	uint8_t		code;
 	uint16_t	session;
 	uint16_t	plen;
 } __attribute__((packed)) pppoe_hdr_t;
 
-typedef struct _pppoe_tag {
+typedef struct pppoe_tag {
 	uint16_t	tag;
 	uint16_t	len;
 } __attribute__((packed)) pppoe_tag_t;
 
-typedef struct _pppoe_vendor_tag {
+typedef struct pppoe_vendor_tag {
 	uint8_t		tag;
 	uint8_t		len;
 } __attribute__((packed)) pppoe_vendor_tag_t;
@@ -143,11 +143,11 @@ enum pppoe_flags {
 	PPPOE_FL_METRIC_PPPOE_BIT,
 };
 
-typedef struct _pppoe_channel {
+typedef struct pppoe_channel {
 	char			pname[GTP_PNAME];
 	uint16_t		proto;
 	int			fd;
-	struct _pppoe		*pppoe;		/* backpointer */
+	struct pppoe		*pppoe;		/* backpointer */
 
 	mpkt_t			mpkt;
 	pkt_queue_t		pkt_q;
@@ -161,10 +161,10 @@ typedef struct _pppoe_channel {
 	gtp_metrics_pkt_t	tx_metrics;
 } pppoe_channel_t;
 
-typedef struct _pppoe_bundle {
+typedef struct pppoe_bundle {
 	char			name[GTP_NAME_MAX_LEN];
 
-	struct _pppoe	**pppoe;
+	struct pppoe		**pppoe;
 	int			instance_idx;
 
 	list_head_t		next;
@@ -172,7 +172,7 @@ typedef struct _pppoe_bundle {
 	unsigned long		flags;
 } pppoe_bundle_t;
 
-typedef struct _pppoe {
+typedef struct pppoe {
 	char			name[GTP_NAME_MAX_LEN];
 	char			ifname[GTP_NAME_MAX_LEN];
 	unsigned int		ifindex;
@@ -215,34 +215,34 @@ typedef struct _pppoe {
 } pppoe_t;
 
 /* Prototypes */
-extern int vrrp_metrics_dump(FILE *);
-extern int vrrp_metrics_reset(pppoe_t *);
-extern int ppp_metric_update(pppoe_t *, uint16_t, int, int);
-extern int ppp_metric_update_total(pppoe_t *, uint16_t, int);
-extern int ppp_metric_update_dropped(pppoe_t *, int);
-extern int ppp_metrics_reset(pppoe_t *);
-extern int pppoe_metric_update(pppoe_t *, int, int);
-extern int pppoe_metrics_reset(pppoe_t *);
-extern int pppoe_metrics_dump(FILE *);
-extern int pppoe_metrics_alloc(pppoe_t *);
-extern int pppoe_metrics_destroy(pppoe_t *);
+int vrrp_metrics_dump(FILE *);
+int vrrp_metrics_reset(pppoe_t *);
+int ppp_metric_update(pppoe_t *, uint16_t, int, int);
+int ppp_metric_update_total(pppoe_t *, uint16_t, int);
+int ppp_metric_update_dropped(pppoe_t *, int);
+int ppp_metrics_reset(pppoe_t *);
+int pppoe_metric_update(pppoe_t *, int, int);
+int pppoe_metrics_reset(pppoe_t *);
+int pppoe_metrics_dump(FILE *);
+int pppoe_metrics_alloc(pppoe_t *);
+int pppoe_metrics_destroy(pppoe_t *);
 
-extern void pppoe_metrics_foreach(int (*hdl) (pppoe_t *, void *, const char *, int),
-				      void *, const char *, int);
-extern void pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *);
-extern pppoe_t *pppoe_get_by_name(const char *);
-extern int pppoe_disc_send(pppoe_t *, pkt_t *);
-extern int pppoe_ses_send(pppoe_t *, pkt_t *);
-extern int pppoe_put(pppoe_t *);
-extern int pppoe_start(pppoe_t *);
-extern int pppoe_release(pppoe_t *);
-extern int pppoe_interface_init(pppoe_t *, const char *);
-extern pppoe_t *pppoe_alloc(const char *);
-extern int pppoe_init(void);
-extern int pppoe_destroy(void);
+void pppoe_metrics_foreach(int (*hdl) (pppoe_t *, void *, const char *, int),
+			   void *, const char *, int);
+void pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *);
+pppoe_t *pppoe_get_by_name(const char *);
+int pppoe_disc_send(pppoe_t *, pkt_t *);
+int pppoe_ses_send(pppoe_t *, pkt_t *);
+int pppoe_put(pppoe_t *);
+int pppoe_start(pppoe_t *);
+int pppoe_release(pppoe_t *);
+int pppoe_interface_init(pppoe_t *, const char *);
+pppoe_t *pppoe_alloc(const char *);
+int pppoe_init(void);
+int pppoe_destroy(void);
 
-extern pppoe_bundle_t *pppoe_bundle_get_by_name(const char *);
-extern pppoe_bundle_t *pppoe_bundle_init(const char *);
-extern pppoe_t *pppoe_bundle_get_active_instance(pppoe_bundle_t *);
-extern int pppoe_bundle_release(pppoe_bundle_t *);
-extern int pppoe_bundle_destroy(void);
+pppoe_bundle_t *pppoe_bundle_get_by_name(const char *);
+pppoe_bundle_t *pppoe_bundle_init(const char *);
+pppoe_t *pppoe_bundle_get_active_instance(pppoe_bundle_t *);
+int pppoe_bundle_release(pppoe_bundle_t *);
+int pppoe_bundle_destroy(void);

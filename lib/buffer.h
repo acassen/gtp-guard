@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <stddef.h>
 
 /* buffer definition */
@@ -51,17 +52,17 @@ typedef enum _buffer_status {
 	(((EN) == EAGAIN) || ((EN) == EWOULDBLOCK) || ((EN) == EINTR))
 
 /* Prototypes */
-extern buffer_t *buffer_new(size_t);
-extern void buffer_reset(buffer_t *);
-extern void buffer_free(buffer_t *);
-extern void buffer_put(buffer_t *, const void *, size_t);
-extern void buffer_putc(buffer_t *, uint8_t);
-extern void buffer_putstr(buffer_t *, const char *);
-extern char *buffer_getstr(buffer_t *);
-extern int buffer_empty(buffer_t *);
-extern buffer_status_t buffer_write(buffer_t *, int fd,
-                                    const void *, size_t);
-extern buffer_status_t buffer_flush_available(buffer_t *, int fd);
-extern buffer_status_t buffer_flush_all(buffer_t *, int fd);
-extern buffer_status_t buffer_flush_window(buffer_t *, int fd, int width,
-                                           int height, int erase, int no_more);
+buffer_t *buffer_new(size_t size);
+void buffer_free(buffer_t *b);
+char *buffer_getstr(buffer_t *b);
+int buffer_empty(buffer_t *b);
+void buffer_reset(buffer_t *b);
+void buffer_put(buffer_t *b, const void *p, size_t size);
+void buffer_putc(buffer_t *b, uint8_t c);
+void buffer_putstr(buffer_t *b, const char *c);
+buffer_status_t buffer_write(buffer_t *b, int fd,
+                             const void *p, size_t size);
+buffer_status_t buffer_flush_all(buffer_t *b, int fd);
+buffer_status_t buffer_flush_window(buffer_t *b, int fd, int width,
+                                    int height, int erase, int no_more);
+buffer_status_t buffer_flush_available(buffer_t *b, int fd);

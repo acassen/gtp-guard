@@ -36,34 +36,34 @@
 
 /* Move ready thread into ready queue */
 static void
-thread_move_ready(thread_master_t *m, rb_root_cached_t *root, thread_t *thread, int type)
+thread_move_ready(thread_master_t *m, rb_root_cached_t *root, thread_t *t, int type)
 {
-	rb_erase_cached(&thread->n, root);
-	INIT_LIST_HEAD(&thread->e_list);
-	list_add_tail(&thread->e_list, &m->ready);
-	if (thread->type != THREAD_TIMER_SHUTDOWN)
-		thread->type = type;
+	rb_erase_cached(&t->n, root);
+	INIT_LIST_HEAD(&t->e_list);
+	list_add_tail(&t->e_list, &m->ready);
+	if (t->type != THREAD_TIMER_SHUTDOWN)
+		t->type = type;
 }
 
 /* Move ready thread into ready queue */
 static void
 thread_rb_move_ready(thread_master_t *m, rb_root_cached_t *root, int type)
 {
-	thread_t *thread;
-	rb_node_t *thread_node;
+	thread_t *t;
+	rb_node_t *t_node;
 
-	while ((thread_node = rb_first_cached(root))) {
-		thread = rb_entry(thread_node, thread_t, n);
+	while ((t_node = rb_first_cached(root))) {
+		t = rb_entry(t_node, thread_t, n);
 
-		if (thread->sands.tv_sec == TIMER_DISABLED || timercmp(&time_now, &thread->sands, <))
+		if (t->sands.tv_sec == TIMER_DISABLED || timercmp(&time_now, &t->sands, <))
 			break;
 
 		if (type == THREAD_READ_TIMEOUT)
-			thread->event->read = NULL;
+			t->event->read = NULL;
 		else if (type == THREAD_WRITE_TIMEOUT)
-			thread->event->write = NULL;
+			t->event->write = NULL;
 
-		thread_move_ready(m, root, thread, type);
+		thread_move_ready(m, root, t, type);
 	}
 }
 
@@ -137,9 +137,9 @@ thread_set_timer(thread_master_t *m)
 }
 
 static void
-thread_timerfd_handler(thread_t *thread)
+thread_timerfd_handler(thread_t *t)
 {
-	thread_master_t *m = thread->master;
+	thread_master_t *m = t->master;
 	uint64_t expired;
 	ssize_t len;
 
@@ -239,10 +239,10 @@ thread_event_clean(thread_master_t *m)
 }
 
 static int
-thread_event_set(const thread_t *thread)
+thread_event_set(const thread_t *t)
 {
-	thread_event_t *event = thread->event;
-	thread_master_t *m = thread->master;
+	thread_event_t *event = t->event;
+	thread_master_t *m = t->master;
 	struct epoll_event ev = { .events = 0, .data.ptr = event };
 	int op;
 
@@ -267,10 +267,10 @@ thread_event_set(const thread_t *thread)
 }
 
 static int
-thread_event_cancel(const thread_t *thread)
+thread_event_cancel(const thread_t *t)
 {
-	thread_event_t *event = thread->event;
-	thread_master_t *m = thread->master;
+	thread_event_t *event = t->event;
+	thread_master_t *m = t->master;
 
 	if (!event) {
 		log_message(LOG_INFO, "scheduler: Error performing epoll_ctl DEL op no event linked?!");
@@ -292,9 +292,9 @@ thread_event_cancel(const thread_t *thread)
 }
 
 static int
-thread_event_del(const thread_t *thread, unsigned flag)
+thread_event_del(const thread_t *t, unsigned flag)
 {
-	thread_event_t *event = thread->event;
+	thread_event_t *event = t->event;
 
 	if (!__test_bit(flag, &event->flags))
 		return 0;
@@ -302,19 +302,19 @@ thread_event_del(const thread_t *thread, unsigned flag)
 	if (flag == THREAD_FL_EPOLL_READ_BIT) {
 		__clear_bit(THREAD_FL_READ_BIT, &event->flags);
 		if (!__test_bit(THREAD_FL_EPOLL_WRITE_BIT, &event->flags))
-			return thread_event_cancel(thread);
+			return thread_event_cancel(t);
 
 		event->read = NULL;
 	}
 	else if (flag == THREAD_FL_EPOLL_WRITE_BIT) {
 		__clear_bit(THREAD_FL_WRITE_BIT, &event->flags);
 		if (!__test_bit(THREAD_FL_EPOLL_READ_BIT, &event->flags))
-			return thread_event_cancel(thread);
+			return thread_event_cancel(t);
 
 		event->write = NULL;
 	}
 
-	if (thread_event_set(thread) < 0)
+	if (thread_event_set(t) < 0)
 		return -1;
 
 	__clear_bit(flag, &event->flags);
@@ -371,14 +371,14 @@ RB_TIMER_LESS(thread, n);
 static void
 thread_clean_unuse(thread_master_t *m)
 {
-	thread_t *thread, *thread_tmp;
+	thread_t *t, *_t;
 	list_head_t *l = &m->unuse;
 
-	list_for_each_entry_safe(thread, thread_tmp, l, e_list) {
-		list_del_init(&thread->e_list);
+	list_for_each_entry_safe(t, _t, l, e_list) {
+		list_del_init(&t->e_list);
 
 		/* free the thread */
-		FREE(thread);
+		FREE(t);
 		m->alloc--;
 	}
 
@@ -387,63 +387,62 @@ thread_clean_unuse(thread_master_t *m)
 
 /* Move thread to unuse list. */
 static void
-thread_add_unuse(thread_master_t *m, thread_t *thread)
+thread_add_unuse(thread_master_t *m, thread_t *t)
 {
 	assert(m != NULL);
 
-	thread->type = THREAD_UNUSED;
-	thread->event = NULL;
-	list_add_tail(&thread->e_list, &m->unuse);
+	t->type = THREAD_UNUSED;
+	t->event = NULL;
+	list_add_tail(&t->e_list, &m->unuse);
 }
 
 /* Move list element to unuse queue */
 static void
 thread_destroy_list(thread_master_t *m, list_head_t *l)
 {
-	thread_t *thread, *thread_tmp;
+	thread_t *t, *_t;
 
-	list_for_each_entry_safe(thread, thread_tmp, l, e_list) {
+	list_for_each_entry_safe(t, _t, l, e_list) {
 		/* The following thread types are relevant for the ready list */
-		if (thread->type == THREAD_READY_READ_FD ||
-		    thread->type == THREAD_READY_WRITE_FD ||
-		    thread->type == THREAD_READ_TIMEOUT ||
-		    thread->type == THREAD_WRITE_TIMEOUT ||
-		    thread->type == THREAD_READ_ERROR ||
-		    thread->type == THREAD_WRITE_ERROR) {
+		if (t->type == THREAD_READY_READ_FD ||
+		    t->type == THREAD_READY_WRITE_FD ||
+		    t->type == THREAD_READ_TIMEOUT ||
+		    t->type == THREAD_WRITE_TIMEOUT ||
+		    t->type == THREAD_READ_ERROR ||
+		    t->type == THREAD_WRITE_ERROR) {
 			/* Do we have a file descriptor that needs closing ? */
-			if (thread->u.f.flags & THREAD_DESTROY_CLOSE_FD)
-				thread_close_fd(thread);
+			if (t->u.f.flags & THREAD_DESTROY_CLOSE_FD)
+				thread_close_fd(t);
 
 			/* Do we need to free arg? */
-			if (thread->u.f.flags & THREAD_DESTROY_FREE_ARG)
-				FREE(thread->arg);
+			if (t->u.f.flags & THREAD_DESTROY_FREE_ARG)
+				FREE(t->arg);
 		}
 
-		list_del_init(&thread->e_list);
-		thread_add_unuse(m, thread);
+		list_del_init(&t->e_list);
+		thread_add_unuse(m, t);
 	}
 }
 
 static void
 thread_destroy_rb(thread_master_t *m, rb_root_cached_t *root)
 {
-	thread_t *thread;
-	thread_t *thread_sav;
+	thread_t *t, *_t;
 
-	rbtree_postorder_for_each_entry_safe(thread, thread_sav, &root->rb_root, n) {
+	rbtree_postorder_for_each_entry_safe(t, _t, &root->rb_root, n) {
 		/* The following are relevant for the read and write rb lists */
-		if (thread->type == THREAD_READ ||
-		    thread->type == THREAD_WRITE) {
+		if (t->type == THREAD_READ ||
+		    t->type == THREAD_WRITE) {
 			/* Do we have a file descriptor that needs closing ? */
-			if (thread->u.f.flags & THREAD_DESTROY_CLOSE_FD)
-				thread_close_fd(thread);
+			if (t->u.f.flags & THREAD_DESTROY_CLOSE_FD)
+				thread_close_fd(t);
 
 			/* Do we need to free arg? */
-			if (thread->u.f.flags & THREAD_DESTROY_FREE_ARG)
-				FREE(thread->arg);
+			if (t->u.f.flags & THREAD_DESTROY_FREE_ARG)
+				FREE(t->arg);
 		}
 
-		thread_add_unuse(m, thread);
+		thread_add_unuse(m, t);
 	}
 
 	*root = RB_ROOT_CACHED;
@@ -483,14 +482,14 @@ thread_destroy_master(thread_master_t *m)
 static thread_t *
 thread_trim_head(list_head_t *l)
 {
-	thread_t *thread;
+	thread_t *t;
 
 	if (list_empty(l))
 		return NULL;
 
-	thread = list_first_entry(l, thread_t, e_list);
-	list_del_init(&thread->e_list);
-	return thread;
+	t = list_first_entry(l, thread_t, e_list);
+	list_del_init(&t->e_list);
+	return t;
 }
 
 /* Make unique thread id for non pthread version of thread manager. */
@@ -523,7 +522,7 @@ thread_t *
 thread_add_read_sands(thread_master_t *m, thread_func_t func, void *arg, int fd, const timeval_t *sands, unsigned flags)
 {
 	thread_event_t *event;
-	thread_t *thread;
+	thread_t *t;
 
 	assert(m != NULL);
 
@@ -544,33 +543,33 @@ thread_add_read_sands(thread_master_t *m, thread_func_t func, void *arg, int fd,
 		return NULL;
 	}
 
-	thread = thread_new(m);
-	thread->type = THREAD_READ;
-	thread->master = m;
-	thread->func = func;
-	thread->arg = arg;
-	thread->u.f.fd = fd;
-	thread->u.f.flags = flags;
-	thread->event = event;
+	t = thread_new(m);
+	t->type = THREAD_READ;
+	t->master = m;
+	t->func = func;
+	t->arg = arg;
+	t->u.f.fd = fd;
+	t->u.f.flags = flags;
+	t->event = event;
 
 	/* Set & flag event */
 	__set_bit(THREAD_FL_READ_BIT, &event->flags);
-	event->read = thread;
+	event->read = t;
 	if (!__test_bit(THREAD_FL_EPOLL_READ_BIT, &event->flags)) {
-		if (thread_event_set(thread) < 0) {
+		if (thread_event_set(t) < 0) {
 			log_message(LOG_INFO, "scheduler: Cant register read event for fd [%d](%m)", fd);
-			thread_add_unuse(m, thread);
+			thread_add_unuse(m, t);
 			return NULL;
 		}
 		__set_bit(THREAD_FL_EPOLL_READ_BIT, &event->flags);
 	}
 
-	thread->sands = *sands;
+	t->sands = *sands;
 
 	/* Sort the thread. */
-	rb_add_cached(&thread->n, &m->read, thread_timer_less);
+	rb_add_cached(&t->n, &m->read, thread_timer_less);
 
-	return thread;
+	return t;
 }
 
 thread_t *
@@ -594,23 +593,23 @@ thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd, unsig
 void
 thread_requeue_read(thread_master_t *m, int fd, const timeval_t *sands)
 {
-	thread_t *thread;
+	thread_t *t;
 	thread_event_t *event;
 
 	event = thread_event_get(m, fd);
 	if (!event || !event->read)
 		return;
 
-	thread = event->read;
+	t = event->read;
 
-	if (thread->type != THREAD_READ) {
+	if (t->type != THREAD_READ) {
 		/* If the thread is not on the read list, don't touch it */
 		return;
 	}
 
-	thread->sands = *sands;
+	t->sands = *sands;
 
-	rb_move_cached(&thread->n, &thread->master->read, thread_timer_less);
+	rb_move_cached(&t->n, &t->master->read, thread_timer_less);
 }
 
 /* Add new write thread. */
@@ -618,7 +617,7 @@ thread_t *
 thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
 {
 	thread_event_t *event;
-	thread_t *thread;
+	thread_t *t;
 
 	assert(m != NULL);
 
@@ -639,22 +638,22 @@ thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsi
 		return NULL;
 	}
 
-	thread = thread_new(m);
-	thread->type = THREAD_WRITE;
-	thread->master = m;
-	thread->func = func;
-	thread->arg = arg;
-	thread->u.f.fd = fd;
-	thread->u.f.flags = flags;
-	thread->event = event;
+	t = thread_new(m);
+	t->type = THREAD_WRITE;
+	t->master = m;
+	t->func = func;
+	t->arg = arg;
+	t->u.f.fd = fd;
+	t->u.f.flags = flags;
+	t->event = event;
 
 	/* Set & flag event */
 	__set_bit(THREAD_FL_WRITE_BIT, &event->flags);
-	event->write = thread;
+	event->write = t;
 	if (!__test_bit(THREAD_FL_EPOLL_WRITE_BIT, &event->flags)) {
-		if (thread_event_set(thread) < 0) {
+		if (thread_event_set(t) < 0) {
 			log_message(LOG_INFO, "scheduler: Cant register write event for fd [%d](%m)" , fd);
-			thread_add_unuse(m, thread);
+			thread_add_unuse(m, t);
 			return NULL;
 		}
 		__set_bit(THREAD_FL_EPOLL_WRITE_BIT, &event->flags);
@@ -662,58 +661,58 @@ thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsi
 
 	/* Compute write timeout value */
 	if (timer == TIMER_NEVER)
-		thread->sands.tv_sec = TIMER_DISABLED;
+		t->sands.tv_sec = TIMER_DISABLED;
 	else {
 		set_time_now();
-		thread->sands = timer_add_ll(time_now, timer);
+		t->sands = timer_add_ll(time_now, timer);
 	}
 
 	/* Sort the thread. */
-	rb_add_cached(&thread->n, &m->write, thread_timer_less);
+	rb_add_cached(&t->n, &m->write, thread_timer_less);
 
-	return thread;
+	return t;
 }
 
 void
-thread_close_fd(thread_t *thread)
+thread_close_fd(thread_t *t)
 {
-	if (thread->u.f.fd == -1)
+	if (t->u.f.fd == -1)
 		return;
 
-	if (thread->event)
-		thread_event_cancel(thread);
+	if (t->event)
+		thread_event_cancel(t);
 
-	close(thread->u.f.fd);
-	thread->u.f.fd = -1;
+	close(t->u.f.fd);
+	t->u.f.fd = -1;
 }
 
 /* Add timer event thread. */
 thread_t *
 thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigned val, uint64_t timer)
 {
-	thread_t *thread;
+	thread_t *t;
 
 	assert(m != NULL);
 
-	thread = thread_new(m);
-	thread->type = THREAD_TIMER;
-	thread->master = m;
-	thread->func = func;
-	thread->arg = arg;
-	thread->u.uval = val;
+	t = thread_new(m);
+	t->type = THREAD_TIMER;
+	t->master = m;
+	t->func = func;
+	t->arg = arg;
+	t->u.uval = val;
 
 	/* Do we need jitter here? */
 	if (timer == TIMER_NEVER)
-		thread->sands.tv_sec = TIMER_DISABLED;
+		t->sands.tv_sec = TIMER_DISABLED;
 	else {
 		set_time_now();
-		thread->sands = timer_add_ll(time_now, timer);
+		t->sands = timer_add_ll(time_now, timer);
 	}
 
 	/* Sort by timeval. */
-	rb_add_cached(&thread->n, &m->timer, thread_timer_less);
+	rb_add_cached(&t->n, &m->timer, thread_timer_less);
 
-	return thread;
+	return t;
 }
 
 thread_t *
@@ -723,117 +722,117 @@ thread_add_timer(thread_master_t *m, thread_func_t func, void *arg, uint64_t tim
 }
 
 void
-thread_mod_timer(thread_t *thread, uint64_t timer)
+thread_mod_timer(thread_t *t, uint64_t timer)
 {
 	timeval_t sands;
 
 	set_time_now();
 	sands = timer_add_ll(time_now, timer);
 
-	if (timercmp(&thread->sands, &sands, ==))
+	if (timercmp(&t->sands, &sands, ==))
 		return;
 
-	thread->sands = sands;
+	t->sands = sands;
 
-	rb_move_cached(&thread->n, &thread->master->timer, thread_timer_less);
+	rb_move_cached(&t->n, &t->master->timer, thread_timer_less);
 }
 
 /* Add simple event thread. */
 thread_t *
 thread_add_event(thread_master_t *m, thread_func_t func, void *arg, int val)
 {
-	thread_t *thread;
+	thread_t *t;
 
 	assert(m != NULL);
 
-	thread = thread_new(m);
-	thread->type = THREAD_EVENT;
-	thread->master = m;
-	thread->func = func;
-	thread->arg = arg;
-	thread->u.val = val;
-	INIT_LIST_HEAD(&thread->e_list);
-	list_add_tail(&thread->e_list, &m->event);
+	t = thread_new(m);
+	t->type = THREAD_EVENT;
+	t->master = m;
+	t->func = func;
+	t->arg = arg;
+	t->u.val = val;
+	INIT_LIST_HEAD(&t->e_list);
+	list_add_tail(&t->e_list, &m->event);
 
-	return thread;
+	return t;
 }
 
 /* Add terminate event thread. */
 thread_t *
 thread_add_terminate_event(thread_master_t *m)
 {
-	thread_t *thread;
+	thread_t *t;
 
 	assert(m != NULL);
 
-	thread = thread_new(m);
-	thread->type = THREAD_TERMINATE;
-	thread->master = m;
-	thread->func = NULL;
-	thread->arg = NULL;
-	thread->u.val = 0;
-	INIT_LIST_HEAD(&thread->e_list);
-	list_add_tail(&thread->e_list, &m->event);
+	t = thread_new(m);
+	t->type = THREAD_TERMINATE;
+	t->master = m;
+	t->func = NULL;
+	t->arg = NULL;
+	t->u.val = 0;
+	INIT_LIST_HEAD(&t->e_list);
+	list_add_tail(&t->e_list, &m->event);
 
-	return thread;
+	return t;
 }
 
 
 /* Remove thread from scheduler. */
 void
-thread_del(thread_t *thread)
+thread_del(thread_t *t)
 {
 	thread_master_t *m;
 
-	if (!thread)
+	if (!t)
 		return;
 
-	m = thread->master;
+	m = t->master;
 
-	switch (thread->type) {
+	switch (t->type) {
 	case THREAD_READ:
-		thread_event_del(thread, THREAD_FL_EPOLL_READ_BIT);
-		rb_erase_cached(&thread->n, &m->read);
+		thread_event_del(t, THREAD_FL_EPOLL_READ_BIT);
+		rb_erase_cached(&t->n, &m->read);
 		break;
 	case THREAD_WRITE:
-		thread_event_del(thread, THREAD_FL_EPOLL_WRITE_BIT);
-		rb_erase_cached(&thread->n, &m->write);
+		thread_event_del(t, THREAD_FL_EPOLL_WRITE_BIT);
+		rb_erase_cached(&t->n, &m->write);
 		break;
 	case THREAD_TIMER:
-		rb_erase_cached(&thread->n, &m->timer);
+		rb_erase_cached(&t->n, &m->timer);
 		break;
 	case THREAD_READY_READ_FD:
 	case THREAD_READ_TIMEOUT:
 	case THREAD_READ_ERROR:
-		if (thread->event)
-			thread_event_del(thread, THREAD_FL_EPOLL_READ_BIT);
-		if (m->current_thread == thread)
+		if (t->event)
+			thread_event_del(t, THREAD_FL_EPOLL_READ_BIT);
+		if (m->current_thread == t)
 			return;
-		list_del_init(&thread->e_list);
+		list_del_init(&t->e_list);
 		break;
 	case THREAD_READY_WRITE_FD:
 	case THREAD_WRITE_TIMEOUT:
 	case THREAD_WRITE_ERROR:
-		if (thread->event)
-			thread_event_del(thread, THREAD_FL_EPOLL_WRITE_BIT);
-		if (m->current_thread == thread)
+		if (t->event)
+			thread_event_del(t, THREAD_FL_EPOLL_WRITE_BIT);
+		if (m->current_thread == t)
 			return;
-		list_del_init(&thread->e_list);
+		list_del_init(&t->e_list);
 		break;
 	case THREAD_READY_TIMER:
-		if (m->current_thread == thread)
+		if (m->current_thread == t)
 			return;
-		list_del_init(&thread->e_list);
+		list_del_init(&t->e_list);
 		break;
 	case THREAD_UNUSED:
 		return;
 	default:
 		log_message(LOG_WARNING, "ERROR - thread_cancel called for"
-			    "unknown thread type %u", thread->type);
+			    "unknown thread type %u", t->type);
 		return;
 	}
 
-	thread_add_unuse(m, thread);
+	thread_add_unuse(m, t);
 }
 
 
@@ -973,7 +972,7 @@ thread_fetch_next_queue(thread_master_t *m)
 void
 launch_thread_scheduler(thread_master_t *m)
 {
-	thread_t* thread;
+	thread_t *t;
 	list_head_t *thread_list;
 	int thread_type;
 
@@ -982,17 +981,17 @@ launch_thread_scheduler(thread_master_t *m)
 	 * return and execute all ready threads.
 	 */
 	while ((thread_list = thread_fetch_next_queue(m))) {
-		if (!(thread = thread_trim_head(thread_list)))
+		if (!(t = thread_trim_head(thread_list)))
 			continue;
 
-		m->current_thread = thread;
-		m->current_event = thread->event;
-		thread_type = thread->type;
+		m->current_thread = t;
+		m->current_event = t->event;
+		thread_type = t->type;
 
-		if (thread->func)
-			(*thread->func) (thread);
+		if (t->func)
+			(*t->func) (t);
 
-		thread_add_unuse(m, thread);
+		thread_add_unuse(m, t);
 		m->current_thread = NULL;
 
 		/* If daemon hanging event is received stop processing */

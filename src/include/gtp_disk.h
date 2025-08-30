@@ -21,5 +21,5 @@
 #pragma once
 
 /* Prototypes */
-extern int gtp_disk_write_restart_counter(void);
-extern int gtp_disk_read_restart_counter(void);
+int gtp_disk_write_restart_counter(void);
+int gtp_disk_read_restart_counter(void);

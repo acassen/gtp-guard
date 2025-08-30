@@ -155,6 +155,36 @@ buffer_putstr(buffer_t *b, const char *c)
 	buffer_put(b, c, strlen(c));
 }
 
+/* Try to write this data to the file descriptor.
+ * Any data that cannot be written immediately is added to
+ * the buffer queue.
+ */
+buffer_status_t
+buffer_write(buffer_t *b, int fd, const void *p, size_t size)
+{
+	ssize_t nbytes;
+	size_t written;
+
+	/* Buffer is not empty, so do not attempt to write the new data. */
+	if (b->head) {
+		nbytes = 0;
+	} else if ((nbytes = write(fd, p, size)) < 0) {
+		if (ERRNO_IO_RETRY(errno)) {
+			nbytes = 0;
+		} else {
+			return BUFFER_ERROR;
+		}
+	}
+
+	/* Add any remaining data to the buffer. */
+	written = nbytes;
+	if (written < size) {
+		buffer_put(b, ((const char *)p)+written, size-written);
+	}
+
+	return b->head ? BUFFER_PENDING : BUFFER_EMPTY;
+}
+
 /* Call buffer_flush_available repeatedly until either all data has been
  * flushed, or an I/O error has been encountered, or the operation would
  * block.
@@ -383,34 +413,4 @@ buffer_flush_available(buffer_t *b, int fd)
 
 #undef MAX_CHUNKS
 #undef MAX_FLUSH
-}
-
-/* Try to write this data to the file descriptor.
- * Any data that cannot be written immediately is added to
- * the buffer queue.
- */
-buffer_status_t
-buffer_write(buffer_t *b, int fd, const void *p, size_t size)
-{
-	ssize_t nbytes;
-	size_t written;
-
-	/* Buffer is not empty, so do not attempt to write the new data. */
-	if (b->head) {
-		nbytes = 0;
-	} else if ((nbytes = write(fd, p, size)) < 0) {
-		if (ERRNO_IO_RETRY(errno)) {
-			nbytes = 0;
-		} else {
-			return BUFFER_ERROR;
-		}
-	}
-
-	/* Add any remaining data to the buffer. */
-	written = nbytes;
-	if (written < size) {
-		buffer_put(b, ((const char *)p)+written, size-written);
-	}
-
-	return b->head ? BUFFER_PENDING : BUFFER_EMPTY;
 }

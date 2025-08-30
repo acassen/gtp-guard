@@ -38,7 +38,7 @@ typedef enum _vty_status {
 
 
 /* VTY struct. */
-typedef struct _vty {
+typedef struct vty {
 	int			fd;				/* File descripter of this vty. */
 	vty_type_t		type;				/* Is this vty connect to file or not */
 	int			node;				/* Node status of this vty */
@@ -152,27 +152,23 @@ do {									\
     }									\
 } while (0)
 
-/* Exported variables */
-extern char integrate_default[];
 
 /* Prototypes. */
-extern void vty_init(void);
-extern void vty_terminate(void);
-extern int vty_listen(thread_master_t *, struct sockaddr_storage *);
-extern void vty_reset(void);
-extern vty_t *vty_new(void);
-extern int vty_out(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
-extern ssize_t vty_send_out(vty_t *, const char *, ...) PRINTF_ATTRIBUTE(2, 3);
-extern void vty_prompt_hold(vty_t *);
-extern void vty_prompt_restore(vty_t *);
-extern int vty_read_config(char *, char *);
-extern void vty_time_print(vty_t *, int);
-extern void vty_serv_sock(const char *, unsigned short, const char *);
-extern void vty_close(vty_t *);
-extern char *vty_get_cwd(void);
-extern int vty_config_lock(vty_t *);
-extern int vty_config_unlock(vty_t *);
-extern int vty_shell(vty_t *);
-extern int vty_shell_serv(vty_t *);
-extern void vty_time_print(vty_t *, int);
-extern void vty_hello(vty_t *);
+void vty_init(void);
+void vty_terminate(void);
+int vty_listen(thread_master_t *m, struct sockaddr_storage *addr);
+void vty_reset(void);
+vty_t *vty_new(void);
+int vty_out(vty_t *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+ssize_t vty_send_out(vty_t *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+void vty_prompt_hold(vty_t *vty);
+void vty_prompt_restore(vty_t *vty);
+int vty_read_config(char *config_file, char *config_default_dir);
+void vty_time_print(vty_t *vty, int cr);
+void vty_close(vty_t *vty);
+char *vty_get_cwd(void);
+int vty_config_lock(vty_t *vty);
+int vty_config_unlock(vty_t *vty);
+int vty_shell(vty_t *vty);
+int vty_shell_serv(vty_t *vty);
+void vty_hello(vty_t *vty);

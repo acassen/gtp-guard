@@ -33,7 +33,7 @@ enum ip_vrf_flags {
 	IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT,
 };
 
-typedef struct _ip_vrf {
+typedef struct ip_vrf {
 	uint32_t		id;
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
@@ -50,8 +50,8 @@ typedef struct _ip_vrf {
 
 
 /* Prototypes */
-extern ip_vrf_t *gtp_ip_vrf_get(const char *);
-extern ip_vrf_t *gtp_ip_vrf_alloc(const char *);
-extern int gtp_ip_vrf_destroy(ip_vrf_t *);
-extern int gtp_vrf_init(void);
-extern int gtp_vrf_destroy(void);
+ip_vrf_t *gtp_ip_vrf_get(const char *);
+ip_vrf_t *gtp_ip_vrf_alloc(const char *);
+int gtp_ip_vrf_destroy(ip_vrf_t *);
+int gtp_vrf_init(void);
+int gtp_vrf_destroy(void);

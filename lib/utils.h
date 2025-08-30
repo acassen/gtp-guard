@@ -59,20 +59,20 @@
 extern unsigned long debug;
 
 /* Prototypes defs */
-extern void dump_buffer(const char *, char *, int);
-extern void buffer_to_c_array(const char *, char *, size_t);
-extern char *get_local_name(void);
-extern int string_equal(const char *, const char *);
-extern char hextochar(char);
-extern int hextostring(char *, int, char *);
-extern int stringtohex(const char *, int, char *, int);
-extern int swapbuffer(uint8_t *, int, uint8_t *);
-extern uint32_t adler_crc32(uint8_t *, size_t);
-extern uint32_t fletcher_crc32(uint8_t *, size_t);
-extern int integer_to_string(const int, char *, size_t);
-extern uint32_t poor_prng(unsigned int *);
-extern uint32_t xorshift_prng(uint64_t *);
-extern size_t bsd_strlcpy(char *, const char *, size_t);
-extern size_t bsd_strlcat(char *, const char *, size_t);
-extern char *memcpy2str(char *, size_t, const void *, size_t);
-extern int open_pipe(int [2]);
+void dump_buffer(const char *prefix, char *buf, int count);
+void buffer_to_c_array(const char *name, char *buffer, size_t blen);
+char *get_local_name(void);
+int string_equal(const char *str1, const char *str2);
+char hextochar(char c);
+int hextostring(char *data, int size, char *buffer_out);
+int stringtohex(const char *buffer_in, int size_in, char *buffer_out, int size_out);
+int swapbuffer(uint8_t *buffer_in, int size_in, uint8_t *buffer_out);
+uint32_t adler_crc32(uint8_t *data, size_t len);
+uint32_t fletcher_crc32(uint8_t *data, size_t len);
+int integer_to_string(const int value, char *str, size_t size);
+uint32_t poor_prng(unsigned int *seed);
+uint32_t xorshift_prng(uint64_t *state);
+size_t bsd_strlcpy(char *dst, const char *src, size_t dsize);
+size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
+char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);
+int open_pipe(int pipe_arr[2]);

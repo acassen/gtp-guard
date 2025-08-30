@@ -373,11 +373,11 @@ cmd_cmdsize(vector_t *strvec)
 
 /* Return prompt character of specified node. */
 const char *
-cmd_prompt(node_type_t node)
+cmd_prompt(node_type_t ntype)
 {
 	cmd_node_t *cnode;
 
-	cnode = vector_slot(cmdvec, node);
+	cnode = vector_slot(cmdvec, ntype);
 	return cnode->prompt;
 }
 
@@ -1546,7 +1546,7 @@ cmd_complete_command(vector_t *vline, vty_t *vty, int *status)
 /* return parent node */
 /* MUST eventually converge on CONFIG_NODE */
 node_type_t
-node_parent(node_type_t node)
+node_parent(node_type_t ntype)
 {
 	return CONFIG_NODE;
 }
@@ -2525,19 +2525,19 @@ host_config_set(char *filename)
 }
 
 void
-install_default(node_type_t node)
+install_default(node_type_t ntype)
 {
-	install_element(node, &config_exit_cmd);
-	install_element(node, &config_quit_cmd);
-	install_element(node, &config_end_cmd);
-	install_element(node, &config_help_cmd);
-	install_element(node, &config_list_cmd);
+	install_element(ntype, &config_exit_cmd);
+	install_element(ntype, &config_quit_cmd);
+	install_element(ntype, &config_end_cmd);
+	install_element(ntype, &config_help_cmd);
+	install_element(ntype, &config_list_cmd);
 
-	install_element(node, &config_write_terminal_cmd);
-	install_element(node, &config_write_file_cmd);
-	install_element(node, &config_write_memory_cmd);
-	install_element(node, &config_write_cmd);
-	install_element(node, &show_running_config_cmd);
+	install_element(ntype, &config_write_terminal_cmd);
+	install_element(ntype, &config_write_file_cmd);
+	install_element(ntype, &config_write_memory_cmd);
+	install_element(ntype, &config_write_cmd);
+	install_element(ntype, &show_running_config_cmd);
 }
 
 /* Register add-on commands */

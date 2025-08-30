@@ -38,7 +38,7 @@ enum gtp_cdr_file_flags {
 };
 
 /* Spool data structure */
-typedef struct _gtp_cdr_spool {
+typedef struct gtp_cdr_spool {
 	char			name[GTP_STR_MAX_LEN];
 	char			document_root[GTP_PATH_MAX_LEN];
 	char			archive_root[GTP_PATH_MAX_LEN];
@@ -71,10 +71,10 @@ typedef struct _gtp_cdr_spool {
 
 
 /* Prototypes */
-extern int gtp_cdr_spool_q_add(gtp_cdr_spool_t *, gtp_cdr_t *);
-extern gtp_cdr_spool_t *gtp_cdr_spool_get(const char *);
-extern int gtp_cdr_spool_put(gtp_cdr_spool_t *);
-extern int gtp_cdr_spool_start(gtp_cdr_spool_t *);
-extern int gtp_cdr_spool_stop(gtp_cdr_spool_t *);
-extern gtp_cdr_spool_t *gtp_cdr_spool_alloc(const char *);
-extern int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);
+int gtp_cdr_spool_q_add(gtp_cdr_spool_t *, gtp_cdr_t *);
+gtp_cdr_spool_t *gtp_cdr_spool_get(const char *);
+int gtp_cdr_spool_put(gtp_cdr_spool_t *);
+int gtp_cdr_spool_start(gtp_cdr_spool_t *);
+int gtp_cdr_spool_stop(gtp_cdr_spool_t *);
+gtp_cdr_spool_t *gtp_cdr_spool_alloc(const char *);
+int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);

@@ -61,15 +61,15 @@ prefix_match(const prefix_t *n, const prefix_t *p)
  *	Copy prefix from src to dest.
  */
 int
-prefix_copy(prefix_t *dest, const prefix_t *src)
+prefix_copy(prefix_t *dst, const prefix_t *src)
 {
-	dest->family = src->family;
-	dest->prefixlen = src->prefixlen;
+	dst->family = src->family;
+	dst->prefixlen = src->prefixlen;
 
 	if (src->family == AF_INET) {
-		dest->u.prefix4 = src->u.prefix4;
+		dst->u.prefix4 = src->u.prefix4;
 	} else if (src->family == AF_INET6) {
-		dest->u.prefix6 = src->u.prefix6;
+		dst->u.prefix6 = src->u.prefix6;
 	} else {
 		return -1;
 	}
@@ -172,13 +172,13 @@ str2prefix(const char *str, prefix_t *p)
  *	Convert bytes to prefix
  */
 int
-ip2prefix_ipv4(const uint32_t ip_address, prefix_t *p)
+ip2prefix_ipv4(const uint32_t addr, prefix_t *p)
 {
 	prefix_ipv4_t *prefix_ipv4 = (prefix_ipv4_t *) p;
 
 	prefix_ipv4->family = AF_INET;
 	prefix_ipv4->prefixlen = IPV4_MAX_BITLEN;
-	prefix_ipv4->prefix.s_addr = ip_address;
+	prefix_ipv4->prefix.s_addr = addr;
 
 	return 0;
 }

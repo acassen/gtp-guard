@@ -27,7 +27,7 @@
 #define DEFAULT_SOCKBUF	(64 * 1024)
 
 /* GTP Server context */
-typedef struct _gtp_server {
+typedef struct gtp_server {
 	struct sockaddr_storage	addr;
 	int			fd;
 	pkt_buffer_t		*pbuff;
@@ -39,8 +39,8 @@ typedef struct _gtp_server {
 	thread_t		*w_thread;
 
 	/* Local method */
-	int (*init) (struct _gtp_server *);
-	int (*process) (struct _gtp_server *, struct sockaddr_storage *);
+	int (*init) (struct gtp_server *);
+	int (*process) (struct gtp_server *, struct sockaddr_storage *);
 
 	/* metrics */
 	uint64_t		rx_pkts;
@@ -58,10 +58,10 @@ typedef struct _gtp_server {
 
 
 /* Prototypes */
-extern ssize_t gtp_server_send(gtp_server_t *, int, pkt_buffer_t *, struct sockaddr_in *);
-extern int gtp_server_start(gtp_server_t *);
-extern int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_t *, void *), void *);
-extern int gtp_server_init(gtp_server_t *, void *
-					 , int (*init) (gtp_server_t *)
-					 , int (*process) (gtp_server_t *, struct sockaddr_storage *));
-extern int gtp_server_destroy(gtp_server_t *);
+ssize_t gtp_server_send(gtp_server_t *, int, pkt_buffer_t *, struct sockaddr_in *);
+int gtp_server_start(gtp_server_t *);
+int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_t *, void *), void *);
+int gtp_server_init(gtp_server_t *, void *
+				  , int (*init) (gtp_server_t *)
+				  , int (*process) (gtp_server_t *, struct sockaddr_storage *));
+int gtp_server_destroy(gtp_server_t *);

@@ -23,4 +23,4 @@
 #include <stdio.h>
 
 /* Prototypes */
-extern int gtp_apn_metrics_dump(FILE *);
+int gtp_apn_metrics_dump(FILE *);

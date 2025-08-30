@@ -70,42 +70,42 @@ disk_mkpath(char *path)
 }
 
 static int
-disk_mkdir(char *path)
+disk_mkdir(char *pathname)
 {
-	char *p = strrchr(path, '\0');
+	char *p = strrchr(pathname, '\0');
 	int err;
 
 	if (!p)
 		return -1;
 
-	while (--p > path && *p != '/') ;
+	while (--p > pathname && *p != '/') ;
 
-	if (p > path) *p = '\0';
-	err = disk_mkpath(path);
-	if (p > path) *p = '/';
+	if (p > pathname) *p = '\0';
+	err = disk_mkpath(pathname);
+	if (p > pathname) *p = '/';
 
 	return err;
 }
 
 int
-disk_create(char *path, bool append)
+disk_create(char *pathname, bool append)
 {
 	int err, fd = -1;
 
-	fd = open(path, O_CREAT | (append ? O_APPEND : O_TRUNC) | O_RDWR, 0644);
+	fd = open(pathname, O_CREAT | (append ? O_APPEND : O_TRUNC) | O_RDWR, 0644);
 	if (fd >= 0)
 		goto end;
 
 	/* Try to create path */
-	err = disk_mkdir(path);
+	err = disk_mkdir(pathname);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Cant mkpath for file %s !!! (%m)\n"
-				    , __FUNCTION__, path);
+				    , __FUNCTION__, pathname);
 		return -1;
 	}
 
 	/* Ok target dir is created */
-	fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0644);
+	fd = open(pathname, O_CREAT | O_TRUNC | O_RDWR, 0644);
 	if (fd < 0)
 		return -1;
 
@@ -122,35 +122,35 @@ disk_close_fd(int *fd)
 }
 
 int
-disk_rm(const char *path)
+disk_rm(const char *pathname)
 {
-	return unlink(path);
+	return unlink(pathname);
 }
 
 int
-disk_mv(char *src, char *dst)
+disk_mv(char *pathsrc, char *pathdst)
 {
-	char *p = strrchr(dst, '/');
+	char *p = strrchr(pathdst, '/');
 	int err;
 
 	if (!p)
 		return -1;
 
-	if (p > dst) *p = '\0';
-	err = access(dst, F_OK);
-	if (p > dst) *p = '/';
+	if (p > pathdst) *p = '\0';
+	err = access(pathdst, F_OK);
+	if (p > pathdst) *p = '/';
 
-	err = (err) ? disk_mkdir(dst) : 0;
+	err = (err) ? disk_mkdir(pathdst) : 0;
 	if (err)
 		return -1;
 
-	return rename(src, dst);
+	return rename(pathsrc, pathdst);
 }
 
 int
-disk_chown(const char *path, uid_t uid, gid_t gid)
+disk_chown(const char *pathname, uid_t uid, gid_t gid)
 {
-	return chown(path, uid, gid);
+	return chown(pathname, uid, gid);
 }
 
 static void *
@@ -167,40 +167,40 @@ disk_mmap(int fd, size_t size)
 }
 
 static int
-disk_map(map_file_t *map_file)
+disk_map(map_file_t *m)
 {
-	if (map_file->map) {
+	if (m->map) {
 		log_message(LOG_INFO, "%s(): Error opening file [%s] (already mapped)"
-				    , __FUNCTION__, map_file->path);
+				    , __FUNCTION__, m->path);
 		return -1;
 	}
 
-	map_file->fd = open(map_file->path, O_RDWR);
-	if (map_file->fd < 0) {
+	m->fd = open(m->path, O_RDWR);
+	if (m->fd < 0) {
 		log_message(LOG_INFO, "%s(): Error opening file [%s] (%m)"
-				    , __FUNCTION__, map_file->path);
+				    , __FUNCTION__, m->path);
 		return -1;
 	}
 
-	if (fstat(map_file->fd, &map_file->fstat) == -1) {
-		disk_close_fd(&map_file->fd);
+	if (fstat(m->fd, &m->fstat) == -1) {
+		disk_close_fd(&m->fd);
 		log_message(LOG_INFO, "%s(): Error stat file [%s] (%m)"
-				    , __FUNCTION__, map_file->path);
+				    , __FUNCTION__, m->path);
 		return -1;
 	}
 
-	map_file->map = disk_mmap(map_file->fd, map_file->fstat.st_size);
-	if (!map_file->map) {
-		disk_close_fd(&map_file->fd);
+	m->map = disk_mmap(m->fd, m->fstat.st_size);
+	if (!m->map) {
+		disk_close_fd(&m->fd);
 		return -1;
 	}
 
-	disk_close_fd(&map_file->fd);
+	disk_close_fd(&m->fd);
 	return 0;
 }
 
 int
-disk_map_open(map_file_t *map_file, size_t size)
+disk_map_open(map_file_t *m, size_t size)
 {
 	int err = 0;
 
@@ -209,38 +209,38 @@ disk_map_open(map_file_t *map_file, size_t size)
 		return -1;
 	}
 
-	err = access(map_file->path, F_OK);
+	err = access(m->path, F_OK);
 	if (!err)
 		goto end;
 
-	map_file->fd = disk_create(map_file->path, false);
-	if (map_file->fd < 0)
+	m->fd = disk_create(m->path, false);
+	if (m->fd < 0)
 		return -1;
 
-	err = ftruncate(map_file->fd, size);
+	err = ftruncate(m->fd, size);
 	if (err) {
-		disk_close_fd(&map_file->fd);
+		disk_close_fd(&m->fd);
 		return -1;
 	}
 
-	disk_close_fd(&map_file->fd);
+	disk_close_fd(&m->fd);
 end:
 	/* FIXME: sanitize file before mapping & unlink if bogus... */
-	return disk_map(map_file);
+	return disk_map(m);
 }
 
 int
-disk_map_close(map_file_t *map_file)
+disk_map_close(map_file_t *m)
 {
-	if (!map_file)
+	if (!m)
 		return -1;
 
-	if (map_file->map) {
-		munmap(map_file->map, map_file->fstat.st_size);
-		map_file->map = NULL;
+	if (m->map) {
+		munmap(m->map, m->fstat.st_size);
+		m->map = NULL;
 	}
 
-	disk_close_fd(&map_file->fd);
+	disk_close_fd(&m->fd);
 	return 0;
 }
 
@@ -262,51 +262,49 @@ disk_msync_offset(map_file_t *map_file, off_t offset, size_t ssize, int flags)
 }
 
 int
-disk_map_resize(map_file_t *map_file, size_t new_size)
+disk_map_resize(map_file_t *m, size_t new_size)
 {
 	int err = 0;
 
-	if (!map_file->map)
+	if (!m->map)
 		return -1;
 
 	/* sync and close current file */
-	err = (err) ? : disk_msync_offset(map_file, 0
-						      , map_file->fstat.st_size
-						      , MS_ASYNC);
-	err = (err) ? : disk_map_close(map_file);
+	err = (err) ? : disk_msync_offset(m, 0, m->fstat.st_size, MS_ASYNC);
+	err = (err) ? : disk_map_close(m);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error closing file [%s] (%m)"
-					, __FUNCTION__, map_file->path);
+					, __FUNCTION__, m->path);
 		return -1;
 	}
 
 	/* Re-open file */
-	map_file->fd = open(map_file->path, O_RDWR);
-	if (map_file->fd < 0) {
+	m->fd = open(m->path, O_RDWR);
+	if (m->fd < 0) {
 		log_message(LOG_INFO, "%s(): Error opening file [%s] (%m)"
-					, __FUNCTION__, map_file->path);
+					, __FUNCTION__, m->path);
 		return -1;
 	}
 
-	return ftruncate(map_file->fd, new_size);
+	return ftruncate(m->fd, new_size);
 }
 
 int
-disk_map_write(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
+disk_map_write(map_file_t *m, off_t offset, const void *buf, size_t bsize)
 {
-	void *cp, *end = map_file->map + map_file->fstat.st_size;
+	void *cp, *end = m->map + m->fstat.st_size;
 
-	if (!map_file->map) {
+	if (!m->map) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	if (offset >= map_file->fstat.st_size) {
+	if (offset >= m->fstat.st_size) {
 		errno = ENOSPC;
 		return -1;
 	}
 
-	cp = map_file->map + offset;
+	cp = m->map + offset;
 	if (cp + bsize > end) {
 		errno = ENOSPC;
 		return -1;
@@ -317,19 +315,19 @@ disk_map_write(map_file_t *map_file, off_t offset, const void *buf, size_t bsize
 }
 
 int
-disk_map_write_async(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
+disk_map_write_async(map_file_t *m, off_t offset, const void *buf, size_t bsize)
 {
-	int err = disk_map_write(map_file, offset, buf, bsize);
+	int err = disk_map_write(m, offset, buf, bsize);
 
-	return (err) ? : disk_msync_offset(map_file, offset, bsize, DISK_ASYNC);
+	return (err) ? : disk_msync_offset(m, offset, bsize, DISK_ASYNC);
 }
 
 int
-disk_map_write_sync(map_file_t *map_file, off_t offset, const void *buf, size_t bsize)
+disk_map_write_sync(map_file_t *m, off_t offset, const void *buf, size_t bsize)
 {
-	int err = disk_map_write(map_file, offset, buf, bsize);
+	int err = disk_map_write(m, offset, buf, bsize);
 
-	return (err) ? : disk_msync_offset(map_file, offset, bsize, DISK_SYNC);
+	return (err) ? : disk_msync_offset(m, offset, bsize, DISK_SYNC);
 }
 
 int

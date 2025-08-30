@@ -97,23 +97,23 @@ struct metrics {
 
 
 /* Prototypes */
-extern const char *gtp_rt_stats_metrics_str(int);
-extern int gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *, int, int);
-extern int gtp_bpf_rt_metrics_dump(gtp_bpf_prog_t *,
-				   int (*dump) (void *, __u8, __u8, struct metrics *),
-				   void *, __u32, __u8, __u8);
-extern int gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *, int, int,
-				 int (*dump) (void *, __u8, __u8, struct metrics *),
-				 void *);
-extern int gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *, int, int,
-				int (*dump) (void *, __u8, __u8, struct metrics *),
-				vty_t *);
-extern int gtp_bpf_rt_key_set(gtp_teid_t *, struct ip_rt_key *);
-extern int gtp_bpf_rt_teid_action(int, gtp_teid_t *);
-extern int gtp_bpf_rt_teid_vty(vty_t *, gtp_teid_t *);
-extern int gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg);
-extern int gtp_bpf_rt_teid_bytes(gtp_teid_t *, uint64_t *);
-extern int gtp_bpf_rt_iptnl_action(int, gtp_iptnl_t *);
-extern int gtp_bpf_rt_iptnl_vty(gtp_bpf_prog_t *p, void *arg);
-extern int gtp_bpf_rt_lladdr_update(void *);
-extern int gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg);
+const char *gtp_rt_stats_metrics_str(int);
+int gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *, int, int);
+int gtp_bpf_rt_metrics_dump(gtp_bpf_prog_t *,
+			    int (*dump) (void *, __u8, __u8, struct metrics *),
+ 			    void *, __u32, __u8, __u8);
+int gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *, int, int,
+ 			  int (*dump) (void *, __u8, __u8, struct metrics *),
+ 			  void *);
+int gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *, int, int,
+ 			 int (*dump) (void *, __u8, __u8, struct metrics *),
+ 			 vty_t *);
+int gtp_bpf_rt_key_set(gtp_teid_t *, struct ip_rt_key *);
+int gtp_bpf_rt_teid_action(int, gtp_teid_t *);
+int gtp_bpf_rt_teid_vty(vty_t *, gtp_teid_t *);
+int gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg);
+int gtp_bpf_rt_teid_bytes(gtp_teid_t *, uint64_t *);
+int gtp_bpf_rt_iptnl_action(int, gtp_iptnl_t *);
+int gtp_bpf_rt_iptnl_vty(gtp_bpf_prog_t *p, void *arg);
+int gtp_bpf_rt_lladdr_update(void *);
+int gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg);

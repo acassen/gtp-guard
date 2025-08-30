@@ -94,7 +94,7 @@ typedef struct sauth {
 
 #define IDX_COUNT (IDX_PAP + 1) /* bump this when adding cp's! */
 
-typedef struct _sppp {
+typedef struct sppp {
 	spppoe_t	*s_pppoe;		/* PPPoE back-pointer */
 	unsigned long	pp_flags;
 	uint32_t	pp_framebytes;		/* number of bytes added by hardware framing */
@@ -127,16 +127,16 @@ typedef struct _sppp {
 	 * ready to communicate (like hardware HDLC) can shortcut
 	 * pp_up from pp_tls, and pp_down from pp_tlf.
 	 */
-	void	(*pp_up)(struct _sppp *);
-	void	(*pp_down)(struct _sppp *);
+	void	(*pp_up)(struct sppp *);
+	void	(*pp_down)(struct sppp *);
 	/*
 	 * These functions need to be filled in by the lower layer
 	 * (hardware) drivers if they request notification from the
 	 * PPP layer whether the link is actually required.  They
 	 * correspond to the tls and tlf actions.
 	 */
-	void	(*pp_tls)(struct _sppp *);
-	void	(*pp_tlf)(struct _sppp *);
+	void	(*pp_tls)(struct sppp *);
+	void	(*pp_tlf)(struct sppp *);
 	/*
 	 * These (optional) functions may be filled by the hardware
 	 * driver if any notification of established connections
@@ -144,8 +144,8 @@ typedef struct _sppp {
 	 * state change of the interface state machine should be
 	 * signaled for monitoring purposes (pp_chg).
 	 */
-	void	(*pp_con)(struct _sppp *);
-	void	(*pp_chg)(struct _sppp *, int);
+	void	(*pp_con)(struct sppp *);
+	void	(*pp_chg)(struct sppp *, int);
 } sppp_t;
 
 #define PP_KEEPALIVE	0x01	/* use keepalive protocol */
@@ -168,69 +168,69 @@ typedef struct _sppp {
 #define SUCCMSG "Welcome!"
 
 /* Prototypes */
-extern void sppp_lcp_init(sppp_t *);
-extern void sppp_lcp_up(sppp_t *);
-extern void sppp_lcp_down(sppp_t *);
-extern void sppp_lcp_open(sppp_t *);
-extern void sppp_lcp_close(sppp_t *);
-extern void sppp_lcp_TO(thread_t *);
-extern int sppp_lcp_RCR(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_lcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_lcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_lcp_tlu(sppp_t *);
-extern void sppp_lcp_tld(sppp_t *);
-extern void sppp_lcp_tls(sppp_t *);
-extern void sppp_lcp_tlf(sppp_t *);
-extern void sppp_lcp_scr(sppp_t *);
-extern void sppp_lcp_check_and_close(sppp_t *);
-extern int sppp_ncp_check(sppp_t *);
+void sppp_lcp_init(sppp_t *);
+void sppp_lcp_up(sppp_t *);
+void sppp_lcp_down(sppp_t *);
+void sppp_lcp_open(sppp_t *);
+void sppp_lcp_close(sppp_t *);
+void sppp_lcp_TO(thread_t *);
+int sppp_lcp_RCR(sppp_t *, lcp_hdr_t *, int);
+void sppp_lcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
+void sppp_lcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
+void sppp_lcp_tlu(sppp_t *);
+void sppp_lcp_tld(sppp_t *);
+void sppp_lcp_tls(sppp_t *);
+void sppp_lcp_tlf(sppp_t *);
+void sppp_lcp_scr(sppp_t *);
+void sppp_lcp_check_and_close(sppp_t *);
+int sppp_ncp_check(sppp_t *);
 
-extern void sppp_ipcp_init(sppp_t *);
-extern void sppp_ipcp_destroy(sppp_t *);
-extern void sppp_ipcp_up(sppp_t *);
-extern void sppp_ipcp_down(sppp_t *);
-extern void sppp_ipcp_open(sppp_t *);
-extern void sppp_ipcp_close(sppp_t *);
-extern void sppp_ipcp_TO(thread_t *);
-extern int sppp_ipcp_RCR(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipcp_tlu(sppp_t *);
-extern void sppp_ipcp_tls(sppp_t *);
-extern void sppp_ipcp_tlf(sppp_t *);
-extern void sppp_ipcp_scr(sppp_t *);
+void sppp_ipcp_init(sppp_t *);
+void sppp_ipcp_destroy(sppp_t *);
+void sppp_ipcp_up(sppp_t *);
+void sppp_ipcp_down(sppp_t *);
+void sppp_ipcp_open(sppp_t *);
+void sppp_ipcp_close(sppp_t *);
+void sppp_ipcp_TO(thread_t *);
+int sppp_ipcp_RCR(sppp_t *, lcp_hdr_t *, int);
+void sppp_ipcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
+void sppp_ipcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
+void sppp_ipcp_tlu(sppp_t *);
+void sppp_ipcp_tls(sppp_t *);
+void sppp_ipcp_tlf(sppp_t *);
+void sppp_ipcp_scr(sppp_t *);
 
-extern void sppp_ipv6cp_init(sppp_t *);
-extern void sppp_ipv6cp_destroy(sppp_t *);
-extern void sppp_ipv6cp_up(sppp_t *);
-extern void sppp_ipv6cp_down(sppp_t *);
-extern void sppp_ipv6cp_open(sppp_t *);
-extern void sppp_ipv6cp_close(sppp_t *);
-extern void sppp_ipv6cp_TO(thread_t *);
-extern int sppp_ipv6cp_RCR(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipv6cp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipv6cp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-extern void sppp_ipv6cp_tlu(sppp_t *);
-extern void sppp_ipv6cp_tld(sppp_t *);
-extern void sppp_ipv6cp_tls(sppp_t *);
-extern void sppp_ipv6cp_tlf(sppp_t *);
-extern void sppp_ipv6cp_scr(sppp_t *);
+void sppp_ipv6cp_init(sppp_t *);
+void sppp_ipv6cp_destroy(sppp_t *);
+void sppp_ipv6cp_up(sppp_t *);
+void sppp_ipv6cp_down(sppp_t *);
+void sppp_ipv6cp_open(sppp_t *);
+void sppp_ipv6cp_close(sppp_t *);
+void sppp_ipv6cp_TO(thread_t *);
+int sppp_ipv6cp_RCR(sppp_t *, lcp_hdr_t *, int);
+void sppp_ipv6cp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
+void sppp_ipv6cp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
+void sppp_ipv6cp_tlu(sppp_t *);
+void sppp_ipv6cp_tld(sppp_t *);
+void sppp_ipv6cp_tls(sppp_t *);
+void sppp_ipv6cp_tlf(sppp_t *);
+void sppp_ipv6cp_scr(sppp_t *);
 
-extern void sppp_pap_input(sppp_t *, pkt_t *pkt);
-extern void sppp_pap_init(sppp_t *);
-extern void sppp_pap_open(sppp_t *);
-extern void sppp_pap_close(sppp_t *);
-extern void sppp_pap_TO(thread_t *);
-extern void sppp_pap_my_TO(thread_t *);
-extern void sppp_pap_tlu(sppp_t *);
-extern void sppp_pap_tld(sppp_t *);
-extern void sppp_pap_scr(sppp_t *);
+void sppp_pap_input(sppp_t *, pkt_t *pkt);
+void sppp_pap_init(sppp_t *);
+void sppp_pap_open(sppp_t *);
+void sppp_pap_close(sppp_t *);
+void sppp_pap_TO(thread_t *);
+void sppp_pap_my_TO(thread_t *);
+void sppp_pap_tlu(sppp_t *);
+void sppp_pap_tld(sppp_t *);
+void sppp_pap_scr(sppp_t *);
 
-extern void sppp_input(sppp_t *, pkt_t *);
-extern int sppp_up(spppoe_t *);
-extern int sppp_down(spppoe_t *);
-extern sppp_t *sppp_init(spppoe_t *, void (*pp_tls)(struct _sppp *)
-				   , void (*pp_tlf)(sppp_t *)
-				   , void (*pp_con)(sppp_t *)
-				   , void (*pp_chg)(struct _sppp *, int));
-extern void sppp_destroy(sppp_t *);
+void sppp_input(sppp_t *, pkt_t *);
+int sppp_up(spppoe_t *);
+int sppp_down(spppoe_t *);
+sppp_t *sppp_init(spppoe_t *, void (*pp_tls)(struct sppp *)
+			    , void (*pp_tlf)(sppp_t *)
+			    , void (*pp_con)(sppp_t *)
+			    , void (*pp_chg)(struct sppp *, int));
+void sppp_destroy(sppp_t *);

@@ -49,7 +49,7 @@ struct cgn_ctx
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	unsigned long		flags;
-	list_head_t		next;
+	struct list_head	next;
 
 	/* conf */
 	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */

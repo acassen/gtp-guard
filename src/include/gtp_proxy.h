@@ -29,7 +29,7 @@
 #include "gtp_bpf_prog.h"
 
 /* GTP Proxy context */
-typedef struct _gtp_proxy {
+typedef struct gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];
 	gtp_bpf_prog_t		*bpf_prog;
 	gtp_server_t		gtpc;
@@ -57,14 +57,14 @@ typedef struct _gtp_proxy {
 
 
 /* Prototypes */
-extern int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *);
-extern int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *);
-extern int gtp_proxy_ingress_init(gtp_server_t *);
-extern int gtp_proxy_ingress_process(gtp_server_t *, struct sockaddr_storage *);
-extern gtp_proxy_t *gtp_proxy_get(const char *);
-extern gtp_proxy_t *gtp_proxy_init(const char *);
-extern int gtp_proxy_ctx_server_destroy(gtp_proxy_t *);
-extern int gtp_proxy_ctx_destroy(gtp_proxy_t *);
-extern int gtp_proxy_server_destroy(void);
-extern int gtp_proxy_destroy(void);
-extern int gtp_proxy_vty_init(void);
+int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *);
+int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *);
+int gtp_proxy_ingress_init(gtp_server_t *);
+int gtp_proxy_ingress_process(gtp_server_t *, struct sockaddr_storage *);
+gtp_proxy_t *gtp_proxy_get(const char *);
+gtp_proxy_t *gtp_proxy_init(const char *);
+int gtp_proxy_ctx_server_destroy(gtp_proxy_t *);
+int gtp_proxy_ctx_destroy(gtp_proxy_t *);
+int gtp_proxy_server_destroy(void);
+int gtp_proxy_destroy(void);
+int gtp_proxy_vty_init(void);

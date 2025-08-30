@@ -137,7 +137,7 @@ inet_server_tcp_thread(void *arg)
  *	Accept
  */
 static void
-inet_server_tcp_accept(thread_t *thread)
+inet_server_tcp_accept(thread_t *t)
 {
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
@@ -146,18 +146,18 @@ inet_server_tcp_accept(thread_t *thread)
 	int fd, accept_fd, err = 0, family;
 
 	/* Fetch thread elements */
-	fd = THREAD_FD(thread);
-	w = THREAD_ARG(thread);
+	fd = THREAD_FD(t);
+	w = THREAD_ARG(t);
 	family = w->server->addr.ss_family;
 
 	/* Terminate event */
 	if (__test_bit(INET_FL_STOP_BIT, &w->flags)) {
-		thread_add_terminate_event(thread->master);
+		thread_add_terminate_event(t->master);
 		return;
 	}
 
 	/* Wait until accept event */
-	if (thread->type == THREAD_READ_TIMEOUT)
+	if (t->type == THREAD_READ_TIMEOUT)
 		goto next_accept;
 
 	/* Accept incoming connection */
@@ -237,7 +237,7 @@ inet_server_tcp_accept(thread_t *thread)
 
 next_accept:
 	/* Register read thread on listen fd */
-	w->r_thread = thread_add_read(thread->master, inet_server_tcp_accept, w, fd,
+	w->r_thread = thread_add_read(t->master, inet_server_tcp_accept, w, fd,
 				      INET_TCP_LISTENER_TIMER, 0);
 }
 
@@ -325,19 +325,19 @@ error:
  *	Event thread
  */
 static void
-inet_server_event_read(thread_t *thread)
+inet_server_event_read(thread_t *t)
 {
-	inet_worker_t *w = THREAD_ARG(thread);
-	int fd = THREAD_FD(thread);
+	inet_worker_t *w = THREAD_ARG(t);
+	int fd = THREAD_FD(t);
 
 	/* Terminate event */
 	if (__test_bit(INET_FL_STOP_BIT, &w->flags)) {
-		thread_add_terminate_event(thread->master);
+		thread_add_terminate_event(t->master);
 		return;
 	}
 
-	/* Register read thread on pipe fd */
-	thread_add_read(thread->master, inet_server_event_read, w, fd,
+	/* Register read ton pipe fd */
+	thread_add_read(t->master, inet_server_event_read, w, fd,
 			INET_SRV_TIMER, 0);
 }
 

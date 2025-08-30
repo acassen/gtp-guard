@@ -35,26 +35,26 @@
 	((node)->__rb_parent_color = (unsigned long)(node))
 
 
-extern void rb_insert_color(struct rb_node *, struct rb_root *);
-extern void rb_erase(struct rb_node *, struct rb_root *);
+void rb_insert_color(struct rb_node *node, struct rb_root *root);
+void rb_erase(struct rb_node *node, struct rb_root *root);
 
 
 /* Find logical next and previous nodes in a tree */
-extern struct rb_node *rb_next(const struct rb_node *) __attribute__((pure));
-extern struct rb_node *rb_prev(const struct rb_node *) __attribute__((pure));
-extern struct rb_node *rb_first(const struct rb_root *) __attribute__((pure));
-extern struct rb_node *rb_last(const struct rb_root *) __attribute__((pure));
+struct rb_node *rb_next(const struct rb_node *node) __attribute__((pure));
+struct rb_node *rb_prev(const struct rb_node *node) __attribute__((pure));
+struct rb_node *rb_first(const struct rb_root *root) __attribute__((pure));
+struct rb_node *rb_last(const struct rb_root *root) __attribute__((pure));
 
 /* Postorder iteration - always visit the parent after its children */
-extern struct rb_node *rb_first_postorder(struct rb_root *) __attribute__((pure));
-extern struct rb_node *rb_next_postorder(const struct rb_node *) __attribute__((pure));
+struct rb_node *rb_first_postorder(struct rb_root *root) __attribute__((pure));
+struct rb_node *rb_next_postorder(const struct rb_node *node) __attribute__((pure));
 
 /* Fast replacement of a single node without remove/rebalance/add/rebalance */
-extern void rb_replace_node(struct rb_node *victim, struct rb_node *new,
-			    struct rb_root *root);
+void rb_replace_node(struct rb_node *victim, struct rb_node *new,
+		     struct rb_root *root);
 #ifdef _INCLUDE_UNUSED_CODE_
-extern void rb_replace_node_rcu(struct rb_node *victim, struct rb_node *new,
-				struct rb_root *root);
+void rb_replace_node_rcu(struct rb_node *victim, struct rb_node *new,
+			 struct rb_root *root);
 #endif
 
 static inline void rb_link_node(struct rb_node *node, struct rb_node *parent,

@@ -27,13 +27,13 @@
 
 /* Create the runnnig daemon pidfile */
 int
-pidfile_write(char *pid_file, int pid)
+pidfile_write(char *pathname, int pid)
 {
-	FILE *pidfile = fopen(pid_file, "w");
+	FILE *pidfile = fopen(pathname, "w");
 
 	if (!pidfile) {
 		syslog(LOG_INFO, "pidfile_write : Can not open %s pidfile",
-		       pid_file);
+		       pathname);
 		return 0;
 	}
 	fprintf(pidfile, "%d\n", pid);
@@ -43,16 +43,16 @@ pidfile_write(char *pid_file, int pid)
 
 /* Remove the running daemon pidfile */
 void
-pidfile_rm(char *pid_file)
+pidfile_rm(char *pathname)
 {
-	unlink(pid_file);
+	unlink(pathname);
 }
 
 /* return the daemon running state */
 int
-process_running(char *pid_file)
+process_running(char *pathname)
 {
-	FILE *pidfile = fopen(pid_file, "r");
+	FILE *pidfile = fopen(pathname, "r");
 	pid_t pid;
 	int ret;
 
@@ -62,13 +62,13 @@ process_running(char *pid_file)
 
 	ret = fscanf(pidfile, "%d", &pid);
 	if (ret == EOF)
-		syslog(LOG_INFO, "Error reading pid file %s (%d)", pid_file, ferror(pidfile));
+		syslog(LOG_INFO, "Error reading pid file %s (%d)", pathname, ferror(pidfile));
 	fclose(pidfile);
 
 	/* If no process is attached to pidfile, remove it */
 	if (kill(pid, 0)) {
-		syslog(LOG_INFO, "Remove a zombie pid file %s", pid_file);
-		pidfile_rm(pid_file);
+		syslog(LOG_INFO, "Remove a zombie pid file %s", pathname);
+		pidfile_rm(pathname);
 		return 0;
 	}
 

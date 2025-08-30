@@ -22,8 +22,8 @@
 
 
 static void _server_reconnect(struct cdr_fwd_server *sr);
-static void _server_connect(struct _thread *ev);
-static void _server_io_cb(struct _thread *ev);
+static void _server_connect(struct thread *ev);
+static void _server_io_cb(struct thread *ev);
 
 
 
@@ -158,7 +158,7 @@ _server_got_ack(struct cdr_fwd_server *sr, bool need_retransmit)
 }
 
 static void
-_server_connect_cb(thread_t *ev)
+_server_connect_cb(struct thread *ev)
 {
 	struct cdr_fwd_server *sr = THREAD_ARG(ev);
 	thread_t *io;
@@ -216,7 +216,7 @@ _server_connect_cb(thread_t *ev)
 }
 
 static void
-_server_io_cb(thread_t *ev)
+_server_io_cb(struct thread *ev)
 {
 	struct cdr_fwd_server *sr = THREAD_ARG(ev);
 	uint8_t recv_buf[4100];
@@ -314,7 +314,7 @@ _server_reconnect(struct cdr_fwd_server *sr)
  * async connect state machine
  */
 static void
-_server_connect(thread_t *ev)
+_server_connect(struct thread *ev)
 {
 	struct cdr_fwd_server *sr = THREAD_ARG(ev);
 	int fd;

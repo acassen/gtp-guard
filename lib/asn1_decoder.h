@@ -12,7 +12,7 @@
 
 struct asn1_decoder;
 
-extern int asn1_ber_decoder(const struct asn1_decoder *decoder,
-			    void *context,
-			    const unsigned char *data,
-			    size_t datalen);
+int asn1_ber_decoder(const struct asn1_decoder *decoder,
+		     void *context,
+		     const unsigned char *data,
+		     size_t datalen);

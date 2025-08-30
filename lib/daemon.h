@@ -25,4 +25,4 @@
 #include <sys/types.h>
 
 /* prototype */
-extern pid_t xdaemon(int, int, int);
+pid_t xdaemon(int nochdir, int noclose, int exitflag);

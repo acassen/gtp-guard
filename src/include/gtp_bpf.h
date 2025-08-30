@@ -34,7 +34,7 @@ enum {
 #define GTP_EGRESS	1
 
 /* Prototypes */
-extern int gtp_bpf_ll_attr_update(struct bpf_map *, uint32_t, uint16_t, uint16_t);
-extern struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
-extern int gtp_bpf_init(void);
-extern int gtp_bpf_destroy(void);
+int gtp_bpf_ll_attr_update(struct bpf_map *, uint32_t, uint16_t, uint16_t);
+struct bpf_map *gtp_bpf_load_map(struct bpf_object *, const char *);
+int gtp_bpf_init(void);
+int gtp_bpf_destroy(void);

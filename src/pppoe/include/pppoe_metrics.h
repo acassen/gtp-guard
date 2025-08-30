@@ -22,13 +22,13 @@
 
 #include <stdint.h>
 
-enum metrics_direction {
+enum metric_direction {
 	METRICS_DIR_IN = 0,
 	METRICS_DIR_OUT,
 	METRICS_DIR_MAX,
 };
 
-enum pppoe_metrics {
+enum pppoe_metric {
 	PPPOE_METRIC_TOTAL = 0,
 	PPPOE_METRIC_DROPPED,
 	PPPOE_METRIC_PADI,
@@ -39,7 +39,7 @@ enum pppoe_metrics {
 	PPPOE_METRIC_MAX,
 };
 
-enum ppp_metrics {
+enum ppp_metric {
 	PPP_METRIC_TOTAL = 0,
 	PPP_METRIC_UP,
 	PPP_METRIC_DOWN,
@@ -50,11 +50,11 @@ enum ppp_metrics {
 	PPP_METRIC_MAX,
 };
 
-typedef struct _pppoe_metrics {
+typedef struct pppoe_metrics {
 	uint64_t	m[METRICS_DIR_MAX][PPPOE_METRIC_MAX];
 } pppoe_metrics_t;
 
-typedef struct _ppp_metrics {
+typedef struct ppp_metrics {
 	uint64_t	dropped[METRICS_DIR_MAX];
 	uint64_t	lcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
 	uint64_t	pap[METRICS_DIR_MAX][PPP_METRIC_MAX];

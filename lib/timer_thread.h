@@ -29,7 +29,7 @@ enum {
 };
 
 #define TIMER_THREAD_NAMESIZ	128
-typedef struct _timer_thread {
+typedef struct timer_thread {
 	char			name[TIMER_THREAD_NAMESIZ];
 	rb_root_cached_t	timer;
 	pthread_mutex_t		timer_mutex;
@@ -41,7 +41,7 @@ typedef struct _timer_thread {
 	unsigned long		flags;
 } timer_thread_t;
 
-typedef struct _timer_node {
+typedef struct timer_node {
 	int		(*to_func) (void *);
 	void		*to_arg;
 	timeval_t	sands;
@@ -50,13 +50,13 @@ typedef struct _timer_node {
 
 
 /* prototypes */
-extern void timer_node_expire_now(timer_thread_t *, timer_node_t *);
-extern void timer_node_init(timer_node_t *, int (*fn) (void *), void *);
-extern void timer_node_add(timer_thread_t *, timer_node_t *, int);
-extern int timer_node_pending(timer_node_t *);
-extern int timer_node_del(timer_thread_t *, timer_node_t *);
-extern int timer_thread_init(timer_thread_t *, const char *, int (*fired) (void *));
-extern timer_thread_t *timer_thread_alloc(const char *, int (*fired) (void *));
-extern int timer_thread_signal(timer_thread_t *);
-extern int timer_thread_destroy(timer_thread_t *);
-extern int timer_thread_free(timer_thread_t *);
+void timer_node_expire_now(timer_thread_t *, timer_node_t *);
+void timer_node_init(timer_node_t *, int (*fn) (void *), void *);
+void timer_node_add(timer_thread_t *, timer_node_t *, int);
+int timer_node_pending(timer_node_t *);
+int timer_node_del(timer_thread_t *, timer_node_t *);
+int timer_thread_init(timer_thread_t *, const char *, int (*fired) (void *));
+timer_thread_t *timer_thread_alloc(const char *, int (*fired) (void *));
+int timer_thread_signal(timer_thread_t *);
+int timer_thread_destroy(timer_thread_t *);
+int timer_thread_free(timer_thread_t *);

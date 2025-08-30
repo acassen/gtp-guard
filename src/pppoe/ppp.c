@@ -2809,8 +2809,8 @@ sppp_down(spppoe_t *s)
 }
 
 sppp_t *
-sppp_init(spppoe_t *s, void (*pp_tls)(struct _sppp *), void (*pp_tlf)(sppp_t *)
-		     , void (*pp_con)(sppp_t *), void (*pp_chg)(struct _sppp *, int))
+sppp_init(spppoe_t *s, void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *)
+		     , void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int))
 {
 	pppoe_t *pppoe = s->pppoe;
 	sppp_t *sp;

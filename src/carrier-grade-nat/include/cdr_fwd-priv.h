@@ -65,7 +65,7 @@ struct cdr_fwd_context
 	time_t				active_since;
 	time_t				active_reco_recent;
 	int				active_reco_n;
-	thread_t			*active_tick;
+	struct thread			*active_tick;
 
 	/* spooled files timestamp list */
 	struct cdr_fwd_spool_file	*spool_f;
@@ -86,7 +86,7 @@ struct cdr_fwd_context
 	time_t				disk_next_check;
 
 	/* list of server */
-	list_head_t			remote_list;
+	struct list_head		remote_list;
 };
 
 
@@ -105,8 +105,8 @@ struct cdr_fwd_server
 	time_t				try_last;
 	int				try_count;
 
-	thread_t			*connect_ev;	/* timer */
-	thread_t			*io;		/* fd */
+	struct thread			*connect_ev;	/* timer */
+	struct thread			*io;		/* fd */
 	int				state;
 	uint8_t				recv_buf[4];
 	uint32_t			recv_buf_size;

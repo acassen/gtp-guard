@@ -31,6 +31,6 @@ struct ppp_key {
 };
 
 /* Prototypes */
-extern int gtp_bpf_ppp_action(int, gtp_teid_t *, struct bpf_map *, struct bpf_map *);
-extern int gtp_bpf_ppp_teid_vty(vty_t *, gtp_teid_t *, struct bpf_map *, struct bpf_map *);
-extern int gtp_bpf_ppp_teid_bytes(gtp_teid_t *, struct bpf_map *, struct bpf_map *, uint64_t *);
+int gtp_bpf_ppp_action(int, gtp_teid_t *, struct bpf_map *, struct bpf_map *);
+int gtp_bpf_ppp_teid_vty(vty_t *, gtp_teid_t *, struct bpf_map *, struct bpf_map *);
+int gtp_bpf_ppp_teid_bytes(gtp_teid_t *, struct bpf_map *, struct bpf_map *, uint64_t *);

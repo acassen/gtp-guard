@@ -39,7 +39,7 @@ enum gtp_interface_flags {
 };
 
 /* Interface structure */
-typedef struct _gtp_interface {
+typedef struct gtp_interface {
 	char			ifname[IF_NAMESIZE];
 	uint8_t			hw_addr[ETH_ALEN];
 	uint8_t			hw_addr_len;
@@ -68,16 +68,16 @@ struct ll_attr {
 
 
 /* Prototypes */
-extern int gtp_interface_metrics_dump(FILE *);
-extern void gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
-					  void *, const char *, int, __u8, __u8);
-extern void gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *);
-extern void gtp_interface_update_direct_tx_lladdr(ip_address_t *, const uint8_t *);
-extern gtp_interface_t *gtp_interface_get(const char *);
-extern gtp_interface_t *gtp_interface_get_by_ifindex(int);
-extern int gtp_interface_put(gtp_interface_t *);
-extern gtp_interface_t *gtp_interface_alloc(const char *, int);
-extern int gtp_interface_load_bpf(gtp_interface_t *);
-extern int gtp_interface_unload_bpf(gtp_interface_t *);
-extern int gtp_interface_destroy(gtp_interface_t *);
-extern int gtp_interfaces_destroy(void);
+int gtp_interface_metrics_dump(FILE *);
+void gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
+ 				   void *, const char *, int, __u8, __u8);
+void gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *);
+void gtp_interface_update_direct_tx_lladdr(ip_address_t *, const uint8_t *);
+gtp_interface_t *gtp_interface_get(const char *);
+gtp_interface_t *gtp_interface_get_by_ifindex(int);
+int gtp_interface_put(gtp_interface_t *);
+gtp_interface_t *gtp_interface_alloc(const char *, int);
+int gtp_interface_load_bpf(gtp_interface_t *);
+int gtp_interface_unload_bpf(gtp_interface_t *);
+int gtp_interface_destroy(gtp_interface_t *);
+int gtp_interfaces_destroy(void);

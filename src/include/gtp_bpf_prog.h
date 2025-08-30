@@ -25,10 +25,10 @@
 #include "libbpf.h"
 #include "gtp_stddef.h"
 
-typedef struct _gtp_bpf_prog gtp_bpf_prog_t;
-typedef struct _gtp_interface gtp_interface_t;
+typedef struct gtp_bpf_prog gtp_bpf_prog_t;
+typedef struct gtp_interface gtp_interface_t;
 
-typedef struct _gtp_bpf_prog_var
+typedef struct gtp_bpf_prog_var
 {
 	const char *name;
 	const void *value;
@@ -51,7 +51,7 @@ enum {
 };
 
 /* BPF prog template */
-typedef struct _gtp_bpf_prog_tpl {
+typedef struct gtp_bpf_prog_tpl {
 	gtp_bpf_prog_mode_t	mode;
 	char			description[GTP_STR_MAX_LEN];
 	char			def_progname[GTP_STR_MAX_LEN];
@@ -75,11 +75,11 @@ enum gtp_bpf_prog_flags {
 };
 
 /* BPF prog structure */
-typedef struct _gtp_bpf_maps {
+typedef struct gtp_bpf_maps {
 	struct bpf_map		*map;
 } gtp_bpf_maps_t;
 
-typedef struct _gtp_bpf_prog {
+typedef struct gtp_bpf_prog {
 	char			name[GTP_STR_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	char			path[GTP_PATH_MAX_LEN];
@@ -97,31 +97,31 @@ typedef struct _gtp_bpf_prog {
 	unsigned long		flags;
 } gtp_bpf_prog_t;
 
-typedef struct _gtp_bpf_prog_attr {
+typedef struct gtp_bpf_prog_attr {
 	gtp_bpf_prog_t		*prog;
 	struct bpf_link		*lnk;
 } gtp_bpf_prog_attr_t;
 
 
 /* Prototypes */
-extern int gtp_bpf_prog_obj_update_var(struct bpf_object *,
-				       const gtp_bpf_prog_var_t *);
-extern int gtp_bpf_prog_attr_reset(gtp_bpf_prog_attr_t *);
-extern void gtp_bpf_prog_detach_tc(gtp_bpf_prog_t *, gtp_interface_t *);
-extern int gtp_bpf_prog_attach_tc(gtp_bpf_prog_t *, gtp_interface_t *);
-extern int gtp_bpf_prog_detach_xdp(struct bpf_link *);
-extern struct bpf_link *gtp_bpf_prog_attach_xdp(gtp_bpf_prog_t *, gtp_interface_t *);
-extern int gtp_bpf_prog_deattach(struct bpf_link *);
-extern int gtp_bpf_prog_open(gtp_bpf_prog_t *);
-extern int gtp_bpf_prog_load(gtp_bpf_prog_t *);
-extern void gtp_bpf_prog_unload(gtp_bpf_prog_t *);
-extern int gtp_bpf_prog_destroy(gtp_bpf_prog_t *p);
-extern void gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *),
-				      void *, gtp_bpf_prog_mode_t);
-extern gtp_bpf_prog_t *gtp_bpf_prog_get(const char *);
-extern int gtp_bpf_prog_put(gtp_bpf_prog_t *);
-extern gtp_bpf_prog_t *gtp_bpf_prog_alloc(const char *);
-extern int gtp_bpf_progs_destroy(void);
-extern const char *gtp_bpf_prog_tpl_mode2str(gtp_bpf_prog_mode_t);
-extern void gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *);
-extern const gtp_bpf_prog_tpl_t *gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t);
+int gtp_bpf_prog_obj_update_var(struct bpf_object *,
+				const gtp_bpf_prog_var_t *);
+int gtp_bpf_prog_attr_reset(gtp_bpf_prog_attr_t *);
+void gtp_bpf_prog_detach_tc(gtp_bpf_prog_t *, gtp_interface_t *);
+int gtp_bpf_prog_attach_tc(gtp_bpf_prog_t *, gtp_interface_t *);
+int gtp_bpf_prog_detach_xdp(struct bpf_link *);
+struct bpf_link *gtp_bpf_prog_attach_xdp(gtp_bpf_prog_t *, gtp_interface_t *);
+int gtp_bpf_prog_deattach(struct bpf_link *);
+int gtp_bpf_prog_open(gtp_bpf_prog_t *);
+int gtp_bpf_prog_load(gtp_bpf_prog_t *);
+void gtp_bpf_prog_unload(gtp_bpf_prog_t *);
+int gtp_bpf_prog_destroy(gtp_bpf_prog_t *p);
+void gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *),
+			       void *, gtp_bpf_prog_mode_t);
+gtp_bpf_prog_t *gtp_bpf_prog_get(const char *);
+int gtp_bpf_prog_put(gtp_bpf_prog_t *);
+gtp_bpf_prog_t *gtp_bpf_prog_alloc(const char *);
+int gtp_bpf_progs_destroy(void);
+const char *gtp_bpf_prog_tpl_mode2str(gtp_bpf_prog_mode_t);
+void gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *);
+const gtp_bpf_prog_tpl_t *gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t);

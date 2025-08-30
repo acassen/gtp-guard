@@ -350,7 +350,7 @@ DEFUN(show_cgn,
 static int
 config_cgn_write(vty_t *vty)
 {
-	list_head_t *l = &daemon_data->cgn;
+	struct list_head *l = &daemon_data->cgn;
 	struct cgn_ctx *c;
 	int i, k, p;
 

@@ -35,5 +35,5 @@ struct gtp_iptnl_rule {
 } __attribute__ ((__aligned__(8)));
 
 /* Prototypes */
-extern int gtp_bpf_iptnl_action(int, gtp_iptnl_t *, struct bpf_map *);
-extern int gtp_bpf_iptnl_vty(vty_t *, struct bpf_map *);
+int gtp_bpf_iptnl_action(int, gtp_iptnl_t *, struct bpf_map *);
+int gtp_bpf_iptnl_vty(vty_t *, struct bpf_map *);

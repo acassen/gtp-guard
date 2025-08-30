@@ -25,7 +25,7 @@
 #include "thread.h"
 
 /* types definitions */
-typedef struct _nl_handle {
+typedef struct nl_handle {
 	int			fd;
 	uint32_t		nl_pid;
 	__u32			seq;
@@ -47,5 +47,5 @@ typedef struct _nl_handle {
 #define RTA_TAIL(rta)	(struct rtattr *) (char *)(rta) + RTA_ALIGN((rta)->rta_len)
 
 /* Prototypes */
-extern int gtp_netlink_init(void);
-extern int gtp_netlink_destroy(void);
+int gtp_netlink_init(void);
+int gtp_netlink_destroy(void);

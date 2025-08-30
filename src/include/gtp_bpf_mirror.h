@@ -38,5 +38,5 @@ struct gtp_mirror_rule {
 
 
 /* Prototypes */
-extern int gtp_bpf_mirror_action(int, void *, gtp_bpf_prog_t *);
-extern int gtp_bpf_mirror_vty(vty_t *, gtp_bpf_prog_t *);
+int gtp_bpf_mirror_action(int, void *, gtp_bpf_prog_t *);
+int gtp_bpf_mirror_vty(vty_t *, gtp_bpf_prog_t *);

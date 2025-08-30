@@ -39,11 +39,11 @@ enum gtp_schedule_flags {
 };
 
 /* GTP Resolv */
-typedef struct _gtp_pgw {
+typedef struct gtp_pgw {
 	uint16_t		priority;
 	uint16_t		weight;
 	char			srv_name[GTP_DISPLAY_SRV_LEN];
-	struct _gtp_naptr	*naptr;	  /* Back-pointer */
+	struct gtp_naptr	*naptr;	  /* Back-pointer */
 	struct sockaddr_storage	addr;
 	uint64_t		cnt;
 	time_t			last_resp;
@@ -51,7 +51,7 @@ typedef struct _gtp_pgw {
 	list_head_t		next;
 } gtp_pgw_t;
 
-typedef struct _gtp_naptr {
+typedef struct gtp_naptr {
 	uint8_t			server_type;
 	uint16_t		order;
 	uint16_t		preference;
@@ -67,14 +67,14 @@ typedef struct _gtp_naptr {
 	unsigned long		fl;
 } gtp_naptr_t;
 
-typedef struct _gtp_service {
+typedef struct gtp_service {
 	char			str[GTP_APN_MAX_LEN];
 	int			prio;
 
 	list_head_t		next;
 } gtp_service_t;
 
-typedef struct _gtp_resolv_ctx {
+typedef struct gtp_resolv_ctx {
 	gtp_apn_t		*apn;	/* Back-pointer */
 	char			*realm;
 	struct __res_state	ns_rs;
@@ -87,15 +87,15 @@ typedef struct _gtp_resolv_ctx {
 
 
 /* Prototypes */
-extern gtp_service_t *gtp_service_alloc(gtp_apn_t *, const char *, int);
-extern int gtp_service_destroy(gtp_apn_t *);
-extern int gtp_naptr_destroy(list_head_t *);
-extern int gtp_naptr_show(vty_t *vty, gtp_apn_t *);
-extern int gtp_naptr_dump(list_head_t *);
-extern gtp_naptr_t *gtp_naptr_get(gtp_apn_t *, const char *);
-extern int gtp_resolv_pgw(gtp_resolv_ctx_t *, list_head_t *);
-extern int gtp_resolv_naptr(gtp_resolv_ctx_t *, list_head_t *, const char *, ...);
-extern gtp_resolv_ctx_t *gtp_resolv_ctx_alloc(gtp_apn_t *);
-extern int gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *);
-extern int gtp_resolv_init(void);
-extern int gtp_resolv_destroy(void);
+gtp_service_t *gtp_service_alloc(gtp_apn_t *, const char *, int);
+int gtp_service_destroy(gtp_apn_t *);
+int gtp_naptr_destroy(list_head_t *);
+int gtp_naptr_show(vty_t *vty, gtp_apn_t *);
+int gtp_naptr_dump(list_head_t *);
+gtp_naptr_t *gtp_naptr_get(gtp_apn_t *, const char *);
+int gtp_resolv_pgw(gtp_resolv_ctx_t *, list_head_t *);
+int gtp_resolv_naptr(gtp_resolv_ctx_t *, list_head_t *, const char *, ...);
+gtp_resolv_ctx_t *gtp_resolv_ctx_alloc(gtp_apn_t *);
+int gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *);
+int gtp_resolv_init(void);
+int gtp_resolv_destroy(void);

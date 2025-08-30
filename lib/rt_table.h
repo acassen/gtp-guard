@@ -37,15 +37,15 @@ typedef struct _rt_table {
 /*
  *	Prototypes
  */
-extern rt_table_t *rt_table_init(int (*free) (void *), int (*dump) (void *));
-extern int rt_table_free(rt_table_t *);
-extern int rt_table_dump(rt_table_t *);
-extern rt_node_t *rt_node_match(const rt_table_t *, const prefix_t *);
-extern rt_node_t *rt_node_match_ipv4(const rt_table_t *, const struct in_addr *);
-extern rt_node_t *rt_node_match_ipv6(const rt_table_t *, const struct in6_addr *);
-extern rt_node_t *rt_node_lookup(rt_table_t *, prefix_t *);
-extern rt_node_t *rt_node_lookup_lpm(rt_table_t *, prefix_t *);
-extern rt_node_t *rt_node_get(rt_table_t *, prefix_t *);
-extern int rt_node_delete(rt_node_t *);
-extern rt_node_t *rt_next(rt_node_t *);
-extern rt_node_t *rt_next_until(rt_node_t *, rt_node_t *);
+rt_table_t *rt_table_init(int (*free) (void *), int (*dump) (void *));
+int rt_table_free(rt_table_t *rt);
+int rt_table_dump(rt_table_t *rt);
+rt_node_t *rt_node_match(const rt_table_t *table, const prefix_t *p);
+rt_node_t *rt_node_match_ipv4(const rt_table_t *table, const struct in_addr *addr);
+rt_node_t *rt_node_match_ipv6(const rt_table_t *table, const struct in6_addr *addr);
+rt_node_t *rt_node_lookup(rt_table_t *table, prefix_t *p);
+rt_node_t *rt_node_lookup_lpm(rt_table_t *table, prefix_t *p);
+rt_node_t *rt_node_get(rt_table_t *table, prefix_t *p);
+int rt_node_delete(rt_node_t *node);
+rt_node_t *rt_next(rt_node_t *node);
+rt_node_t *rt_next_until(rt_node_t *node, rt_node_t *limit);
