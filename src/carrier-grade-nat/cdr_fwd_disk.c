@@ -20,13 +20,13 @@
  */
 int
 cdr_fwd_disk_read_ticket(struct cdr_fwd_context *ctx, int fd,
-			 struct cdr_fwd_ticket_buffer *ticket,
+			 struct cdr_fwd_ticket_buffer *t,
 			 const char *pathname)
 {
 	int ret;
 
 	/* read ticket size and magic (mtype) */
-	ret = disk_read(fd, ticket, 8);
+	ret = disk_read(fd, t, 8);
 	if (ret < 0) {
 		err(ctx->log, "%s: %m", pathname);
 		return -1;
@@ -37,22 +37,22 @@ cdr_fwd_disk_read_ticket(struct cdr_fwd_context *ctx, int fd,
 		return 0;
 
 	/* check magic */
-	if ((uint32_t)ticket->mtype != CDR_FWD_MTYPE_STOR_MAGIC) {
+	if ((uint32_t)t->mtype != CDR_FWD_MTYPE_STOR_MAGIC) {
 		err(ctx->log, "%s: bad magic: 0x%08x != 0x%08x",
-		    pathname, ticket->mtype, CDR_FWD_MTYPE_STOR_MAGIC);
+		    pathname, t->mtype, CDR_FWD_MTYPE_STOR_MAGIC);
 		return -1;
 	}
 
 	/* check file consistency */
-	if (!ticket->size || ticket->size > CDR_FWD_TICKETS_MAX_BUFF) {
+	if (!t->size || t->size > CDR_FWD_TICKETS_MAX_BUFF) {
 		err(ctx->log, "%s: bad ticket->size: %d",
-			pathname, ticket->size);
+			pathname, t->size);
 		return -1;
 	}
 
 	/* read ticket payload */
-	ret = disk_read(fd, ticket->mtext, ticket->size);
-	if (ret != (int)ticket->size) {
+	ret = disk_read(fd, t->mtext, t->size);
+	if (ret != (int)t->size) {
 		if (ret < 0)
 			err(ctx->log, "%s: %m", pathname);
 		else
@@ -60,7 +60,7 @@ cdr_fwd_disk_read_ticket(struct cdr_fwd_context *ctx, int fd,
 		return -1;
 	}
 
-	return 8 + (int)ticket->size;
+	return 8 + (int)t->size;
 }
 
 

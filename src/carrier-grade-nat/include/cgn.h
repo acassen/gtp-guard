@@ -66,11 +66,11 @@ struct cgn_ctx
 };
 
 /* Prototypes */
-int cgn_ctx_compact_cgn_addr(struct cgn_ctx *, uint64_t *);
-int cgn_ctx_dump(struct cgn_ctx *c, char *, size_t);
-struct cgn_ctx *cgn_ctx_get_by_name(const char *);
-void cgn_ctx_release(struct cgn_ctx *);
-struct cgn_ctx *cgn_ctx_alloc(const char *);
+int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
+int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
+struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
+void cgn_ctx_release(struct cgn_ctx *c);
+struct cgn_ctx *cgn_ctx_alloc(const char *name);
 int cgn_init(void);
 int cgn_destroy(void);
 

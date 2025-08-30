@@ -193,10 +193,10 @@ cgn_ctx_alloc(const char *name)
 
 /* release a cgn context instance */
 void
-cgn_ctx_release(struct cgn_ctx *cgn)
+cgn_ctx_release(struct cgn_ctx *c)
 {
-	list_del(&cgn->next);
-	free(cgn);
+	list_del(&c->next);
+	free(c);
 }
 
 
