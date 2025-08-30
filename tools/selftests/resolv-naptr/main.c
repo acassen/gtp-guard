@@ -40,8 +40,8 @@ gtp_bpf_rt_lladdr_update(void *)
 
 
 /* Local data */
-data_t *daemon_data;
-thread_master_t *master = NULL;
+struct data *daemon_data;
+struct thread_master *master = NULL;
 const char *apn_str;
 const char *plmn_str;
 const char *nameserver;
@@ -149,8 +149,8 @@ parse_cmdline(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	struct sockaddr_in pgw, sgw;
-	gtp_apn_t *apn;
-	gtp_service_t *svc;
+	struct gtp_apn *apn;
+	struct gtp_service *svc;
 	unsigned long flags = 0;
 	int err;
 

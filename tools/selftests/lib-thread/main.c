@@ -29,8 +29,8 @@
 #include "signals.h"
 
 /* Local data */
-data_t *daemon_data;
-thread_master_t *master = NULL;
+struct data *daemon_data;
+struct thread_master *master = NULL;
 
 /*
  *      Usage function
@@ -86,9 +86,9 @@ parse_cmdline(int argc, char **argv)
 	return 0;
 }
 
-static thread_master_t *m;
+static struct thread_master *m;
+static struct thread *t1, *t2, *t3;
 static int sigint;
-static thread_t *t1, *t2, *t3;
 
 static void
 sigint_hdl(__attribute__((unused)) void *v, __attribute__((unused)) int sig)
@@ -106,9 +106,9 @@ sigint_hdl(__attribute__((unused)) void *v, __attribute__((unused)) int sig)
 
 /* t1 or t2 fired */
 static void
-timer_func(thread_t *t)
+timer_func(struct thread *t)
 {
-	thread_t *ot = t == t1 ? t2 : t1;
+	struct thread *ot = t == t1 ? t2 : t1;
 
 	printf("t%ld fired\n", (size_t)t->arg);
 

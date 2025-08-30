@@ -29,6 +29,7 @@
 #include "gtp_interface.h"
 #include "bitops.h"
 #include "libbpf.h"
+#include "bitops.h"
 #include "logger.h"
 #include "utils.h"
 #include "memory.h"

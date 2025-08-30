@@ -356,7 +356,8 @@ netlink_close(struct nl_handle *nl)
  *	Netlink neighbour lookup
  */
 static int
-netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h, void *)
+netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h,
+		     __attribute__((unused)) void *arg)
 {
 	struct ndmsg *r = NLMSG_DATA(h);
 	struct rtattr *tb[NDA_MAX + 1];
@@ -436,7 +437,7 @@ netlink_neigh_lookup(__attribute__((unused)) struct thread *thread)
  *	Kernel Netlink reflector
  */
 static int
-netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h, void *)
+netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h, __attribute__((unused)) void *arg)
 {
 	switch (h->nlmsg_type) {
 	case RTM_NEWNEIGH:

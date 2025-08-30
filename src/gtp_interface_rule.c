@@ -19,11 +19,14 @@
  * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <assert.h>
-
 /* local includes */
 #include "gtp_interface.h"
 #include "bpf/lib/if_rule-def.h"
+#include "addr.h"
+#include "memory.h"
+#include "utils.h"
+#include "bitops.h"
+#include "logger.h"
 
 
 /*
@@ -136,7 +139,6 @@ gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *i
 static void
 gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	assert(iface->bpf_itf == udata);
 	iface->bpf_itf = NULL;
 }
 
