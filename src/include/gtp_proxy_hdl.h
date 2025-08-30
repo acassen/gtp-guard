@@ -20,7 +20,10 @@
  */
 #pragma once
 
-/* Defines */
+#include <sys/socket.h>
+#include "gtp_server.h"
+#include "gtp_teid.h"
+#include "gtp_session.h"
 
 /* Prototypes */
 extern gtp_session_t *gtpc_retransmit_detected(gtp_server_t *);

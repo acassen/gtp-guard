@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <errno.h>
 #include <netinet/in.h>
 #include "timer.h"
 #include "thread.h"

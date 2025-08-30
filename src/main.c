@@ -19,12 +19,23 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
 #include <getopt.h>
 #include <sys/resource.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_netlink.h"
+#include "gtp_conn.h"
+#include "gtp_teid.h"
+#include "gtp_session.h"
+#include "gtp_bpf.h"
+#include "command.h"
+#include "bitops.h"
+#include "signals.h"
+#include "pidfile.h"
+#include "utils.h"
+#include "logger.h"
+#include "memory.h"
+#include "daemon.h"
 #include "config.h"
 #include "main.h"
 

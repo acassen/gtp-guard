@@ -19,20 +19,21 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <pthread.h>
-#include <sys/stat.h>
-#include <net/if.h>
-#include <errno.h>
 #include <inttypes.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_router.h"
+#include "gtp_utils.h"
+#include "gtp_bpf_rt.h"
+#include "gtp.h"
+#include "command.h"
+#include "memory.h"
+#include "bitops.h"
+#include "inet_utils.h"
 
 
 /* Extern data */
 extern data_t *daemon_data;
-extern thread_master_t *master;
 
 
 /*

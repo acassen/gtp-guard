@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <syslog.h>
+#include "thread.h"
+#include "gtp_data.h"
+
 /* global var */
 thread_master_t *master = NULL;					/* Scheduling master thread */
 char *conf_file = NULL;						/* Configuration file */

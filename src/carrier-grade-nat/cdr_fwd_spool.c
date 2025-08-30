@@ -12,19 +12,15 @@
 
 
 #include <unistd.h>
-#include <stdint.h>
 #include <assert.h>
-#include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <string.h>
-#include <stdio.h>
 #include <inttypes.h>
-#include <time.h>
 
 #include "tools.h"
+#include "disk.h"
 #include "cdr_fwd-priv.h"
 
 

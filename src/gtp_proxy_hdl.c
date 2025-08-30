@@ -19,13 +19,15 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_teid.h"
+#include "gtp_session.h"
+#include "gtp_proxy.h"
+#include "gtp_proxy_hdl_v1.h"
+#include "gtp_proxy_hdl_v2.h"
+#include "gtp_utils.h"
+#include "logger.h"
+#include "inet_utils.h"
 
-
-/* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
 
 /* Local data */
 gtp_teid_t dummy_teid = { .type = 0xff };

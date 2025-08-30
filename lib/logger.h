@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <stdio.h>
 #include <syslog.h>
 
 void enable_console_log(void);

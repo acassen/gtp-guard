@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <resolv.h>
+#include <sys/socket.h>
+#include "vty.h"
+#include "gtp_apn.h"
+
 /* defines */
 #define GTP_APN_MAX_LEN		256
 #define GTP_RESOLV_BUFFER_LEN	20*1024

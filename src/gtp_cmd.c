@@ -19,15 +19,20 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
+#include <unistd.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/filter.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_cmd.h"
+#include "gtp.h"
+#include "memory.h"
+#include "inet_utils.h"
+#include "utils.h"
+#include "logger.h"
 
 
 /* Extern data */

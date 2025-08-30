@@ -21,10 +21,6 @@
 
 #pragma once
 
-#include "warnings.h"
-#include "config.h"
-
-
 #if defined _HAVE_FUNCTION_ATTRIBUTE_ERROR_ && (!defined _HAVE_WARNING_NESTED_EXTERNS_ || defined _HAVE_DIAGNOSTIC_PUSH_POP_PRAGMAS_)
 
 /* Copied from linux kernel 5.15 source include/linux/{build_bug,compiler_types,compiler_attributes}.h */

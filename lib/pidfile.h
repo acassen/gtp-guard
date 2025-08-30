@@ -21,14 +21,7 @@
 
 #pragma once
 
-/* system include */
-#include <unistd.h>
-#include <stdio.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <syslog.h>
-
 /* Prototypes */
-extern int pidfile_write(char *pid_file, int pid);
-extern void pidfile_rm(char *pid_file);
-extern int process_running(char *pid_file);
+extern int pidfile_write(char *, int);
+extern void pidfile_rm(char *);
+extern int process_running(char *);

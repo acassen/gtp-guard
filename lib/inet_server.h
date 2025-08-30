@@ -22,7 +22,9 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdint.h>
 #include <pthread.h>
+#include <sys/socket.h>
 #include "thread.h"
 
 

@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <linux/types.h>
+#include "vty.h"
+#include "gtp_bpf_prog.h"
+
 enum {
 	TC_MIRROR_MAP_RULES = 0,
 	TC_MIRROR_MAP_CNT

@@ -3,9 +3,9 @@
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
 
-#include <time.h>
-#include <ctype.h>
-#include <syslog.h>
+#include <string.h>
+#include <arpa/inet.h>
+
 #include "memory.h"
 #include "inet_utils.h"
 #include "prefix.h"

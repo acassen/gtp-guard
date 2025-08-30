@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include "libbpf.h"
+
 enum {
 	RULE_ADD = 0,
 	RULE_UPDATE,

@@ -20,5 +20,7 @@
  */
 #pragma once
 
+#include <stdio.h>
+
 /* Prototypes */
 extern int gtp_router_metrics_dump(FILE *);

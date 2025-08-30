@@ -20,7 +20,7 @@
 #
 
 EXEC= test-resolv
-INCLUDES = -I../../../src/include -I../../../lib -I../../../libbpf/src -I../../../libbpf/src/uapi
+INCLUDES = -I../../../src/include -I../../../src/pppoe/include -I../../../lib -I../../../libbpf/src -I../../../libbpf/src/uapi
 CC= gcc
 CFLAGS= -Wall -Wstrict-prototypes -Wpointer-arith -O3 -fomit-frame-pointer -fexpensive-optimizations -g $(INCLUDES)
 LDFLAGS= -lm -lcrypt -lpthread -lresolv -ggdb

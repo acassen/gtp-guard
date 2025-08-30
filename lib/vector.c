@@ -3,6 +3,9 @@
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
 
+#include <stdio.h>
+#include <string.h>
+
 #include "vector.h"
 #include "utils.h"
 #include "memory.h"

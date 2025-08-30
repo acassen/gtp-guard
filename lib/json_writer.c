@@ -19,13 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdarg.h>
-#include <assert.h>
-#include <malloc.h>
 #include <inttypes.h>
-#include <stdint.h>
+#include <assert.h>
 
 #include "memory.h"
 #include "json_writer.h"

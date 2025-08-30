@@ -20,10 +20,10 @@
  */
 #pragma once
 
-#include <sys/time.h>
-#include <limits.h>
-#include <string.h>
+#include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
+#include <sys/time.h>
 
 typedef struct timeval timeval_t;
 

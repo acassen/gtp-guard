@@ -19,9 +19,13 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <syslog.h>
-#include "daemon.h"
-#include "utils.h"
+#include <sys/stat.h>
+#include <sys/types.h>
+
 
 /* Daemonization function coming from zebra source code */
 pid_t

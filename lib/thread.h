@@ -20,13 +20,11 @@
  */
 #pragma once
 
-/* system includes */
 #include <sys/types.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/timerfd.h>
-
 #include "timer.h"
 #include "list_head.h"
 #include "rbtree_api.h"

@@ -19,18 +19,10 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "config.h"
-
-#include <sys/mman.h>
-#include <sys/resource.h>
-#ifndef RLIMIT_RTTIME
-/* musl was very late defining RLIMIT_RTTIME, not until v1.20 */
-#define RLIMIT_RTTIME	15
-#endif
-#include <errno.h>
 #include <string.h>
-#include <unistd.h>
-#include <stdbool.h>
+#include <sys/mman.h>
+#include <sys/param.h>
+#include <errno.h>
 
 #include "process.h"
 #include "utils.h"

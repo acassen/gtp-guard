@@ -20,6 +20,14 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/socket.h>
+#include "list_head.h"
+#include "gtp_vrf.h"
+#include "gtp_cdr.h"
+#include "gtp_cdr_spool.h"
+
 /* defines */
 #define GTP_APN_MAX_LEN		256
 #define GTP_REALM_LEN		128

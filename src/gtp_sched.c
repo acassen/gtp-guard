@@ -19,8 +19,11 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_resolv.h"
+#include "gtp_sched.h"
+#include "gtp_session.h"
+#include "bitops.h"
+#include "logger.h"
 
 
 /*

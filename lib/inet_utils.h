@@ -23,15 +23,9 @@
 
 /* system includes */
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <arpa/nameser.h>
-#include <sys/param.h>
-#include <sys/utsname.h>
-#include <netdb.h>
 #include <stdbool.h>
+#include <netinet/in.h>
 
 /* defines */
 #define INET_DEFAULT_CONNECTION_KEEPIDLE	20

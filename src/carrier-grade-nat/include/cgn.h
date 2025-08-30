@@ -22,6 +22,10 @@
 
 #pragma once
 
+#include <stdint.h>
+#include "gtp_stddef.h"
+#include "list_head.h"
+
 /* default protocol timeout values */
 #define CGN_PROTO_TIMEOUT_TCP_EST	600
 #define CGN_PROTO_TIMEOUT_TCP_SYNFIN	120
@@ -62,11 +66,11 @@ struct cgn_ctx
 };
 
 /* Prototypes */
-int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
-int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
-struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
-void cgn_ctx_release(struct cgn_ctx *cgn);
-struct cgn_ctx *cgn_ctx_alloc(const char *name);
+int cgn_ctx_compact_cgn_addr(struct cgn_ctx *, uint64_t *);
+int cgn_ctx_dump(struct cgn_ctx *c, char *, size_t);
+struct cgn_ctx *cgn_ctx_get_by_name(const char *);
+void cgn_ctx_release(struct cgn_ctx *);
+struct cgn_ctx *cgn_ctx_alloc(const char *);
 int cgn_init(void);
 int cgn_destroy(void);
 

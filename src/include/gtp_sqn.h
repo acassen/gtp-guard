@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include "gtp_server.h"
+#include "gtp_teid.h"
+#include "gtp_htab.h"
+
 /* Prototypes */
 extern gtp_teid_t *gtp_vsqn_get(gtp_htab_t *, uint32_t);
 extern int gtp_vsqn_unhash(gtp_htab_t *, gtp_teid_t *);

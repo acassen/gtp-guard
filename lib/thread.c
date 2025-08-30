@@ -19,17 +19,9 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "config.h"
-
 #include <errno.h>
-#include <sys/wait.h>
-#include <sys/timerfd.h>
 #include <sys/epoll.h>
-#include <unistd.h>
 #include <assert.h>
-#include <sys/signalfd.h>
-#include <linux/version.h>
-#include <sched.h>
 
 #include "thread.h"
 #include "memory.h"
@@ -39,7 +31,6 @@
 #include "logger.h"
 #include "bitops.h"
 #include "timer.h"
-#include "warnings.h"
 #include "process.h"
 
 

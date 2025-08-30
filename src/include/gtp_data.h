@@ -20,15 +20,9 @@
  */
 #pragma once
 
-/* Default values */
-#define GTP_STR_MAX_LEN		128
-#define GTP_NAME_MAX_LEN	64
-#define GTP_NAMESERVER_PORT	53
-#define GTP_DEFAULT_THREAD_CNT	10
-#define GTP_BUFFER_SIZE		4096
-#define GTP_PNAME		128
-#define GTP_PATH_MAX_LEN	256
-
+#include <sys/socket.h>
+#include "inet_server.h"
+#include "gtp_stddef.h"
 
 /* Flags */
 enum daemon_flags {

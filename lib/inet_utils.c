@@ -19,24 +19,20 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <ctype.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <ifaddrs.h>
-#include <net/if.h>
-#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <arpa/nameser.h>
 #include <sys/stat.h>
 #include <sys/un.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
+#include <netinet/tcp.h>
 #include <linux/filter.h>
 #include <linux/ip.h>
 #include <linux/if_packet.h>
 
 #include "logger.h"
 #include "inet_utils.h"
-#include "addr.h"
 #include "utils.h"
 
 /* Compute a checksum */

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <stddef.h>
+
 /* buffer definition */
 typedef struct _buffer_data {
 	struct _buffer_data	*next;

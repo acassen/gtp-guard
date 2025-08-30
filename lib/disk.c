@@ -25,12 +25,10 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include <stdbool.h>
-#include <sys/stat.h>
 #include <sys/mman.h>
 
-#include <logger.h>
-#include <disk.h>
+#include "logger.h"
+#include "disk.h"
 
 
 /*

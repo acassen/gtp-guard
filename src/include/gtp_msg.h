@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include "rbtree_api.h"
+#include "gtp.h"
+#include "pkt_buffer.h"
+
 /*
  *	GTPv2 Message
  */

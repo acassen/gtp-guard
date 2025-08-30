@@ -19,8 +19,14 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_mirror.h"
+#include "gtp_bpf.h"
+#include "gtp_bpf_mirror.h"
+#include "addr.h"
+#include "memory.h"
+#include "bitops.h"
+#include "utils.h"
 
 /* Extern data */
 extern data_t *daemon_data;

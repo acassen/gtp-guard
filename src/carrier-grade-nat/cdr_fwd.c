@@ -17,6 +17,7 @@
 #include <time.h>
 
 #include "tools.h"
+#include "disk.h"
 #include "cdr_fwd-priv.h"
 
 

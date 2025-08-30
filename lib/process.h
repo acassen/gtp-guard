@@ -22,7 +22,6 @@
 #pragma once
 
 #include <sched.h>
-#include <sys/types.h>
 #include <sys/resource.h>
 
 #define	RT_RLIMIT_DEFAULT	10000

@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include "pppoe.h"
+
 #define PPPDEBUG(a)	do {	\
 	if (debug & 8)		\
 		printf a;	\

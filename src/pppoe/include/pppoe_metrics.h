@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include <stdint.h>
+
 enum metrics_direction {
 	METRICS_DIR_IN = 0,
 	METRICS_DIR_OUT,

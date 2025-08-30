@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include "gtp_apn.h"
+
 /* GTPv1 */
 extern int gtp1_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
 

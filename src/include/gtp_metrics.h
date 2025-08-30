@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <sys/types.h>
+#include "pkt_buffer.h"
+
 /* defines */
 #define GTP_METRIC_MAX_MSG	(1 << 8)
 #define METRIC_PACKET		0

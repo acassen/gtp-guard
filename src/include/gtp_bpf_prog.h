@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include "list_head.h"
+#include "libbpf.h"
+#include "gtp_stddef.h"
+
 typedef struct _gtp_bpf_prog gtp_bpf_prog_t;
 typedef struct _gtp_interface gtp_interface_t;
 

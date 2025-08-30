@@ -19,11 +19,21 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
+#include <unistd.h>
+#include <stdarg.h>
+#include <errno.h>
 #include <linux/rtnetlink.h>
+#include <linux/if_ether.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_netlink.h"
+#include "gtp_interface.h"
+#include "inet_utils.h"
+#include "utils.h"
+#include "memory.h"
+#include "logger.h"
+#include "bitops.h"
+
 
 /* Local data */
 static nl_handle_t nl_kernel = { .fd = -1 };	/* Kernel reflection channel */

@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include "gtp_apn.h"
+#include "gtp_conn.h"
+#include "gtp_server.h"
+#include "pppoe_session.h"
+
 /* flags */
 enum gtp_session_flags {
 	GTP_SESSION_FL_HPLMN,
@@ -54,7 +59,7 @@ typedef struct _gtp_session {
 	int (*gtpu_teid_destroy) (gtp_teid_t *);
 
 	gtp_conn_t		*conn;		/* backpointer */
-	spppoe_t		*s_pppoe;	/* PPPoE session peer */
+	struct _spppoe		*s_pppoe;	/* PPPoE session peer */
 	gtp_server_t		*srv;		/* Server used */
 
 	uint8_t			action;

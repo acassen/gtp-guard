@@ -3,11 +3,9 @@
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
 
-#include <time.h>
-#include <ctype.h>
+#include <string.h>
+
 #include "memory.h"
-#include "utils.h"
-#include "prefix.h"
 #include "rt_table.h"
 
 

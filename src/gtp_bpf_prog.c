@@ -19,10 +19,19 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <errno.h>
 #include <btf.h>
+#include <linux/if_link.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_bpf.h"
+#include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
+#include "libbpf.h"
+#include "logger.h"
+#include "utils.h"
+#include "memory.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;

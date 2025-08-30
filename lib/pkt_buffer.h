@@ -21,6 +21,11 @@
 
 #pragma once
 
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include "list_head.h"
+
 /* defines */
 #define DEFAULT_PKT_BUFFER_SIZE	4096
 

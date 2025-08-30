@@ -1,4 +1,5 @@
 # make and build files
+*.d
 *.o
 bin/gtp-guard
 *.bpf

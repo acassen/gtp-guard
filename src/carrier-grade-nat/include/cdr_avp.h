@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <stdint.h>
+#include <string.h>
 
 /*
  * generic / binary cdrs with avp.

@@ -20,12 +20,8 @@
  */
 
 #include <stdio.h>
-#include <stdbool.h>
-#include <stdarg.h>
-#include <inttypes.h>
-#include <stdint.h>
-#include <string.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "memory.h"
 #include "json_reader.h"

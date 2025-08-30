@@ -19,8 +19,11 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_apn.h"
+#include "gtp_utils.h"
+#include "gtp.h"
+#include "logger.h"
+#include "utils.h"
 
 
 /*

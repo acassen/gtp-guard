@@ -16,8 +16,6 @@
 #include "addr.h"
 #include "list_head.h"
 #include "thread.h"
-#include "inet_utils.h"
-#include "disk.h"
 
 #include "cdr_fwd.h"
 
@@ -67,7 +65,7 @@ struct cdr_fwd_context
 	time_t				active_since;
 	time_t				active_reco_recent;
 	int				active_reco_n;
-	struct _thread			*active_tick;
+	thread_t			*active_tick;
 
 	/* spooled files timestamp list */
 	struct cdr_fwd_spool_file	*spool_f;
@@ -88,7 +86,7 @@ struct cdr_fwd_context
 	time_t				disk_next_check;
 
 	/* list of server */
-	struct list_head		remote_list;
+	list_head_t			remote_list;
 };
 
 
@@ -149,37 +147,37 @@ struct cdr_fwd_server
 
 
 /* cdr_fwd.c */
-int cdr_fwd_remote_send_data(struct cdr_fwd_server *sr, int cmd,
-			     struct cdr_fwd_ticket_buffer *t);
-void cdr_fwd_remote_reset(struct cdr_fwd_server *sr);
-void cdr_fwd_remote_connected(struct cdr_fwd_server *sr);
-bool cdr_fwd_remote_select_next(struct cdr_fwd_context *ctx);
+int cdr_fwd_remote_send_data(struct cdr_fwd_server *, int,
+			     struct cdr_fwd_ticket_buffer *);
+void cdr_fwd_remote_reset(struct cdr_fwd_server *);
+void cdr_fwd_remote_connected(struct cdr_fwd_server *);
+bool cdr_fwd_remote_select_next(struct cdr_fwd_context *);
 
 
 /* cdr_fwd_adj.c */
-void cdr_fwd_adjacency_ticket(struct cdr_fwd_server *sr,
-			      struct cdr_fwd_ticket_buffer *t);
-void cdr_fwd_adjacency_reset(struct cdr_fwd_server *sr);
-void cdr_fwd_adjacency_init(struct cdr_fwd_server *sr);
-void cdr_fwd_adjacency_release(struct cdr_fwd_server *sr);
+void cdr_fwd_adjacency_ticket(struct cdr_fwd_server *,
+			      struct cdr_fwd_ticket_buffer *);
+void cdr_fwd_adjacency_reset(struct cdr_fwd_server *);
+void cdr_fwd_adjacency_init(struct cdr_fwd_server *);
+void cdr_fwd_adjacency_release(struct cdr_fwd_server *);
 
 
 /* cdr_fwd_disk.c */
-int cdr_fwd_disk_write_ticket(struct cdr_fwd_context *ctx, int fd,
-			      const struct cdr_fwd_ticket_buffer *t,
-			      const char *pathname);
-int cdr_fwd_disk_read_ticket(struct cdr_fwd_context *ctx, int fd,
-			     struct cdr_fwd_ticket_buffer *ticket,
-			     const char *pathname);
+int cdr_fwd_disk_write_ticket(struct cdr_fwd_context *, int,
+			      const struct cdr_fwd_ticket_buffer *,
+			      const char *);
+int cdr_fwd_disk_read_ticket(struct cdr_fwd_context *, int,
+			     struct cdr_fwd_ticket_buffer *,
+			     const char *);
 
 /* cdr_fwd_spool.c */
-void cdr_fwd_spool_list_idx_files(struct cdr_fwd_context *ctx);
-void cdr_fwd_spool_save_wincur(struct cdr_fwd_server *sr);
-void cdr_fwd_spool_restore_wincur(struct cdr_fwd_server *sr);
-int cdr_fwd_spool_read_ticket(struct cdr_fwd_server *sr,
-			      struct cdr_fwd_ticket_buffer *out_t);
-int cdr_fwd_spool_write_ticket(struct cdr_fwd_context *ctx,
-			       const struct cdr_fwd_ticket_buffer *t);
-void cdr_fwd_spool_init(struct cdr_fwd_context *ctx);
-void cdr_fwd_spool_release(struct cdr_fwd_context *ctx);
+void cdr_fwd_spool_list_idx_files(struct cdr_fwd_context *);
+void cdr_fwd_spool_save_wincur(struct cdr_fwd_server *);
+void cdr_fwd_spool_restore_wincur(struct cdr_fwd_server *);
+int cdr_fwd_spool_read_ticket(struct cdr_fwd_server *,
+			      struct cdr_fwd_ticket_buffer *);
+int cdr_fwd_spool_write_ticket(struct cdr_fwd_context *,
+			       const struct cdr_fwd_ticket_buffer *);
+void cdr_fwd_spool_init(struct cdr_fwd_context *);
+void cdr_fwd_spool_release(struct cdr_fwd_context *);
 

@@ -19,20 +19,13 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
-#include <sys/types.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <errno.h>
 
-/* local includes */
 #include "memory.h"
 #include "utils.h"
-#include "list_head.h"
 #include "pkt_buffer.h"
 
 

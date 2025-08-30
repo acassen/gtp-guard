@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <linux/types.h>
+#include "vty.h"
+#include "gtp_teid.h"
+#include "gtp_bpf_prog.h"
+#include "gtp_iptnl.h"
+
 enum {
 	XDP_FWD_MAP_TEID = 0,
 	XDP_FWD_MAP_IPFRAG,

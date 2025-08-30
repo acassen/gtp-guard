@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include "pkt_buffer.h"
+#include "gtp_metrics.h"
+#include "thread.h"
+
 #define DEFAULT_SOCKBUF	(64 * 1024)
 
 /* GTP Server context */

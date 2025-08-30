@@ -10,15 +10,8 @@
  * Copyright (C) 2010, 2011, 2024 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
-
-#include <unistd.h>
-#include <stdint.h>
-#include <sys/stat.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-
 #include "tools.h"
+#include "disk.h"
 #include "cdr_fwd-priv.h"
 
 

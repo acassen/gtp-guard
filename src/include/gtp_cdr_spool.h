@@ -20,6 +20,15 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <stddef.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include "list_head.h"
+#include "gtp_stddef.h"
+#include "gtp_cdr_file.h"
+#include "gtp_cdr.h"
+
 /* Flags */
 enum gtp_cdr_file_flags {
 	GTP_CDR_SPOOL_FL_ASYNC_BIT,

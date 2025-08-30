@@ -19,12 +19,20 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <sys/prctl.h>
+#include <pthread.h>
 #include <fnmatch.h>
+#include <sys/prctl.h>
+#include <arpa/inet.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "thread.h"
+#include "memory.h"
+#include "logger.h"
+#include "bitops.h"
+#include "utils.h"
+#include "gtp_data.h"
+#include "gtp_apn.h"
+#include "gtp_resolv.h"
+#include "gtp_utils.h"
 
 /* Extern data */
 extern data_t *daemon_data;

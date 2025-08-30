@@ -20,7 +20,9 @@
  */
 #pragma once
 
+#include <stdint.h>
 #include <linux/netlink.h>
+#include "thread.h"
 
 /* types definitions */
 typedef struct _nl_handle {

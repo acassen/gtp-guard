@@ -11,20 +11,13 @@
  */
 
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/stat.h>
-#include <stdint.h>
 #include <unistd.h>
-#include <string.h>
-#include <stdio.h>
 #include <errno.h>
-#include <inttypes.h>
 #include <assert.h>
 
 #include "tools.h"
+#include "disk.h"
+#include "inet_utils.h"
 #include "cdr_fwd-priv.h"
 
 

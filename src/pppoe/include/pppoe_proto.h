@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <net/ethernet.h>
+#include "pkt_buffer.h"
+#include "pppoe_session.h"
+
 /* Prototypes */
 extern pkt_t *pppoe_eth_pkt_get(spppoe_t *, const struct ether_addr *, const uint16_t);
 extern void pppoe_dispatch_disc_pkt(pppoe_t *, pkt_t *);

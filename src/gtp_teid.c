@@ -19,8 +19,14 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_teid.h"
+#include "gtp_conn.h"
+#include "jhash.h"
+#include "memory.h"
+#include "bitops.h"
+#include "logger.h"
+#include "utils.h"
+#include "inet_utils.h"
 
 /*
  *	Unuse queue

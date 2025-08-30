@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include <linux/types.h>
 #include <stdbool.h>
-#include "asn1.h"
-#include "asn1_ber_bytecode.h"
+#include <stdint.h>
 
 #define asn1_oid_len(oid) (sizeof(oid)/sizeof(uint32_t))
 unsigned char *asn1_encode_integer(unsigned char *, const unsigned char *, bool, int64_t);

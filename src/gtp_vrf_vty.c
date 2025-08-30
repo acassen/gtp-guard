@@ -19,8 +19,14 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_vrf.h"
+#include "gtp_bpf_rt.h"
+#include "gtp_bpf.h"
+#include "command.h"
+#include "memory.h"
+#include "bitops.h"
+#include "inet_utils.h"
 
 
 /* Extern data */

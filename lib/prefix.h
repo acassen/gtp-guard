@@ -5,12 +5,8 @@
 
 #pragma once
 
-/* system includes */
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include <arpa/inet.h>
+#include <netinet/in.h>
 
 /*
  *	IPv4 and IPv6 unified prefix structure

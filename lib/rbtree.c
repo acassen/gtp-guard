@@ -16,9 +16,6 @@
 /* Allow including rbtree.h directly */
 #define _RBTREE_API_H
 
-#include "config.h"
-
-#include <stdlib.h>
 #include "rbtree_augmented.h"
 
 #define EXPORT_SYMBOL(xxx)

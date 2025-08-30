@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include <linux/types.h>
+#include "vty.h"
+#include "libbpf.h"
+#include "gtp_iptnl.h"
+
 struct gtp_iptnl_rule {
 	__be32	selector_addr;
 	__be32	local_addr;

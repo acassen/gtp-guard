@@ -19,9 +19,12 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include <stdio.h>
+#include <arpa/inet.h>
 
+#include "gtp_msg.h"
+#include "memory.h"
+#include "utils.h"
 
 size_t
 gtp_msg_hlen(gtp_hdr_t *h)

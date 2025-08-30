@@ -20,27 +20,17 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
-/* system includes */
-#include <string.h>
 #include <assert.h>
-#include <stdio.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 
-/* local includes */
-#include "libbpf.h"
 #include "tools.h"
-#include "inet_server.h"
 #include "list_head.h"
-#include "vty.h"
-#include "command.h"
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "cgn.h"
 
 /* Extern data */
 extern data_t *daemon_data;
-extern thread_master_t *master;
 
 
 /*

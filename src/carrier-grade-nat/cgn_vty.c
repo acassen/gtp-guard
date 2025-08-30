@@ -20,14 +20,12 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
-/* local includes */
-#include "utils.h"
+#include <arpa/inet.h>
+
 #include "bitops.h"
 #include "addr.h"
 #include "tools.h"
-#include "inet_server.h"
 #include "list_head.h"
-#include "vty.h"
 #include "command.h"
 #include "gtp_data.h"
 #include "cgn.h"

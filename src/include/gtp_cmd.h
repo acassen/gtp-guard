@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <sys/socket.h>
+#include "vty.h"
+
 #define GTP_CMD_BUFFER_SIZE	128
 
 enum {

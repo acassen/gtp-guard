@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <stdbool.h>
+#include <sys/socket.h>
+#include "gtp_bpf_prog.h"
+
 /* Flags */
 enum gtp_mirror_flags {
 	GTP_MIRROR_FL_SHUTDOWN_BIT,

@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include <stdint.h>
+
 /* Flags */
 enum gtp_flags {
 	GTP_FL_RUNNING_BIT,

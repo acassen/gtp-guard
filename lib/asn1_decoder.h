@@ -7,8 +7,8 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <linux/types.h>
-#include "asn1.h"
 
 struct asn1_decoder;
 

@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <stddef.h>
+#include "prefix.h"
+#include "thread.h"
+#include "gtp_stddef.h"
+
 /* IP-IP tunneling related */
 #define IPTNL_FL_TRANSPARENT_INGRESS_ENCAP	(1 << 0)
 #define IPTNL_FL_TRANSPARENT_EGRESS_ENCAP	(1 << 1)

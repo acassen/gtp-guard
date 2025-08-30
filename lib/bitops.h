@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <limits.h>
 #include <stdbool.h>
 
@@ -101,14 +99,5 @@ enum global_bits {
 	LOG_DETAIL_BIT,
 	LOG_EXTRA_DETAIL_BIT,
 	DONT_RESPAWN_BIT,
-#ifdef _MEM_CHECK_
-	MEM_CHECK_BIT,
-#ifdef _MEM_ERR_DEBUG_
-	MEM_ERR_DETECT_BIT,
-#endif
-#ifdef _MEM_CHECK_LOG_
-	MEM_CHECK_LOG_BIT,
-#endif
-#endif
 	CONFIG_TEST_BIT,
 };

@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <netinet/in.h>
+#include "list_head.h"
+#include "vty.h"
+
 /* Hash table */
 #define CONN_HASHTAB_BITS  20
 #define CONN_HASHTAB_SIZE  (1 << CONN_HASHTAB_BITS)

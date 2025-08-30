@@ -20,6 +20,9 @@
  */
 #pragma once
 
+#include "gtp_server.h"
+#include "gtp_bpf_prog.h"
+
 #define GTP_ROUTER_DELAYED	2
 
 typedef struct _gtp_router {

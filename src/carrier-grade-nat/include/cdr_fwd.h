@@ -13,6 +13,7 @@
 #pragma once
 
 #include "addr.h"
+#include "thread.h"
 
 /* Default values */
 #define CDR_FWD_TICKETS_MAX_BUFF		4095
@@ -49,18 +50,18 @@ struct cdr_fwd_config
 
 
 /* cdr_fwd.c */
-struct cdr_fwd_context *cdr_fwd_ctx_create(const struct cdr_fwd_config *cfc,
-					   const union addr *remote_array);
-void cdr_fwd_ctx_release(struct cdr_fwd_context *ctx);
-void cdr_fwd_ctx_force_spool_set(struct cdr_fwd_context *ctx, bool enable);
-bool cdr_fwd_ctx_force_spool_get(struct cdr_fwd_context *ctx);
+struct cdr_fwd_context *cdr_fwd_ctx_create(const struct cdr_fwd_config *,
+					   const union addr *);
+void cdr_fwd_ctx_release(struct cdr_fwd_context *);
+void cdr_fwd_ctx_force_spool_set(struct cdr_fwd_context *, bool);
+bool cdr_fwd_ctx_force_spool_get(struct cdr_fwd_context *);
 
-bool cdr_fwd_remote_select_addr(struct cdr_fwd_context *ctx,
-				const union addr *a);
-void cdr_fwd_send_ticket(struct cdr_fwd_context *ctx,
-			 const uint8_t *data, int size);
-int cdr_fwd_ctx_dump(const struct cdr_fwd_context *ctx, char *b, size_t s);
-int cdr_fwd_ctx_dump_stats(const struct cdr_fwd_context *ctx, char *b, size_t s);
+bool cdr_fwd_remote_select_addr(struct cdr_fwd_context *,
+				const union addr *);
+void cdr_fwd_send_ticket(struct cdr_fwd_context *,
+			 const uint8_t *, int);
+int cdr_fwd_ctx_dump(const struct cdr_fwd_context *, char *, size_t);
+int cdr_fwd_ctx_dump_stats(const struct cdr_fwd_context *, char *, size_t);
 
-const char *cdr_fwd_lb_mode_to_str(int val);
-int str_to_cdr_fwd_lb_mode(const char *str);
+const char *cdr_fwd_lb_mode_to_str(int);
+int str_to_cdr_fwd_lb_mode(const char *);

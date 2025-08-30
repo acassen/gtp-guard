@@ -19,13 +19,16 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
-#include <unistd.h>
 #include <fcntl.h>
-#include <ifaddrs.h>
-#include <net/if.h>
-#include <sys/stat.h>
-#include <sys/un.h>
+#include <sys/utsname.h>
+#include <arpa/inet.h>
+#include <arpa/nameser.h>
+#include <netdb.h>
+
 #include "utils.h"
 
 /* global vars */

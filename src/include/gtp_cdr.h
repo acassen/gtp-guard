@@ -20,6 +20,15 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <stddef.h>
+#include <time.h>
+#include <sys/time.h>
+#include "list_head.h"
+#include "pkt_buffer.h"
+#include "gtp_teid.h"
+#include "gtp_msg.h"
+
 /* defines */
 #define GTP_CDR_TAG_MAX	46
 

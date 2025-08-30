@@ -20,6 +20,14 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include "gtp_htab.h"
+#include "gtp_server.h"
+#include "gtp_resolv.h"
+#include "gtp_iptnl.h"
+#include "gtp_teid.h"
+#include "gtp_bpf_prog.h"
+
 /* GTP Proxy context */
 typedef struct _gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];

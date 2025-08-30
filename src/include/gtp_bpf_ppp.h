@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include <linux/types.h>
+#include "vty.h"
+#include "libbpf.h"
+#include "gtp_teid.h"
+
 struct ppp_key {
 	__u8	hw[6];
 	__u16	session_id;

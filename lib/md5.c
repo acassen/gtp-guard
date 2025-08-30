@@ -27,11 +27,9 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <unistd.h>
 #include <string.h>
+
 #include "md5.h"
 
 #define SHIFT(X, s) (((X) << (s)) | ((X) >> (32 - (s))))
@@ -138,9 +136,9 @@ void md5_init(md5_ctxt *ctxt)
 	memset (ctxt->md5_buf, 0, sizeof(ctxt->md5_buf));
 }
 
-void md5_loop(md5_ctxt *ctxt, const void *vinput, uint len)
+void md5_loop(md5_ctxt *ctxt, const void *vinput, unsigned int len)
 {
-	uint gap, i;
+	unsigned int gap, i;
 	const uint8_t *input = vinput;
 
 	ctxt->md5_n += len * 8; /* byte to bit */
@@ -164,7 +162,7 @@ void md5_loop(md5_ctxt *ctxt, const void *vinput, uint len)
 
 void md5_pad(md5_ctxt *ctxt)
 {
-	uint gap;
+	unsigned int gap;
 
 	/* Don't count up padding. Keep md5_n. */	
 	gap = MD5_BUFLEN - ctxt->md5_i;

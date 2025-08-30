@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <pthread.h>
+#include "rbtree_api.h"
+#include "timer.h"
+
 enum {
 	TIMER_THREAD_FL_STOP_BIT,
 };

@@ -20,6 +20,10 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <stddef.h>
+#include "gtp_cdr.h"
+
 /* defines */
 #define PGW_RECORD_TYPE		85
 

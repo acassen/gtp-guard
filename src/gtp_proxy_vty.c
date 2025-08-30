@@ -19,14 +19,17 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
-#include <pthread.h>
-#include <sys/stat.h>
 #include <net/if.h>
-#include <errno.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_proxy.h"
+#include "gtp_dpd.h"
+#include "gtp_bpf.h"
+#include "gtp_bpf_fwd.h"
+#include "command.h"
+#include "memory.h"
+#include "bitops.h"
+#include "inet_utils.h"
 
 
 /* Extern data */

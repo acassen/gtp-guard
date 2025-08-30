@@ -19,8 +19,9 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "memory.h"
-#include "utils.h"
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
 
 /* Global var */
 unsigned long mem_allocated = 0;	/* Total memory used in Bytes */

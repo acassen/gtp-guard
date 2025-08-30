@@ -22,7 +22,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
 
 typedef enum {
         JSON_NULL = 0,

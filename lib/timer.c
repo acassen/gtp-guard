@@ -19,34 +19,17 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "config.h"
-
-#include <stdint.h>
-#include <string.h>
 #include <errno.h>
-#include <sys/time.h>
 #include <sys/prctl.h>
-#include <time.h>
-#include <pthread.h>
-#include <stdbool.h>
 
 #include "memory.h"
 #include "utils.h"
 #include "bitops.h"
-#include "container.h"
-#include "rbtree_api.h"
 #include "timer.h"
 #include "timer_thread.h"
-#ifdef _TIMER_CHECK_
-#include "logger.h"
-#endif
 
 /* time_now holds current time */
 timeval_t time_now;
-#ifdef _TIMER_CHECK_
-static timeval_t last_time;
-bool do_timer_check;
-#endif
 
 
 /*

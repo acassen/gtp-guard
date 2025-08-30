@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include "pppoe.h"
+
 /* Prototypes */
 extern int pppoe_monitor_vrrp_init(pppoe_t *);
 extern int pppoe_monitor_vrrp_destroy(pppoe_t *);

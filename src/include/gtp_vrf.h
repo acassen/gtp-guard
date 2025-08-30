@@ -20,6 +20,9 @@
  */
 #pragma once
 
+#include "gtp_iptnl.h"
+#include "pppoe.h"
+
 enum ip_vrf_flags {
 	IP_VRF_FL_ENCAP_DOT1Q_BIT,
 	IP_VRF_FL_DECAP_DOT1Q_BIT,

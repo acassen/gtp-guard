@@ -19,11 +19,12 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include <linux/rtnetlink.h>
 
-/* Extern data */
-extern data_t *daemon_data;
+#include "gtp_interface.h"
+#include "gtp_metrics.h"
+#include "gtp_bpf_rt.h"
+#include "bitops.h"
 
 
 /*

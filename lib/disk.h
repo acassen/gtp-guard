@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include <stddef.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 
 /* defines */

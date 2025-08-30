@@ -19,25 +19,22 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <string.h>
 #include <getopt.h>
-#include <ctype.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <pcap/pcap.h>
 #include <linux/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_cdr.h"
+#include "gtp_cdr_file.h"
+#include "gtp_cdr_spool.h"
+#include "gtp_cdr_asn1.h"
+#include "memory.h"
+#include "disk.h"
+#include "bitops.h"
+#include "command.h"
+#include "utils.h"
 
 
 /* Local data */
@@ -239,7 +236,7 @@ write_cdr(const void *buf, size_t bsize)
 	PMALLOC(map_file);
 	bsd_strlcpy(map_file->path, gtp_cdr_file, PATH_MAX_LEN);
 
-	err = disk_open(map_file, GTP_CDR_DEFAULT_FSIZE);
+	err = disk_map_open(map_file, GTP_CDR_DEFAULT_FSIZE);
 	if (err) {
 		fprintf(stderr, "error creating file:%s (%m)\n", gtp_cdr_file);
 		return -1;
@@ -269,7 +266,7 @@ write_cdr(const void *buf, size_t bsize)
 	printf("Success vrfy file content integrity\n");
 
 end:
-	disk_close(map_file);
+	disk_map_close(map_file);
 	FREE(map_file);
 	return 0;
 }

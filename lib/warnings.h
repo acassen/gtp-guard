@@ -24,8 +24,6 @@
 #include <features.h>
 #endif
 
-#include "config.h"
-
 /* musl does not define __GNUC_PREREQ, so create a dummy definition */
 #ifndef __GNUC_PREREQ
 #define __GNUC_PREREQ(maj, min) 0

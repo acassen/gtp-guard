@@ -19,13 +19,18 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include <errno.h>
 
+#include "pppoe.h"
+#include "pppoe_monitor.h"
+#include "command.h"
+#include "bitops.h"
+#include "utils.h"
+#include "logger.h"
+#include "gtp_data.h"
 
 /* Extern data */
 extern data_t *daemon_data;
-extern thread_master_t *master;
 
 
 /*

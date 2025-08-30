@@ -6,9 +6,11 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <stdint.h>
+
+#include "asn1.h"
 #include "asn1_decoder.h"
 #include "asn1_ber_bytecode.h"
 

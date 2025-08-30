@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include "gtp_apn.h"
+
 /* defines */
 #define GTP_SCHED_MAX_LEN	64
 

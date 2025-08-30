@@ -19,6 +19,10 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdio.h>
+#include <signal.h>
+#include <syslog.h>
+
 #include "pidfile.h"
 
 /* Create the runnnig daemon pidfile */

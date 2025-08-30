@@ -19,12 +19,21 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include <net/if.h>
+
+#include "gtp_data.h"
+#include "gtp_bpf.h"
+#include "gtp_bpf_mirror.h"
+#include "gtp_mirror.h"
+#include "command.h"
+#include "inet_utils.h"
+#include "bitops.h"
+#include "utils.h"
+#include "memory.h"
+
 
 /* Extern data */
 extern data_t *daemon_data;
-extern thread_master_t *master;
 
 
 /*
@@ -406,7 +415,7 @@ mirror_config_write(vty_t *vty)
 			vty_out(vty, " bpf-program %s%s", m->bpf_prog->name, VTY_NEWLINE);
 		mirror_config_rules_write(vty, m);
   		vty_out(vty, " %sshutdown%s"
-			   , __test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &m->flags) ? "" : "no "
+			   , __test_bit(GTP_MIRROR_FL_SHUTDOWN_BIT, &m->flags) ? "" : "no "
 			   , VTY_NEWLINE);
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}

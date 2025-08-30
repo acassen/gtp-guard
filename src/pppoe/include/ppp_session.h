@@ -20,6 +20,9 @@
  */
 #pragma once
 
+#include "ppp.h"
+#include "pppoe_session.h"
+
 #define AUTHFLAG_NOCALLOUT	1 /* don't require authentication on callouts */
 #define AUTHFLAG_NORECHALLENGE	2 /* don't re-challenge CHAP */
 

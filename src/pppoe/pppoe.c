@@ -19,12 +19,21 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
+#include <unistd.h>
+#include <errno.h>
 #include <linux/if_packet.h>
+#include <linux/if_ether.h>
 #include <sys/prctl.h>
-
-/* local includes */
-#include "gtp_guard.h"
+#include <net/if.h>
+#include "ppp.h"
+#include "pppoe_proto.h"
+#include "pppoe_monitor.h"
+#include "inet_utils.h"
+#include "logger.h"
+#include "bitops.h"
+#include "utils.h"
+#include "memory.h"
+#include "gtp_data.h"
 
 
 /* Extern data */

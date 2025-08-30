@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <stdio.h>
 #include "vector.h"
 #include "vty.h"
 

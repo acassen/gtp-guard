@@ -20,7 +20,9 @@
  */
 #pragma once
 
-/* Defines */
+#include <sys/socket.h>
+#include "gtp_server.h"
+#include "gtp_teid.h"
 
 /* Prototypes */
 extern gtp_teid_t *gtpc_proxy_handle_v1(gtp_server_t *, struct sockaddr_storage *);

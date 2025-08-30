@@ -19,12 +19,11 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
-
-
-/* Extern data */
-extern data_t *daemon_data;
+#include "gtp_router.h"
+#include "gtp_server.h"
+#include "gtp_utils.h"
+#include "gtp.h"
+#include "bitops.h"
 
 
 /*

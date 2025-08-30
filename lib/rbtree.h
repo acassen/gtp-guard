@@ -16,9 +16,10 @@
 
 #pragma once
 
-#include "rbtree_types.h"
-
 #include <stdbool.h>
+#include <string.h>
+#include "container.h"
+#include "rbtree_types.h"
 
 #define rb_parent(r)   ((struct rb_node *)((r)->__rb_parent_color & ~3))
 

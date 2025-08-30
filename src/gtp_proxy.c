@@ -19,16 +19,22 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
 #include <sys/prctl.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_teid.h"
+#include "gtp_session.h"
+#include "gtp_server.h"
+#include "gtp_proxy.h"
+#include "gtp_dpd.h"
+#include "gtp_sqn.h"
+#include "gtp_proxy_hdl.h"
+#include "bitops.h"
+#include "memory.h"
 
 
 /* Extern data */
 extern data_t *daemon_data;
-extern thread_master_t *master;
 
 
 /*

@@ -20,6 +20,13 @@
  */
 #pragma once
 
+#include <linux/types.h>
+#include "vty.h"
+#include "gtp_teid.h"
+#include "gtp_bpf_prog.h"
+#include "gtp_iptnl.h"
+
+
 enum {
 	XDP_RT_MAP_TEID_INGRESS = 0,
 	XDP_RT_MAP_TEID_EGRESS,

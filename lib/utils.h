@@ -20,17 +20,8 @@
  */
 #pragma once
 
-/* system includes */
-#include <stdio.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <arpa/nameser.h>
-#include <sys/param.h>
-#include <sys/utsname.h>
-#include <netdb.h>
-#include <stdbool.h>
 
 /* Evaluates to -1, 0 or 1 as appropriate.
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
@@ -57,12 +48,8 @@
  ps.p;})
 #define no_const_char_p(var_cp) no_const(char, var_cp)
 
-/* Funky version of ARRAY_SIZE Macro */
-#define ARRAY_SIZE(arr) \
-    (sizeof(arr) / sizeof((arr)[0]) \
-     + sizeof(typeof(int[1 - 2 * \
-           !!__builtin_types_compatible_p(typeof(arr), \
-                 typeof(&arr[0]))])) * 0)
+/* ARRAY_SIZE */
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 /* STR(MACRO) stringifies MACRO */
 #define _STR(x) #x

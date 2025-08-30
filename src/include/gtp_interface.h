@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <net/if.h>
+#include <netinet/if_ether.h>
+#include "inet_utils.h"
+#include "gtp_bpf_prog.h"
+
 /* Flags */
 enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_GTP_BIT,

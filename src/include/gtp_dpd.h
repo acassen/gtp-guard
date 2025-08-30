@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include "gtp_proxy.h"
+
 #define DEFAULT_DPD_LENGTH	128
 #define DEFAULT_DST_ADDR	0x8badf00d
 

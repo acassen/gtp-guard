@@ -20,11 +20,8 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <signal.h>
 #include <stdbool.h>
-
 #include "thread.h"
 
 #define SIGJSON 		(SIGRTMIN + 2)

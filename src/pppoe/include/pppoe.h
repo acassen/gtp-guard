@@ -20,6 +20,14 @@
  */
 #pragma once
 
+#include <stdio.h>
+#include <stdint.h>
+#include <pkt_buffer.h>
+#include <thread.h>
+#include <gtp_stddef.h>
+#include <gtp_metrics.h>
+#include <pppoe_metrics.h>
+
 /*
  *	PPPoE RFC 2516 related
  */

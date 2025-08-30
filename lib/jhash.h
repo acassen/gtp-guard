@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 /* Global helpers */
 typedef uint32_t ub4;
 typedef uint8_t ub1;

@@ -19,8 +19,14 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include <errno.h>
+
+#include "gtp_cdr_file.h"
+#include "gtp_cdr_spool.h"
+#include "bitops.h"
+#include "logger.h"
+#include "memory.h"
+#include "utils.h"
 
 
 static int

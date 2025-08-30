@@ -20,6 +20,11 @@
  */
 #pragma once
 
+#include "gtp.h"
+#include "gtp_apn.h"
+#include "gtp_server.h"
+#include "gtp_session.h"
+
 typedef struct _gtp_msg_type_map {
 	const char *name;
 	const char *description;

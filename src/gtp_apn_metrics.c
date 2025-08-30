@@ -19,11 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
-
-/* Extern data */
-extern data_t *daemon_data;
+#include "pppoe.h"
+#include "gtp_apn.h"
 
 
 static int

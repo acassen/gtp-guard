@@ -3,24 +3,20 @@
  * Copyright (C) 1997 Kunihiro Ishiguro
  */
 
-#include <errno.h>
-#include <ctype.h>
-#include <termios.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <time.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <ctype.h>
+#include <errno.h>
+#include <termios.h>
 #include <fcntl.h>
 #include <arpa/telnet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <netinet/tcp.h>
+#include <sys/utsname.h>
 
-#include "thread.h"
-#include "vty.h"
-#include "timer.h"
 #include "utils.h"
 #include "inet_utils.h"
 #include "command.h"

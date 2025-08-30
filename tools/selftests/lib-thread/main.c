@@ -20,30 +20,17 @@
  */
 
 #include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include <assert.h>
 #include <unistd.h>
-#include <string.h>
-#include <ctype.h>
-#define _XOPEN_SOURCE
-#include <time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
 #include <getopt.h>
-#include <fcntl.h>
-#include <errno.h>
 
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "thread.h"
+#include "signals.h"
 
 /* Local data */
 data_t *daemon_data;
 thread_master_t *master = NULL;
-const char *apn_str;
-const char *plmn_str;
-const char *nameserver;
-const char *service_selection;
 
 /*
  *      Usage function

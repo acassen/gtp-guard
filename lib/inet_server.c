@@ -20,22 +20,16 @@
  */
 
 /* system includes */
-#include <stdio.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/stat.h>
 #include <sys/prctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
 
 /* local includes */
-#include "thread.h"
 #include "logger.h"
 #include "bitops.h"
 #include "memory.h"
-#include "signals.h"
 #include "utils.h"
 #include "inet_utils.h"
 #include "inet_server.h"

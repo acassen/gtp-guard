@@ -21,12 +21,7 @@
 
 #pragma once
 
-/* system includes */
-#include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <assert.h>
 
 /* extern types */
 extern unsigned long mem_allocated;

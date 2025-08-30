@@ -19,15 +19,23 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <linux/if_packet.h>
+#include <linux/if_ether.h>
 #include <linux/filter.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp.h"
+#include "gtp_dpd.h"
+#include "gtp_bpf.h"
+#include "gtp_bpf_fwd.h"
+#include "gtp_mirror.h"
+#include "inet_utils.h"
+#include "logger.h"
+#include "utils.h"
 
+/* Extern data */
+extern thread_master_t *master;
 
 /*
  *	Egress Handling

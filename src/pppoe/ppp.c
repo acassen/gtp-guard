@@ -19,11 +19,19 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
+#include <stdarg.h>
+#include <arpa/inet.h>
 #include <netinet/ip.h>
 
-/* local includes */
-#include "gtp_guard.h"
+#include "ppp_session.h"
+#include "pppoe_proto.h"
+#include "logger.h"
+#include "utils.h"
+#include "bitops.h"
+#include "memory.h"
+#include "inet_utils.h"
+#include "gtp_utils.h"
+
 
 /* Extern data */
 extern thread_master_t *master;

@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <time.h>
+#include <sys/time.h>
+#include "disk.h"
+#include "gtp_stddef.h"
+
 /* Defines */
 #define GTP_CDR_MAGIC			0xe6e6
 #define GTP_CDR_DEFAULT_FSIZE		10*1024*1024

@@ -19,13 +19,17 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* system includes */
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <linux/if_packet.h>
+#include <linux/if_ether.h>
 #include <linux/filter.h>
 
-/* local includes */
-#include "gtp_guard.h"
-
+#include "pppoe.h"
+#include "bitops.h"
+#include "logger.h"
+#include "utils.h"
 
 /*
  *	Monitoring thread

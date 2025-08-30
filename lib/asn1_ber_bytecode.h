@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "asn1.h"
+#include <stddef.h>
 
 typedef int (*asn1_action_t)(void *context,
 			     size_t hdrlen, /* In case of ANY type */

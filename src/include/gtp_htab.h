@@ -20,6 +20,8 @@
  */
 #pragma once
 
+#include <stddef.h>
+
 /* Distributed lock */
 #define DLOCK_HASHTAB_BITS    10
 #define DLOCK_HASHTAB_SIZE    (1 << DLOCK_HASHTAB_BITS)

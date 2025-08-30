@@ -19,13 +19,13 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include <stdio.h>
 
-
-/* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+#include "ppp.h"
+#include "pppoe_session.h"
+#include "memory.h"
+#include "bitops.h"
+#include "gtp_apn_metrics.h"
 
 
 /*

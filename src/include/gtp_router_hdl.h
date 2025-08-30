@@ -20,7 +20,8 @@
  */
 #pragma once
 
-/* Defines */
+#include "gtp_server.h"
+#include "gtp_teid.h"
 
 /* Prototypes */
 extern int gtpc_send_delete_bearer_request(gtp_teid_t *);

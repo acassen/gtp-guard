@@ -19,8 +19,10 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "asn1.h"
+#include "asn1_encoder.h"
+#include "gtp_cdr.h"
+#include "gtp_cdr_asn1.h"
 
 
 /*

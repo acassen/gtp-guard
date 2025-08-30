@@ -19,23 +19,17 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <string.h>
-#include <ctype.h>
-#define _XOPEN_SOURCE
-#include <time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
 #include <getopt.h>
-#include <fcntl.h>
-#include <errno.h>
 
-#include "gtp_guard.h"
+#include "gtp_data.h"
+#include "gtp_apn.h"
+#include "gtp_resolv.h"
+#include "gtp_session.h"
+#include "gtp_sched.h"
+#include "memory.h"
+#include "bitops.h"
+#include "utils.h"
+#include "inet_utils.h"
 
 /* Local data */
 data_t *daemon_data;

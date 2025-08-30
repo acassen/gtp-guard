@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <net/ethernet.h>
+#include "pppoe.h"
+#include "gtp_conn.h"
+#include "gtp_teid.h"
+#include "gtp_session.h"
+
 #define GTP_PPPOE_MAX_SESSION_PER_IMSI	8
 
 enum pppoe_session_flags {

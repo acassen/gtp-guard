@@ -19,20 +19,11 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "config.h"
-
-#include <stdio.h>
 #include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/wait.h>
 #include <errno.h>
 #include <sys/signalfd.h>
-#include <inttypes.h>
-#include <assert.h>
 
 #include "signals.h"
-#include "utils.h"
 #include "logger.h"
 #include "thread.h"
 

@@ -19,8 +19,15 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_cdr.h"
+#include "gtp_cdr_asn1.h"
+#include "gtp_utils.h"
+#include "gtp_teid.h"
+#include "gtp_bpf_fwd.h"
+#include "gtp_bpf_rt.h"
+#include "memory.h"
+#include "command.h"
+#include "bitops.h"
 
 
 /*

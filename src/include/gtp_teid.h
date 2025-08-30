@@ -20,6 +20,12 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <netinet/in.h>
+#include "list_head.h"
+#include "gtp.h"
+#include "gtp_htab.h"
+
 /* Tunnel type */
 enum {
 	GTP_TEID_C = 1,

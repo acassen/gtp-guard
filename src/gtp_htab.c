@@ -19,8 +19,9 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-/* local includes */
-#include "gtp_guard.h"
+#include "gtp_htab.h"
+#include "memory.h"
+#include "list_head.h"
 
 
 /*

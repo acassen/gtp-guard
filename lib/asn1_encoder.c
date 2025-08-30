@@ -5,12 +5,13 @@
  * Copyright (C) 2019 James.Bottomley@HansenPartnership.com
  */
 
- #include <stdio.h>
- #include <string.h>
- #include <errno.h>
- #include <stdbool.h>
- #include <stdint.h>
- #include "asn1_encoder.h"
+#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "asn1.h"
+#include "asn1_encoder.h"
+#include "asn1_ber_bytecode.h"
 
 /**
  * asn1_encode_integer() - encode positive integer to ASN.1
