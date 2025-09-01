@@ -58,12 +58,14 @@ typedef enum _node_type {
 	CDR_NODE,					/* CDR commands. */
 	GTP_PROXY_NODE,					/* GTP Proxy commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
+	PFCP_PROXY_NODE,				/* PFCP Proxy commands. */
+	PFCP_ROUTER_NODE,				/* PFCP Rouer commands. */
 
 	VTY_NODE,					/* Vty node. */
 } node_type_t;
 
 /* Completion match types. */
-typedef enum _match_type {
+typedef enum match_type {
 	no_match,
 	extend_match,
 	ipv4_prefix_match,
@@ -78,7 +80,7 @@ typedef enum _match_type {
 
 /* Node which has some commands and prompt string and configuration
  * function pointer . */
-typedef struct _cmd_node {
+typedef struct cmd_node {
 	node_type_t		node;			/* Node index. */
 	node_type_t		parent_node;		/* Parent Node index. */
 	const char		*prompt;		/* Prompt character at vty interface. */
@@ -86,7 +88,7 @@ typedef struct _cmd_node {
 	vector_t		*cmd_vector;		/* Vector of this node's command list. */
 } cmd_node_t;
 
-typedef struct _cmd_ext {
+typedef struct cmd_ext {
 	cmd_node_t		*node;
 	int (*install) (void);
 
@@ -94,9 +96,9 @@ typedef struct _cmd_ext {
 } cmd_ext_t;
 
 /* Structure of command element. */
-typedef struct _cmd_element {
+typedef struct cmd_element {
 	const char		*string;		/* Command specification by string. */
-	int			(*func) (struct _cmd_element *,
+	int			(*func) (struct cmd_element *,
 					 vty_t *, int, const char *[]);
 	const char		*doc;			/* Documentation of this command. */
 	int			daemon;			/* Daemon to which this command belong. */

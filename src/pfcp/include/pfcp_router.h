@@ -16,13 +16,31 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com> 
  */
+
 #pragma once
 
-#include <sys/socket.h>
-#include "gtp_server.h"
-#include "gtp_teid.h"
+#include "gtp_stddef.h"
+#include "list_head.h"
+
+enum pfcp_flags {
+	PFCP_ROUTER_FL_SHUTDOWN_BIT,
+};
+
+typedef struct pfcp_router {
+	char			name[GTP_NAME_MAX_LEN];
+	char			description[GTP_STR_MAX_LEN];
+	unsigned long		flags;
+	struct list_head	next;
+
+	/* metrics */
+} pfcp_router_t;
 
 /* Prototypes */
-gtp_teid_t *gtpc_proxy_handle_v2(gtp_server_t *, struct sockaddr_storage *);
+int pfcp_router_dump(pfcp_router_t *c, char *buffer, size_t bsize);
+pfcp_router_t *pfcp_router_get_by_name(const char *name);
+void pfcp_router_release(pfcp_router_t *c);
+pfcp_router_t *pfcp_router_alloc(const char *name);
+int pfcp_router_init(void);
+int pfcp_router_destroy(void);

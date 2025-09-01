@@ -52,6 +52,7 @@ typedef struct data {
 	list_head_t		gtp_cdr;
 	list_head_t		gtp_proxy_ctx;
 	list_head_t		gtp_router_ctx;
+	list_head_t		pfcp_router_ctx;;
 
 	unsigned long		flags;
 } data_t;

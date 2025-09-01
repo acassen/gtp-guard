@@ -28,6 +28,8 @@
 #include "gtp_bpf.h"
 #include "gtp_mirror.h"
 #include "gtp_interface.h"
+#include "cgn.h"
+#include "pfcp.h"
 #include "memory.h"
 
 
@@ -55,6 +57,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_cdr);
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
+	INIT_LIST_HEAD(&new->pfcp_router_ctx);
 	pppoe_init();
 
 	return new;
@@ -81,5 +84,7 @@ free_daemon_data(void)
 	gtp_bpf_progs_destroy();
 	gtp_cdr_spool_destroy(NULL);
 	gtp_apn_destroy();
+	cgn_destroy();
+	pfcp_destroy();
 	FREE(daemon_data);
 }

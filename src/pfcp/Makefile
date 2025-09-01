@@ -16,15 +16,14 @@
 #              either version 3.0 of the License, or (at your option) any later
 #              version.
 #
-# Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+# Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
 #
 
 CC	 ?= gcc
-INCLUDES = -Iinclude -Ipppoe/include -Icarrier-grade-nat/include	\
-	   -Ipfcp/include -I../lib -I../libbpf/src -I../libbpf/src/uapi
-CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Werror -Wall -Wunused -Wstrict-prototypes -D_GNU_SOURCE -MMD
+INCLUDES = -Iinclude -I../include -I../../lib -I../../libbpf/src -I../../libbpf/src/uapi
+CFLAGS	 = -g -O2 -ggdb $(INCLUDES) -Wall -Wunused -Wstrict-prototypes \
+	-D_GNU_SOURCE -MMD
 #DEFS	 = -D_DEBUG_
-SUBDIRS   = pppoe carrier-grade-nat pfcp
 DEFS	 =
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 
@@ -35,14 +34,8 @@ COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
 all: $(OBJS)
-	@set -e; \
-	for i in $(SUBDIRS); do \
-	$(MAKE) -C $$i || exit 1; done
 
 clean:
-	@set -e; \
-	for i in $(SUBDIRS); do \
-	$(MAKE) -C $$i clean || exit 1; done
 	@rm -vf *.a *.o *.d *~
 
 -include *.d

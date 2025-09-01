@@ -21,5 +21,5 @@
 #pragma once
 
 /* Prototypes */
-extern int gtp_request_init(void);
-extern int gtp_request_destroy(void);
+int gtp_request_init(void);
+int gtp_request_destroy(void);

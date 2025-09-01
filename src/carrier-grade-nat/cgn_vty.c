@@ -437,7 +437,7 @@ static cmd_ext_t cmd_ext_cgn = {
 };
 
 static void __attribute__((constructor))
-gtp_vty_init(void)
+cgn_vty_init(void)
 {
 	cmd_ext_register(&cmd_ext_cgn);
 }

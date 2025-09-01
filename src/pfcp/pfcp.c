@@ -16,13 +16,25 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
-#pragma once
 
-#include <sys/socket.h>
-#include "gtp_server.h"
-#include "gtp_teid.h"
+#include "pfcp_router.h"
 
-/* Prototypes */
-gtp_teid_t *gtpc_proxy_handle_v2(gtp_server_t *, struct sockaddr_storage *);
+
+/*
+ *	PFCP Module init/destroy
+ */
+int
+pfcp_init(void)
+{
+	pfcp_router_init();
+	return 0;
+}
+
+int
+pfcp_destroy(void)
+{
+	pfcp_router_destroy();
+	return 0;
+}

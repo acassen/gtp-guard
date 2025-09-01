@@ -4,3 +4,4 @@
 bin/gtp-guard
 *.bpf
 *.ll
+compile_commands.json
