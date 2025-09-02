@@ -59,7 +59,7 @@ typedef enum _node_type {
 	GTP_PROXY_NODE,					/* GTP Proxy commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
 	PFCP_PROXY_NODE,				/* PFCP Proxy commands. */
-	PFCP_ROUTER_NODE,				/* PFCP Rouer commands. */
+	PFCP_ROUTER_NODE,				/* PFCP Router commands. */
 
 	VTY_NODE,					/* Vty node. */
 } node_type_t;

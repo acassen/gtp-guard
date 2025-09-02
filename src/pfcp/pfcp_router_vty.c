@@ -82,44 +82,6 @@ DEFUN(pfcp_router_desciption,
 	return CMD_SUCCESS;
 }
 
-DEFUN(pfcp_router_shutdown,
-      pfcp_router_shutdown_cmd,
-      "shutdown",
-      "Desactivate PFCP Router instance\n")
-{
-	pfcp_router_t *c = vty->index;
-
-	if (__test_bit(PFCP_ROUTER_FL_SHUTDOWN_BIT, &c->flags))
-		return CMD_WARNING;
-
-	/*... Stop stuffs ...*/
-
-	__set_bit(PFCP_ROUTER_FL_SHUTDOWN_BIT, &c->flags);
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(pfcp_router_no_shutdown,
-      pfcp_router_no_shutdown_cmd,
-      "no shutdown",
-      "Activate PFCP Router instance\n")
-{
-	pfcp_router_t *c = vty->index;
-
-	if (!__test_bit(PFCP_ROUTER_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% pfcp-router:'%s' is already running\n",
-			c->name);
-		return CMD_WARNING;
-	}
-
-
-	/* TODO: ... Start stuffs here ... */
-
-	__clear_bit(PFCP_ROUTER_FL_SHUTDOWN_BIT, &c->flags);
-
-	return CMD_SUCCESS;
-}
-
 
 /*
  *	Show commands
@@ -201,8 +163,6 @@ cmd_ext_pfcp_router_install(void)
 
 	install_default(PFCP_ROUTER_NODE);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_description_cmd);
-	install_element(PFCP_ROUTER_NODE, &pfcp_router_shutdown_cmd);
-	install_element(PFCP_ROUTER_NODE, &pfcp_router_no_shutdown_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_router_cmd);
