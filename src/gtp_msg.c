@@ -37,6 +37,23 @@ gtp_msg_hlen(gtp_hdr_t *h)
 	return len;
 }
 
+static int
+gtp_msg_ie_cmp(const void *type, const struct rb_node *a)
+{
+	return less_equal_greater_than(*((uint8_t *) type),
+				       rb_entry_const(a, gtp_msg_ie_t, n)->h->type);
+}
+
+gtp_msg_ie_t *
+gtp_msg_ie_get(gtp_msg_t *msg, uint8_t type)
+{
+	rb_root_cached_t *root = &msg->ie;
+	rb_node_t *node;
+
+	node = rb_find(&type, &root->rb_root, gtp_msg_ie_cmp);
+	return (node) ? rb_entry(node, gtp_msg_ie_t, n) : NULL;
+}
+
 static inline bool
 gtp_msg_ie_less(rb_node_t *a, const rb_node_t *b)
 {
@@ -74,22 +91,6 @@ gtp_msg_ie_dump(const char *prefix, const gtp_msg_ie_t *msg_ie)
 	dump_buffer(prefix, (char *) msg_ie->data, ntohs(msg_ie->h->length));
 }
 
-
-static int
-gtp_msg_ie_cmp(const void *type, const struct rb_node *a)
-{
-	return less_equal_greater_than(*((uint8_t *) type), rb_entry_const(a, gtp_msg_ie_t, n)->h->type);
-}
-
-gtp_msg_ie_t *
-gtp_msg_ie_get(gtp_msg_t *msg, uint8_t type)
-{
-	rb_root_cached_t *root = &msg->ie;
-	rb_node_t *node;
-
-	node = rb_find(&type, &root->rb_root, gtp_msg_ie_cmp);
-	return (node) ? rb_entry(node, gtp_msg_ie_t, n) : NULL;
-}
 
 gtp_msg_t *
 gtp_msg_alloc(const pkt_buffer_t *pbuff)

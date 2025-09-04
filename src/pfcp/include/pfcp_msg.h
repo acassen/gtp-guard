@@ -20,44 +20,32 @@
  */
 #pragma once
 
-#include <sys/socket.h>
-#include "inet_server.h"
-#include "gtp_stddef.h"
+#include <stdint.h>
+#include "rbtree_api.h"
+#include "pfcp.h"
+#include "pkt_buffer.h"
 
-/* Flags */
-enum daemon_flags {
-	GTP_FL_STOP_BIT,
-	GTP_FL_MIRROR_LOADED_BIT,
-	GTP_FL_RESTART_COUNTER_LOADED_BIT,
-};
+/*
+ *	PFCP Message indexation
+ */
+typedef struct pfcp_msg_ie {
+	pfcp_ie_t		*h;
+	void const		*data;
 
-/* Main control block */
-typedef struct data {
-	char			realm[GTP_STR_MAX_LEN];
-	struct sockaddr_storage	nameserver;
-	inet_server_tcp_t	request_channel;
-	inet_server_tcp_t	metrics_channel;
-	char			restart_counter_filename[GTP_STR_MAX_LEN];
-	uint8_t			restart_counter;
-	unsigned		nl_rcvbuf_size;
+	rb_node_t		n;
+} pfcp_msg_ie_t;
 
-	list_head_t		mirror;
-	list_head_t		cgn;
-	list_head_t		pppoe;
-	list_head_t		pppoe_bundle;
-	list_head_t		ip_vrf;
-	list_head_t		bpf_progs;
-	list_head_t		interfaces;
-	list_head_t		gtp_apn;
-	list_head_t		gtp_cdr;
-	list_head_t		gtp_proxy_ctx;
-	list_head_t		gtp_router_ctx;
-	list_head_t		pfcp_router_ctx;;
+typedef struct pfcp_msg {
+	pfcp_hdr_t		*h;
 
-	unsigned long		flags;
-} data_t;
+	rb_root_cached_t	ie;
+} pfcp_msg_t;
 
 
 /* Prototypes */
-data_t *alloc_daemon_data(void);
-void free_daemon_data(void);
+size_t pfcp_msg_hlen(pfcp_hdr_t *h);
+void pfcp_msg_ie_dump(const char *prefix, const pfcp_msg_ie_t *msg_ie);
+pfcp_msg_ie_t *pfcp_msg_ie_get(pfcp_msg_t *msg, uint16_t type);
+pfcp_msg_t *pfcp_msg_alloc(const pkt_buffer_t *pbuff);
+void pfcp_msg_destroy(pfcp_msg_t *msg);
+void pfcp_msg_dump(const char *prefix, pfcp_msg_t *msg);

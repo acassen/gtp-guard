@@ -25,6 +25,7 @@
 #include "gtp_stddef.h"
 #include "gtp_server.h"
 #include "gtp.h"
+#include "inet_server.h"
 #include "inet_utils.h"
 #include "logger.h"
 #include "bitops.h"
@@ -77,54 +78,23 @@ gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in
 static int
 gtp_server_udp_init(gtp_server_t *s)
 {
-	struct sockaddr_storage *addr = &s->addr;
-	socklen_t addrlen;
-	int fd, err;
-
 	/* Server init */
 	(*s->init) (s);
 
-	/* Create UDP Listener */
-	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
-	err = inet_setsockopt_reuseaddr(fd, 1);
-	err = (err) ? : inet_setsockopt_reuseport(fd, 1);
-	err = (err) ? : inet_setsockopt_rcvbuf(fd, DEFAULT_SOCKBUF);
-	err = (err) ? : inet_setsockopt_sndbuf(fd, DEFAULT_SOCKBUF);
-	if (err) {
-		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
-				    , __FUNCTION__
-				    , inet_sockaddrtos(addr)
-				    , ntohs(inet_sockaddrport(addr)));
-		close(fd);
-		return -1;
-	}
-
-	/* Bind listening channel */
-	addrlen = (addr->ss_family == AF_INET) ? sizeof(struct sockaddr_in) :
-						 sizeof(struct sockaddr_in6);
-	err = bind(fd, (struct sockaddr *) addr, addrlen);
-	if (err) {
-		log_message(LOG_INFO, "%s(): Error binding to [%s]:%d (%m)"
-				    , __FUNCTION__
-				    , inet_sockaddrtos(addr)
-				    , ntohs(inet_sockaddrport(addr)));
-		close(fd);
-		return -1;
-	}
-
-	return fd;
+	/* Init UDP listener */
+	return inet_server_udp_init(&s->addr);
 }
 
 static void
-gtp_server_async_recv_thread(thread_t *thread)
+gtp_server_async_recv_thread(thread_t *t)
 {
-	gtp_server_t *s = THREAD_ARG(thread);
+	gtp_server_t *s = THREAD_ARG(t);
 	struct sockaddr_storage *addr = &s->addr;
 	struct sockaddr_storage addr_from;
 	socklen_t addrlen;
 	ssize_t nbytes;
 
-	if (thread->type == THREAD_READ_TIMEOUT)
+	if (t->type == THREAD_READ_TIMEOUT)
 		goto next_read;
 
 	/* Perform ingress packet handling */
@@ -135,7 +105,7 @@ gtp_server_async_recv_thread(thread_t *thread)
 		log_message(LOG_INFO, "%s(): Error recv (%m). Exiting"
 					, __FUNCTION__);
 		/* re-init on error */
-		thread_del(thread);
+		thread_del(t);
 		close(s->fd);
 		s->fd = gtp_server_udp_init(s);
 		if (s->fd < 0) {
@@ -152,7 +122,7 @@ gtp_server_async_recv_thread(thread_t *thread)
 	/* Process incoming buffer */
 	(*s->process) (s, &addr_from);
 
-  next_read:
+next_read:
 	s->r_thread = thread_add_read(master, gtp_server_async_recv_thread
 					    , s, s->fd, 3*TIMER_HZ, 0);
 }

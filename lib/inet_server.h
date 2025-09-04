@@ -31,6 +31,7 @@
 /* Default values */
 #define INET_SRV_THREAD_CNT_DEFAULT	5
 #define INET_BUFFER_SIZE		4096
+#define INET_SOCKBUF_SIZE		(64 * 1024)
 
 /* Default TCP timer */
 #define INET_TCP_TIMEOUT	(3 * TIMER_HZ)
@@ -46,7 +47,7 @@ enum inet_server_flags {
 };
 
 /* Server */
-typedef struct _inet_cnx {
+typedef struct inet_cnx_tcp {
 	pthread_t		task;
 	pthread_attr_t		task_attr;
 	struct sockaddr_storage	addr;
@@ -54,7 +55,7 @@ typedef struct _inet_cnx {
 	FILE			*fp;
 	uint32_t                id;
 
-	struct _inet_worker	*worker;
+	struct inet_worker_tcp	*worker;
 	void			*arg;
 
 	char			buffer_in[INET_BUFFER_SIZE];
@@ -63,13 +64,13 @@ typedef struct _inet_cnx {
 	ssize_t			buffer_out_size;
 
 	unsigned long		flags;
-} inet_cnx_t;
+} inet_cnx_tcp_t;
 
-typedef struct _inet_worker {
+typedef struct inet_worker_tcp {
 	int			id;
 	pthread_t		task;
 	int			fd;
-	struct _inet_server	*server;	/* backpointer */
+	struct inet_server_tcp	*server;	/* backpointer */
 	int			event_pipe[2];
 
 	/* I/O MUX related */
@@ -79,9 +80,9 @@ typedef struct _inet_worker {
 	list_head_t		next;
 
 	unsigned long		flags;
-} inet_worker_t;
+} inet_worker_tcp_t;
 
-typedef struct _inet_server {
+typedef struct inet_server_tcp {
 	struct sockaddr_storage	addr;
 	int			thread_cnt;
 
@@ -89,22 +90,23 @@ typedef struct _inet_server {
 	list_head_t		workers;
 
 	/* Call-back */
-	int (*init) (struct _inet_server *);
-	int (*destroy) (struct _inet_server *);
-	int (*cnx_init) (inet_cnx_t *);
-	int (*cnx_destroy) (inet_cnx_t *);
-	ssize_t (*cnx_rcv) (inet_cnx_t *);
-	int (*cnx_process) (inet_cnx_t *);
+	int (*init) (struct inet_server_tcp *);
+	int (*destroy) (struct inet_server_tcp *);
+	int (*cnx_init) (inet_cnx_tcp_t *);
+	int (*cnx_destroy) (inet_cnx_tcp_t *);
+	ssize_t (*cnx_rcv) (inet_cnx_tcp_t *);
+	int (*cnx_process) (inet_cnx_tcp_t *);
 
 	unsigned long		flags;
-} inet_server_t;
+} inet_server_tcp_t;
 
 
 /* Prototypes */
-ssize_t inet_http_read(inet_cnx_t *c);
-int inet_server_worker_start(inet_server_t *s);
-int inet_server_init(inet_server_t *s);
-int inet_server_destroy(inet_server_t *s);
-int inet_server_for_each_worker(inet_server_t *s,
-				int (*cb) (inet_worker_t *, void *),
-				void *arg);
+int inet_server_udp_init(struct sockaddr_storage *addr);
+ssize_t inet_http_read(inet_cnx_tcp_t *c);
+int inet_server_tcp_worker_start(inet_server_tcp_t *s);
+int inet_server_tcp_init(inet_server_tcp_t *s);
+int inet_server_tcp_destroy(inet_server_tcp_t *s);
+int inet_server_tcp_for_each_worker(inet_server_tcp_t *s,
+				    int (*cb) (inet_worker_tcp_t *, void *),
+				    void *arg);

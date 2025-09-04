@@ -37,7 +37,7 @@ extern data_t *daemon_data;
  *	Handle request
  */
 static int
-gtp_request_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
+gtp_request_json_parse_cmd(inet_cnx_tcp_t *c, json_node_t *json)
 {
 	char *cmd_str = NULL, *apn_str = NULL, *imsi_str = NULL;
 	char addr_str[INET6_ADDRSTRLEN];
@@ -107,7 +107,7 @@ gtp_request_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
  *	Request listener init
  */
 int
-gtp_request_cnx_process(inet_cnx_t *c)
+gtp_request_cnx_process(inet_cnx_tcp_t *c)
 {
 	json_node_t *json;
 
@@ -125,7 +125,7 @@ gtp_request_cnx_process(inet_cnx_t *c)
 }
 
 int
-gtp_request_cnx_init(inet_cnx_t *c)
+gtp_request_cnx_init(inet_cnx_tcp_t *c)
 {
 	json_writer_t *jwriter = jsonw_new(c->fp);
 	c->arg = jwriter;
@@ -133,7 +133,7 @@ gtp_request_cnx_init(inet_cnx_t *c)
 }
 
 int
-gtp_request_cnx_destroy(inet_cnx_t *c)
+gtp_request_cnx_destroy(inet_cnx_tcp_t *c)
 {
 	json_writer_t *jwriter = c->arg;
 	jsonw_destroy(&jwriter);
@@ -147,19 +147,19 @@ gtp_request_cnx_destroy(inet_cnx_t *c)
 int
 gtp_request_init(void)
 {
-	inet_server_t *s = &daemon_data->request_channel;
+	inet_server_tcp_t *s = &daemon_data->request_channel;
 
 	s->cnx_init = &gtp_request_cnx_init;
 	s->cnx_destroy = &gtp_request_cnx_destroy;
 	s->cnx_rcv = &inet_http_read;
 	s->cnx_process = &gtp_request_cnx_process;
 
-	inet_server_init(s);
-	return inet_server_worker_start(s);
+	inet_server_tcp_init(s);
+	return inet_server_tcp_worker_start(s);
 }
 
 int
 gtp_request_destroy(void)
 {
-	return inet_server_destroy(&daemon_data->request_channel);
+	return inet_server_tcp_destroy(&daemon_data->request_channel);
 }

@@ -24,8 +24,6 @@
 #include "gtp_metrics.h"
 #include "thread.h"
 
-#define DEFAULT_SOCKBUF	(64 * 1024)
-
 /* GTP Server context */
 typedef struct gtp_server {
 	struct sockaddr_storage	addr;
@@ -58,10 +56,10 @@ typedef struct gtp_server {
 
 
 /* Prototypes */
-ssize_t gtp_server_send(gtp_server_t *, int, pkt_buffer_t *, struct sockaddr_in *);
-int gtp_server_start(gtp_server_t *);
-int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_t *, void *), void *);
-int gtp_server_init(gtp_server_t *, void *
-				  , int (*init) (gtp_server_t *)
-				  , int (*process) (gtp_server_t *, struct sockaddr_storage *));
-int gtp_server_destroy(gtp_server_t *);
+ssize_t gtp_server_send(gtp_server_t *s, int fd, pkt_buffer_t *pbuff,
+			struct sockaddr_in *addr);
+int gtp_server_start(gtp_server_t *s);
+int gtp_server_init(gtp_server_t *s, void *ctx,
+		    int (*init) (gtp_server_t *),
+		    int (*process) (gtp_server_t *, struct sockaddr_storage *));
+int gtp_server_destroy(gtp_server_t *s);
