@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 #pragma once
 
@@ -57,14 +57,15 @@ typedef struct gtp_proxy {
 
 
 /* Prototypes */
-int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *);
-int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *);
-int gtp_proxy_ingress_init(gtp_server_t *);
-int gtp_proxy_ingress_process(gtp_server_t *, struct sockaddr_storage *);
-gtp_proxy_t *gtp_proxy_get(const char *);
-gtp_proxy_t *gtp_proxy_init(const char *);
-int gtp_proxy_ctx_server_destroy(gtp_proxy_t *);
-int gtp_proxy_ctx_destroy(gtp_proxy_t *);
+int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *teid);
+int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *teid);
+int gtp_proxy_ingress_init(inet_server_t *srv);
+int gtp_proxy_ingress_process(inet_server_t *srv,
+			      struct sockaddr_storage *addr_from);
+gtp_proxy_t *gtp_proxy_get(const char *name);
+gtp_proxy_t *gtp_proxy_init(const char *name);
+int gtp_proxy_ctx_server_destroy(gtp_proxy_t *ctx);
+int gtp_proxy_ctx_destroy(gtp_proxy_t *ctx);
 int gtp_proxy_server_destroy(void);
 int gtp_proxy_destroy(void);
 int gtp_proxy_vty_init(void);

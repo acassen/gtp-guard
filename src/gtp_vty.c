@@ -123,7 +123,7 @@ DEFUN(restart_counter_file,
 }
 
 static int
-pdn_channel_prepare(int argc, const char **argv, vty_t *vty, inet_server_tcp_t *srv)
+pdn_channel_prepare(int argc, const char **argv, vty_t *vty, inet_server_t *srv)
 {
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, err = 0;
@@ -164,7 +164,7 @@ DEFUN(request_channel,
       "listening TCP Port\n"
       "Number\n")
 {
-	inet_server_tcp_t *srv = &daemon_data->request_channel;
+	inet_server_t *srv = &daemon_data->request_channel;
 	int err = pdn_channel_prepare(argc, argv, vty, srv);
 
 	if (err != CMD_SUCCESS)
@@ -185,7 +185,7 @@ DEFUN(metrics_channel,
       "listening TCP Port\n"
       "Number\n")
 {
-	inet_server_tcp_t *srv = &daemon_data->metrics_channel;
+	inet_server_t *srv = &daemon_data->metrics_channel;
 	int err = pdn_channel_prepare(argc, argv, vty, srv);
 
 	if (err != CMD_SUCCESS)
@@ -333,7 +333,7 @@ DEFUN(gtp_send_echo_request_extended,
 }
 
 static int
-vty_request_worker(inet_worker_tcp_t *w, void *arg)
+vty_request_worker(inet_worker_t *w, void *arg)
 {
 	vty_t *vty = (vty_t *) arg;
 	char flags2str[BUFSIZ];
@@ -358,7 +358,7 @@ DEFUN(show_workers_request_channel,
       "workers tasks\n"
       "pdn request-channel workers\n")
 {
-	inet_server_tcp_t *srv = &daemon_data->request_channel;
+	inet_server_t *srv = &daemon_data->request_channel;
 	char addr_str[INET6_ADDRSTRLEN];
 	char flags2str[BUFSIZ];
 
@@ -376,7 +376,7 @@ DEFUN(show_workers_request_channel,
 		     , VTY_NEWLINE
 		     , gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
 		     , VTY_NEWLINE);
-	inet_server_tcp_for_each_worker(srv, vty_request_worker, vty);
+	inet_server_for_each_worker(srv, vty_request_worker, vty);
 
 	return CMD_SUCCESS;
 }

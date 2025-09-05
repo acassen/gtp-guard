@@ -35,8 +35,8 @@ enum daemon_flags {
 typedef struct data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
-	inet_server_tcp_t	request_channel;
-	inet_server_tcp_t	metrics_channel;
+	inet_server_t		request_channel;
+	inet_server_t		metrics_channel;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 	unsigned		nl_rcvbuf_size;

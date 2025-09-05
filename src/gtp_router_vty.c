@@ -128,7 +128,7 @@ DEFUN(gtpc_router_tunnel_endpoint,
 {
         gtp_router_t *ctx = vty->index;
         gtp_server_t *srv = &ctx->gtpc;
-	struct sockaddr_storage *addr = &srv->addr;
+	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
         if (argc < 1) {
@@ -173,7 +173,7 @@ DEFUN(gtpu_router_tunnel_endpoint,
 {
 	gtp_router_t *ctx = vty->index;
 	gtp_server_t *srv = &ctx->gtpu;
-	struct sockaddr_storage *addr = &srv->addr;
+	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2152, err = 0;
 
 	if (argc < 1) {
@@ -224,15 +224,15 @@ gtp_config_write(vty_t *vty)
 		srv = &ctx->gtpc;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpu;
 		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
 			vty_out(vty, " gtpu-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
 		vty_out(vty, "!%s", VTY_NEWLINE);
@@ -257,8 +257,8 @@ vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
 		     "   flags:0x%lx (%s)%s"
 		     "   rx:%"PRIu64"packets %"PRIu64"bytes | tx:%"PRIu64"packets %"PRIu64"bytes%s"
 		   , gtplane
-		   , inet_sockaddrtos(&srv->addr)
-		   , ntohs(inet_sockaddrport(&srv->addr))
+		   , inet_sockaddrtos(&srv->s.addr)
+		   , ntohs(inet_sockaddrport(&srv->s.addr))
 		   , VTY_NEWLINE
 		   , srv->flags, gtp_flags2str(flags2str, sizeof(flags2str), srv->flags)
 		   , VTY_NEWLINE

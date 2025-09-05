@@ -122,7 +122,7 @@ gtp_metrics_dump(FILE *fp)
  *	Handle request
  */
 static int
-gtp_metrics_json_parse_cmd(inet_cnx_tcp_t *c, json_node_t *json)
+gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
 {
 	char *cmd_str = NULL;
 
@@ -152,7 +152,7 @@ gtp_metrics_json_parse_cmd(inet_cnx_tcp_t *c, json_node_t *json)
  *	Request listener init
  */
 int
-gtp_metrics_cnx_process(inet_cnx_tcp_t *c)
+gtp_metrics_cnx_process(inet_cnx_t *c)
 {
 	json_node_t *json;
 
@@ -170,7 +170,7 @@ gtp_metrics_cnx_process(inet_cnx_tcp_t *c)
 }
 
 int
-gtp_metrics_srv_prepare(inet_server_tcp_t *s)
+gtp_metrics_srv_prepare(inet_server_t *s)
 {
 	struct sockaddr_storage	*addr = &s->addr;
 
@@ -187,19 +187,19 @@ gtp_metrics_srv_prepare(inet_server_tcp_t *s)
 int
 gtp_metrics_init(void)
 {
-	inet_server_tcp_t *s = &daemon_data->metrics_channel;
+	inet_server_t *s = &daemon_data->metrics_channel;
 
 	s->init = &gtp_metrics_srv_prepare;
 	s->destroy = &gtp_metrics_srv_prepare;
 	s->cnx_rcv = &inet_http_read;
 	s->cnx_process = &gtp_metrics_cnx_process;
 
-	inet_server_tcp_init(s);
-	return inet_server_tcp_worker_start(s);
+	inet_server_init(s, SOCK_STREAM);
+	return inet_server_start(s, NULL);
 }
 
 int
 gtp_metrics_destroy(void)
 {
-	return inet_server_tcp_destroy(&daemon_data->metrics_channel);
+	return inet_server_destroy(&daemon_data->metrics_channel);
 }

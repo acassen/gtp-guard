@@ -39,13 +39,14 @@ typedef struct gtp_router {
 
 
 /* Prototypes */
-int gtp_router_ingress_init(gtp_server_t *);
-int gtp_router_ingress_process(gtp_server_t *, struct sockaddr_storage *);
+int gtp_router_ingress_init(inet_server_t *srv);
+int gtp_router_ingress_process(inet_server_t *srv,
+			       struct sockaddr_storage *addr_from);
 bool gtp_router_inuse(void);
-void gtp_router_foreach(int (*hdl) (gtp_router_t *, void *), void *);
-gtp_router_t *gtp_router_get(const char *);
-gtp_router_t *gtp_router_init(const char *);
-int gtp_router_ctx_destroy(gtp_router_t *);
+void gtp_router_foreach(int (*hdl) (gtp_router_t *, void *), void *arg);
+gtp_router_t *gtp_router_get(const char *name);
+gtp_router_t *gtp_router_init(const char *name);
+int gtp_router_ctx_destroy(gtp_router_t *ctx);
 int gtp_router_server_destroy(void);
 int gtp_router_destroy(void);
 int gtp_router_vty_init(void);

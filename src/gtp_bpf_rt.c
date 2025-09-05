@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include "gtp_data.h"
@@ -260,7 +260,7 @@ gtp_bpf_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 
 	for (i = 0; i < nr_cpus; i++) {
 		r[i].teid = t->id;
-		r[i].saddr = inet_sockaddrip4(&srv->addr);
+		r[i].saddr = inet_sockaddrip4(&srv->s.addr);
 		r[i].daddr = t->ipv4;
 		r[i].dst_key = dst_key;
 		r[i].vlan_id = vlan_id;
@@ -280,7 +280,7 @@ gtp_bpf_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 	/* egress (upstream) : GTP TEID + pGW GTP Tunnel endpoint */
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
 		rt_key->id = t->id;
-		rt_key->addr = inet_sockaddrip4(&srv->addr);
+		rt_key->addr = inet_sockaddrip4(&srv->s.addr);
 		return 0;
 	}
 
@@ -438,7 +438,7 @@ gtp_bpf_teid_bytes(gtp_bpf_prog_t *p, gtp_teid_t *t, uint64_t *bytes)
 	for (i = 0; i < nr_cpus; i++)
 		*bytes += r[i].bytes;
 
-  end:
+end:
 	free(r);
 	return 0;
 }

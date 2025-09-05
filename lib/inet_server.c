@@ -36,6 +36,48 @@
 
 
 /*
+ *	Generic helpers
+ */
+ssize_t
+inet_server_snd(inet_server_t *s, int fd, pkt_buffer_t *pbuff, struct sockaddr_in *addr)
+{
+	ssize_t nbytes = sendto(fd, pbuff->head
+				  , pkt_buffer_len(pbuff)
+				  , 0, addr, sizeof(*addr));
+	/* metrics */
+	if (nbytes < 0) {
+		s->tx_errors++;
+		return -1;
+	}
+
+	s->tx_pkts++;
+	if (s->snd)
+		(*s->snd) (s, nbytes);
+
+	return nbytes;
+}
+
+static ssize_t
+inet_server_rcv(inet_server_t *s, struct sockaddr *addr, socklen_t *addrlen)
+{
+	ssize_t nbytes = recvfrom(s->fd, s->pbuff->head
+				       , pkt_buffer_size(s->pbuff)
+				       , 0, addr, addrlen);
+	/* metrics */
+	if (nbytes < 0) {
+		s->rx_errors++;
+		return -1;
+	}
+
+	s->rx_pkts++;
+	if (s->rcv)
+		(*s->rcv) (s, nbytes);
+
+	return nbytes;
+}
+
+
+/*
  *	Inet Server UDP
  */
 int
@@ -75,11 +117,46 @@ inet_server_udp_init(struct sockaddr_storage *addr)
 	return fd;
 }
 
-int
+void
 inet_server_udp_async_recv_thread(thread_t *t)
 {
+	inet_server_t *s = THREAD_ARG(t);
+	struct sockaddr_storage *addr = &s->addr;
+	struct sockaddr_storage addr_from;
+	socklen_t addrlen;
+	ssize_t nbytes;
 
-	return 0;
+	if (t->type == THREAD_READ_TIMEOUT)
+		goto next_read;
+
+	/* Perform ingress packet handling */
+	nbytes = inet_server_rcv(s, (struct sockaddr *) &addr_from, &addrlen);
+	if (nbytes == -1) {
+		if (errno == EAGAIN || errno == EINTR)
+			goto next_read;
+		log_message(LOG_INFO, "%s(): Error recv (%m). Exiting"
+					, __FUNCTION__);
+		/* re-init on error */
+		thread_del(t);
+		close(s->fd);
+		s->fd = inet_server_udp_init(&s->addr);
+		if (s->fd < 0) {
+			log_message(LOG_INFO, "%s(): Error creating UDP on [%s]:%d...dying..."
+					    , __FUNCTION__
+					    , inet_sockaddrtos(addr)
+					    , ntohs(inet_sockaddrport(addr)));
+			return;
+		}
+		goto next_read;
+	}
+	pkt_buffer_set_end_pointer(s->pbuff, nbytes);
+
+	/* Process incoming buffer */
+	(*s->process) (s, &addr_from);
+
+next_read:
+	s->r_thread = thread_add_read(t->master, inet_server_udp_async_recv_thread
+					       , s, s->fd, INET_SRV_TIMEOUT, 0);
 }
 
 
@@ -87,7 +164,7 @@ inet_server_udp_async_recv_thread(thread_t *t)
  *	Inet Server TCP
  */
 static int
-inet_cnx_tcp_destroy(inet_cnx_tcp_t *c)
+inet_cnx_destroy(inet_cnx_t *c)
 {
 	fclose(c->fp);	/* Also close c->fd */
 	FREE(c);
@@ -95,9 +172,9 @@ inet_cnx_tcp_destroy(inet_cnx_tcp_t *c)
 }
 
 ssize_t
-inet_http_read(inet_cnx_tcp_t *c)
+inet_http_read(inet_cnx_t *c)
 {
-	inet_worker_tcp_t *w = c->worker;
+	inet_worker_t *w = c->worker;
 	char *buffer = c->buffer_in;
 	ssize_t nbytes, offset = 0;
 
@@ -133,11 +210,11 @@ next_rcv:
 }
 
 void *
-inet_server_tcp_thread(void *arg)
+inet_server_thread(void *arg)
 {
-	inet_cnx_tcp_t *c = arg;
-	inet_worker_tcp_t *w = c->worker;
-	inet_server_tcp_t *s = w->server;
+	inet_cnx_t *c = arg;
+	inet_worker_t *w = c->worker;
+	inet_server_t *s = w->server;
 	char identity[64];
 	ssize_t nbytes;
 	int old_type, err;
@@ -176,7 +253,7 @@ inet_server_tcp_thread(void *arg)
 end:
 	if (*s->cnx_destroy)
 		(*s->cnx_destroy) (c);
-	inet_cnx_tcp_destroy(c);
+	inet_cnx_destroy(c);
 	return NULL;
 }
 
@@ -185,12 +262,12 @@ end:
  *	Accept
  */
 static void
-inet_server_tcp_accept(thread_t *t)
+inet_server_accept(thread_t *t)
 {
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
-	inet_worker_tcp_t *w;
-	inet_cnx_tcp_t *c;
+	inet_worker_t *w;
+	inet_cnx_t *c;
 	int fd, accept_fd, err = 0, family;
 
 	/* Fetch thread elements */
@@ -231,7 +308,7 @@ inet_server_tcp_accept(thread_t *t)
 				    , w->id
 				    , inet_sockaddrtos(&addr)
 				    , ntohs(inet_sockaddrport(&addr)));
-		inet_cnx_tcp_destroy(c);
+		inet_cnx_destroy(c);
 		goto next_accept;
 	}
 
@@ -245,7 +322,7 @@ inet_server_tcp_accept(thread_t *t)
 				    , __FUNCTION__
 				    , inet_sockaddrtos(&addr)
 				    , ntohs(inet_sockaddrport(&addr)));
-		inet_cnx_tcp_destroy(c);
+		inet_cnx_destroy(c);
 		goto next_accept;
 	}
 
@@ -258,7 +335,7 @@ inet_server_tcp_accept(thread_t *t)
 				    , w->id
 				    , inet_sockaddrtos(&addr)
 				    , ntohs(inet_sockaddrport(&addr)));
-		inet_cnx_tcp_destroy(c);
+		inet_cnx_destroy(c);
 		goto next_accept;
 	}
 
@@ -269,24 +346,24 @@ inet_server_tcp_accept(thread_t *t)
 				    , w->id
 				    , inet_sockaddrtos(&addr)
 				    , ntohs(inet_sockaddrport(&addr)));
-		inet_cnx_tcp_destroy(c);
+		inet_cnx_destroy(c);
 		goto next_accept;
 	}
 
-	err = pthread_create(&c->task, &c->task_attr, inet_server_tcp_thread, c);
+	err = pthread_create(&c->task, &c->task_attr, inet_server_thread, c);
 	if (err) {
 		log_message(LOG_INFO, "%s(): #%d cant create pthread for session with peer [%s]:%d (%m)"
 				    , __FUNCTION__
 				    , w->id
 				    , inet_sockaddrtos(&addr)
 				    , ntohs(inet_sockaddrport(&addr)));
-		inet_cnx_tcp_destroy(c);
+		inet_cnx_destroy(c);
 	}
 
 next_accept:
 	/* Register read thread on listen fd */
-	w->r_thread = thread_add_read(t->master, inet_server_tcp_accept, w, fd,
-				      INET_TCP_LISTENER_TIMER, 0);
+	w->r_thread = thread_add_read(t->master, inet_server_accept, w, fd,
+				      INET_SRV_LISTENER_TIMER, 0);
 }
 
 
@@ -294,10 +371,10 @@ next_accept:
  *	Listener
  */
 static int
-inet_server_tcp_listen(inet_worker_tcp_t *w)
+inet_server_tcp_listen(inet_worker_t *w)
 {
 	mode_t old_mask;
-	inet_server_tcp_t *s = w->server;
+	inet_server_t *s = w->server;
 	struct sockaddr_storage *addr = &s->addr;
 	socklen_t addrlen;
 	int err, fd = -1;
@@ -359,8 +436,8 @@ inet_server_tcp_listen(inet_worker_tcp_t *w)
 	umask(old_mask);
 
 	/* Register acceptor thread */
-	w->r_thread = thread_add_read(w->master, inet_server_tcp_accept, w, fd,
-				      INET_TCP_LISTENER_TIMER, 0);
+	w->r_thread = thread_add_read(w->master, inet_server_accept, w, fd,
+				      INET_SRV_LISTENER_TIMER, 0);
 	w->fd = fd;
 	return fd;
 
@@ -373,9 +450,9 @@ error:
  *	Event thread
  */
 static void
-inet_server_tcp_event_read(thread_t *t)
+inet_server_event_read(thread_t *t)
 {
-	inet_worker_tcp_t *w = THREAD_ARG(t);
+	inet_worker_t *w = THREAD_ARG(t);
 	int fd = THREAD_FD(t);
 
 	/* Terminate event */
@@ -385,23 +462,23 @@ inet_server_tcp_event_read(thread_t *t)
 	}
 
 	/* Register read ton pipe fd */
-	thread_add_read(t->master, inet_server_tcp_event_read, w, fd,
+	thread_add_read(t->master, inet_server_event_read, w, fd,
 			INET_SRV_TIMER, 0);
 }
 
 static int
-inet_server_tcp_event_init(inet_worker_tcp_t *w)
+inet_server_tcp_event_init(inet_worker_t *w)
 {
-	thread_add_read(w->master, inet_server_tcp_event_read, w, w->event_pipe[0],
+	thread_add_read(w->master, inet_server_event_read, w, w->event_pipe[0],
 			INET_SRV_TIMER, 0);
 	return 0;
 }
 
 static void *
-inet_server_tcp_worker_task(void *arg)
+inet_server_worker_task(void *arg)
 {
-	inet_worker_tcp_t *w = arg;
-	inet_server_tcp_t *s = w->server;
+	inet_worker_t *w = arg;
+	inet_server_t *s = w->server;
 	char pname[128];
 
 	/* Create Process Name */
@@ -443,32 +520,23 @@ inet_server_tcp_worker_task(void *arg)
  *	INET Server TCP start
  */
 int
-inet_server_tcp_worker_launch(inet_server_tcp_t *s)
+inet_server_worker_launch(inet_server_t *s)
 {
-	inet_worker_tcp_t *worker;
+	inet_worker_t *worker;
 
 	pthread_mutex_lock(&s->workers_mutex);
 	list_for_each_entry(worker, &s->workers, next) {
-		pthread_create(&worker->task, NULL, inet_server_tcp_worker_task, worker);
+		pthread_create(&worker->task, NULL, inet_server_worker_task, worker);
 	}
 	pthread_mutex_unlock(&s->workers_mutex);
 
 	return 0;
 }
 
-int
-inet_server_tcp_worker_start(inet_server_tcp_t *s)
-{
-	if (!(__test_bit(INET_FL_RUNNING_BIT, &s->flags)))
-		return -1;
-
-	return inet_server_tcp_worker_launch(s);
-}
-
 static int
-inet_server_tcp_worker_alloc(inet_server_tcp_t *s, int id)
+inet_server_worker_alloc(inet_server_t *s, int id)
 {
-	inet_worker_tcp_t *worker;
+	inet_worker_t *worker;
 
 	PMALLOC(worker);
 	INIT_LIST_HEAD(&worker->next);
@@ -485,7 +553,7 @@ inet_server_tcp_worker_alloc(inet_server_tcp_t *s, int id)
 }
 
 static int
-inet_server_tcp_worker_release(inet_worker_tcp_t *w)
+inet_server_worker_release(inet_worker_t *w)
 {
 	thread_destroy_master(w->master);
 	close(w->fd);
@@ -497,10 +565,10 @@ inet_server_tcp_worker_release(inet_worker_tcp_t *w)
 }
 
 int
-inet_server_tcp_for_each_worker(inet_server_tcp_t *s,
-				int (*cb) (inet_worker_tcp_t *, void *), void *arg)
+inet_server_for_each_worker(inet_server_t *s,
+			    int (*cb) (inet_worker_t *, void *), void *arg)
 {
-	inet_worker_tcp_t *w;
+	inet_worker_t *w;
 
 	pthread_mutex_lock(&s->workers_mutex);
 	list_for_each_entry(w, &s->workers, next)
@@ -514,9 +582,29 @@ inet_server_tcp_for_each_worker(inet_server_tcp_t *s,
  *	INET Server init
  */
 int
-inet_server_tcp_init(inet_server_tcp_t *s)
+inet_server_start(inet_server_t *s, thread_master_t *m)
 {
-	int i, err;
+	if (!__test_bit(INET_FL_RUNNING_BIT, &s->flags))
+		return -1;
+
+	switch (s->type) {
+	case SOCK_DGRAM:
+		s->r_thread = thread_add_read(m, inet_server_udp_async_recv_thread
+					       , s, s->fd, INET_SRV_TIMEOUT, 0);
+		break;
+	case SOCK_STREAM:
+		return inet_server_worker_launch(s);
+	default:
+		return -1;
+	}
+
+	return -1;
+}
+
+int
+inet_server_init(inet_server_t *s, int type)
+{
+	int i, fd, err;
 
 	err = (s->init) ? (*s->init) (s) : 0;
 	if (err) {
@@ -525,40 +613,69 @@ inet_server_tcp_init(inet_server_tcp_t *s)
 		return -1;
 	}
 
-	/* Init worker related */
-	INIT_LIST_HEAD(&s->workers);
-	for (i = 0; i < s->thread_cnt; i++)
-		inet_server_tcp_worker_alloc(s, i);
+	switch (type) {
+	case SOCK_DGRAM:
+		fd = inet_server_udp_init(&s->addr);
+		if (fd < 0)
+			return -1;
+		s->fd  = fd;
+		s->pbuff = pkt_buffer_alloc(INET_BUFFER_SIZE);
+		s->seed = time(NULL);
+		srand(s->seed);
+		break;
+	case SOCK_STREAM:
+		/* TODO: We are only supporting pthread TCP server
+		 * from now, extend the code to support async I/O MUX
+		 */
+		INIT_LIST_HEAD(&s->workers);
+		for (i = 0; i < s->thread_cnt; i++)
+			inet_server_worker_alloc(s, i);
+		break;
+	default:
+		log_message(LOG_INFO, "%s(): inet-server type:%d not supported..."
+				    , __FUNCTION__, type);
+		return -1;
+	}
 
+	s->type = type;
 	__set_bit(INET_FL_RUNNING_BIT, &s->flags);
-
 	return 0;
 }
 
 int
-inet_server_tcp_destroy(inet_server_tcp_t *s)
+inet_server_destroy(inet_server_t *s)
 {
-	inet_worker_tcp_t *w, *_w;
+	inet_worker_t *w, *_w;
 	int err;
 
 	if (!__test_bit(INET_FL_RUNNING_BIT, &s->flags))
 		return -1;
 
-	pthread_mutex_lock(&s->workers_mutex);
-	list_for_each_entry_safe(w, _w, &s->workers, next) {
-		__set_bit(INET_FL_STOP_BIT, &w->flags);
-		if (__test_bit(INET_FL_PIPE_BIT, &w->flags))
-			err = write(w->event_pipe[1], "end", 3);
-		pthread_join(w->task, NULL);
-		inet_server_tcp_worker_release(w);
-		list_head_del(&w->next);
-		FREE(w);
+	switch (s->type) {
+	case SOCK_DGRAM:
+		close(s->fd);
+		pkt_buffer_free(s->pbuff);
+		break;
+	case SOCK_STREAM:
+		pthread_mutex_lock(&s->workers_mutex);
+		list_for_each_entry_safe(w, _w, &s->workers, next) {
+			__set_bit(INET_FL_STOP_BIT, &w->flags);
+			if (__test_bit(INET_FL_PIPE_BIT, &w->flags))
+				err = write(w->event_pipe[1], "end", 3);
+			pthread_join(w->task, NULL);
+			inet_server_worker_release(w);
+			list_head_del(&w->next);
+			FREE(w);
+		}
+		pthread_mutex_unlock(&s->workers_mutex);
+		break;
+	default:
+		return -1;
 	}
-	pthread_mutex_unlock(&s->workers_mutex);
 
 	err = (s->destroy) ? (*s->destroy) (s) : 0;
 	if (err)
-		log_message(LOG_INFO, "%s(): Error initializing inet-server..."
+		log_message(LOG_INFO, "%s(): Error destroyinh inet-server..."
 				    , __FUNCTION__);
 
 	__clear_bit(INET_FL_RUNNING_BIT, &s->flags);

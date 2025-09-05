@@ -81,19 +81,20 @@ gtp_proxy_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct s
 }
 
 int
-gtp_proxy_ingress_init(gtp_server_t *s)
+gtp_proxy_ingress_init(inet_server_t *srv)
 {
 	return 0;
 }
 
 int
-gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
+gtp_proxy_ingress_process(inet_server_t *srv, struct sockaddr_storage *addr_from)
 {
+	gtp_server_t *s = srv->ctx;
 	gtp_proxy_t *ctx = s->ctx;
 	gtp_server_t *s_egress = &ctx->gtpc_egress;
 	struct sockaddr_in addr_to;
 	gtp_teid_t *teid;
-	int fd = s->fd;
+	int fd = srv->fd;
 
 	/* GTP-U handling */
 	if (__test_bit(GTP_FL_UPF_BIT, &s->flags)) {
@@ -101,7 +102,7 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 		if (!teid)
 			return -1;
 
-		gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) addr_from);
+		inet_server_snd(srv, srv->fd, srv->pbuff, (struct sockaddr_in *) addr_from);
 		return 0;
 	}
 
@@ -114,15 +115,15 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 	 * then split socket */
 	if (__test_bit(GTP_FL_CTL_BIT, &s_egress->flags)) {
 		if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &s->flags))
-			fd = ctx->gtpc_egress.fd;
+			fd = ctx->gtpc_egress.s.fd;
 		else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &s->flags))
-			fd = ctx->gtpc.fd;
+			fd = ctx->gtpc.s.fd;
 	}
 
 	/* Set destination address */
 	gtp_proxy_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(s, TEID_IS_DUMMY(teid) ? s->fd : fd, s->pbuff
-			 , TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
+	inet_server_snd(srv, TEID_IS_DUMMY(teid) ? srv->fd : fd, srv->pbuff,
+			TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
 	gtpc_proxy_handle_post(s, teid);
 
 	return 0;

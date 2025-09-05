@@ -45,7 +45,7 @@ gtp_router_server_rx_dump(gtp_router_t *r, void *arg)
 		type = GTP_FL_UPF_BIT;
 
 	fprintf(fp, "%s{interface=\"%s\"} %ld\n"
-		  , var, ctx->name, srv->rx_pkts);
+		  , var, ctx->name, srv->s.rx_pkts);
 
 	for (i = 0; i < GTP_METRIC_MAX_MSG; i++) {
 		if (srv->msg_metrics.rx[i].count)
@@ -84,7 +84,7 @@ gtp_router_server_tx_dump(gtp_router_t *r, void *arg)
 		type = GTP_FL_UPF_BIT;
 
 	fprintf(fp, "%s{interface=\"%s\"} %ld\n"
-		  , var, ctx->name, srv->tx_pkts);
+		  , var, ctx->name, srv->s.tx_pkts);
 
 	for (i = 0; i < GTP_METRIC_MAX_MSG; i++) {
 		if (srv->msg_metrics.tx[i].count)

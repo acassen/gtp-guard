@@ -625,7 +625,7 @@ gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buf
 	       gtp_teid_t * (*hdl) (gtp_server_t *, gtp_session_t *, int, void *, uint8_t *))
 {
 	size_t offset = buffer_offset;
-	uint8_t *end = pkt_buffer_end(srv->pbuff);
+	uint8_t *end = pkt_buffer_end(srv->s.pbuff);
 	uint8_t *cp;
 	gtp_ie_t *ie;
 

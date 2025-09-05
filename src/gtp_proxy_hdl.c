@@ -39,8 +39,8 @@ gtp_teid_t dummy_teid = { .type = 0xff };
 gtp_session_t *
 gtpc_retransmit_detected(gtp_server_t *srv)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
-	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) srv->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->s.pbuff->head;
+	gtp1_hdr_t *gtph1 = (gtp1_hdr_t *) srv->s.pbuff->head;
 	gtp_proxy_t *ctx = srv->ctx;
 	gtp_f_teid_t f_teid;
 	gtp_session_t *s = NULL;
@@ -48,7 +48,7 @@ gtpc_retransmit_detected(gtp_server_t *srv)
 	uint8_t *cp;
 
 	if (gtph->version == 2) {
-		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, srv->pbuff);
+		cp = gtp_get_ie(GTP_IE_F_TEID_TYPE, srv->s.pbuff);
 		if (!cp)
 			return NULL;
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp_ie_f_teid_t, teid_grekey));
@@ -67,11 +67,11 @@ gtpc_retransmit_detected(gtp_server_t *srv)
 		return s;
 	}
 
-	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, srv->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_TEID_CONTROL_TYPE, srv->s.pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, srv->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, srv->s.pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
@@ -100,7 +100,7 @@ static const struct {
 gtp_teid_t *
 gtpc_proxy_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->s.pbuff->head;
 
 	/* Only support GTPv1 & GTPv2 */
 	if (*(gtpc_msg_hdl[gtph->version].hdl))
@@ -145,20 +145,20 @@ gtpc_proxy_handle_post(gtp_server_t *srv, gtp_teid_t *teid)
 static gtp_teid_t *
 gtpu_echo_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) srv->pbuff->head;
+	gtp1_hdr_t *h = (gtp1_hdr_t *) srv->s.pbuff->head;
 	gtp1_ie_recovery_t *rec;
 
 	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
 	h->type = GTPU_ECHO_RSP_TYPE;
 	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
-	pkt_buffer_set_end_pointer(srv->pbuff, gtp1_get_header_len(h));
-	pkt_buffer_set_data_pointer(srv->pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_end_pointer(srv->s.pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_data_pointer(srv->s.pbuff, gtp1_get_header_len(h));
 
-	gtp1_ie_add_tail(srv->pbuff, sizeof(gtp1_ie_recovery_t));
-	rec = (gtp1_ie_recovery_t *) srv->pbuff->data;
+	gtp1_ie_add_tail(srv->s.pbuff, sizeof(gtp1_ie_recovery_t));
+	rec = (gtp1_ie_recovery_t *) srv->s.pbuff->data;
 	rec->type = GTP1_IE_RECOVERY_TYPE;
 	rec->recovery = 0;
-	pkt_buffer_put_data(srv->pbuff, sizeof(gtp1_ie_recovery_t));
+	pkt_buffer_put_data(srv->s.pbuff, sizeof(gtp1_ie_recovery_t));
 
 	return &dummy_teid;
 }
@@ -172,12 +172,12 @@ gtpu_error_indication_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 	uint8_t *cp;
 
 	/* Data Plane IE */
-	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, srv->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_TEID_DATA_TYPE, srv->s.pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.teid_grekey = (uint32_t *) (cp + offsetof(gtp1_ie_teid_t, id));
 
-	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, srv->pbuff);
+	cp = gtp1_get_ie(GTP1_IE_GSN_ADDRESS_TYPE, srv->s.pbuff);
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(gtp1_ie_t));
@@ -202,7 +202,7 @@ gtpu_error_indication_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 
 	/* xlat TEID */
 	*f_teid.teid_grekey = htonl(teid->vid);
-	*f_teid.ipv4 = ((struct sockaddr_in *) &srv->addr)->sin_addr.s_addr;
+	*f_teid.ipv4 = ((struct sockaddr_in *) &srv->s.addr)->sin_addr.s_addr;
 
 	/* Finaly set addr back to linked peer */
 	((struct sockaddr_in *) addr)->sin_addr.s_addr = pteid->ipv4;
@@ -213,7 +213,7 @@ gtpu_error_indication_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 static gtp_teid_t *
 gtpu_end_marker_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->s.pbuff->head;
 	gtp_proxy_t *ctx = srv->ctx;
 	gtp_teid_t *teid = NULL, *pteid = NULL;
 	gtp_f_teid_t f_teid;
@@ -261,10 +261,10 @@ static const struct {
 gtp_teid_t *
 gtpu_proxy_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->pbuff->head;
+	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->s.pbuff->head;
 	ssize_t len;
 
-	len = gtpu_get_header_len(srv->pbuff);
+	len = gtpu_get_header_len(srv->s.pbuff);
 	if (len < 0)
 		return NULL;
 

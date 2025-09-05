@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <errno.h>
@@ -26,6 +26,7 @@
 #include "gtp_router.h"
 #include "gtp_router_hdl.h"
 #include "bitops.h"
+#include "inet_server.h"
 #include "memory.h"
 #include "utils.h"
 
@@ -38,14 +39,15 @@ extern data_t *daemon_data;
  *	Helpers
  */
 int
-gtp_router_ingress_init(gtp_server_t *s)
+gtp_router_ingress_init(inet_server_t *srv)
 {
 	return 0;
 }
 
 int
-gtp_router_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
+gtp_router_ingress_process(inet_server_t *srv, struct sockaddr_storage *addr_from)
 {
+	gtp_server_t *s = srv->ctx;
 	int ret;
 
 	ret = __test_bit(GTP_FL_UPF_BIT, &s->flags) ? gtpu_router_handle(s, addr_from) :
@@ -54,7 +56,8 @@ gtp_router_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 		return -1;
 
 	if (ret != GTP_ROUTER_DELAYED)
-		gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) addr_from);
+		inet_server_snd(srv, srv->fd, srv->pbuff,
+				(struct sockaddr_in *) addr_from);
 	return 0;
 }
 
