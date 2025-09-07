@@ -36,19 +36,19 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	XDP RT BPF related
  */
 static int
-gtp_bpf_rt_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
+gtp_bpf_rt_load_maps(struct gtp_bpf_prog *p, struct bpf_object *bpf_obj)
 {
 	struct bpf_map *map;
 
 	/* MAP ref for faster access */
-	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_RT_MAP_CNT);
+	p->bpf_maps = MALLOC(sizeof(struct gtp_bpf_maps) * XDP_RT_MAP_CNT);
 	map = gtp_bpf_load_map(bpf_obj, "teid_ingress");
 	if (!map)
 		return -1;
@@ -145,7 +145,7 @@ gtp_bpf_rt_metrics_add(struct bpf_map *map, __u32 ifindex, __u8 type, __u8 direc
 }
 
 int
-gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *p, int ifindex, int type)
+gtp_bpf_rt_metrics_init(struct gtp_bpf_prog *p, int ifindex, int type)
 {
 	struct bpf_map *map = p->bpf_maps[XDP_RT_MAP_IF_STATS].map;
 
@@ -157,7 +157,7 @@ gtp_bpf_rt_metrics_init(gtp_bpf_prog_t *p, int ifindex, int type)
 }
 
 int
-gtp_bpf_rt_metrics_dump(gtp_bpf_prog_t *p,
+gtp_bpf_rt_metrics_dump(struct gtp_bpf_prog *p,
 			int (*dump) (void *, __u8, __u8, struct metrics *), void *arg,
 			__u32 ifindex, __u8 type, __u8 direction)
 {
@@ -195,7 +195,7 @@ gtp_bpf_rt_metrics_dump(gtp_bpf_prog_t *p,
 }
 
 int
-gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *p, int ifindex, int type,
+gtp_bpf_rt_stats_dump(struct gtp_bpf_prog *p, int ifindex, int type,
 		      int (*dump) (void *, __u8, __u8, struct metrics *),
 		      void *arg)
 {
@@ -209,9 +209,9 @@ gtp_bpf_rt_stats_dump(gtp_bpf_prog_t *p, int ifindex, int type,
 }
 
 int
-gtp_bpf_rt_stats_vty(gtp_bpf_prog_t *p, int ifindex, int type,
+gtp_bpf_rt_stats_vty(struct gtp_bpf_prog *p, int ifindex, int type,
 		     int (*dump) (void *, __u8, __u8, struct metrics *),
-		     vty_t *vty)
+		     struct vty *vty)
 {
 	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_ROUTE)
 		return -1;
@@ -239,13 +239,13 @@ gtp_bpf_rt_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_bpf_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
+gtp_bpf_rt_rule_set(struct gtp_rt_rule *r, struct gtp_teid *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
-	gtp_session_t *s = t->session;
-	gtp_router_t *rtr = s->srv->ctx;
-	gtp_server_t *srv = &rtr->gtpu;
-	ip_vrf_t *vrf = s->apn->vrf;
+	struct gtp_session *s = t->session;
+	struct gtp_router *rtr = s->srv->ctx;
+	struct gtp_server *srv = &rtr->gtpu;
+	struct ip_vrf *vrf = s->apn->vrf;
 	__be32 dst_key = (vrf) ? vrf->id : 0;
 	__u8 flags = __test_bit(IP_VRF_FL_IPIP_BIT, &vrf->flags) ? GTP_RT_FL_IPIP : 0;
 	__u16 vlan_id = 0;
@@ -271,11 +271,11 @@ gtp_bpf_rt_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t)
 }
 
 int
-gtp_bpf_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
+gtp_bpf_rt_key_set(struct gtp_teid *t, struct ip_rt_key *rt_key)
 {
-	gtp_session_t *s = t->session;
-	gtp_router_t *rtr = s->srv->ctx;
-	gtp_server_t *srv = &rtr->gtpu;
+	struct gtp_session *s = t->session;
+	struct gtp_router *rtr = s->srv->ctx;
+	struct gtp_server *srv = &rtr->gtpu;
 
 	/* egress (upstream) : GTP TEID + pGW GTP Tunnel endpoint */
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) {
@@ -293,7 +293,7 @@ gtp_bpf_rt_key_set(gtp_teid_t *t, struct ip_rt_key *rt_key)
 }
 
 static int
-gtp_bpf_rt_action(struct bpf_map *map, int action, gtp_teid_t *t)
+gtp_bpf_rt_action(struct bpf_map *map, int action, struct gtp_teid *t)
 {
 	struct gtp_rt_rule *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -343,7 +343,7 @@ gtp_bpf_rt_action(struct bpf_map *map, int action, gtp_teid_t *t)
 }
 
 static int
-gtp_bpf_teid_vty(gtp_bpf_prog_t *p, int map_id, vty_t *vty, gtp_teid_t *t)
+gtp_bpf_teid_vty(struct gtp_bpf_prog *p, int map_id, struct vty *vty, struct gtp_teid *t)
 {
 	struct bpf_map *map = p->bpf_maps[map_id].map;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
@@ -415,7 +415,7 @@ gtp_bpf_teid_vty(gtp_bpf_prog_t *p, int map_id, vty_t *vty, gtp_teid_t *t)
 }
 
 static int
-gtp_bpf_teid_bytes(gtp_bpf_prog_t *p, gtp_teid_t *t, uint64_t *bytes)
+gtp_bpf_teid_bytes(struct gtp_bpf_prog *p, struct gtp_teid *t, uint64_t *bytes)
 {
 	int direction = __test_bit(GTP_TEID_FL_EGRESS, &t->flags);
 	struct bpf_map *map = p->bpf_maps[direction].map;
@@ -444,12 +444,12 @@ end:
 }
 
 int
-gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
+gtp_bpf_rt_teid_action(int action, struct gtp_teid *t)
 {
-	gtp_router_t *router = t->session->srv->ctx;
-	gtp_bpf_prog_t *p = router->bpf_prog;
-	gtp_session_t *s;
-	gtp_apn_t *apn;
+	struct gtp_router *router = t->session->srv->ctx;
+	struct gtp_bpf_prog *p = router->bpf_prog;
+	struct gtp_session *s;
+	struct gtp_apn *apn;
 	int direction;
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
@@ -477,12 +477,12 @@ gtp_bpf_rt_teid_action(int action, gtp_teid_t *t)
 }
 
 int
-gtp_bpf_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
+gtp_bpf_rt_teid_vty(struct vty *vty, struct gtp_teid *t)
 {
-	gtp_router_t *router = t->session->srv->ctx;
-	gtp_bpf_prog_t *p = router->bpf_prog;
-	gtp_session_t *s;
-	gtp_apn_t *apn;
+	struct gtp_router *router = t->session->srv->ctx;
+	struct gtp_bpf_prog *p = router->bpf_prog;
+	struct gtp_session *s;
+	struct gtp_apn *apn;
 	int direction;
 
 	if (!p || !t)
@@ -506,9 +506,9 @@ gtp_bpf_rt_teid_vty(vty_t *vty, gtp_teid_t *t)
 }
 
 int
-gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_rt_vty(struct gtp_bpf_prog *p, void *arg)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
@@ -525,12 +525,12 @@ gtp_bpf_rt_vty(gtp_bpf_prog_t *p, void *arg)
 }
 
 int
-gtp_bpf_rt_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
+gtp_bpf_rt_teid_bytes(struct gtp_teid *t, uint64_t *bytes)
 {
-	gtp_router_t *router = t->session->srv->ctx;
-	gtp_bpf_prog_t *p = router->bpf_prog;
-	gtp_session_t *s;
-	gtp_apn_t *apn;
+	struct gtp_router *router = t->session->srv->ctx;
+	struct gtp_bpf_prog *p = router->bpf_prog;
+	struct gtp_session *s;
+	struct gtp_apn *apn;
 
 	if (!p || !t)
 		return -1;
@@ -556,23 +556,23 @@ gtp_bpf_rt_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
  *	IP Tunneling related
  */
 static int
-gtp_bpf_rt_iptnl_add(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_rt_iptnl_add(struct gtp_bpf_prog *p, void *arg)
 {
-	gtp_iptnl_t *t = arg;
+	struct gtp_iptnl *t = arg;
 
 	return gtp_bpf_iptnl_action(RULE_ADD, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }
 
 static int
-gtp_bpf_rt_iptnl_del(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_rt_iptnl_del(struct gtp_bpf_prog *p, void *arg)
 {
-	gtp_iptnl_t *t = arg;
+	struct gtp_iptnl *t = arg;
 
 	return gtp_bpf_iptnl_action(RULE_DEL, t, p->bpf_maps[XDP_RT_MAP_IPTNL].map);
 }
 
 int
-gtp_bpf_rt_iptnl_action(int action, gtp_iptnl_t *t)
+gtp_bpf_rt_iptnl_action(int action, struct gtp_iptnl *t)
 {
 	switch (action) {
 	case RULE_ADD:
@@ -591,9 +591,9 @@ gtp_bpf_rt_iptnl_action(int action, gtp_iptnl_t *t)
 }
 
 int
-gtp_bpf_rt_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_rt_iptnl_vty(struct gtp_bpf_prog *p, void *arg)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
@@ -619,7 +619,7 @@ gtp_bpf_rt_lladdr_alloc(size_t *sz)
 }
 
 static int
-gtp_bpf_rt_lladdr_set(struct ll_addr *ll, gtp_interface_t *iface)
+gtp_bpf_rt_lladdr_set(struct ll_addr *ll, struct gtp_interface *iface)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	int i;
@@ -634,9 +634,9 @@ gtp_bpf_rt_lladdr_set(struct ll_addr *ll, gtp_interface_t *iface)
 
 
 static int
-gtp_bpf_rt_lladdr_update_prog(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_rt_lladdr_update_prog(struct gtp_bpf_prog *p, void *arg)
 {
-	gtp_interface_t *iface = arg;
+	struct gtp_interface *iface = arg;
 	struct bpf_map *map;
 	struct ll_addr *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -678,11 +678,11 @@ gtp_bpf_rt_lladdr_update(void *arg)
 }
 
 int
-gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_rt_lladdr_vty(struct gtp_bpf_prog *p, void *arg)
 {
 	struct bpf_map *map;
 	struct ll_addr *ll;
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	__u32 key = 0, next_key = 0;
 	size_t sz;
@@ -722,7 +722,7 @@ gtp_bpf_rt_lladdr_vty(gtp_bpf_prog_t *p, void *arg)
 }
 
 
-static gtp_bpf_prog_tpl_t gtp_bpf_tpl_rt = {
+static struct gtp_bpf_prog_tpl gtp_bpf_tpl_rt = {
 	.mode = BPF_PROG_MODE_GTP_ROUTE,
 	.description = "gtp-route",
 	.loaded = gtp_bpf_rt_load_maps,

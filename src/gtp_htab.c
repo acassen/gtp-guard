@@ -28,15 +28,15 @@
  *	HTAB handling
  */
 void
-gtp_htab_init(gtp_htab_t *h, size_t size)
+gtp_htab_init(struct gtp_htab *h, size_t size)
 {
 	h->htab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) * size);
 }
 
-gtp_htab_t *
+struct gtp_htab *
 gtp_htab_alloc(size_t size)
 {
-	gtp_htab_t *new;
+	struct gtp_htab *new;
 
 	PMALLOC(new);
 	if (!new)
@@ -47,13 +47,13 @@ gtp_htab_alloc(size_t size)
 }
 
 void
-gtp_htab_destroy(gtp_htab_t *h)
+gtp_htab_destroy(struct gtp_htab *h)
 {
 	FREE(h->htab);
 }
 
 void
-gtp_htab_free(gtp_htab_t *h)
+gtp_htab_free(struct gtp_htab *h)
 {
 	FREE(h);
 }

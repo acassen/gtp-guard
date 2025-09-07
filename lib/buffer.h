@@ -10,24 +10,24 @@
 #include <stddef.h>
 
 /* buffer definition */
-typedef struct _buffer_data {
-	struct _buffer_data	*next;
+struct buffer_data {
+	struct buffer_data	*next;
 
 	size_t			cp;	/* Location to add new data. */
 	size_t			sp;	/* Pointer to data not yet flushed. */
 	unsigned char		data[];	/* Actual data stream (variable length).
 					 * real dimension is buffer->size.
 					 */
-} buffer_data_t;
+};
 
-typedef struct _buffer {
-	buffer_data_t		*head;
-	buffer_data_t		*tail;
+struct buffer {
+	struct buffer_data	*head;
+	struct buffer_data	*tail;
 
 	size_t			size;	/* Size of each buffer_data chunk. */
-} buffer_t;
+};
 
-typedef enum _buffer_status {
+enum buffer_status {
 	BUFFER_ERROR = -1,		/* An I/O error occurred.
 					 * The buffer should be destroyed and the
 					 * file descriptor should be closed.
@@ -42,7 +42,7 @@ typedef enum _buffer_status {
 					 * indicates that the file descriptor
 					 * is writeable.
 					 */
-} buffer_status_t;
+};
 
 /* Some defines */
 #define BUFFER_SIZE_DEFAULT	4096
@@ -52,17 +52,17 @@ typedef enum _buffer_status {
 	(((EN) == EAGAIN) || ((EN) == EWOULDBLOCK) || ((EN) == EINTR))
 
 /* Prototypes */
-buffer_t *buffer_new(size_t size);
-void buffer_free(buffer_t *b);
-char *buffer_getstr(buffer_t *b);
-int buffer_empty(buffer_t *b);
-void buffer_reset(buffer_t *b);
-void buffer_put(buffer_t *b, const void *p, size_t size);
-void buffer_putc(buffer_t *b, uint8_t c);
-void buffer_putstr(buffer_t *b, const char *c);
-buffer_status_t buffer_write(buffer_t *b, int fd,
-                             const void *p, size_t size);
-buffer_status_t buffer_flush_all(buffer_t *b, int fd);
-buffer_status_t buffer_flush_window(buffer_t *b, int fd, int width,
-                                    int height, int erase, int no_more);
-buffer_status_t buffer_flush_available(buffer_t *b, int fd);
+struct buffer *buffer_new(size_t size);
+void buffer_free(struct buffer *b);
+char *buffer_getstr(struct buffer *b);
+int buffer_empty(struct buffer *b);
+void buffer_reset(struct buffer *b);
+void buffer_put(struct buffer *b, const void *p, size_t size);
+void buffer_putc(struct buffer *b, uint8_t c);
+void buffer_putstr(struct buffer *b, const char *c);
+enum buffer_status buffer_write(struct buffer *b, int fd,
+				const void *p, size_t size);
+enum buffer_status buffer_flush_all(struct buffer *b, int fd);
+enum buffer_status buffer_flush_window(struct buffer *b, int fd, int width,
+				       int height, int erase, int no_more);
+enum buffer_status buffer_flush_available(struct buffer *b, int fd);

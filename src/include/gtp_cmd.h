@@ -31,12 +31,12 @@ enum {
 	GTP_CMD_ECHO_REQUEST_EXTENDED,
 };
 
-typedef struct gtp_cmd_args {
+struct gtp_cmd_args {
 	int			type;
 	struct sockaddr_storage src_addr;
 	struct sockaddr_storage dst_addr;
 	int			ifindex;
-	vty_t			*vty;
+	struct vty		*vty;
 	int			version;
 	int			count;
 	uint32_t		sqn;
@@ -45,9 +45,9 @@ typedef struct gtp_cmd_args {
 	char			buffer[GTP_CMD_BUFFER_SIZE];
 	size_t			buffer_len;
 	size_t			buffer_offset;
-	thread_t		*t_read;
-	thread_t		*t_write;
-} gtp_cmd_args_t;
+	struct thread		*t_read;
+	struct thread		*t_write;
+};
 
 /* Prototypes */
-int gtp_cmd_echo_request(gtp_cmd_args_t *);
+int gtp_cmd_echo_request(struct gtp_cmd_args *);

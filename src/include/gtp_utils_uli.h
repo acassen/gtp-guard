@@ -23,9 +23,9 @@
 #include "gtp_apn.h"
 
 /* GTPv1 */
-extern int gtp1_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
+extern int gtp1_ie_uli_update(struct pkt_buffer *, struct gtp_plmn *, struct sockaddr_in *);
 
 /* GTPv2 */
-extern gtp_id_ecgi_t *gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *);
-extern int gtp_id_ecgi_str(gtp_id_ecgi_t *, char *, size_t);
-extern int gtp_ie_uli_update(pkt_buffer_t *, gtp_plmn_t *, struct sockaddr_in *);
+struct gtp_id_ecgi *gtp_ie_uli_extract_ecgi(struct gtp_ie_uli *);
+int gtp_id_ecgi_str(struct gtp_id_ecgi *, char *, size_t);
+int gtp_ie_uli_update(struct pkt_buffer *, struct gtp_plmn *, struct sockaddr_in *);

@@ -20,6 +20,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 #include "ppp.h"
 #include "pppoe_session.h"
@@ -32,7 +33,7 @@
  *	VRRP metrics
  */
 static int
-pppoe_vrrp_inuse(pppoe_t *pppoe, void *arg)
+pppoe_vrrp_inuse(struct pppoe *pppoe, void *arg)
 {
 	bool *inuse = arg;
 
@@ -44,7 +45,7 @@ pppoe_vrrp_inuse(pppoe_t *pppoe, void *arg)
 }
 
 static int
-vrrp_metrics_tmpl_dump(pppoe_t *pppoe, void *arg)
+vrrp_metrics_tmpl_dump(struct pppoe *pppoe, void *arg)
 {
 	FILE *fp = arg;
 
@@ -74,7 +75,7 @@ vrrp_metrics_dump(FILE *fp)
 }
 
 int
-vrrp_metrics_reset(pppoe_t *pppoe)
+vrrp_metrics_reset(struct pppoe *pppoe)
 {
 	pppoe->vrrp_pkt_rx = 0;
 	return 0;
@@ -85,9 +86,9 @@ vrrp_metrics_reset(pppoe_t *pppoe)
  *	PPP metrics
  */
 int
-ppp_metric_update(pppoe_t *pppoe, uint16_t protocol, int direction, int metric)
+ppp_metric_update(struct pppoe *pppoe, uint16_t protocol, int direction, int metric)
 {
-	ppp_metrics_t *metrics = pppoe->ppp_metrics;
+	struct ppp_metrics *metrics = pppoe->ppp_metrics;
 
 	if (!metrics)
 		return -1;
@@ -115,13 +116,13 @@ ppp_metric_update(pppoe_t *pppoe, uint16_t protocol, int direction, int metric)
 }
 
 int
-ppp_metric_update_total(pppoe_t *pppoe, uint16_t protocol, int direction)
+ppp_metric_update_total(struct pppoe *pppoe, uint16_t protocol, int direction)
 {
 	return ppp_metric_update(pppoe, protocol, direction, PPP_METRIC_TOTAL);
 }
 
 int
-ppp_metric_update_dropped(pppoe_t *pppoe, int direction)
+ppp_metric_update_dropped(struct pppoe *pppoe, int direction)
 {
 	if (!pppoe->ppp_metrics)
 		return -1;
@@ -134,10 +135,10 @@ ppp_metric_update_dropped(pppoe_t *pppoe, int direction)
 }
 
 int
-ppp_metrics_reset(pppoe_t *pppoe)
+ppp_metrics_reset(struct pppoe *pppoe)
 {
 	if (pppoe->ppp_metrics)
-		memset(pppoe->ppp_metrics, 0, sizeof(ppp_metrics_t));
+		memset(pppoe->ppp_metrics, 0, sizeof(struct ppp_metrics));
 	return 0;
 }
 
@@ -146,9 +147,9 @@ static const char *ppp_metrics_name[PPP_METRIC_MAX] = {
 };
 
 static int
-ppp_metrics_var_dump(pppoe_t *pppoe, void *arg, const char *var, int direction)
+ppp_metrics_var_dump(struct pppoe *pppoe, void *arg, const char *var, int direction)
 {
-	ppp_metrics_t *metrics = pppoe->ppp_metrics;
+	struct ppp_metrics *metrics = pppoe->ppp_metrics;
 	FILE *fp = arg;
 	int i;
 
@@ -186,7 +187,7 @@ ppp_metrics_var_dump(pppoe_t *pppoe, void *arg, const char *var, int direction)
  *	PPPoE metrics
  */
 int
-pppoe_metric_update(pppoe_t *pppoe, int dir, int metric)
+pppoe_metric_update(struct pppoe *pppoe, int dir, int metric)
 {
 	if (!pppoe->pppoe_metrics)
 		return -1;
@@ -201,7 +202,7 @@ pppoe_metric_update(pppoe_t *pppoe, int dir, int metric)
 }
 
 int
-pppoe_metrics_reset(pppoe_t *pppoe)
+pppoe_metrics_reset(struct pppoe *pppoe)
 {
 	int i;
 
@@ -217,7 +218,7 @@ pppoe_metrics_reset(pppoe_t *pppoe)
 }
 
 static int
-pppoe_metrics_inuse(pppoe_t *pppoe, void *arg)
+pppoe_metrics_inuse(struct pppoe *pppoe, void *arg)
 {
 	bool *inuse = arg;
 
@@ -232,7 +233,7 @@ static const char *pppoe_metrics_name[PPPOE_METRIC_MAX] = {
 };
 
 static int
-pppoe_metrics_var_dump(pppoe_t *pppoe, void *arg, const char *var, int direction)
+pppoe_metrics_var_dump(struct pppoe *pppoe, void *arg, const char *var, int direction)
 {
 	FILE *fp = arg;
 	int i;
@@ -304,10 +305,10 @@ pppoe_metrics_dump(FILE *fp)
  *	Alloc/destroy
  */
 int
-pppoe_metrics_alloc(pppoe_t *pppoe)
+pppoe_metrics_alloc(struct pppoe *pppoe)
 {
-	pppoe_metrics_t *pppoe_m;
-	ppp_metrics_t *ppp_m;
+	struct pppoe_metrics *pppoe_m;
+	struct ppp_metrics *ppp_m;
 
 	PMALLOC(pppoe_m);
 	if (!pppoe_m)
@@ -325,7 +326,7 @@ pppoe_metrics_alloc(pppoe_t *pppoe)
 }
 
 int
-pppoe_metrics_destroy(pppoe_t *pppoe)
+pppoe_metrics_destroy(struct pppoe *pppoe)
 {
 	FREE_PTR(pppoe->ppp_metrics);
 	FREE_PTR(pppoe->pppoe_metrics);

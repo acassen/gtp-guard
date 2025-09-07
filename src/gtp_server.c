@@ -28,18 +28,18 @@
 
 
 /* Extern data */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 
 /*
  *	Worker
  */
 static int
-gtp_server_snd(inet_server_t *srv, ssize_t nbytes) 
+gtp_server_snd(struct inet_server *srv, ssize_t nbytes) 
 {
-	gtp_server_t *s = srv->ctx;
-	pkt_buffer_t *pbuff = srv->pbuff;
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	struct gtp_server *s = srv->ctx;
+	struct pkt_buffer *pbuff = srv->pbuff;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
 
 	/* metrics */
 	gtp_metrics_pkt_update(&s->tx_metrics, nbytes);
@@ -49,9 +49,9 @@ gtp_server_snd(inet_server_t *srv, ssize_t nbytes)
 }
 
 static int
-gtp_server_rcv(inet_server_t *srv, ssize_t nbytes)
+gtp_server_rcv(struct inet_server *srv, ssize_t nbytes)
 {
-	gtp_server_t *s = srv->ctx;
+	struct gtp_server *s = srv->ctx;
 
 	gtp_metrics_pkt_update(&s->rx_metrics, nbytes);
 	return 0;
@@ -62,11 +62,11 @@ gtp_server_rcv(inet_server_t *srv, ssize_t nbytes)
  *	GTP Server related
  */
 int
-gtp_server_init(gtp_server_t *s, void *ctx
-			       , int (*init) (inet_server_t *)
-			       , int (*process) (inet_server_t *, struct sockaddr_storage *))
+gtp_server_init(struct gtp_server *s, void *ctx,
+		int (*init) (struct inet_server *),
+		int (*process) (struct inet_server *, struct sockaddr_storage *))
 {
-	inet_server_t *srv = &s->s;
+	struct inet_server *srv = &s->s;
 	struct sockaddr_storage *addr = &srv->addr;
 	int err;
 
@@ -95,7 +95,7 @@ gtp_server_init(gtp_server_t *s, void *ctx
 }
 
 int
-gtp_server_destroy(gtp_server_t *s)
+gtp_server_destroy(struct gtp_server *s)
 {
 	return inet_server_destroy(&s->s);
 }

@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "ppp.h"
 #include "ppp_session.h"
 #include "pppoe_session.h"
@@ -30,7 +32,7 @@
 #include "inet_utils.h"
 
 /* Extern data */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 /* Local data */
 static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
@@ -44,12 +46,12 @@ static const struct ether_addr hw_brd = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
  */
 
 
-pkt_t *
-pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t proto)
+struct pkt *
+pppoe_eth_pkt_get(struct spppoe *s, const struct ether_addr *hw_dst, const uint16_t proto)
 {
-	pppoe_t *pppoe = s->pppoe;
+	struct pppoe *pppoe = s->pppoe;
 	struct ether_header *eh;
-	pkt_t *pkt;
+	struct pkt *pkt;
 
 	/* allocate a buffer */
 	pkt = pkt_queue_get(&pppoe->pkt_q);
@@ -69,14 +71,14 @@ pppoe_eth_pkt_get(spppoe_t *s, const struct ether_addr *hw_dst, const uint16_t p
 static int
 pppoe_vendor_specific_rate_append(uint8_t *p, uint8_t type, uint32_t rate)
 {
-	pppoe_vendor_tag_t *vendor_tag;
+	struct pppoe_vendor_tag *vendor_tag;
 	uint32_t *value;
 	int offset = 0;
 
-	vendor_tag = (pppoe_vendor_tag_t *) p;
+	vendor_tag = (struct pppoe_vendor_tag *) p;
 	vendor_tag->tag = type;
 	vendor_tag->len = sizeof(uint32_t);
-	offset += sizeof(pppoe_vendor_tag_t);
+	offset += sizeof(struct pppoe_vendor_tag);
 	value = (uint32_t *) (p + offset);
 	*value = rate;
 	offset += sizeof(uint32_t);
@@ -87,13 +89,13 @@ pppoe_vendor_specific_rate_append(uint8_t *p, uint8_t type, uint32_t rate)
 static int
 pppoe_vendor_specific_tag_append(uint8_t *p, uint8_t type, uint8_t *value, uint8_t len)
 {
-	pppoe_vendor_tag_t *vendor_tag;
+	struct pppoe_vendor_tag *vendor_tag;
 	int offset = 0;
 
-	vendor_tag = (pppoe_vendor_tag_t *) p ;
+	vendor_tag = (struct pppoe_vendor_tag *) p ;
 	vendor_tag->tag = type;
 	vendor_tag->len = len;
-	offset += sizeof(pppoe_vendor_tag_t);
+	offset += sizeof(struct pppoe_vendor_tag);
 	memcpy(p + offset, value, len);
 	offset += len;
 
@@ -101,19 +103,19 @@ pppoe_vendor_specific_tag_append(uint8_t *p, uint8_t type, uint8_t *value, uint8
 }
 
 static int
-pppoe_vendor_specific_append(spppoe_t *s, uint8_t *p, bool rate_append)
+pppoe_vendor_specific_append(struct spppoe *s, uint8_t *p, bool rate_append)
 {
-	pppoe_t *pppoe = s->pppoe;
-	pppoe_tag_t *vendor_spec_tag;
+	struct pppoe *pppoe = s->pppoe;
+	struct pppoe_tag *vendor_spec_tag;
 	uint32_t *value;
 	int offset = 0;
 
 	if (!__test_bit(PPPOE_FL_VENDOR_SPECIFIC_BBF_BIT, &pppoe->flags))
 		return 0;
 
-	vendor_spec_tag = (pppoe_tag_t *) p;
+	vendor_spec_tag = (struct pppoe_tag *) p;
 	vendor_spec_tag->tag = htons(PPPOE_TAG_VENDOR);
-	offset += sizeof(pppoe_tag_t);
+	offset += sizeof(struct pppoe_tag);
 
 	value = (uint32_t *) (p + offset);
 	*value = htonl(PPPOE_VENDOR_ID_BBF);
@@ -139,12 +141,12 @@ pppoe_vendor_specific_append(spppoe_t *s, uint8_t *p, bool rate_append)
 	}
 
 	/* Update vendor tag header len */
-	vendor_spec_tag->len = htons(offset - sizeof(pppoe_tag_t));
+	vendor_spec_tag->len = htons(offset - sizeof(struct pppoe_tag));
 	return offset;
 }
 
 static int
-pppoe_eth_pkt_pad(pkt_buffer_t *b, uint8_t *p)
+pppoe_eth_pkt_pad(struct pkt_buffer *b, uint8_t *p)
 {
 	pkt_buffer_put_data(b, p - b->data);
 	pkt_buffer_set_end_pointer(b, p - b->head);
@@ -153,17 +155,17 @@ pppoe_eth_pkt_pad(pkt_buffer_t *b, uint8_t *p)
 }
 
 int
-pppoe_send_padi(spppoe_t *s)
+pppoe_send_padi(struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
-	pppoe_hdr_t *pppoeh;
-	pkt_t *pkt;
+	struct pppoe *pppoe = s->pppoe;
+	struct pppoe_hdr *pppoeh;
+	struct pkt *pkt;
 	uint32_t *hunique;
 	int len, l1 = 0, l2 = 0, vendor_spec_len = 0;
 	uint8_t *p;
 
 	/* service name tag is required, host unique is sent too */
-	len = 2*sizeof(pppoe_tag_t) + sizeof(s->unique);	/* service name, host unique */
+	len = 2*sizeof(struct pppoe_tag) + sizeof(s->unique);	/* service name, host unique */
 	if (pppoe->service_name[0]) {				/* service name tag maybe empty */
 		l1 = strlen(pppoe->service_name);
 		len += l1;
@@ -171,7 +173,7 @@ pppoe_send_padi(spppoe_t *s)
 
 	if (pppoe->ac_name[0]) {				/* Access-Concentrator*/
 		l2 = strlen(pppoe->ac_name);
-		len += sizeof(pppoe_tag_t) + l2;
+		len += sizeof(struct pppoe_tag) + l2;
 	}
 
 	/* get ethernet pkt buffer */
@@ -181,7 +183,7 @@ pppoe_send_padi(spppoe_t *s)
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
-	pppoeh = (pppoe_hdr_t *) p;
+	pppoeh = (struct pppoe_hdr *) p;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADI, 0, len);
 
 	PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
@@ -216,11 +218,11 @@ pppoe_send_padi(spppoe_t *s)
 }
 
 static int
-pppoe_send_padr(spppoe_t *s)
+pppoe_send_padr(struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
-	pppoe_hdr_t *pppoeh;
-	pkt_t *pkt;
+	struct pppoe *pppoe = s->pppoe;
+	struct pppoe_hdr *pppoeh;
+	struct pkt *pkt;
 	uint8_t *p;
 	uint32_t *hunique;
 	size_t len, l1 = 0, vendor_spec_len = 0;
@@ -228,15 +230,15 @@ pppoe_send_padr(spppoe_t *s)
 	if (s->state != PPPOE_STATE_PADR_SENT)
 		return -1;
 
-	len = 2*sizeof(pppoe_tag_t) + sizeof(s->unique);	/* service name, host unique */
+	len = 2*sizeof(struct pppoe_tag) + sizeof(s->unique);	/* service name, host unique */
 	if (pppoe->service_name[0]) {				/* service name tag maybe empty */
 		l1 = strlen(pppoe->service_name);
 		len += l1;
 	}
 	if (s->ac_cookie_len > 0)
-		len += sizeof(pppoe_tag_t) + s->ac_cookie_len;	/* AC cookie */
+		len += sizeof(struct pppoe_tag) + s->ac_cookie_len;	/* AC cookie */
 	if (s->relay_sid_len > 0)
-		len += sizeof(pppoe_tag_t) + s->relay_sid_len;	/* Relay SID */
+		len += sizeof(struct pppoe_tag) + s->relay_sid_len;	/* Relay SID */
 
 	/* get ethernet pkt buffer */
 	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_DISC);
@@ -245,7 +247,7 @@ pppoe_send_padr(spppoe_t *s)
 
 	/* fill in pkt */
 	p = pkt->pbuff->data;
-	pppoeh = (pppoe_hdr_t *) p;
+	pppoeh = (struct pppoe_hdr *) p;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_PADR, 0, len);
 
 	PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
@@ -286,10 +288,10 @@ pppoe_send_padr(spppoe_t *s)
 }
 
 static int
-pppoe_send_padt(spppoe_t *s)
+pppoe_send_padt(struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
-	pkt_t *pkt;
+	struct pppoe *pppoe = s->pppoe;
+	struct pkt *pkt;
 	uint8_t *p;
 
 	/* get ethernet pkt buffer */
@@ -310,9 +312,9 @@ pppoe_send_padt(spppoe_t *s)
 }
 
 int
-pppoe_connect(spppoe_t *s)
+pppoe_connect(struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
+	struct pppoe *pppoe = s->pppoe;
 	int err, retry_wait = 2;
 
 	if (s->state != PPPOE_STATE_INITIAL)
@@ -335,7 +337,7 @@ pppoe_connect(spppoe_t *s)
 }
 
 int
-pppoe_abort_connect(spppoe_t *s)
+pppoe_abort_connect(struct spppoe *s)
 {
 	PPPDEBUG(("%s: pppoe could not establish connection\n", s->pppoe->ifname));
 	s->state = PPPOE_STATE_CLOSING;
@@ -346,7 +348,7 @@ pppoe_abort_connect(spppoe_t *s)
 }
 
 int
-pppoe_disconnect(spppoe_t *s)
+pppoe_disconnect(struct spppoe *s)
 {
 	int ret;
 
@@ -372,10 +374,10 @@ pppoe_disconnect(spppoe_t *s)
 }
 
 void
-pppoe_timeout(thread_t *thread)
+pppoe_timeout(struct thread *thread)
 {
-	spppoe_t *s = THREAD_ARG(thread);
-	pppoe_t *pppoe = s->pppoe;
+	struct spppoe *s = THREAD_ARG(thread);
+	struct pppoe *pppoe = s->pppoe;
 	int retry_wait = 2;
 
 	PPPDEBUG(("%s: pppoe hunique:0x%.8x\n", pppoe->ifname, s->unique));
@@ -431,11 +433,11 @@ pppoe_timeout(thread_t *thread)
 }
 
 static int
-pppoe_sanitize_pkt(pppoe_t *pppoe, pkt_t *pkt,
+pppoe_sanitize_pkt(struct pppoe *pppoe, struct pkt *pkt,
 		   int *off, uint16_t *session, uint16_t *plen, uint8_t *code)
 {
 	struct ether_header *eh;
-	pppoe_hdr_t *ph;
+	struct pppoe_hdr *ph;
 
 	eh = (struct ether_header *) pkt->pbuff->head;
 	*off += sizeof(*eh);
@@ -446,7 +448,7 @@ pppoe_sanitize_pkt(pppoe_t *pppoe, pkt_t *pkt,
 		return -1;
 	}
 
-	ph = (pppoe_hdr_t *) (pkt->pbuff->head + *off);
+	ph = (struct pppoe_hdr *) (pkt->pbuff->head + *off);
 	if (ph->vertype != PPPOE_VERTYPE) {
 		log_message(LOG_INFO, "%s(): %s: unknown version/type packet: 0x%.x"
 				    , __FUNCTION__, pppoe->ifname
@@ -470,11 +472,11 @@ pppoe_sanitize_pkt(pppoe_t *pppoe, pkt_t *pkt,
 }
 
 void
-pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
+pppoe_dispatch_disc_pkt(struct pppoe *pppoe, struct pkt *pkt)
 {
-	spppoe_t *s = NULL;
+	struct spppoe *s = NULL;
 	struct ether_header *eh;
-	pppoe_tag_t *pt;
+	struct pppoe_tag *pt;
 	const char *err_msg = NULL;
 	size_t ac_name_len = 0;
 	size_t ac_cookie_len = 0;
@@ -499,7 +501,7 @@ pppoe_dispatch_disc_pkt(pppoe_t *pppoe, pkt_t *pkt)
 	eh = (struct ether_header *) pkt->pbuff->head;
 
 	while (off + sizeof(*pt) <= pkt_buffer_len(pkt->pbuff)) {
-		pt = (pppoe_tag_t *) (pkt->pbuff->head + off);
+		pt = (struct pppoe_tag *) (pkt->pbuff->head + off);
 		tag = ntohs(pt->tag);
 		len = ntohs(pt->len);
 		off += sizeof(*pt);
@@ -742,10 +744,10 @@ breakbreak:
 }
 
 void
-pppoe_dispatch_session_pkt(pppoe_t *pppoe, pkt_t *pkt)
+pppoe_dispatch_session_pkt(struct pppoe *pppoe, struct pkt *pkt)
 {
 	struct ether_header *eh;
-	spppoe_t *sp;
+	struct spppoe *sp;
 	int off = 0, ret;
 	uint16_t session = 0, plen = 0;
 	uint8_t code = 0;

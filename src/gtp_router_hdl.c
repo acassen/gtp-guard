@@ -35,23 +35,23 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 /* Local data */
-extern gtp_teid_t dummy_teid;
+extern struct gtp_teid dummy_teid;
 
 
 /*
  *	Utilities
  */
-static gtp_teid_t *
-gtpc_msg_retransmit(gtp_hdr_t *h, uint8_t *ie_buffer)
+static struct gtp_teid *
+gtpc_msg_retransmit(struct gtp_hdr *h, uint8_t *ie_buffer)
 {
-	gtp_teid_t *teid;
-	gtp_f_teid_t f_teid;
+	struct gtp_teid *teid;
+	struct gtp_f_teid f_teid;
 
-	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
-	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, teid_grekey));
+	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, ipv4));
 	teid = gtpc_teid_get(&f_teid);
 	if (!teid)
 		return NULL;
@@ -64,11 +64,11 @@ gtpc_msg_retransmit(gtp_hdr_t *h, uint8_t *ie_buffer)
 	return NULL;
 }
 
-static gtp_teid_t *
-gtp_teid_set(gtp_server_t *srv, gtp_session_t *s, gtp_teid_t *teid, uint8_t type, int direction)
+static struct gtp_teid *
+gtp_teid_set(struct gtp_server *srv, struct gtp_session *s, struct gtp_teid *teid, uint8_t type, int direction)
 {
-	gtp_apn_t *apn = s->apn;
-	ip_vrf_t *vrf = apn->vrf;
+	struct gtp_apn *apn = s->apn;
+	struct ip_vrf *vrf = apn->vrf;
 
 	if (!teid)
 		return NULL;
@@ -97,11 +97,11 @@ gtp_teid_set(gtp_server_t *srv, gtp_session_t *s, gtp_teid_t *teid, uint8_t type
 	return teid;
 }
 
-static gtp_teid_t *
-gtp_teid_create(gtp_server_t *srv, gtp_session_t *s, uint8_t type, int direction, 
-		gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bearer_id)
+static struct gtp_teid *
+gtp_teid_create(struct gtp_server *srv, struct gtp_session *s, uint8_t type, int direction,
+		struct gtp_f_teid *f_teid, struct gtp_ie_eps_bearer_id *bearer_id)
 {
-	gtp_teid_t *teid = NULL;
+	struct gtp_teid *teid = NULL;
 
 	teid = (type == GTP_TEID_C) ? gtpc_teid_get(f_teid) :
 				      gtpu_teid_get(f_teid);
@@ -116,24 +116,24 @@ gtp_teid_create(gtp_server_t *srv, gtp_session_t *s, uint8_t type, int direction
 	return gtp_teid_set(srv, s, teid, type, direction);
 }
 
-static gtp_teid_t *
-gtpu_teid_add(gtp_server_t *srv, gtp_session_t *s, int direction, void *arg, uint8_t *ie_buffer)
+static struct gtp_teid *
+gtpu_teid_add(struct gtp_server *srv, struct gtp_session *s, int direction, void *arg, uint8_t *ie_buffer)
 {
-	gtp_ie_eps_bearer_id_t *bearer_id = arg;
-	gtp_f_teid_t f_teid;
+	struct gtp_ie_eps_bearer_id *bearer_id = arg;
+	struct gtp_f_teid f_teid;
 
 	f_teid.version = 2;
-	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
-	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+	f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, teid_grekey));
+	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, ipv4));
 
 	return gtp_teid_create(srv, s, GTP_TEID_U, direction, &f_teid, bearer_id);
 }
 
-static gtp_teid_t *
-gtpu_teid_create(gtp_server_t *srv, gtp_session_t *s, int direction, void *arg, uint8_t *ie_buffer)
+static struct gtp_teid *
+gtpu_teid_create(struct gtp_server *srv, struct gtp_session *s, int direction, void *arg, uint8_t *ie_buffer)
 {
-	gtp_ie_eps_bearer_id_t *bearer_id = arg;
-	gtp_teid_t *teid, *pteid;
+	struct gtp_ie_eps_bearer_id *bearer_id = arg;
+	struct gtp_teid *teid, *pteid;
 
 	teid = gtpu_teid_add(srv, s, direction, bearer_id, ie_buffer);
 	pteid = gtpu_teid_alloc_peer(teid, inet_sockaddrip4(&srv->s.addr), bearer_id, &srv->s.seed);
@@ -142,9 +142,9 @@ gtpu_teid_create(gtp_server_t *srv, gtp_session_t *s, int direction, void *arg, 
 }
 
 static int
-gtpc_teid_set_bearer(gtp_session_t *s)
+gtpc_teid_set_bearer(struct gtp_session *s)
 {
-	gtp_teid_t *teid_c, *teid_u;
+	struct gtp_teid *teid_c, *teid_u;
 
 	if (list_empty(&s->gtpc_teid) || list_empty(&s->gtpu_teid))
 		return -1;
@@ -153,8 +153,8 @@ gtpc_teid_set_bearer(gtp_session_t *s)
 	 * FIXME: At the time of coding, we only support one GTP-C F-TEID
 	 *        which sound Ok for most use-cases.
 	 *        So just keep it simple that way for now */
-	teid_c = list_first_entry(&s->gtpc_teid, gtp_teid_t, next);
-	teid_u = list_first_entry(&s->gtpu_teid, gtp_teid_t, next);
+	teid_c = list_first_entry(&s->gtpc_teid, struct gtp_teid, next);
+	teid_u = list_first_entry(&s->gtpu_teid, struct gtp_teid, next);
 	teid_c->bearer_teid = teid_u;
 
 	/* Peer setting */
@@ -164,13 +164,13 @@ gtpc_teid_set_bearer(gtp_session_t *s)
 	return 0;
 }
 
-static gtp_teid_t *
-gtpc_teid_create(gtp_server_t *srv, gtp_session_t *s, gtp_msg_t *msg, bool create_peer)
+static struct gtp_teid *
+gtpc_teid_create(struct gtp_server *srv, struct gtp_session *s, struct gtp_msg *msg, bool create_peer)
 {
-	gtp_teid_t *teid = NULL, *pteid;
-	gtp_msg_ie_t *msg_ie;
-	gtp_f_teid_t f_teid;
-	gtp_ie_eps_bearer_id_t *bearer_id = NULL;
+	struct gtp_teid *teid = NULL, *pteid;
+	struct gtp_msg_ie *msg_ie;
+	struct gtp_f_teid f_teid;
+	struct gtp_ie_eps_bearer_id *bearer_id = NULL;
 	uint8_t *ie_buffer, *cp_bid;
 
 	/* GTP-C create */
@@ -178,8 +178,8 @@ gtpc_teid_create(gtp_server_t *srv, gtp_session_t *s, gtp_msg_t *msg, bool creat
 	if (msg_ie) {
 		ie_buffer = (uint8_t *) msg_ie->h;
 		f_teid.version = 2;
-		f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
-		f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+		f_teid.teid_grekey = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, teid_grekey));
+		f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, ipv4));
 		teid = gtp_teid_create(srv, s, GTP_TEID_C, GTP_INGRESS, &f_teid, NULL);
 		if (create_peer) {
 			pteid = gtpc_teid_alloc_peer(teid,
@@ -195,7 +195,7 @@ gtpc_teid_create(gtp_server_t *srv, gtp_session_t *s, gtp_msg_t *msg, bool creat
 		return teid;
 
 	cp_bid = gtp_get_ie_offset(GTP_IE_EPS_BEARER_ID_TYPE, (uint8_t *) msg_ie->data, ntohs(msg_ie->h->length), 0);
-	bearer_id = (cp_bid) ? (gtp_ie_eps_bearer_id_t *) cp_bid : NULL;
+	bearer_id = (cp_bid) ? (struct gtp_ie_eps_bearer_id *) cp_bid : NULL;
 	gtp_foreach_ie(GTP_IE_F_TEID_TYPE, (uint8_t *) msg_ie->data, 0
 					 , (uint8_t *) msg_ie->data + ntohs(msg_ie->h->length)
 					 , srv, s, GTP_INGRESS
@@ -204,10 +204,10 @@ gtpc_teid_create(gtp_server_t *srv, gtp_session_t *s, gtp_msg_t *msg, bool creat
 	return teid;
 }
 
-static gtp_teid_t *
+static struct gtp_teid *
 _gtpc_teid_get(uint32_t id, uint32_t ipv4)
 {
-	gtp_f_teid_t f_teid = { .version = 2, .teid_grekey = &id, .ipv4 = &ipv4 };
+	struct gtp_f_teid f_teid = { .version = 2, .teid_grekey = &id, .ipv4 = &ipv4 };
 
 	return gtpc_teid_get(&f_teid);
 }
@@ -217,145 +217,147 @@ _gtpc_teid_get(uint32_t id, uint32_t ipv4)
  *	Packet factory
  */
 static int
-gtpc_pkt_put_ie(pkt_buffer_t *pbuff, uint8_t type, uint16_t length)
+gtpc_pkt_put_ie(struct pkt_buffer *pbuff, uint8_t type, uint16_t length)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-	gtp_ie_t *ie;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
+	struct gtp_ie *ie;
 
 	if (pkt_buffer_put_zero(pbuff, length) < 0)
 		return 1;
 
-	ie = (gtp_ie_t *) pbuff->data;
+	ie = (struct gtp_ie *) pbuff->data;
 	ie->type = type;
-	ie->length = htons(length - sizeof(gtp_ie_t));
+	ie->length = htons(length - sizeof(*ie));
 	h->length = htons(ntohs(h->length) + length);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pid(pkt_buffer_t *pbuff,  uint16_t type, uint8_t length)
+gtpc_pkt_put_pid(struct pkt_buffer *pbuff,  uint16_t type, uint8_t length)
 {
-	gtp_pco_pid_t *pid;
+	struct gtp_pco_pid *pid;
 
 	if (pkt_buffer_put_zero(pbuff, length) < 0)
 		return 1;
 
-	pid = (gtp_pco_pid_t *) pbuff->data;
+	pid = (struct gtp_pco_pid *) pbuff->data;
 	pid->type = htons(type);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_imsi(pkt_buffer_t *pbuff, uint64_t imsi)
+gtpc_pkt_put_imsi(struct pkt_buffer *pbuff, uint64_t imsi)
 {
-	gtp_ie_imsi_t *ie;
+	struct gtp_ie_imsi *ie;
 
 	if (!imsi)
 		return 0;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_IMSI_TYPE, sizeof(gtp_ie_imsi_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_IMSI_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	ie = (gtp_ie_imsi_t *) pbuff->data;
+	ie = (struct gtp_ie_imsi *) pbuff->data;
 	int64_to_bcd_swap(imsi, ie->imsi, 8);
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_imsi_t));
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_mei(pkt_buffer_t *pbuff, uint64_t mei)
+gtpc_pkt_put_mei(struct pkt_buffer *pbuff, uint64_t mei)
 {
-	gtp_ie_mei_t *ie;
+	struct gtp_ie_mei *ie;
 
 	if (!mei)
 		return 0;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_MEI_TYPE, sizeof(gtp_ie_mei_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_MEI_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	ie = (gtp_ie_mei_t *) pbuff->data;
+	ie = (struct gtp_ie_mei *) pbuff->data;
 	int64_to_bcd_swap(mei, ie->mei, 8);
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_mei_t));
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_cause(pkt_buffer_t *pbuff, uint8_t cause)
+gtpc_pkt_put_cause(struct pkt_buffer *pbuff, uint8_t cause)
 {
-	gtp_ie_cause_t *ie;
+	struct gtp_ie_cause *ie;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_CAUSE_TYPE, sizeof(gtp_ie_cause_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_CAUSE_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	ie = (gtp_ie_cause_t *) pbuff->data;
+	ie = (struct gtp_ie_cause *) pbuff->data;
 	ie->value = cause;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_cause_t));
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_recovery(pkt_buffer_t *pbuff)
+gtpc_pkt_put_recovery(struct pkt_buffer *pbuff)
 {
-	gtp_ie_recovery_t *ie;
+	struct gtp_ie_recovery *ie;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_RECOVERY_TYPE, sizeof(gtp_ie_recovery_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_RECOVERY_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	ie = (gtp_ie_recovery_t *) pbuff->data;
+	ie = (struct gtp_ie_recovery *) pbuff->data;
 	ie->recovery = daemon_data->restart_counter;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_recovery_t));
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_indication(pkt_buffer_t *pbuff, uint32_t bits)
+gtpc_pkt_put_indication(struct pkt_buffer *pbuff, uint32_t bits)
 {
-	gtp_ie_indication_t *ie;
+	struct gtp_ie_indication *ie;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_INDICATION_TYPE, sizeof(gtp_ie_indication_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_INDICATION_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	ie = (gtp_ie_indication_t *) pbuff->data;
+	ie = (struct gtp_ie_indication *) pbuff->data;
 	ie->bits = htonl(bits);
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_indication_t));
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_ppp_ipcp_ip4(pkt_buffer_t *pbuff, gtp_pco_pid_ipcp_t *pid, uint32_t ip4, uint8_t type)
+gtpc_pkt_put_ppp_ipcp_ip4(struct pkt_buffer *pbuff, struct gtp_pco_pid_ipcp *pid,
+			  uint32_t ip4, uint8_t type)
 {
-	gtp_ppp_ipcp_option_ip4_t *ppp_ipcp_ip4;
+	struct gtp_ppp_ipcp_option_ip4 *ppp_ipcp_ip4;
 
 	if (!ip4)
 		return 0;
 
-	if (pkt_buffer_put_zero(pbuff, sizeof(gtp_ppp_ipcp_option_ip4_t)) < 0)
+	if (pkt_buffer_put_zero(pbuff, sizeof(*ppp_ipcp_ip4)) < 0)
 		return 1;
 
-	ppp_ipcp_ip4 = (gtp_ppp_ipcp_option_ip4_t *) pbuff->data;
+	ppp_ipcp_ip4 = (struct gtp_ppp_ipcp_option_ip4 *) pbuff->data;
 	ppp_ipcp_ip4->type = type;
 	ppp_ipcp_ip4->length = 6;
 	ppp_ipcp_ip4->addr = ip4;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ppp_ipcp_option_ip4_t));
-	pid->length = htons(ntohs(pid->length) + sizeof(gtp_ppp_ipcp_option_ip4_t));
+	pkt_buffer_put_data(pbuff, sizeof(*ppp_ipcp_ip4));
+	pid->length = htons(ntohs(pid->length) + sizeof(*ppp_ipcp_ip4));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_ipcp(struct pkt_buffer *pbuff, struct gtp_pco *pco,
+			  struct sipcp *ipcp, struct gtp_ie_pco *ie_pco)
 {
-	gtp_pco_pid_ipcp_t *pid;
+	struct gtp_pco_pid_ipcp *pid;
 	uint32_t pdns = 0, sdns = 0;
 	int err = 0;
 
-	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_IPCP, sizeof(gtp_pco_pid_ipcp_t)) < 0)
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_IPCP, sizeof(*pid)) < 0)
 		return 1;
 
-	pid = (gtp_pco_pid_ipcp_t *) pbuff->data;
+	pid = (struct gtp_pco_pid_ipcp *) pbuff->data;
 	pid->code = PPP_CONF_NAK;
 	pid->id = 0;
-	pid->length = htons(sizeof(gtp_pco_pid_ipcp_t)-sizeof(gtp_pco_pid_t));
-	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_ipcp_t));
+	pid->length = htons(sizeof(*pid) - sizeof(struct gtp_pco_pid));
+	pkt_buffer_put_data(pbuff, sizeof(*pid));
 
 	if (ipcp) {
 		pdns = ipcp->dns[0].s_addr;
@@ -372,34 +374,40 @@ gtpc_pkt_put_pco_pid_ipcp(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gt
 		return 1;
 
 	pid->h.length = ntohs(pid->length); /* protocol encoding legacy stuff */
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) +
+			  	 sizeof(struct gtp_pco_pid) +
+			  	 pid->h.length);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco_pid_dns4(pkt_buffer_t *pbuff, uint32_t ip4, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_dns4(struct pkt_buffer *pbuff, uint32_t ip4,
+			  struct gtp_ie_pco *ie_pco)
 {
-	gtp_pco_pid_dns_t *pid;
+	struct gtp_pco_pid_dns *pid;
 
 	if (!ip4)
 		return 0;
 
-	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_DNS, sizeof(gtp_pco_pid_dns_t)) < 0)
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_DNS, sizeof(*pid)) < 0)
 		return 1;
 
-	pid = (gtp_pco_pid_dns_t *) pbuff->data;
+	pid = (struct gtp_pco_pid_dns *) pbuff->data;
 	pid->h.length = 4;
 	pid->addr = ip4;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_dns_t));
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
+	pkt_buffer_put_data(pbuff, sizeof(*pid));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) +
+				 sizeof(struct gtp_pco_pid) +
+			  	 pid->h.length);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_dns(struct pkt_buffer *pbuff, struct gtp_pco *pco,
+			 struct sipcp *ipcp, struct gtp_ie_pco *ie_pco)
 {
-	list_head_t *l = &pco->ns;
-	gtp_ns_t *ns;
+	struct list_head *l = &pco->ns;
+	struct gtp_ns *ns;
 	uint32_t ip4;
 	int err = 0;
 
@@ -419,75 +427,82 @@ gtpc_pkt_put_pco_pid_dns(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp
 }
 
 static int
-gtpc_pkt_put_pco_pid_mtu(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_mtu(struct pkt_buffer *pbuff, struct gtp_pco *pco,
+			 struct sipcp *ipcp, struct gtp_ie_pco *ie_pco)
 {
-	gtp_pco_pid_mtu_t *pid;
+	struct gtp_pco_pid_mtu *pid;
 
 	if (!pco || !pco->link_mtu)
 		return 0;
 
-	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_MTU, sizeof(gtp_pco_pid_mtu_t)) < 0)
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_MTU, sizeof(*pid)) < 0)
 		return 1;
 
-	pid = (gtp_pco_pid_mtu_t *) pbuff->data;
+	pid = (struct gtp_pco_pid_mtu *) pbuff->data;
 	pid->h.length = 2;
 	pid->mtu = htons(pco->link_mtu);
-	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_mtu_t));
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
+	pkt_buffer_put_data(pbuff, sizeof(*pid));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) +
+				 sizeof(struct gtp_pco_pid) +
+				 pid->h.length);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco_pid_sbcm(pkt_buffer_t *pbuff, gtp_pco_t *pco, gtp_ie_pco_t *ie_pco)
+gtpc_pkt_put_pco_pid_sbcm(struct pkt_buffer *pbuff, struct gtp_pco *pco,
+			  struct gtp_ie_pco *ie_pco)
 {
-	gtp_pco_pid_sbcm_t *pid;
+	struct gtp_pco_pid_sbcm *pid;
 
 	if (!pco || !pco->selected_bearer_control_mode)
 		return 0;
 
-	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_SBCM, sizeof(gtp_pco_pid_sbcm_t)) < 0)
+	if (gtpc_pkt_put_pid(pbuff, GTP_PCO_PID_SBCM, sizeof(*pid)) < 0)
 		return 1;
 
-	pid = (gtp_pco_pid_sbcm_t *) pbuff->data;
+	pid = (struct gtp_pco_pid_sbcm *) pbuff->data;
 	pid->h.length = 1;
 	pid->sbcm = pco->selected_bearer_control_mode;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_pco_pid_sbcm_t));
-	ie_pco->h.length = htons(ntohs(ie_pco->h.length) + sizeof(gtp_pco_pid_t) + pid->h.length);
+	pkt_buffer_put_data(pbuff, sizeof(*pid));
+	ie_pco->h.length = htons(ntohs(ie_pco->h.length) +
+				 sizeof(struct gtp_pco_pid) +
+				 pid->h.length);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_pco(pkt_buffer_t *pbuff, gtp_pco_t *pco, sipcp_t *ipcp)
+gtpc_pkt_put_pco(struct pkt_buffer *pbuff, struct gtp_pco *pco, struct sipcp *ipcp)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-	gtp_ie_pco_t *ie_pco;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
+	struct gtp_ie_pco *ie;
 	int err = 0;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_PCO_TYPE, sizeof(gtp_ie_pco_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_PCO_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	ie_pco = (gtp_ie_pco_t *) pbuff->data;
-	ie_pco->ext = 1 << 7; /* Extension is TRUE */
-	ie_pco->h.length = htons(1);
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_pco_t));
+	ie = (struct gtp_ie_pco *) pbuff->data;
+	ie->ext = 1 << 7; /* Extension is TRUE */
+	ie->h.length = htons(1);
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 
 	/* Put Protocol or Container ID */
-	err = err ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ipcp, ie_pco);
-	err = err ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ipcp, ie_pco);
-	err = err ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ipcp, ie_pco);
-	err = err ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie_pco);
+	err = err ? : gtpc_pkt_put_pco_pid_ipcp(pbuff, pco, ipcp, ie);
+	err = err ? : gtpc_pkt_put_pco_pid_dns(pbuff, pco, ipcp, ie);
+	err = err ? : gtpc_pkt_put_pco_pid_mtu(pbuff, pco, ipcp, ie);
+	err = err ? : gtpc_pkt_put_pco_pid_sbcm(pbuff, pco, ie);
 	if (err)
 		return 1;
 
-	h->length = htons(ntohs(h->length) + ntohs(ie_pco->h.length) - 1);
+	h->length = htons(ntohs(h->length) + ntohs(ie->h.length) - 1);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t instance, uint8_t type)
+gtpc_pkt_put_f_teid(struct pkt_buffer *pbuff, struct gtp_teid *teid,
+		    uint8_t instance, uint8_t type)
 {
-	gtp_ie_f_teid_t *f_teid;
-	uint16_t len = sizeof(gtp_ie_f_teid_t);
+	struct gtp_ie_f_teid *ie;
+	uint16_t len = sizeof(*ie);
 
 	if (!teid)
 		return 1;
@@ -497,89 +512,89 @@ gtpc_pkt_put_f_teid(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t instance, uin
 	if (gtpc_pkt_put_ie(pbuff, GTP_IE_F_TEID_TYPE, len) < 0)
 		return 1;
 
-	f_teid = (gtp_ie_f_teid_t *) pbuff->data;
-	f_teid->h.instance = instance;
-	f_teid->v4 = 1;
-	f_teid->interface_type = type;
-	f_teid->teid_grekey = teid->id;
-	f_teid->ipv4 = teid->ipv4;
+	ie = (struct gtp_ie_f_teid *) pbuff->data;
+	ie->h.instance = instance;
+	ie->v4 = 1;
+	ie->interface_type = type;
+	ie->teid_grekey = teid->id;
+	ie->ipv4 = teid->ipv4;
 	pkt_buffer_put_data(pbuff, len);
 	return 0;
 }
 
 static int
-gtpc_pkt_put_apn_restriction(pkt_buffer_t *pbuff, gtp_apn_t *apn)
+gtpc_pkt_put_apn_restriction(struct pkt_buffer *pbuff, struct gtp_apn *apn)
 {
-	gtp_ie_apn_restriction_t *restriction;
+	struct gtp_ie_apn_restriction *ie;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_APN_RESTRICTION_TYPE, sizeof(gtp_ie_apn_restriction_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_APN_RESTRICTION_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	restriction = (gtp_ie_apn_restriction_t *) pbuff->data;
-	restriction->value = apn->restriction;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_apn_restriction_t));
+	ie = (struct gtp_ie_apn_restriction *) pbuff->data;
+	ie->value = apn->restriction;
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_paa(pkt_buffer_t *pbuff, uint32_t addr)
+gtpc_pkt_put_paa(struct pkt_buffer *pbuff, uint32_t addr)
 {
-	gtp_ie_paa_t *paa;
+	struct gtp_ie_paa *ie;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_PAA_TYPE, sizeof(gtp_ie_paa_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_PAA_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	paa = (gtp_ie_paa_t *) pbuff->data;
-	paa->type = GTP_PAA_IPV4_TYPE;
-	paa->addr = addr;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_paa_t));
+	ie = (struct gtp_ie_paa *) pbuff->data;
+	ie->type = GTP_PAA_IPV4_TYPE;
+	ie->addr = addr;
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_eps_bearer_id(pkt_buffer_t *pbuff, uint8_t id)
+gtpc_pkt_put_eps_bearer_id(struct pkt_buffer *pbuff, uint8_t id)
 {
-	gtp_ie_eps_bearer_id_t *bearer_id;
+	struct gtp_ie_eps_bearer_id *ie;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_EPS_BEARER_ID_TYPE, sizeof(gtp_ie_eps_bearer_id_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_EPS_BEARER_ID_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	bearer_id = (gtp_ie_eps_bearer_id_t *) pbuff->data;
-	bearer_id->id = id;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_eps_bearer_id_t));
+	ie = (struct gtp_ie_eps_bearer_id *) pbuff->data;
+	ie->id = id;
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_charging_id(pkt_buffer_t *pbuff, uint32_t id)
+gtpc_pkt_put_charging_id(struct pkt_buffer *pbuff, uint32_t id)
 {
-	gtp_ie_charging_id_t *charging_id;
+	struct gtp_ie_charging_id *charging_id;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_CHARGING_ID_TYPE, sizeof(gtp_ie_charging_id_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_CHARGING_ID_TYPE, sizeof(*charging_id)) < 0)
 		return 1;
 
-	charging_id = (gtp_ie_charging_id_t *) pbuff->data;
+	charging_id = (struct gtp_ie_charging_id *) pbuff->data;
 	charging_id->id = htonl(id);
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_charging_id_t));
+	pkt_buffer_put_data(pbuff, sizeof(*charging_id));
 	return 0;
 }
 
 static int
-gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+gtpc_pkt_put_bearer_context(struct pkt_buffer *pbuff, struct gtp_session *s, struct gtp_teid *teid)
 {
-	gtp_ie_bearer_context_t *bearer_ctx;
-	gtp_apn_t *apn = s->apn;
+	struct gtp_ie_bearer_context *ie;
+	struct gtp_apn *apn = s->apn;
 	int err = 0, len;
 
 	if (!teid || !teid->bearer_teid)
 		return 1;
 	teid = teid->bearer_teid;
 
-	if (gtpc_pkt_put_ie(pbuff, GTP_IE_BEARER_CONTEXT_TYPE, sizeof(gtp_ie_bearer_context_t)) < 0)
+	if (gtpc_pkt_put_ie(pbuff, GTP_IE_BEARER_CONTEXT_TYPE, sizeof(*ie)) < 0)
 		return 1;
 
-	bearer_ctx = (gtp_ie_bearer_context_t *) pbuff->data;
-	pkt_buffer_put_data(pbuff, sizeof(gtp_ie_bearer_context_t));
+	ie = (struct gtp_ie_bearer_context *) pbuff->data;
+	pkt_buffer_put_data(pbuff, sizeof(*ie));
 
 	err = err ? : gtpc_pkt_put_eps_bearer_id(pbuff, (apn->eps_bearer_id) ? : teid->bearer_id);
 	err = err ? : gtpc_pkt_put_cause(pbuff, GTP_CAUSE_REQUEST_ACCEPTED);
@@ -589,20 +604,20 @@ gtpc_pkt_put_bearer_context(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *t
 		return 1;
 
 	/* Update header length if no error */
-	len = sizeof(gtp_ie_eps_bearer_id_t) +
-	      sizeof(gtp_ie_cause_t) +
-	      sizeof(gtp_ie_f_teid_t) +
-	      sizeof(gtp_ie_charging_id_t);
+	len = sizeof(struct gtp_ie_eps_bearer_id) +
+	      sizeof(struct gtp_ie_cause) +
+	      sizeof(struct gtp_ie_f_teid) +
+	      sizeof(struct gtp_ie_charging_id);
 	if (teid)
-		len -= (teid->ipv4) ? 3*sizeof(uint32_t) : 0;
-	bearer_ctx->h.length = htons(len);
+		len -= (teid->ipv4) ? 3 * sizeof(uint32_t) : 0;
+	ie->h.length = htons(len);
 	return 0;
 }
 
 static int
-gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
+gtpc_build_header(struct pkt_buffer *pbuff, struct gtp_teid *teid, uint8_t type)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
 
 	h->version = 2;
 	h->type = type;
@@ -610,17 +625,17 @@ gtpc_build_header(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type)
 	h->length = 0;
 	h->teid = (teid) ? teid->id : 0;
 	h->sqn = (teid) ? teid->sqn : 0;
-	pkt_buffer_set_end_pointer(pbuff, sizeof(gtp_hdr_t));
-	pkt_buffer_set_data_pointer(pbuff, sizeof(gtp_hdr_t));
+	pkt_buffer_set_end_pointer(pbuff, sizeof(*h));
+	pkt_buffer_set_data_pointer(pbuff, sizeof(*h));
 	return 0;
 }
 
 static int
-gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid,
-				   sipcp_t *ipcp)
+gtpc_build_create_session_response(struct pkt_buffer *pbuff, struct gtp_session *s,
+				   struct gtp_teid *teid, struct sipcp *ipcp)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-	gtp_apn_t *apn = s->apn;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
+	struct gtp_apn *apn = s->apn;
 	int err = 0;
 
 	/* Header update */
@@ -642,7 +657,7 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 	}
 
 	/* 3GPP TS 129.274 Section 5.5.1 */
-	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	h->length = htons(ntohs(h->length) + sizeof(*h) - 4);
 
 	/* CDR Update */
 	gtp_cdr_update(pbuff, NULL, s->cdr);
@@ -650,9 +665,10 @@ gtpc_build_create_session_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_te
 }
 
 static int
-gtpc_build_change_notification_response(pkt_buffer_t *pbuff, gtp_session_t *s, gtp_teid_t *teid)
+gtpc_build_change_notification_response(struct pkt_buffer *pbuff, struct gtp_session *s,
+					struct gtp_teid *teid)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
 	int err = 0;
 
 	/* Header update */
@@ -669,14 +685,15 @@ gtpc_build_change_notification_response(pkt_buffer_t *pbuff, gtp_session_t *s, g
 	}
 
 	/* 3GPP TS 129.274 Section 5.5.1 */
-	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	h->length = htons(ntohs(h->length) + sizeof(*h) - 4);
 	return 0;
 }
 
 static int
-gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t cause)
+gtpc_build_errmsg(struct pkt_buffer *pbuff, struct gtp_teid *teid,
+		  uint8_t type, uint8_t cause)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
 	int err = 0;
 
 	/* Header update */
@@ -689,7 +706,7 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
 		return -1;
 
 	/* 3GPP TS 129.274 Section 5.5.1 */
-	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	h->length = htons(ntohs(h->length) + sizeof(*h) - 4);
 
 	/* CDR Update */
 	if (teid)
@@ -698,10 +715,11 @@ gtpc_build_errmsg(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t type, uint8_t c
 }
 
 static int
-gtpc_build_delete_bearer_request(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t cause)
+gtpc_build_delete_bearer_request(struct pkt_buffer *pbuff, struct gtp_teid *teid,
+				 uint8_t cause)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
-	gtp_teid_t *bearer_teid = (teid) ? teid->bearer_teid : NULL;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
+	struct gtp_teid *bearer_teid = (teid) ? teid->bearer_teid : NULL;
 	uint8_t bearer_id = (bearer_teid) ? bearer_teid->bearer_id : 0;
 	int err = 0;
 
@@ -719,17 +737,17 @@ gtpc_build_delete_bearer_request(pkt_buffer_t *pbuff, gtp_teid_t *teid, uint8_t 
 		return -1;
 
 	/* 3GPP TS 129.274 Section 5.5.1 */
-	h->length = htons(ntohs(h->length) + sizeof(gtp_hdr_t) - 4);
+	h->length = htons(ntohs(h->length) + sizeof(*h) - 4);
 	return 0;
 }
 
 int
-gtpc_send_delete_bearer_request(gtp_teid_t *teid)
+gtpc_send_delete_bearer_request(struct gtp_teid *teid)
 {
-	gtp_session_t *s = teid->session;
-	gtp_server_t *srv = s->srv;
+	struct gtp_session *s = teid->session;
+	struct gtp_server *srv = s->srv;
 	struct sockaddr_in addr;
-	pkt_buffer_t *pbuff;
+	struct pkt_buffer *pbuff;
 	int ret;
 
 	pbuff = pkt_buffer_alloc(GTP_BUFFER_SIZE);
@@ -748,11 +766,11 @@ gtpc_send_delete_bearer_request(gtp_teid_t *teid)
  *	GTP-C PPP Callback
  */
 void
-gtpc_pppoe_tls(sppp_t *sp)
+gtpc_pppoe_tls(struct sppp *sp)
 {
-	spppoe_t *s = sp->s_pppoe;
-	gtp_session_t *s_gtp = s->s_gtp;
-	gtp_conn_t *c = s_gtp->conn;
+	struct spppoe *s = sp->s_pppoe;
+	struct gtp_session *s_gtp = s->s_gtp;
+	struct gtp_conn *c = s_gtp->conn;
 
 	/* Session is starting */
 	log_message(LOG_INFO, "PPPoE-Starting:={IMSI:%ld"
@@ -768,14 +786,14 @@ gtpc_pppoe_tls(sppp_t *sp)
 }
 
 void
-gtpc_pppoe_tlf(sppp_t *sp)
+gtpc_pppoe_tlf(struct sppp *sp)
 {
-	spppoe_t *s = sp->s_pppoe;
-	gtp_session_t *s_gtp = s->s_gtp;
-	gtp_conn_t *c = s_gtp->conn;
-	gtp_server_t *srv = s_gtp->srv;
-	gtp_teid_t *teid = s->teid;
-	pkt_buffer_t *pbuff;
+	struct spppoe *s = sp->s_pppoe;
+	struct gtp_session *s_gtp = s->s_gtp;
+	struct gtp_conn *c = s_gtp->conn;
+	struct gtp_server *srv = s_gtp->srv;
+	struct gtp_teid *teid = s->teid;
+	struct pkt_buffer *pbuff;
 
 	log_message(LOG_INFO, "PPPoE-Stopping:={IMSI:%ld"
 			      " Host-Uniq:0x%.8x}"
@@ -816,14 +834,14 @@ gtpc_pppoe_tlf(sppp_t *sp)
 }
 
 void
-gtpc_pppoe_create_session_response(sppp_t *sp)
+gtpc_pppoe_create_session_response(struct sppp *sp)
 {
-	spppoe_t *s = sp->s_pppoe;
-	gtp_session_t *s_gtp = s->s_gtp;
-	gtp_conn_t *c = s_gtp->conn;
-	gtp_teid_t *teid = s->teid;
-	gtp_server_t *srv = s_gtp->srv;
-	pkt_buffer_t *pbuff;
+	struct spppoe *s = sp->s_pppoe;
+	struct gtp_session *s_gtp = s->s_gtp;
+	struct gtp_conn *c = s_gtp->conn;
+	struct gtp_teid *teid = s->teid;
+	struct gtp_server *srv = s_gtp->srv;
+	struct pkt_buffer *pbuff;
 	int ret;
 
 	/* Called from PPP stack, at the end of PPP negiciation
@@ -867,7 +885,7 @@ end:
 }
 
 void
-gtpc_pppoe_chg(sppp_t *sp, int state)
+gtpc_pppoe_chg(struct sppp *sp, int state)
 {
 	/* Session is changing state */
 }
@@ -877,15 +895,15 @@ gtpc_pppoe_chg(sppp_t *sp, int state)
  *	GTP-C Protocol helpers
  */
 static int
-gtpc_echo_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpc_echo_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) srv->s.pbuff->head;
-	gtp_ie_recovery_t *rec;
+	struct gtp_hdr *h = (struct gtp_hdr *) srv->s.pbuff->head;
+	struct gtp_ie_recovery *rec;
 	uint8_t *cp;
 
 	cp = gtp_get_ie(GTP_IE_RECOVERY_TYPE, srv->s.pbuff);
 	if (cp) {
-		rec = (gtp_ie_recovery_t *) cp;
+		rec = (struct gtp_ie_recovery *) cp;
 		rec->recovery = daemon_data->restart_counter;
 	}
 
@@ -894,18 +912,18 @@ gtpc_echo_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 }
 
 static int
-gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpc_create_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_msg_t *msg;
-	gtp_msg_ie_t *msg_ie;
-	gtp_conn_t *c;
-	gtp_session_t *s = NULL;
-	spppoe_t *s_pppoe;
-	pppoe_t *pppoe = NULL;
-	gtp_teid_t *teid;
-	gtp_id_ecgi_t *ecgi = NULL;
-	gtp_ie_ambr_t *ambr = NULL;
-	gtp_apn_t *apn;
+	struct gtp_msg *msg;
+	struct gtp_msg_ie *msg_ie;
+	struct gtp_conn *c;
+	struct gtp_session *s = NULL;
+	struct spppoe *s_pppoe;
+	struct pppoe *pppoe = NULL;
+	struct gtp_teid *teid;
+	struct gtp_id_ecgi *ecgi = NULL;
+	struct gtp_ie_ambr *ambr = NULL;
+	struct gtp_apn *apn;
 	char apn_str[64];
 	uint64_t imsi;
 	uint8_t *ptype;
@@ -953,19 +971,19 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): no Access-Point-Name IE present. ignoring..."
 				    , __FUNCTION__);
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
 	memset(apn_str, 0, 63);
-	ret = gtp_ie_apn_extract_ni((gtp_ie_apn_t *) msg_ie->h, apn_str, 63);
+	ret = gtp_ie_apn_extract_ni((struct gtp_ie_apn *) msg_ie->h, apn_str, 63);
 	if (ret < 0) {
 		log_message(LOG_INFO, "%s(): Error parsing Access-Point-Name IE. ignoring..."
 				    , __FUNCTION__);
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -974,8 +992,8 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): Unknown Access-Point-Name:%s. ignoring..."
 				    , __FUNCTION__, apn_str);
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_MISSING_OR_UNKNOWN_APN);
 		goto end;
 	}
 
@@ -984,8 +1002,8 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): no PDN-TYPE IE present. ignoring..."
 				    , __FUNCTION__);
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_REQUEST_REJECTED);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_REQUEST_REJECTED);
 		goto end;
 	}
 
@@ -994,8 +1012,8 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		ret = gtp_session_uniq_ptype(c, *ptype);
 		if (ret) {
 			rc = gtpc_build_errmsg(srv->s.pbuff, teid
-							 , GTP_CREATE_SESSION_RESPONSE_TYPE
-							 , GTP_CAUSE_REQUEST_REJECTED);
+							   , GTP_CREATE_SESSION_RESPONSE_TYPE
+							   , GTP_CAUSE_REQUEST_REJECTED);
 			goto end;
 		}
 	}
@@ -1019,8 +1037,8 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 				    , __FUNCTION__
 				    , apn_str);
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_ALL_DYNAMIC_ADDRESS_OCCUPIED);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_ALL_DYNAMIC_ADDRESS_OCCUPIED);
 		goto end;
 	}
 
@@ -1029,8 +1047,8 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): No GTP-C F-TEID, cant create session. ignoring..."
 				    , __FUNCTION__);
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_REQUEST_REJECTED);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_REQUEST_REJECTED);
 		gtp_ip_pool_put(apn, s->ipv4);
 		goto end;
 	}
@@ -1052,12 +1070,12 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 	/* ULI */
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_ULI_TYPE);
 	if (msg_ie)
-		ecgi = gtp_ie_uli_extract_ecgi((gtp_ie_uli_t *) msg_ie->h);
+		ecgi = gtp_ie_uli_extract_ecgi((struct gtp_ie_uli *) msg_ie->h);
 
 	/* AMBR */
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_AMBR_TYPE);
 	if (msg_ie)
-		ambr = (gtp_ie_ambr_t *) msg_ie->h;
+		ambr = (struct gtp_ie_ambr *) msg_ie->h;
 
 	/* Update last sGW visited */
 	gtp_teid_update_sgw(teid, addr);
@@ -1109,12 +1127,12 @@ gtpc_create_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 }
 
 static int
-gtpc_delete_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpc_delete_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) srv->s.pbuff->head;
-	gtp_teid_t *teid, *pteid;
-	gtp_msg_t *msg;
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_hdr *h = (struct gtp_hdr *) srv->s.pbuff->head;
+	struct gtp_teid *teid, *pteid;
+	struct gtp_msg *msg;
+	struct gtp_msg_ie *msg_ie;
 	uint32_t id, ipv4;
 	uint8_t *ie_buffer;
 	int rc = -1;
@@ -1126,8 +1144,8 @@ gtpc_delete_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 	teid = _gtpc_teid_get(h->teid, inet_sockaddrip4(&srv->s.addr));
 	if (!teid) {
 		rc = gtpc_build_errmsg(srv->s.pbuff, NULL
-						 , GTP_DELETE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_CONTEXT_NOT_FOUND);
+						   , GTP_DELETE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_CONTEXT_NOT_FOUND);
 		goto end;
 	}
 
@@ -1138,19 +1156,19 @@ gtpc_delete_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): no F_TEID IE present. ignoring..."
 				    , __FUNCTION__);
 		rc = gtpc_build_errmsg(srv->s.pbuff, NULL
-						 , GTP_CREATE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_INVALID_PEER);
+						   , GTP_CREATE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_INVALID_PEER);
 		goto end;
 	}
 
 	ie_buffer = (uint8_t *) msg_ie->h;
-	id = *(uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, teid_grekey));
-	ipv4 = *(uint32_t *) (ie_buffer + offsetof(gtp_ie_f_teid_t, ipv4));
+	id = *(uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, teid_grekey));
+	ipv4 = *(uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, ipv4));
 	pteid = _gtpc_teid_get(id, ipv4);
 	if (!pteid) {
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
-						 , GTP_DELETE_SESSION_RESPONSE_TYPE
-						 , GTP_CAUSE_INVALID_PEER);
+						   , GTP_DELETE_SESSION_RESPONSE_TYPE
+						   , GTP_CAUSE_INVALID_PEER);
 		goto end;
 	}
 
@@ -1167,8 +1185,8 @@ gtpc_delete_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 	gtp_sqn_update(srv, pteid);
 
 	rc = gtpc_build_errmsg(srv->s.pbuff, pteid
-					 , GTP_DELETE_SESSION_RESPONSE_TYPE
-					 , GTP_CAUSE_REQUEST_ACCEPTED);
+					   , GTP_DELETE_SESSION_RESPONSE_TYPE
+					   , GTP_CAUSE_REQUEST_ACCEPTED);
 
 	gtp_teid_put(teid);
 	gtp_teid_put(pteid);
@@ -1186,13 +1204,13 @@ gtpc_delete_session_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr
 }
 
 static int
-gtpc_modify_bearer_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpc_modify_bearer_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) srv->s.pbuff->head;
-	gtp_teid_t *teid, *pteid = NULL, *t, *t_u;
-	gtp_session_t *s;
-	ip_vrf_t *vrf;
-	gtp_msg_t *msg;
+	struct gtp_hdr *h = (struct gtp_hdr *) srv->s.pbuff->head;
+	struct gtp_teid *teid, *pteid = NULL, *t, *t_u;
+	struct gtp_session *s;
+	struct ip_vrf *vrf;
+	struct gtp_msg *msg;
 	int rc = -1;
 
 	msg = gtp_msg_alloc(srv->s.pbuff);
@@ -1205,8 +1223,8 @@ gtpc_modify_bearer_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 				    , __FUNCTION__
 				    , ntohl(h->teid));
 		rc = gtpc_build_errmsg(srv->s.pbuff, NULL
-						 , GTP_MODIFY_BEARER_RESPONSE_TYPE
-						 , GTP_CAUSE_CONTEXT_NOT_FOUND);
+						   , GTP_MODIFY_BEARER_RESPONSE_TYPE
+						   , GTP_CAUSE_CONTEXT_NOT_FOUND);
 		goto end;
 	}
 
@@ -1249,19 +1267,19 @@ gtpc_modify_bearer_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 
   accept:
 	rc = gtpc_build_errmsg(srv->s.pbuff, teid->peer_teid
-					 , GTP_MODIFY_BEARER_RESPONSE_TYPE
-					 , GTP_CAUSE_REQUEST_ACCEPTED);
+					   , GTP_MODIFY_BEARER_RESPONSE_TYPE
+					   , GTP_CAUSE_REQUEST_ACCEPTED);
   end:
 	gtp_msg_destroy(msg);
 	return rc;
 }
 
 static int
-gtpc_change_notification_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpc_change_notification_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) srv->s.pbuff->head;
-	gtp_teid_t *teid;
-	gtp_msg_t *msg;
+	struct gtp_hdr *h = (struct gtp_hdr *) srv->s.pbuff->head;
+	struct gtp_teid *teid;
+	struct gtp_msg *msg;
 	int rc = -1;
 
 	msg = gtp_msg_alloc(srv->s.pbuff);
@@ -1273,8 +1291,9 @@ gtpc_change_notification_request_hdl(gtp_server_t *srv, struct sockaddr_storage 
 		log_message(LOG_INFO, "%s(): Unknown TEID 0x%.8x..."
 				    , __FUNCTION__
 				    , ntohl(h->teid));
-		rc = gtpc_build_errmsg(srv->s.pbuff, NULL, GTP_CHANGE_NOTIFICATION_RESPONSE
-						       , GTP_CAUSE_IMSI_IMEI_NOT_KNOWN);
+		rc = gtpc_build_errmsg(srv->s.pbuff, NULL
+			 			   , GTP_CHANGE_NOTIFICATION_RESPONSE
+						   , GTP_CAUSE_IMSI_IMEI_NOT_KNOWN);
 		goto end;
 	}
 
@@ -1282,7 +1301,8 @@ gtpc_change_notification_request_hdl(gtp_server_t *srv, struct sockaddr_storage 
 	gtp_sqn_update(srv, teid);
 	gtp_sqn_update(srv, teid->peer_teid);
 
-	rc = gtpc_build_change_notification_response(srv->s.pbuff, teid->session, teid->peer_teid);
+	rc = gtpc_build_change_notification_response(srv->s.pbuff, teid->session,
+						     teid->peer_teid);
   end:
 	gtp_msg_destroy(msg);
 	return rc;
@@ -1293,7 +1313,7 @@ gtpc_change_notification_request_hdl(gtp_server_t *srv, struct sockaddr_storage 
  *	GTP-C Message handle
  */
 static const struct {
-	int (*hdl) (gtp_server_t *, struct sockaddr_storage *);
+	int (*hdl) (struct gtp_server *, struct sockaddr_storage *);
 } gtpc_msg_hdl[0xff + 1] = {
 	[GTP_ECHO_REQUEST_TYPE]			= { gtpc_echo_request_hdl },
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { gtpc_create_session_request_hdl },
@@ -1308,9 +1328,9 @@ static const struct {
 };
 
 int
-gtpc_router_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpc_router_handle(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->s.pbuff->head;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) srv->s.pbuff->head;
 
 	if (*(gtpc_msg_hdl[gtph->type].hdl)) {
 		gtp_metrics_rx(&srv->msg_metrics, gtph->type);
@@ -1327,39 +1347,39 @@ gtpc_router_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
  *	GTP-U Message handle
  */
 static int
-gtpu_echo_request_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpu_echo_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) srv->s.pbuff->head;
-	gtp1_ie_recovery_t *rec;
+	struct gtp1_hdr *h = (struct gtp1_hdr *) srv->s.pbuff->head;
+	struct gtp1_ie_recovery *rec;
 
 	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
 	h->type = GTPU_ECHO_RSP_TYPE;
-	h->length = htons(ntohs(h->length) + sizeof(gtp1_ie_recovery_t));
+	h->length = htons(ntohs(h->length) + sizeof(*rec));
 	pkt_buffer_set_end_pointer(srv->s.pbuff, gtp1_get_header_len(h));
 	pkt_buffer_set_data_pointer(srv->s.pbuff, gtp1_get_header_len(h));
 
-	gtp1_ie_add_tail(srv->s.pbuff, sizeof(gtp1_ie_recovery_t));
-	rec = (gtp1_ie_recovery_t *) srv->s.pbuff->data;
+	gtp1_ie_add_tail(srv->s.pbuff, sizeof(*rec));
+	rec = (struct gtp1_ie_recovery *) srv->s.pbuff->data;
 	rec->type = GTP1_IE_RECOVERY_TYPE;
 	rec->recovery = 0;
-	pkt_buffer_put_data(srv->s.pbuff, sizeof(gtp1_ie_recovery_t));
+	pkt_buffer_put_data(srv->s.pbuff, sizeof(*rec));
 	return 0;
 }
 
 static int
-gtpu_error_indication_hdl(gtp_server_t *s, struct sockaddr_storage *addr)
+gtpu_error_indication_hdl(struct gtp_server *s, struct sockaddr_storage *addr)
 {
 	return 0;
 }
 
 static int
-gtpu_end_marker_hdl(gtp_server_t *s, struct sockaddr_storage *addr)
+gtpu_end_marker_hdl(struct gtp_server *s, struct sockaddr_storage *addr)
 {
 	return 0;
 }
 
 static const struct {
-	int (*hdl) (gtp_server_t *, struct sockaddr_storage *);
+	int (*hdl) (struct gtp_server *, struct sockaddr_storage *);
 } gtpu_msg_hdl[0xff + 1] = {
 	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
@@ -1367,9 +1387,9 @@ static const struct {
 };
 
 int
-gtpu_router_handle(gtp_server_t *srv, struct sockaddr_storage *addr)
+gtpu_router_handle(struct gtp_server *srv, struct sockaddr_storage *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) srv->s.pbuff->head;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) srv->s.pbuff->head;
 	ssize_t len;
 
 	len = gtpu_get_header_len(srv->s.pbuff);

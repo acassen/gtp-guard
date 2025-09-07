@@ -12,6 +12,7 @@
 
 
 #include <unistd.h>
+#include <string.h>
 #include <errno.h>
 #include <assert.h>
 
@@ -161,7 +162,7 @@ static void
 _server_connect_cb(struct thread *ev)
 {
 	struct cdr_fwd_server *sr = THREAD_ARG(ev);
-	thread_t *io;
+	struct thread *io;
 	unsigned val;
 	int r, status;
 	int fd = THREAD_FD(ev);

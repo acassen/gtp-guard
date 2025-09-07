@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <unistd.h>
+#include <string.h>
 #include <time.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
@@ -23,37 +24,37 @@
 
 /* Command vector which includes some level of command lists. Normally
  * each daemon maintains its own cmdvec. */
-vector_t *cmdvec = NULL;
+struct vector *cmdvec = NULL;
 
-desc_t desc_cr;
+struct desc desc_cr;
 char *command_cr = NULL;
 
 /* Host information structure. */
-host_t host;
+struct host host;
 
 /* Standard command node structures. */
-static cmd_node_t auth_node = {
+static struct cmd_node auth_node = {
 	.node = AUTH_NODE,
 	.prompt = "Password: ",
 };
 
-static cmd_node_t view_node = {
+static struct cmd_node view_node = {
 	.node = VIEW_NODE,
 	.prompt = "%s> ",
 };
 
-static cmd_node_t auth_enable_node = {
+static struct cmd_node auth_enable_node = {
 	.node = AUTH_ENABLE_NODE,
 	.prompt = "Password: ",
 };
 
-static cmd_node_t enable_node = {
+static struct cmd_node enable_node = {
 	.node = ENABLE_NODE,
 	.prompt = "%s# ",
 };
 
-static int config_write_host(vty_t *vty);
-static cmd_node_t config_node = {
+static int config_write_host(struct vty *vty);
+static struct cmd_node config_node = {
 	.node = CONFIG_NODE,
 	.parent_node = ENABLE_NODE,
 	.prompt = "%s(config)# ",
@@ -89,7 +90,7 @@ argv_concat(const char **argv, int argc, int shift)
 
 /* Install top node of command vector. */
 void
-install_node(cmd_node_t *node)
+install_node(struct cmd_node *node)
 {
 	vector_set_index(cmdvec, node->node, node);
 	node->cmd_vector = vector_init(VECTOR_DEFAULT_SIZE);
@@ -99,8 +100,8 @@ install_node(cmd_node_t *node)
 static int
 cmp_node(const void *p, const void *q)
 {
-	const cmd_element_t *a = *(cmd_element_t * const *)p;
-	const cmd_element_t *b = *(cmd_element_t * const *)q;
+	const struct cmd_element *a = *(struct cmd_element * const *)p;
+	const struct cmd_element *b = *(struct cmd_element * const *)q;
 
 	return strcmp(a->string, b->string);
 }
@@ -108,8 +109,8 @@ cmp_node(const void *p, const void *q)
 static int
 cmp_desc(const void *p, const void *q)
 {
-	const desc_t *a = *(desc_t * const *)p;
-	const desc_t *b = *(desc_t * const *)q;
+	const struct desc *a = *(struct desc * const *)p;
+	const struct desc *b = *(struct desc * const *)q;
 
 	return strcmp(a->cmd, b->cmd);
 }
@@ -119,13 +120,13 @@ void
 sort_node(void)
 {
 	unsigned int i, j;
-	cmd_node_t *cnode;
-	vector_t *descvec;
-	cmd_element_t *cmd_element;
+	struct cmd_node *cnode;
+	struct vector *descvec;
+	struct cmd_element *cmd_element;
 
 	for (i = 0; i < vector_active(cmdvec); i++) {
 		if ((cnode = vector_slot(cmdvec, i)) != NULL) {	
-			vector_t *cmd_vector = cnode->cmd_vector;
+			struct vector *cmd_vector = cnode->cmd_vector;
 			qsort(cmd_vector->slot, vector_active(cmd_vector), 
 			      sizeof (void *), cmp_node);
 
@@ -147,13 +148,13 @@ sort_node(void)
  * vector which includes char ** data element. It supports
  * quoted string as a single slot and commented string at
  * the end of parsed string */
-vector_t *
+struct vector *
 cmd_make_strvec(const char *string)
 {
 	const char *cp, *start;
 	char *token;
 	int strlen;
-	vector_t *strvec;
+	struct vector *strvec;
   
 	if (string == NULL)
 		return NULL;
@@ -206,7 +207,7 @@ cmd_make_strvec(const char *string)
 
 /* Free allocated string vector. */
 void
-cmd_free_strvec(vector_t *v)
+cmd_free_strvec(struct vector *v)
 {
 	unsigned int i;
 	char *cp;
@@ -260,7 +261,7 @@ cmd_desc_str(const char **string)
 }
 
 /* New string vector. */
-static vector_t *
+static struct vector *
 cmd_make_descvec(const char *string, const char *descstr)
 {
 	int multiple = 0;
@@ -269,9 +270,9 @@ cmd_make_descvec(const char *string, const char *descstr)
 	int len;
 	const char *cp;
 	const char *dp;
-	vector_t *allvec;
-	vector_t *strvec = NULL;
-	desc_t *desc;
+	struct vector *allvec;
+	struct vector *strvec = NULL;
+	struct desc *desc;
 
 	cp = string;
 	dp = descstr;
@@ -326,7 +327,7 @@ cmd_make_descvec(const char *string, const char *descstr)
 		memcpy (token, sp, len);
 		*(token + len) = '\0';
 
-		desc = (desc_t *) MALLOC(sizeof(desc_t));
+		desc = (struct desc *) MALLOC(sizeof(*desc));
 		desc->cmd = token;
 		desc->str = cmd_desc_str(&dp);
 
@@ -347,12 +348,12 @@ cmd_make_descvec(const char *string, const char *descstr)
 /* Count mandantory string vector size.  This is to determine inputed
  * command has enough command length. */
 static int
-cmd_cmdsize(vector_t *strvec)
+cmd_cmdsize(struct vector *strvec)
 {
 	unsigned int i;
 	int size = 0;
-	vector_t *descvec;
-	desc_t *desc;
+	struct vector *descvec;
+	struct desc *desc;
 
 	for (i = 0; i < vector_active(strvec); i++) {
 		if ((descvec = vector_slot(strvec, i)) != NULL) {
@@ -373,9 +374,9 @@ cmd_cmdsize(vector_t *strvec)
 
 /* Return prompt character of specified node. */
 const char *
-cmd_prompt(node_type_t ntype)
+cmd_prompt(enum node_type ntype)
 {
-	cmd_node_t *cnode;
+	struct cmd_node *cnode;
 
 	cnode = vector_slot(cmdvec, ntype);
 	return cnode->prompt;
@@ -383,9 +384,9 @@ cmd_prompt(node_type_t ntype)
 
 /* Install a command into a node. */
 void
-install_element(node_type_t ntype, cmd_element_t *cmd)
+install_element(enum node_type ntype, struct cmd_element *cmd)
 {
-	cmd_node_t *cnode;
+	struct cmd_node *cnode;
   
 	/* cmd_init hasn't been called */
 	if (!cmdvec)
@@ -437,7 +438,7 @@ zencrypt (const char *passwd)
 
 /* This function write configuration of this host. */
 static int
-config_write_host(vty_t *vty)
+config_write_host(struct vty *vty)
 {
 	if (host.name)
 		vty_out(vty, "hostname %s%s", host.name, VTY_NEWLINE);
@@ -473,16 +474,16 @@ config_write_host(vty_t *vty)
 }
 
 /* Utility function for getting command vector. */
-static vector_t *
-cmd_node_vector(vector_t *v, node_type_t ntype)
+static struct vector *
+cmd_node_vector(struct vector *v, enum node_type ntype)
 {
-	cmd_node_t *cnode = vector_slot(v, ntype);
+	struct cmd_node *cnode = vector_slot(v, ntype);
 
 	return cnode->cmd_vector;
 }
 
 /* Completion match types. */
-static match_type_t
+static enum match_type
 cmd_ipv4_match(const char *str)
 {
 	const char *sp;
@@ -536,7 +537,7 @@ cmd_ipv4_match(const char *str)
 	return exact_match;
 }
 
-static match_type_t
+static enum match_type
 cmd_ipv4_prefix_match(const char *str)
 {
 	const char *sp;
@@ -609,7 +610,7 @@ cmd_ipv4_prefix_match(const char *str)
 	return exact_match;
 }
 
-static match_type_t
+static enum match_type
 cmd_ipv6_match(const char *str)
 {
 	struct sockaddr_in6 sin6_dummy;
@@ -632,7 +633,7 @@ cmd_ipv6_match(const char *str)
 	return no_match;
 }
 
-static match_type_t
+static enum match_type
 cmd_ipv6_prefix_match(const char *str)
 {
 	int state = STATE_START;
@@ -798,15 +799,15 @@ cmd_range_match(const char *range, const char *str)
 }
 
 /* Make completion match and return match type flag. */
-static match_type_t
-cmd_filter_by_completion(char *command, vector_t *v, unsigned int index)
+static enum match_type
+cmd_filter_by_completion(char *command, struct vector *v, unsigned int index)
 {
 	unsigned int i;
 	const char *str;
-	cmd_element_t *cmd_element;
-	match_type_t match_type;
-	vector_t *descvec;
-	desc_t *desc;
+	struct cmd_element *cmd_element;
+	enum match_type match_type;
+	struct vector *descvec;
+	struct desc *desc;
 
 	match_type = no_match;
 
@@ -885,15 +886,15 @@ cmd_filter_by_completion(char *command, vector_t *v, unsigned int index)
 }
 
 /* Filter vector by command character with index. */
-static match_type_t
-cmd_filter_by_string(char *command, vector_t *v, unsigned int index)
+static enum match_type
+cmd_filter_by_string(char *command, struct vector *v, unsigned int index)
 {
 	unsigned int i;
 	const char *str;
-	cmd_element_t *cmd_element;
-	match_type_t match_type;
-	vector_t *descvec;
-	desc_t *desc;
+	struct cmd_element *cmd_element;
+	enum match_type match_type;
+	struct vector *descvec;
+	struct desc *desc;
 
 	match_type = no_match;
 
@@ -972,14 +973,14 @@ cmd_filter_by_string(char *command, vector_t *v, unsigned int index)
 
 /* Check ambiguous match */
 static int
-is_cmd_ambiguous(char *command, vector_t *v, int index, match_type_t type)
+is_cmd_ambiguous(char *command, struct vector *v, int index, enum match_type type)
 {
 	unsigned int i, j;
 	const char *str = NULL;
-	cmd_element_t *cmd_element;
+	struct cmd_element *cmd_element;
 	const char *matched = NULL;
-	vector_t *descvec;
-	desc_t *desc;
+	struct vector *descvec;
+	struct desc *desc;
 
 	for (i = 0; i < vector_active(v); i++) {
 		if ((cmd_element = vector_slot(v, i)) != NULL) {
@@ -989,7 +990,7 @@ is_cmd_ambiguous(char *command, vector_t *v, int index, match_type_t type)
 
 			for (j = 0; j < vector_active (descvec); j++) {
 				if ((desc = vector_slot (descvec, j))) {
-					match_type_t ret;
+					enum match_type ret;
 	      
 					str = desc->cmd;
 
@@ -1143,7 +1144,7 @@ cmd_entry_function_desc(const char *src, const char *dst)
 /* Check same string element existence.  If it isn't there return
  *  1. */
 static int
-cmd_unique_string(vector_t *v, const char *str)
+cmd_unique_string(struct vector *v, const char *str)
 {
 	unsigned int i;
 	char *match;
@@ -1162,10 +1163,10 @@ cmd_unique_string(vector_t *v, const char *str)
 /* Compare string to description vector.  If there is same string
  * return 1 else return 0. */
 static int
-desc_unique_string(vector_t *v, const char *str)
+desc_unique_string(struct vector *v, const char *str)
 {
 	unsigned int i;
-	desc_t *desc;
+	struct desc *desc;
 
 	for (i = 0; i < vector_active(v); i++) {
 		if ((desc = vector_slot(v, i)) != NULL) {
@@ -1179,7 +1180,7 @@ desc_unique_string(vector_t *v, const char *str)
 }
 
 static int 
-cmd_try_do_shortcut(node_type_t node, char* first_word)
+cmd_try_do_shortcut(enum node_type node, char* first_word)
 {
 	if (first_word != NULL && node != AUTH_NODE &&
 	    node != VIEW_NODE && node != AUTH_ENABLE_NODE &&
@@ -1191,15 +1192,15 @@ cmd_try_do_shortcut(node_type_t node, char* first_word)
 }
 
 /* '?' describe command support. */
-static vector_t *
-cmd_describe_command_real(vector_t *vline, vty_t *vty, int *status)
+static struct vector *
+cmd_describe_command_real(struct vector *vline, struct vty *vty, int *status)
 {
-	vector_t *cmd_vector;
-	vector_t *matchvec;
-	cmd_element_t *cmd_element;
+	struct vector *cmd_vector;
+	struct vector *matchvec;
+	struct cmd_element *cmd_element;
 	unsigned int index, i;
 	int ret;
-	match_type_t match;
+	enum match_type match;
 	char *command;
 
 	/* Set index. */
@@ -1223,8 +1224,8 @@ cmd_describe_command_real(vector_t *vline, vty_t *vty, int *status)
 			match = cmd_filter_by_completion(command, cmd_vector, i);
 	
 			if (match == vararg_match) {
-				cmd_element_t *cmd_element;
-				vector_t *descvec;
+				struct cmd_element *cmd_element;
+				struct vector *descvec;
 				unsigned int j, k;
 
 				for (j = 0; j < vector_active(cmd_vector); j++) {
@@ -1233,7 +1234,7 @@ cmd_describe_command_real(vector_t *vline, vty_t *vty, int *status)
 						descvec = vector_slot(cmd_element->strvec,
 								      vector_active(cmd_element->strvec) - 1);
 						for (k = 0; k < vector_active(descvec); k++) {
-							desc_t *desc = vector_slot(descvec, k);
+							struct desc *desc = vector_slot(descvec, k);
 							vector_set(matchvec, desc);
 						}
 					}
@@ -1270,7 +1271,7 @@ cmd_describe_command_real(vector_t *vline, vty_t *vty, int *status)
 	/* Make description vector. */
 	for (i = 0; i < vector_active(cmd_vector); i++) {
 		if ((cmd_element = vector_slot(cmd_vector, i)) != NULL) {
-			vector_t *strvec = cmd_element->strvec;
+			struct vector *strvec = cmd_element->strvec;
 
 			/* if command is NULL, index may be equal to vector_active */
 			if (command && index >= vector_active(strvec)) {
@@ -1282,8 +1283,8 @@ cmd_describe_command_real(vector_t *vline, vty_t *vty, int *status)
 						vector_set(matchvec, &desc_cr);
 				} else {
 					unsigned int j;
-					vector_t *descvec = vector_slot(strvec, index);
-					desc_t *desc;
+					struct vector *descvec = vector_slot(strvec, index);
+					struct desc *desc;
 
 					for (j = 0; j < vector_active (descvec); j++) {
 						if ((desc = vector_slot (descvec, j))) {
@@ -1314,14 +1315,14 @@ cmd_describe_command_real(vector_t *vline, vty_t *vty, int *status)
 	return matchvec;
 }
 
-vector_t *
-cmd_describe_command(vector_t *vline, vty_t *vty, int *status)
+struct vector *
+cmd_describe_command(struct vector *vline, struct vty *vty, int *status)
 {
-	vector_t *ret;
+	struct vector *ret;
 
 	if (cmd_try_do_shortcut(vty->node, vector_slot(vline, 0))) {
-		node_type_t onode;
-		vector_t *shifted_vline;
+		enum node_type onode;
+		struct vector *shifted_vline;
 		unsigned int index;
 
 		onode = vty->node;
@@ -1379,15 +1380,15 @@ cmd_lcd(char **matched)
 
 /* Command line completion support. */
 static char **
-cmd_complete_command_real(vector_t *vline, vty_t *vty, int *status)
+cmd_complete_command_real(struct vector *vline, struct vty *vty, int *status)
 {
-	vector_t *cmd_vector = vector_copy(cmd_node_vector(cmdvec, vty->node));
-	vector_t *matchvec;
-	cmd_element_t *cmd_element;
+	struct vector *cmd_vector = vector_copy(cmd_node_vector(cmdvec, vty->node));
+	struct vector *matchvec;
+	struct cmd_element *cmd_element;
 	unsigned int index, i;
 	char **match_str;
-	desc_t *desc;
-	vector_t *descvec;
+	struct desc *desc;
+	struct vector *descvec;
 	char *command;
 	int lcd;
 
@@ -1402,7 +1403,7 @@ cmd_complete_command_real(vector_t *vline, vty_t *vty, int *status)
 	/* First, filter by preceeding command string */
 	for (i = 0; i < index; i++) {
 		if ((command = vector_slot(vline, i))) {
-			match_type_t match;
+			enum match_type match;
 			int ret;
 
 			/* First try completion match, if there is exactly match return 1 */
@@ -1425,7 +1426,7 @@ cmd_complete_command_real(vector_t *vline, vty_t *vty, int *status)
 	for (i = 0; i < vector_active(cmd_vector); i++) {
 		if ((cmd_element = vector_slot(cmd_vector, i))) {
 			const char *string;
-			vector_t *strvec = cmd_element->strvec;
+			struct vector *strvec = cmd_element->strvec;
 
 			/* Check field length */
 			if (index >= vector_active(strvec)) {
@@ -1514,13 +1515,13 @@ cmd_complete_command_real(vector_t *vline, vty_t *vty, int *status)
 }
 
 char **
-cmd_complete_command(vector_t *vline, vty_t *vty, int *status)
+cmd_complete_command(struct vector *vline, struct vty *vty, int *status)
 {
 	char **ret;
 
 	if (cmd_try_do_shortcut(vty->node, vector_slot(vline, 0))) {
-		node_type_t onode;
-		vector_t *shifted_vline;
+		enum node_type onode;
+		struct vector *shifted_vline;
 		unsigned int index;
 
 		onode = vty->node;
@@ -1545,24 +1546,24 @@ cmd_complete_command(vector_t *vline, vty_t *vty, int *status)
 
 /* return parent node */
 /* MUST eventually converge on CONFIG_NODE */
-node_type_t
-node_parent(node_type_t ntype)
+enum node_type
+node_parent(enum node_type ntype)
 {
 	return CONFIG_NODE;
 }
 
 /* Execute command by argument vline vector. */
 static int
-cmd_execute_command_real(vector_t *vline, vty_t *vty, cmd_element_t **cmd)
+cmd_execute_command_real(struct vector *vline, struct vty *vty, struct cmd_element **cmd)
 {
 	unsigned int index, i;
-	vector_t *cmd_vector;
-	cmd_element_t *cmd_element;
-	cmd_element_t *matched_element;
+	struct vector *cmd_vector;
+	struct cmd_element *cmd_element;
+	struct cmd_element *matched_element;
 	unsigned int matched_count, incomplete_count;
 	int argc;
 	const char *argv[CMD_ARGC_MAX];
-	match_type_t match = 0;
+	enum match_type match = 0;
 	int varflag;
 	char *command;
 
@@ -1625,10 +1626,10 @@ cmd_execute_command_real(vector_t *vline, vty_t *vty, cmd_element_t **cmd)
 		if (varflag) {
 			argv[argc++] = vector_slot(vline, i);
 		} else {
-			vector_t *descvec = vector_slot(matched_element->strvec, i);
+			struct vector *descvec = vector_slot(matched_element->strvec, i);
 
 			if (vector_active(descvec) == 1) {
-				desc_t *desc = vector_slot (descvec, 0);
+				struct desc *desc = vector_slot (descvec, 0);
 
 				if (CMD_VARARG(desc->cmd))
 					varflag = 1;
@@ -1656,15 +1657,15 @@ cmd_execute_command_real(vector_t *vline, vty_t *vty, cmd_element_t **cmd)
 }
 
 int
-cmd_execute_command(vector_t *vline, vty_t *vty, cmd_element_t **cmd, int vtysh)
+cmd_execute_command(struct vector *vline, struct vty *vty, struct cmd_element **cmd, int vtysh)
 {
 	int ret, saved_ret, tried = 0;
-	node_type_t onode, try_node;
+	enum node_type onode, try_node;
 
 	onode = try_node = vty->node;
 
 	if (cmd_try_do_shortcut(vty->node, vector_slot(vline, 0))) {
-		vector_t *shifted_vline;
+		struct vector *shifted_vline;
 		unsigned int index;
 
 		vty->node = ENABLE_NODE;
@@ -1711,17 +1712,17 @@ cmd_execute_command(vector_t *vline, vty_t *vty, cmd_element_t **cmd, int vtysh)
 
 /* Execute command by argument readline. */
 int
-cmd_execute_command_strict(vector_t *vline, vty_t *vty, cmd_element_t **cmd)
+cmd_execute_command_strict(struct vector *vline, struct vty *vty, struct cmd_element **cmd)
 {
 	unsigned int index, i;
-	vector_t *cmd_vector;
-	cmd_element_t *cmd_element;
-	cmd_element_t *matched_element;
+	struct vector *cmd_vector;
+	struct cmd_element *cmd_element;
+	struct cmd_element *matched_element;
 	unsigned int matched_count, incomplete_count;
 	int argc;
 	const char *argv[CMD_ARGC_MAX];
 	int varflag;
-	match_type_t match = 0;
+	enum match_type match = 0;
 	char *command;
 
 	/* Make copy of command element */
@@ -1786,10 +1787,10 @@ cmd_execute_command_strict(vector_t *vline, vty_t *vty, cmd_element_t **cmd)
 		if (varflag) {
 			argv[argc++] = vector_slot(vline, i);
 		} else {
-			vector_t *descvec = vector_slot(matched_element->strvec, i);
+			struct vector *descvec = vector_slot(matched_element->strvec, i);
 
 			if (vector_active(descvec) == 1) {
-				desc_t *desc = vector_slot(descvec, 0);
+				struct desc *desc = vector_slot(descvec, 0);
 
 				if (CMD_VARARG(desc->cmd))
 					varflag = 1;
@@ -1818,10 +1819,10 @@ cmd_execute_command_strict(vector_t *vline, vty_t *vty, cmd_element_t **cmd)
 
 /* Configration make from file. */
 int
-config_from_file(vty_t *vty, FILE *fp)
+config_from_file(struct vty *vty, FILE *fp)
 {
 	int ret;
-	vector_t *vline;
+	struct vector *vline;
 
 	while (fgets(vty->buf, VTY_BUFSIZ, fp)) {
 		vline = cmd_make_strvec(vty->buf);
@@ -1900,7 +1901,7 @@ DEFUN(config_exit,
       "exit",
       "Exit current mode and down to previous mode\n")
 {
-	cmd_node_t *cnode = vector_lookup(cmdvec, vty->node);
+	struct cmd_node *cnode = vector_lookup(cmdvec, vty->node);
 
 	switch (vty->node) {
 	case VIEW_NODE:
@@ -1999,8 +2000,8 @@ DEFUN(config_list,
       "Print command list\n")
 {
 	unsigned int i;
-	cmd_node_t *cnode = vector_slot(cmdvec, vty->node);
-	cmd_element_t *cmd;
+	struct cmd_node *cnode = vector_slot(cmdvec, vty->node);
+	struct cmd_element *cmd;
 
 	for (i = 0; i < vector_active(cnode->cmd_vector); i++)
 		if ((cmd = vector_slot (cnode->cmd_vector, i)) != NULL &&
@@ -2019,12 +2020,12 @@ DEFUN(config_write_file,
 {
 	unsigned int i;
 	int fd, len;
-	cmd_node_t *node;
+	struct cmd_node *node;
 	char *config_file;
 	char *config_file_tmp = NULL;
 	char *config_file_sav = NULL;
 	int ret = CMD_WARNING;
-	vty_t *file_vty;
+	struct vty *file_vty;
 
 	/* Check and see if we are operating under vtysh configuration */
 	if (host.config == NULL) {
@@ -2143,7 +2144,7 @@ DEFUN(config_write_terminal,
       "Write to terminal\n")
 {
 	unsigned int i;
-	cmd_node_t *node;
+	struct cmd_node *node;
 
 	if (vty->type == VTY_SHELL_SERV) {
 		for (i = 0; i < vector_active(cmdvec); i++) {
@@ -2525,7 +2526,7 @@ host_config_set(char *filename)
 }
 
 void
-install_default(node_type_t ntype)
+install_default(enum node_type ntype)
 {
 	install_element(ntype, &config_exit_cmd);
 	install_element(ntype, &config_quit_cmd);
@@ -2544,7 +2545,7 @@ install_default(node_type_t ntype)
 static LIST_HEAD(cmd_ext_list);
 
 void
-cmd_ext_register(cmd_ext_t *ext)
+cmd_ext_register(struct cmd_ext *ext)
 {
 	list_add(&ext->next, &cmd_ext_list);
 }
@@ -2552,7 +2553,7 @@ cmd_ext_register(cmd_ext_t *ext)
 static void
 cmd_ext_install(void)
 {
-	cmd_ext_t *ext;
+	struct cmd_ext *ext;
 
 	list_for_each_entry(ext, &cmd_ext_list, next) {
 		if (ext->node)
@@ -2643,10 +2644,10 @@ void
 cmd_terminate(void)
 {
 	unsigned int i, j, k, l;
-	cmd_node_t *cmd_node;
-	cmd_element_t *cmd_element;
-	desc_t *desc;
-	vector_t *cmd_node_v, *cmd_element_v, *desc_v;
+	struct cmd_node *cmd_node;
+	struct cmd_element *cmd_element;
+	struct desc *desc;
+	struct vector *cmd_node_v, *cmd_element_v, *desc_v;
 
 	if (cmdvec) {
 		for (i = 0; i < vector_active(cmdvec); i++) {

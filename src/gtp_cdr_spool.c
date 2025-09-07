@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
 #include <errno.h>
 #include <sys/prctl.h>
 
@@ -32,7 +33,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 /* Local data */
 pthread_mutex_t gtp_cdr_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -42,9 +43,9 @@ pthread_mutex_t gtp_cdr_mutex = PTHREAD_MUTEX_INITIALIZER;
  *	Spool Queue
  */
 static int
-gtp_cdr_spool_commit(gtp_cdr_spool_t *s, gtp_cdr_t *c)
+gtp_cdr_spool_commit(struct gtp_cdr_spool *s, struct gtp_cdr *c)
 {
-	gtp_cdr_file_t *f = s->cdr_file;
+	struct gtp_cdr_file *f = s->cdr_file;
 	size_t bsize;
 	int err;
 
@@ -68,10 +69,10 @@ gtp_cdr_spool_commit(gtp_cdr_spool_t *s, gtp_cdr_t *c)
 }
 
 static int
-gtp_cdr_spool_q_run(gtp_cdr_spool_t *s)
+gtp_cdr_spool_q_run(struct gtp_cdr_spool *s)
 {
-	list_head_t *l = &s->q;
-	gtp_cdr_t *c, *_c;
+	struct list_head *l = &s->q;
+	struct gtp_cdr *c, *_c;
 
 	pthread_mutex_lock(&s->q_mutex);
 	list_for_each_entry_safe(c, _c, l, next) {
@@ -89,9 +90,9 @@ gtp_cdr_spool_q_run(gtp_cdr_spool_t *s)
 }
 
 static int
-gtp_cdr_spool_roll(gtp_cdr_spool_t *s)
+gtp_cdr_spool_roll(struct gtp_cdr_spool *s)
 {
-	gtp_cdr_file_t *f = s->cdr_file;
+	struct gtp_cdr_file *f = s->cdr_file;
 
 	if (!f->file)
 		return -1;
@@ -105,7 +106,7 @@ gtp_cdr_spool_roll(gtp_cdr_spool_t *s)
 static void *
 gtp_cdr_spool_q_task(void *arg)
 {
-	gtp_cdr_spool_t *s = arg;
+	struct gtp_cdr_spool *s = arg;
 	struct timespec timeout;
 	timeval_t now;
 
@@ -136,7 +137,7 @@ q_finish:
 }
 
 static int
-gtp_cdr_spool_q_signal(gtp_cdr_spool_t *s)
+gtp_cdr_spool_q_signal(struct gtp_cdr_spool *s)
 {
 	pthread_mutex_lock(&s->cond_mutex);
 	pthread_cond_signal(&s->cond);
@@ -145,10 +146,10 @@ gtp_cdr_spool_q_signal(gtp_cdr_spool_t *s)
 }
 
 static int
-gtp_cdr_spool_q_destroy(gtp_cdr_spool_t *s)
+gtp_cdr_spool_q_destroy(struct gtp_cdr_spool *s)
 {
-	list_head_t *l = &s->q;
-	gtp_cdr_t *c, *_c;
+	struct list_head *l = &s->q;
+	struct gtp_cdr *c, *_c;
 
 	pthread_mutex_lock(&s->q_mutex);
 	list_for_each_entry_safe(c, _c, l, next) {
@@ -163,7 +164,7 @@ gtp_cdr_spool_q_destroy(gtp_cdr_spool_t *s)
 }
 
 int
-gtp_cdr_spool_q_add(gtp_cdr_spool_t *s, gtp_cdr_t *c)
+gtp_cdr_spool_q_add(struct gtp_cdr_spool *s, struct gtp_cdr *c)
 {
 	if (__test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags)) {
 		gtp_cdr_destroy(c);
@@ -192,10 +193,10 @@ gtp_cdr_spool_q_add(gtp_cdr_spool_t *s, gtp_cdr_t *c)
 /*
  *	Spool init
  */
-gtp_cdr_spool_t *
+struct gtp_cdr_spool *
 gtp_cdr_spool_get(const char *name)
 {
-	gtp_cdr_spool_t *s;
+	struct gtp_cdr_spool *s;
 
 	pthread_mutex_lock(&gtp_cdr_mutex);
 	list_for_each_entry(s, &daemon_data->gtp_cdr, next) {
@@ -211,17 +212,17 @@ gtp_cdr_spool_get(const char *name)
 }
 
 int
-gtp_cdr_spool_put(gtp_cdr_spool_t *s)
+gtp_cdr_spool_put(struct gtp_cdr_spool *s)
 {
 	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
-gtp_cdr_spool_t *
+struct gtp_cdr_spool *
 gtp_cdr_spool_alloc(const char *name)
 {
-	gtp_cdr_spool_t *n;
-	gtp_cdr_file_t *f;
+	struct gtp_cdr_spool *n;
+	struct gtp_cdr_file *f;
 
 	PMALLOC(n);
 	if (!n) {
@@ -249,13 +250,13 @@ gtp_cdr_spool_alloc(const char *name)
 }
 
 int
-gtp_cdr_spool_start(gtp_cdr_spool_t *s)
+gtp_cdr_spool_start(struct gtp_cdr_spool *s)
 {
 	return pthread_create(&s->task, NULL, gtp_cdr_spool_q_task, s);
 }
 
 int
-gtp_cdr_spool_stop(gtp_cdr_spool_t *s)
+gtp_cdr_spool_stop(struct gtp_cdr_spool *s)
 {
 	__set_bit(GTP_CDR_SPOOL_FL_STOP_BIT, &s->flags);
 	gtp_cdr_spool_q_signal(s);
@@ -266,7 +267,7 @@ gtp_cdr_spool_stop(gtp_cdr_spool_t *s)
 }
 
 static int
-__gtp_cdr_spool_destroy(gtp_cdr_spool_t *s)
+__gtp_cdr_spool_destroy(struct gtp_cdr_spool *s)
 {
 	gtp_cdr_spool_stop(s);
 	pthread_mutex_destroy(&s->q_mutex);
@@ -279,10 +280,10 @@ __gtp_cdr_spool_destroy(gtp_cdr_spool_t *s)
 }
 
 int
-gtp_cdr_spool_destroy(gtp_cdr_spool_t *spool)
+gtp_cdr_spool_destroy(struct gtp_cdr_spool *spool)
 {
-	list_head_t *l = &daemon_data->gtp_cdr;
-	gtp_cdr_spool_t *s, *_s;
+	struct list_head *l = &daemon_data->gtp_cdr;
+	struct gtp_cdr_spool *s, *_s;
 	int err = 0;
 
 	pthread_mutex_lock(&gtp_cdr_mutex);

@@ -21,31 +21,31 @@
 #pragma once
 
 #include <stdint.h>
-#include "rbtree_api.h"
+#include "rbtree_types.h"
 #include "pfcp.h"
 #include "pkt_buffer.h"
 
 /*
  *	PFCP Message indexation
  */
-typedef struct pfcp_msg_ie {
-	pfcp_ie_t		*h;
+struct pfcp_msg_ie {
+	struct pfcp_ie		*h;
 	void const		*data;
 
-	rb_node_t		n;
-} pfcp_msg_ie_t;
+	struct rb_node		n;
+};
 
-typedef struct pfcp_msg {
-	pfcp_hdr_t		*h;
+struct pfcp_msg {
+	struct pfcp_hdr		*h;
 
-	rb_root_cached_t	ie;
-} pfcp_msg_t;
+	struct rb_root_cached	ie;
+};
 
 
 /* Prototypes */
-size_t pfcp_msg_hlen(pfcp_hdr_t *h);
-void pfcp_msg_ie_dump(const char *prefix, const pfcp_msg_ie_t *msg_ie);
-pfcp_msg_ie_t *pfcp_msg_ie_get(pfcp_msg_t *msg, uint16_t type);
-pfcp_msg_t *pfcp_msg_alloc(const pkt_buffer_t *pbuff);
-void pfcp_msg_destroy(pfcp_msg_t *msg);
-void pfcp_msg_dump(const char *prefix, pfcp_msg_t *msg);
+size_t pfcp_msg_hlen(struct pfcp_hdr *h);
+void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
+struct pfcp_msg_ie *pfcp_msg_ie_get(struct pfcp_msg *msg, uint16_t type);
+struct pfcp_msg *pfcp_msg_alloc(const struct pkt_buffer *pbuff);
+void pfcp_msg_destroy(struct pfcp_msg *msg);
+void pfcp_msg_dump(const char *prefix, struct pfcp_msg *msg);

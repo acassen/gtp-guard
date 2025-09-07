@@ -24,23 +24,23 @@
 #include "gtp_metrics.h"
 
 /* GTP Server context */
-typedef struct gtp_server {
-	inet_server_t		s;
+struct gtp_server {
+	struct inet_server	s;
 	void			*ctx;	/* context back-pointer */
 
 	/* metrics */
-	gtp_metrics_pkt_t	rx_metrics;
-	gtp_metrics_pkt_t	tx_metrics;
-	gtp_metrics_cause_t	cause_rx_metrics;
-	gtp_metrics_cause_t	cause_tx_metrics;
-	gtp_metrics_msg_t	msg_metrics;
+	struct gtp_metrics_pkt	rx_metrics;
+	struct gtp_metrics_pkt	tx_metrics;
+	struct gtp_metrics_cause cause_rx_metrics;
+	struct gtp_metrics_cause cause_tx_metrics;
+	struct gtp_metrics_msg	msg_metrics;
 
 	unsigned long		flags;
-} gtp_server_t;
+};
 
 
 /* Prototypes */
-int gtp_server_init(gtp_server_t *s, void *ctx,
-		    int (*init) (inet_server_t *),
-		    int (*process) (inet_server_t *, struct sockaddr_storage *));
-int gtp_server_destroy(gtp_server_t *s);
+int gtp_server_init(struct gtp_server *s, void *ctx,
+		    int (*init) (struct inet_server *),
+		    int (*process) (struct inet_server *, struct sockaddr_storage *));
+int gtp_server_destroy(struct gtp_server *s);

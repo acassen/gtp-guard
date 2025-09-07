@@ -27,7 +27,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -39,7 +39,7 @@ DEFUN(cdr_spool,
       "Configure CDR Spool\n"
       "Spool name")
 {
-	gtp_cdr_spool_t *new;
+	struct gtp_cdr_spool *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -67,7 +67,7 @@ DEFUN(no_cdr_spool,
       "Destroy CDR Spool\n"
       "Spool Name")
 {
-	gtp_cdr_spool_t *s;
+	struct gtp_cdr_spool *s;
 	int err;
 
 	if (argc < 1) {
@@ -98,7 +98,7 @@ DEFUN(cdr_document_root,
       "Configure Docuement Root\n"
       "Path")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -115,7 +115,7 @@ DEFUN(cdr_archive_root,
       "Configure Archive Root\n"
       "Path")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -132,7 +132,7 @@ DEFUN(cdr_file_prefix,
       "Configure CDR File prefix\n"
       "Prefix name")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -149,7 +149,7 @@ DEFUN(cdr_file_roll_period,
       "Configure CDR File Roll period\n"
       "Number of seconds")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 	int sec;
 
 	if (argc < 1) {
@@ -168,7 +168,7 @@ DEFUN(cdr_file_size,
       "Configure CDR File size\n"
       "Number of MBytes")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 	int size;
 
 	if (argc < 1) {
@@ -186,7 +186,7 @@ DEFUN(cdr_file_async_io,
       "file async-io",
       "Configure CDR File Async I/O mode\n")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 
 	__set_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags);
 	return CMD_SUCCESS;
@@ -202,7 +202,7 @@ DEFUN(cdr_file_owner,
       "Group ID"
       "Integer")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 	char *endptr = NULL;
 	int value;
 
@@ -237,7 +237,7 @@ DEFUN(cdr_max_queue_size,
       "Configure Maximum CDR queue retention size\n"
       "Number of CDR")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 	int size;
 
 	if (argc < 1) {
@@ -255,7 +255,7 @@ DEFUN(cdr_shutdown,
       "shutdown",
       "Shutdown CDR spool\n")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 
 	if (__test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags)) {
 		vty_out(vty, "%% spood:%s is already shutdown%s"
@@ -274,7 +274,7 @@ DEFUN(cdr_no_shutdown,
       "no shutdown",
       "Activate CDR spool\n")
 {
-	gtp_cdr_spool_t *s = vty->index;
+	struct gtp_cdr_spool *s = vty->index;
 	int err;
 
 	if (!__test_bit(GTP_CDR_SPOOL_FL_SHUTDOWN_BIT, &s->flags)) {
@@ -302,7 +302,7 @@ DEFUN(show_cdr,
       "CDR Spool\n"
       "Spool name")
 {
-	gtp_cdr_spool_t *s;
+	struct gtp_cdr_spool *s;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -324,10 +324,10 @@ DEFUN(show_cdr,
 
 /* Configuration writer */
 static int
-gtp_config_cdr_write(vty_t *vty)
+gtp_config_cdr_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->gtp_cdr;
-	gtp_cdr_spool_t *s;
+	struct list_head *l = &daemon_data->gtp_cdr;
+	struct gtp_cdr_spool *s;
 
 	list_for_each_entry(s, l, next) {
 		vty_out(vty, "cdr-spool %s%s", s->name, VTY_NEWLINE);
@@ -383,14 +383,14 @@ cmd_ext_cdr_install(void)
 	return 0;
 }
 
-cmd_node_t cdr_node = {
+struct cmd_node cdr_node = {
 	.node = CDR_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt ="%s(cdr-spool)# ",
 	.config_write = gtp_config_cdr_write,
 };
 
-static cmd_ext_t cmd_ext_cdr = {
+static struct cmd_ext cmd_ext_cdr = {
 	.node = &cdr_node,
 	.install = cmd_ext_cdr_install,
 };

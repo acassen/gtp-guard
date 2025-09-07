@@ -27,10 +27,10 @@
 #include <sys/timerfd.h>
 #include "timer.h"
 #include "list_head.h"
-#include "rbtree_api.h"
+#include "rbtree_types.h"
 
 /* Thread types. */
-typedef enum {
+enum thread_type {
 	THREAD_READ,		/* thread_master.read rb tree */
 	THREAD_WRITE,		/* thread_master.write rb tree */
 	THREAD_TIMER,		/* thread_master.timer rb tree */
@@ -47,7 +47,7 @@ typedef enum {
 	THREAD_READY_WRITE_FD,
 	THREAD_READ_ERROR,
 	THREAD_WRITE_ERROR,
-} thread_type_t;
+};
 
 /* Thread Event flags */
 enum thread_flags {
@@ -65,10 +65,10 @@ enum thread_flags {
 #define THREAD_DESTROY_CLOSE_FD	0x01
 #define THREAD_DESTROY_FREE_ARG	0x02
 
-typedef struct thread thread_t;
-typedef void (*thread_func_t)(thread_t *);
+struct thread;
+typedef void (*thread_func_t)(struct thread *);
 
-typedef union {
+union thread_arg2 {
 	int val;
 	unsigned uval;
 	struct {
@@ -79,59 +79,59 @@ typedef union {
 		pid_t pid;	/* process id a child thread is wanting. */
 		int status;	/* return status of the process */
 	} c;
-} thread_arg2;
+};
 
 /* Thread itself. */
 struct thread {
 	unsigned long id;
-	thread_type_t type;		/* thread type */
+	enum thread_type type;		/* thread type */
 	struct thread_master *master;	/* pointer to the struct thread_master. */
 	thread_func_t func;		/* event function */
 	void *arg;			/* event argument */
 	timeval_t sands;		/* rest of time sands value. */
-	thread_arg2 u;			/* second argument of the event. */
+	union thread_arg2 u;		/* second argument of the event. */
 	struct thread_event *event;	/* Thread Event back-pointer */
 
 	union {
-		rb_node_t n;
-		list_head_t e_list;
+		struct rb_node n;
+		struct list_head e_list;
 	};
 
-	rb_node_t rb_data;		/* PID or fd/vrid */
+	struct rb_node rb_data;		/* PID or fd/vrid */
 };
 
 /* Thread Event */
-typedef struct thread_event {
-	thread_t		*read;
-	thread_t		*write;
+struct thread_event {
+	struct thread		*read;
+	struct thread		*write;
 	unsigned long		flags;
 	int			fd;
 
-	rb_node_t		n;
-} thread_event_t;
+	struct rb_node		n;
+};
 
 /* Master of the threads. */
-typedef struct thread_master {
-	rb_root_cached_t	read;
-	rb_root_cached_t	write;
-	rb_root_cached_t	timer;
-	list_head_t		event;
-	list_head_t		ready;
-	list_head_t		unuse;
+struct thread_master {
+	struct rb_root_cached	read;
+	struct rb_root_cached	write;
+	struct rb_root_cached	timer;
+	struct list_head	event;
+	struct list_head	ready;
+	struct list_head	unuse;
 
-	thread_t		*current_thread;
+	struct thread		*current_thread;
 
 	/* epoll related */
-	rb_root_t		io_events;
+	struct rb_root		io_events;
 	struct epoll_event	*epoll_events;
-	thread_event_t		*current_event;
+	struct thread_event		*current_event;
 	unsigned int		epoll_size;
 	unsigned int		epoll_count;
 	int			epoll_fd;
 
 	/* timer related */
 	int			timer_fd;
-	thread_t		*timer_thread;
+	struct thread		*timer_thread;
 
 	/* signal related */
 	int			signal_fd;
@@ -140,7 +140,7 @@ typedef struct thread_master {
 	unsigned long		alloc;
 	unsigned long		id;
 	bool			shutdown_timer_running;
-} thread_master_t;
+};
 
 /* Macros. */
 #define THREAD_ARG(X) ((X)->arg)
@@ -161,25 +161,25 @@ enum exit_code {
 } ;
 
 /* global vars exported */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 /* Prototypes. */
-thread_master_t *thread_make_master(bool nosignal);
-thread_t * thread_add_terminate_event(thread_master_t *m);
-void thread_destroy_master(thread_master_t *m);
-thread_t * thread_add_read_sands(thread_master_t *m, thread_func_t func, void *arg, int fd,
-				 const timeval_t *sands, unsigned flags);
-thread_t * thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd,
-			   unsigned long timer, unsigned flags);
-void thread_requeue_read(thread_master_t *m, int, const timeval_t *sands);
-thread_t * thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd,
-			    unsigned long timer, unsigned flags);
-void thread_close_fd(thread_t *t);
-thread_t * thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg,
-				 unsigned val, uint64_t timer);
-thread_t * thread_add_timer(thread_master_t *m, thread_func_t func, void *arg,
-			    uint64_t timer);
-void thread_mod_timer(thread_t *t, uint64_t timer);
-thread_t * thread_add_event(thread_master_t *m, thread_func_t func, void *arg, int val);
-void thread_del(thread_t *t);
-void launch_thread_scheduler(thread_master_t *m);
+struct thread_master *thread_make_master(bool nosignal);
+struct thread *thread_add_terminate_event(struct thread_master *m);
+void thread_destroy_master(struct thread_master *m);
+struct thread *thread_add_read_sands(struct thread_master *m, thread_func_t func, void *arg, int fd,
+				     const timeval_t *sands, unsigned flags);
+struct thread *thread_add_read(struct thread_master *m, thread_func_t func, void *arg, int fd,
+			       unsigned long timer, unsigned flags);
+void thread_requeue_read(struct thread_master *m, int, const timeval_t *sands);
+struct thread *thread_add_write(struct thread_master *m, thread_func_t func, void *arg, int fd,
+				unsigned long timer, unsigned flags);
+void thread_close_fd(struct thread *t);
+struct thread *thread_add_timer_uval(struct thread_master *m, thread_func_t func, void *arg,
+				     unsigned val, uint64_t timer);
+struct thread *thread_add_timer(struct thread_master *m, thread_func_t func, void *arg,
+				uint64_t timer);
+void thread_mod_timer(struct thread *t, uint64_t timer);
+struct thread *thread_add_event(struct thread_master *m, thread_func_t func, void *arg, int val);
+void thread_del(struct thread *t);
+void launch_thread_scheduler(struct thread_master *m);

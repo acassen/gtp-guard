@@ -20,6 +20,7 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
+#include <string.h>
 #include <arpa/inet.h>
 
 #include "bitops.h"
@@ -32,8 +33,8 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
@@ -303,7 +304,7 @@ DEFUN(cgn_protocol_tcp_port_conf_pool,
  *	Show commands
  */
 static int
-cgn_vty(vty_t *vty, struct cgn_ctx *c)
+cgn_vty(struct vty *vty, struct cgn_ctx *c)
 {
 	char buf[65000];
 
@@ -348,7 +349,7 @@ DEFUN(show_cgn,
  *	Configuration writer
  */
 static int
-config_cgn_write(vty_t *vty)
+config_cgn_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->cgn;
 	struct cgn_ctx *c;
@@ -424,14 +425,14 @@ cmd_ext_cgn_install(void)
 	return 0;
 }
 
-cmd_node_t cgn_node = {
+struct cmd_node cgn_node = {
 	.node = CGN_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt ="%s(carrier-grade-nat)# ",
 	.config_write = config_cgn_write,
 };
 
-static cmd_ext_t cmd_ext_cgn = {
+static struct cmd_ext cmd_ext_cgn = {
 	.node = &cgn_node,
 	.install = cmd_ext_cgn_install,
 };

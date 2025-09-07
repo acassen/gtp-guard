@@ -33,14 +33,14 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	XDP FWD BPF related
  */
 static int
-gtp_bpf_fwd_ll_attr(gtp_interface_t *iface, void *arg)
+gtp_bpf_fwd_ll_attr(struct gtp_interface *iface, void *arg)
 {
 	if (!iface->vlan_id)
 		return -1;
@@ -51,12 +51,12 @@ gtp_bpf_fwd_ll_attr(gtp_interface_t *iface, void *arg)
 }
 
 static int
-gtp_bpf_fwd_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
+gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, struct bpf_object *bpf_obj)
 {
 	struct bpf_map *map;
 
 	/* MAP ref for faster access */
-	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * XDP_FWD_MAP_CNT);
+	p->bpf_maps = MALLOC(sizeof(struct gtp_bpf_maps) * XDP_FWD_MAP_CNT);
 	map = gtp_bpf_load_map(bpf_obj, "teid_xlat");
 	if (!map)
 		return -1;
@@ -96,11 +96,11 @@ gtp_bpf_teid_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_bpf_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t)
+gtp_bpf_teid_rule_set(struct gtp_teid_rule *r, struct gtp_teid *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
-	gtp_session_t *s = t->session;
-	gtp_proxy_t *p = s->srv->ctx;
+	struct gtp_session *s = t->session;
+	struct gtp_proxy *p = s->srv->ctx;
 	__u8 flags = __test_bit(GTP_TEID_FL_INGRESS, &t->flags) ? GTP_FWD_FL_INGRESS : GTP_FWD_FL_EGRESS;
 	int i;
 
@@ -118,7 +118,7 @@ gtp_bpf_teid_rule_set(struct gtp_teid_rule *r, gtp_teid_t *t)
 }
 
 static int
-gtp_bpf_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
+gtp_bpf_teid_action(struct bpf_map *map, int action, struct gtp_teid *t)
 {
 	struct gtp_teid_rule *new = NULL;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
@@ -163,14 +163,14 @@ gtp_bpf_teid_action(struct bpf_map *map, int action, gtp_teid_t *t)
 			    , __FUNCTION__
 			    , (action) ? "deleting" : "adding"
 			    , t->vid, ntohl(t->id), NIPQUAD(t->ipv4));
-  end:
+end:
 	if (new)
 		free(new);
 	return err;
 }
 
 static int
-gtp_bpf_teid_vty(gtp_bpf_prog_t *p, int map_id, vty_t *vty, __be32 id)
+gtp_bpf_teid_vty(struct gtp_bpf_prog *p, int map_id, struct vty *vty, __be32 id)
 {
 	struct bpf_map *map = p->bpf_maps[map_id].map;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
@@ -234,7 +234,7 @@ gtp_bpf_teid_vty(gtp_bpf_prog_t *p, int map_id, vty_t *vty, __be32 id)
 			   , packets, bytes, VTY_NEWLINE);
 	}
 
-  end:
+end:
 	free(r);
 	return 0;
 }
@@ -260,16 +260,16 @@ gtp_bpf_teid_bytes(struct bpf_map *map, __be32 id, uint64_t *bytes)
 	for (i = 0; i < nr_cpus; i++)
 		*bytes += r[i].bytes;
 
-  end:
+end:
 	free(r);
 	return 0;
 }
 
 int
-gtp_bpf_fwd_teid_action(int action, gtp_teid_t *t)
+gtp_bpf_fwd_teid_action(int action, struct gtp_teid *t)
 {
-	gtp_proxy_t *proxy = t->session->srv->ctx;
-	gtp_bpf_prog_t *p = proxy->bpf_prog;
+	struct gtp_proxy *proxy = t->session->srv->ctx;
+	struct gtp_bpf_prog *p = proxy->bpf_prog;
 
 	/* If daemon is currently stopping, we simply skip action on ruleset.
 	 * This reduce daemon exit time and entries are properly released during
@@ -284,10 +284,10 @@ gtp_bpf_fwd_teid_action(int action, gtp_teid_t *t)
 }
 
 int
-gtp_bpf_fwd_teid_vty(vty_t *vty, gtp_teid_t *t)
+gtp_bpf_fwd_teid_vty(struct vty *vty, struct gtp_teid *t)
 {
-	gtp_proxy_t *proxy = t->session->srv->ctx;
-	gtp_bpf_prog_t *p = proxy->bpf_prog;
+	struct gtp_proxy *proxy = t->session->srv->ctx;
+	struct gtp_bpf_prog *p = proxy->bpf_prog;
 
 	if (!p || !t)
 		return -1;
@@ -296,9 +296,9 @@ gtp_bpf_fwd_teid_vty(vty_t *vty, gtp_teid_t *t)
 }
 
 int
-gtp_bpf_fwd_vty(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
@@ -313,10 +313,10 @@ gtp_bpf_fwd_vty(gtp_bpf_prog_t *p, void *arg)
 }
 
 int
-gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
+gtp_bpf_fwd_teid_bytes(struct gtp_teid *t, uint64_t *bytes)
 {
-	gtp_proxy_t *proxy = t->session->srv->ctx;
-	gtp_bpf_prog_t *p = proxy->bpf_prog;
+	struct gtp_proxy *proxy = t->session->srv->ctx;
+	struct gtp_bpf_prog *p = proxy->bpf_prog;
 
 	if (!p)
 		return -1;
@@ -329,7 +329,7 @@ gtp_bpf_fwd_teid_bytes(gtp_teid_t *t, uint64_t *bytes)
  *	IP Tunneling related
  */
 int
-gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t, gtp_bpf_prog_t *p)
+gtp_bpf_fwd_iptnl_action(int action, struct gtp_iptnl *t, struct gtp_bpf_prog *p)
 {
 	if (!p || !p->tpl || p->tpl->mode != BPF_PROG_MODE_GTP_FORWARD)
 		return -1;
@@ -338,9 +338,9 @@ gtp_bpf_fwd_iptnl_action(int action, gtp_iptnl_t *t, gtp_bpf_prog_t *p)
 }
 
 int
-gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_fwd_iptnl_vty(struct gtp_bpf_prog *p, void *arg)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 
 	vty_out(vty, "bpf-program '%s'%s", p->name, VTY_NEWLINE);
 
@@ -348,7 +348,7 @@ gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *p, void *arg)
 }
 
 
-static gtp_bpf_prog_tpl_t gtp_bpf_tpl_fwd = {
+static struct gtp_bpf_prog_tpl gtp_bpf_tpl_fwd = {
 	.mode = BPF_PROG_MODE_GTP_FORWARD,
 	.description = "gtp-forward",
 	.loaded = gtp_bpf_fwd_load_maps,

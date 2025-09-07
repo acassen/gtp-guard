@@ -32,11 +32,11 @@
 
 
 /* Extern data */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 /* Local data */
 static uint32_t gtp_session_id;
-static void gtp_session_expire(thread_t *);
+static void gtp_session_expire(struct thread *);
 
 
 /*
@@ -54,11 +54,11 @@ gtp_sessions_count_read(void)
 /*
  *	Session handling
  */
-gtp_teid_t *
-gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
+struct gtp_teid *
+gtp_session_gtpu_teid_get_by_sqn(struct gtp_session *s, uint32_t sqn)
 {
-	list_head_t *l = &s->gtpu_teid;
-	gtp_teid_t *t;
+	struct list_head *l = &s->gtpu_teid;
+	struct gtp_teid *t;
 
 	list_for_each_entry(t, l, next) {
 		if (t->sqn == sqn)
@@ -69,7 +69,7 @@ gtp_session_gtpu_teid_get_by_sqn(gtp_session_t *s, uint32_t sqn)
 }
 
 static int
-gtp_session_teid_del(gtp_session_t *s, gtp_teid_t *teid)
+gtp_session_teid_del(struct gtp_session *s, struct gtp_teid *teid)
 {
 	if (!__test_and_clear_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already unlinked from session:0x%.8x!!!"
@@ -84,7 +84,7 @@ gtp_session_teid_del(gtp_session_t *s, gtp_teid_t *teid)
 }
 
 static int
-gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
+gtp_session_teid_add(struct gtp_session *s, struct gtp_teid *teid, struct list_head *l)
 {
 	if (__test_and_set_bit(GTP_TEID_FL_LINKED, &teid->flags)) {
 		log_message(LOG_INFO, "%s(): TEID:0x%.8x already linked to session:0x%.8x !!!"
@@ -99,13 +99,13 @@ gtp_session_teid_add(gtp_session_t *s, gtp_teid_t *teid, list_head_t *l)
 }
 
 int
-gtp_session_gtpc_teid_add(gtp_session_t *s, gtp_teid_t *teid)
+gtp_session_gtpc_teid_add(struct gtp_session *s, struct gtp_teid *teid)
 {
 	return gtp_session_teid_add(s, teid, &s->gtpc_teid);
 }
 
 static void
-gtp_session_gtu_teid_xdp_rule_add(gtp_teid_t *teid)
+gtp_session_gtu_teid_xdp_rule_add(struct gtp_teid *teid)
 {
 	int err = -1;
 
@@ -119,7 +119,7 @@ gtp_session_gtu_teid_xdp_rule_add(gtp_teid_t *teid)
 }
 
 int
-gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid)
+gtp_session_gtpu_teid_add(struct gtp_session *s, struct gtp_teid *teid)
 {
 	if (__test_and_clear_bit(GTP_TEID_FL_XDP_DELAYED, &teid->flags))
 		goto end;
@@ -127,15 +127,15 @@ gtp_session_gtpu_teid_add(gtp_session_t *s, gtp_teid_t *teid)
 	/* Fast-Path setup */
 	gtp_session_gtu_teid_xdp_rule_add(teid);
 
-  end:
+end:
 	return gtp_session_teid_add(s, teid, &s->gtpu_teid);
 }
 
 int
-gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
+gtp_session_gtpu_teid_xdp_add(struct gtp_session *s)
 {
-	list_head_t *l = &s->gtpu_teid;
-	gtp_teid_t *teid;
+	struct list_head *l = &s->gtpu_teid;
+	struct gtp_teid *teid;
 
 	/* Fast-Path setup */
 	list_for_each_entry(teid, l, next) {
@@ -149,7 +149,7 @@ gtp_session_gtpu_teid_xdp_add(gtp_session_t *s)
 }
 
 void
-gtp_session_mod_timer(gtp_session_t *s, int timeout)
+gtp_session_mod_timer(struct gtp_session *s, int timeout)
 {
 	if (!s->timer)
 		s->timer = thread_add_timer(master,
@@ -160,9 +160,9 @@ gtp_session_mod_timer(gtp_session_t *s, int timeout)
 }
 
 static void
-gtp_session_add_timer(gtp_session_t *s)
+gtp_session_add_timer(struct gtp_session *s)
 {
-	gtp_apn_t *apn = s->apn;
+	struct gtp_apn *apn = s->apn;
 
 	if (!apn->session_lifetime)
 		return;
@@ -172,7 +172,7 @@ gtp_session_add_timer(gtp_session_t *s)
 }
 
 static int
-gtp_session_add(gtp_conn_t *c, gtp_session_t *s)
+gtp_session_add(struct gtp_conn *c, struct gtp_session *s)
 {
 	list_add_tail(&s->next, &c->gtp_sessions);
 	__sync_add_and_fetch(&c->refcnt, 1);
@@ -182,7 +182,7 @@ gtp_session_add(gtp_conn_t *c, gtp_session_t *s)
 }
 
 const char *
-gtp_session_roaming_status_str(gtp_session_t *s)
+gtp_session_roaming_status_str(struct gtp_session *s)
 {
 	if (__test_bit(GTP_SESSION_FL_HPLMN, &s->flags))
 		return "HPLMN";
@@ -197,12 +197,12 @@ gtp_session_roaming_status_str(gtp_session_t *s)
 }
 
 int
-gtp_session_roaming_status_set(gtp_session_t *s)
+gtp_session_roaming_status_set(struct gtp_session *s)
 {
-	gtp_conn_t *c = s->conn;
-	gtp_apn_t *apn = s->apn;
-	list_head_t *l = &apn->hplmn;
-	gtp_plmn_t *p, *splmn = &s->serving_plmn;
+	struct gtp_conn *c = s->conn;
+	struct gtp_apn *apn = s->apn;
+	struct list_head *l = &apn->hplmn;
+	struct gtp_plmn *p, *splmn = &s->serving_plmn;
 	uint8_t imsi[8] = {};
 	int ret;
 
@@ -231,11 +231,11 @@ gtp_session_roaming_status_set(gtp_session_t *s)
 	return 0;
 }
 
-gtp_session_t *
-gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
-		  int (*gtpc_destroy) (gtp_teid_t *), int (*gtpu_destroy) (gtp_teid_t *))
+struct gtp_session *
+gtp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn,
+		  int (*gtpc_destroy) (struct gtp_teid *), int (*gtpu_destroy) (struct gtp_teid *))
 {
-	gtp_session_t *new;
+	struct gtp_session *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->gtpc_teid);
@@ -262,9 +262,9 @@ gtp_session_alloc(gtp_conn_t *c, gtp_apn_t *apn,
 
 
 int
-gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
+gtp_session_gtpc_teid_destroy(struct gtp_teid *teid)
 {
-	gtp_session_t *s;
+	struct gtp_session *s;
 
 	if (!teid)
 		return -1;
@@ -279,9 +279,9 @@ gtp_session_gtpc_teid_destroy(gtp_teid_t *teid)
 }
 
 int
-gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
+gtp_session_gtpu_teid_destroy(struct gtp_teid *teid)
 {
-	gtp_session_t *s;
+	struct gtp_session *s;
 
 	if (!teid)
 		return -1;
@@ -310,9 +310,9 @@ gtp_session_gtpu_teid_destroy(gtp_teid_t *teid)
 }
 
 static int
-gtp_session_teid_destroy(gtp_session_t *s)
+gtp_session_teid_destroy(struct gtp_session *s)
 {
-	gtp_teid_t *t, *_t;
+	struct gtp_teid *t, *_t;
 
 	/* Release control plane */
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next)
@@ -326,9 +326,9 @@ gtp_session_teid_destroy(gtp_session_t *s)
 }
 
 static int
-gtp_session_send_delete_bearer(gtp_session_t *s)
+gtp_session_send_delete_bearer(struct gtp_session *s)
 {
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	list_for_each_entry(t, &s->gtpc_teid, next) {
 		if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
@@ -341,7 +341,7 @@ gtp_session_send_delete_bearer(gtp_session_t *s)
 }
 
 static int
-gtp_session_free(gtp_session_t *s)
+gtp_session_free(struct gtp_session *s)
 {
 	__sync_sub_and_fetch(&s->apn->session_count, 1);
 	__sync_sub_and_fetch(&gtp_sessions_count, 1);
@@ -354,9 +354,9 @@ gtp_session_free(gtp_session_t *s)
 }
 
 int
-gtp_session_destroy(gtp_session_t *s)
+gtp_session_destroy(struct gtp_session *s)
 {
-	gtp_conn_t *c = s->conn;
+	struct gtp_conn *c = s->conn;
 
 	thread_del(s->timer);
 
@@ -378,9 +378,9 @@ gtp_session_destroy(gtp_session_t *s)
 }
 
 int
-gtp_session_set_delete_bearer(gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
+gtp_session_set_delete_bearer(struct gtp_session *s, struct gtp_ie_eps_bearer_id *ebi)
 {
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	list_for_each_entry(t, &s->gtpu_teid, next) {
 		if ((ebi->h.instance == 0) ||
@@ -392,9 +392,9 @@ gtp_session_set_delete_bearer(gtp_session_t *s, gtp_ie_eps_bearer_id_t *ebi)
 }
 
 int
-gtp_session_destroy_bearer(gtp_session_t *s)
+gtp_session_destroy_bearer(struct gtp_session *s)
 {
-	gtp_teid_t *t, *_t;
+	struct gtp_teid *t, *_t;
 
 	list_for_each_entry_safe(t, _t, &s->gtpc_teid, next) {
 		if (t->bearer_teid && t->bearer_teid->action == GTP_ACTION_DELETE_BEARER) {
@@ -415,10 +415,10 @@ gtp_session_destroy_bearer(gtp_session_t *s)
 }
 
 int
-gtp_session_destroy_teid(gtp_teid_t *teid)
+gtp_session_destroy_teid(struct gtp_teid *teid)
 {
-	gtp_teid_t *bteid;
-	gtp_session_t *s;
+	struct gtp_teid *bteid;
+	struct gtp_session *s;
 
 	if (!teid)
 		return -1;
@@ -439,9 +439,9 @@ gtp_session_destroy_teid(gtp_teid_t *teid)
 }
 
 int
-gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
+gtp_session_uniq_ptype(struct gtp_conn *c, uint8_t ptype)
 {
-	gtp_session_t *s;
+	struct gtp_session *s;
 	int err = 0;
 
 	list_for_each_entry(s, &c->gtp_sessions, next) {
@@ -461,9 +461,9 @@ gtp_session_uniq_ptype(gtp_conn_t *c, uint8_t ptype)
  *	Session expiration handling
  */
 static void
-gtp_session_expire(thread_t *thread)
+gtp_session_expire(struct thread *t)
 {
-	gtp_session_t *s = THREAD_ARG(thread);
+	struct gtp_session *s = THREAD_ARG(t);
 
 	log_message(LOG_INFO, "IMSI:%ld - Expiring session-id:0x%.8x"
 			    , s->conn->imsi, s->id);
@@ -471,10 +471,10 @@ gtp_session_expire(thread_t *thread)
 }
 
 int
-gtp_sessions_release(gtp_conn_t *c)
+gtp_sessions_release(struct gtp_conn *c)
 {
-	list_head_t *l = &c->gtp_sessions;
-	gtp_session_t *s, *_s;
+	struct list_head *l = &c->gtp_sessions;
+	struct gtp_session *s, *_s;
 
 	/* Release sessions */
 	list_for_each_entry_safe(s, _s, l, next)
@@ -484,10 +484,10 @@ gtp_sessions_release(gtp_conn_t *c)
 }
 
 int
-gtp_sessions_free(gtp_conn_t *c)
+gtp_sessions_free(struct gtp_conn *c)
 {
-	list_head_t *l = &c->gtp_sessions;
-	gtp_session_t *s, *_s;
+	struct list_head *l = &c->gtp_sessions;
+	struct gtp_session *s, *_s;
 
 	list_for_each_entry_safe(s, _s, l, next) {
 		thread_del(s->timer);

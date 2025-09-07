@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "gtp_resolv.h"
 #include "gtp_utils.h"
 #include "gtp_data.h"
@@ -29,16 +31,16 @@
 #include "memory.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	VTY utilities
  */
 static void
-gtp_apn_hplmn_vty(vty_t *vty, gtp_apn_t *apn)
+gtp_apn_hplmn_vty(struct vty *vty, struct gtp_apn *apn)
 {
-	gtp_plmn_t *p;
+	struct gtp_plmn *p;
 
 	if (!apn)
 		return;
@@ -51,16 +53,16 @@ gtp_apn_hplmn_vty(vty_t *vty, gtp_apn_t *apn)
 }
 
 static int
-gtp_apn_vty(gtp_apn_t *apn, void *arg)
+gtp_apn_vty(struct gtp_apn *apn, void *arg)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 	gtp_naptr_show(vty, apn);
 	gtp_apn_hplmn_vty(vty, apn);
 	return 0;
 }
 
 static int
-gtp_apn_show(vty_t *vty, gtp_apn_t *apn)
+gtp_apn_show(struct vty *vty, struct gtp_apn *apn)
 {
 	if (apn) {
 		gtp_naptr_show(vty, apn);
@@ -81,7 +83,7 @@ DEFUN(apn,
       "access-point-name STRING",
       "Configure Access Point Name data\n")
 {
-	gtp_apn_t *new;
+	struct gtp_apn *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -108,7 +110,7 @@ DEFUN(apn_realm,
       "Set Global PDN Realm\n"
       "name\n")
 {
-        gtp_apn_t *apn = vty->index;
+        struct gtp_apn *apn = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -126,7 +128,7 @@ DEFUN(apn_realm_dynamic,
       "realm-dynamic",
       "Enable dynamic resolution\n")
 {
-        gtp_apn_t *apn = vty->index;
+        struct gtp_apn *apn = vty->index;
 
 	__set_bit(GTP_APN_FL_REALM_DYNAMIC, &apn->flags);
 	return CMD_SUCCESS;
@@ -140,7 +142,7 @@ DEFUN(apn_nameserver,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	struct sockaddr_storage *addr = &apn->nameserver;
 	int ret;
 
@@ -172,7 +174,7 @@ DEFUN(apn_nameserver_bind,
       "Number\n"
       "Persistent connection\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	struct sockaddr_storage *addr = &apn->nameserver_bind;
 	int ret, port;
 
@@ -204,7 +206,7 @@ DEFUN(apn_nameserver_timeout,
       "Define nameserver operation timeout in seconds\n"
       "seconds\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -222,7 +224,7 @@ DEFUN(apn_resolv_max_retry,
       "Define maximum number of retry per nameserver query\n"
       "retry count\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -240,7 +242,7 @@ DEFUN(apn_resolv_cache_update,
       "Define periodic cache updates\n"
       "seconds\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	int sec = 0;
 
 	if (argc < 1) {
@@ -267,7 +269,7 @@ DEFUN(apn_resolv_cache_reload,
       "Force resolv cache update\n"
       "access-point-name string")
 {
-	gtp_apn_t *apn;
+	struct gtp_apn *apn;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -295,9 +297,9 @@ DEFUN(apn_tag_uli_with_serving_node_ip4,
       "Override ULI eCGI/CGI to include serving node IPv4 address\n"
       "PLMN string")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_plmn *egci_plmn = &apn->egci_plmn;
 	uint8_t plmn[GTP_PLMN_MAX_LEN];
-	gtp_plmn_t *egci_plmn = &apn->egci_plmn;
 	int err;
 
 	memset(egci_plmn->plmn, 0xff, GTP_PLMN_MAX_LEN);
@@ -321,7 +323,7 @@ DEFUN(apn_no_tag_uli_with_serving_node_ip4,
       "no tag-uli-with-serving-node-ip4",
       "Override ULI eCGI/CGI to include serving node IPv4 address\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 
 	__clear_bit(GTP_APN_FL_TAG_ULI_WITH_EGCI_PLMN, &apn->flags);
 	__clear_bit(GTP_APN_FL_TAG_ULI_WITH_SERVING_NODE_IP4, &apn->flags);
@@ -329,9 +331,9 @@ DEFUN(apn_no_tag_uli_with_serving_node_ip4,
 }
 
 static int
-apn_service_selection_config_write(vty_t *vty, gtp_apn_t *apn)
+apn_service_selection_config_write(struct vty *vty, struct gtp_apn *apn)
 {
-	gtp_service_t *service;
+	struct gtp_service *service;
 
 	list_for_each_entry(service, &apn->service_selection, next) {
 		if (service->prio)
@@ -355,7 +357,7 @@ DEFUN(apn_service_selection,
       "service\n"
       "priority\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	int prio = 0;
 
 	if (argc < 1) {
@@ -379,8 +381,8 @@ DEFUN(apn_imsi_match,
       "imsi prefix match\n"
       "imsi prefix rewrite\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_rewrite_rule_t *rule;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_rewrite_rule *rule;
 
 	if (argc < 2) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -405,8 +407,8 @@ DEFUN(apn_oi_match,
       "OI match\n"
       "OI rewrite\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_rewrite_rule_t *rule;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_rewrite_rule *rule;
 	int match_label_cnt, rewrite_label_cnt;
 
 	if (argc < 2) {
@@ -439,7 +441,7 @@ DEFUN(apn_session_lifetime,
       "Define GTP session lifetime\n"
       "seconds\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	int sec = 0;
 
 	if (argc < 1) {
@@ -459,7 +461,7 @@ DEFUN(apn_eps_bearer_id,
       "Define Bearer Context EPS Bearer ID\n"
       "INTEGER\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	uint8_t id = 0;
 
 	if (argc < 1) {
@@ -479,7 +481,7 @@ DEFUN(apn_restriction,
       "Define Restriction\n"
       "INTEGER\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	uint8_t value = 0;
 
 	if (argc < 1) {
@@ -548,7 +550,7 @@ apn_indication_bit_get(const char *str, size_t str_len)
 }
 
 static int
-apn_indication_dump_vty(vty_t *vty)
+apn_indication_dump_vty(struct vty *vty)
 {
 	int i;
 
@@ -562,7 +564,7 @@ apn_indication_dump_vty(vty_t *vty)
 }
 
 static int
-apn_indication_config_write(vty_t *vty, gtp_apn_t *apn)
+apn_indication_config_write(struct vty *vty, struct gtp_apn *apn)
 {
 	int i;
 
@@ -582,7 +584,7 @@ DEFUN(apn_indication_flags,
       "indication-flags STRING",
       "Define Indication Flags\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	int fl;
 
 	if (argc < 1) {
@@ -612,8 +614,8 @@ DEFUN(apn_pco_ipcp_primary_ns,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = gtp_apn_pco(apn);
+	struct gtp_apn *apn = vty->index;
+	struct gtp_pco *pco = gtp_apn_pco(apn);
 	struct sockaddr_storage *addr = &pco->ipcp_primary_ns;
 	int ret;
 
@@ -649,8 +651,8 @@ DEFUN(apn_pco_ipcp_secondary_ns,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = gtp_apn_pco(apn);
+	struct gtp_apn *apn = vty->index;
+	struct gtp_pco *pco = gtp_apn_pco(apn);
 	struct sockaddr_storage *addr = &pco->ipcp_secondary_ns;
 	int ret;
 
@@ -678,9 +680,9 @@ DEFUN(apn_pco_ipcp_secondary_ns,
 
 
 static int
-apn_pco_ip_ns_config_write(vty_t *vty, list_head_t *l)
+apn_pco_ip_ns_config_write(struct vty *vty, struct list_head *l)
 {
-	gtp_ns_t *ns;
+	struct gtp_ns *ns;
 
 	list_for_each_entry(ns, l, next) {
 		vty_out(vty, " protocol-configuration-option ip nameserver %s%s"
@@ -692,7 +694,7 @@ apn_pco_ip_ns_config_write(vty_t *vty, list_head_t *l)
 }
 
 static int
-apn_pco_config_write(vty_t *vty, gtp_pco_t *pco)
+apn_pco_config_write(struct vty *vty, struct gtp_pco *pco)
 {
 	if (!pco)
 		return -1;
@@ -729,9 +731,9 @@ DEFUN(apn_pco_ip_ns,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = gtp_apn_pco(apn);
-	gtp_ns_t *new;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_pco *pco = gtp_apn_pco(apn);
+	struct gtp_ns *new;
 	int ret;
 
 	if (argc < 1) {
@@ -767,8 +769,8 @@ DEFUN(apn_pco_ip_link_mtu,
       "Internet Protocol\n"
       "MTU\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = gtp_apn_pco(apn);
+	struct gtp_apn *apn = vty->index;
+	struct gtp_pco *pco = gtp_apn_pco(apn);
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -792,8 +794,8 @@ DEFUN(apn_pco_selected_bearer_control_mode,
       "Procol Configuration Option Selected Bearer Control Mode\n"
       "Bearer Control Mode\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_pco_t *pco = gtp_apn_pco(apn);
+	struct gtp_apn *apn = vty->index;
+	struct gtp_pco *pco = gtp_apn_pco(apn);
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -821,7 +823,7 @@ DEFUN(apn_pdn_address_allocation_pool,
       "Netmask\n"
       "IPv4 Address\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 	uint32_t network, netmask;
 
 	if (argc < 2) {
@@ -846,8 +848,8 @@ DEFUN(apn_ip_vrf_forwarding,
       "ip vrf forwarding STRING",
       "Define IP VRF forwarding\n")
 {
-	gtp_apn_t *apn = vty->index;
-	ip_vrf_t *vrf;
+	struct gtp_apn *apn = vty->index;
+	struct ip_vrf *vrf;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -868,7 +870,7 @@ DEFUN(apn_gtp_session_uniq_ptype,
       "gtp-session-uniq-pdn-type-per-imsi",
       "GTP Session unicity per pdn type and per imsi\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 
 	__set_bit(GTP_APN_FL_SESSION_UNIQ_PTYPE, &apn->flags);
 	return CMD_SUCCESS;
@@ -880,8 +882,8 @@ DEFUN(apn_hplmn,
       "Define a HPLMN\n"
       "PLMN\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_plmn_t *hplmn;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_plmn *hplmn;
 	uint8_t plmn[GTP_PLMN_MAX_LEN];
 	int err;
 
@@ -912,8 +914,8 @@ DEFUN(no_apn_hplmn,
       "Undefine a HPLMN\n"
       "PLMN\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_plmn_t *hplmn;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_plmn *hplmn;
 	uint8_t plmn[GTP_PLMN_MAX_LEN];
 	int err;
 
@@ -944,8 +946,8 @@ DEFUN(apn_cdr_spool,
       "Use a CDR Spool\n"
       "Name\n")
 {
-	gtp_apn_t *apn = vty->index;
-	gtp_cdr_spool_t *s;
+	struct gtp_apn *apn = vty->index;
+	struct gtp_cdr_spool *s;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -973,7 +975,7 @@ DEFUN(no_apn_cdr_spool,
       "Use a CDR Spool\n"
       "Name\n")
 {
-	gtp_apn_t *apn = vty->index;
+	struct gtp_apn *apn = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -998,7 +1000,7 @@ DEFUN(show_apn,
       SHOW_STR
       "Access-Point-Name ruleset\n")
 {
-	gtp_apn_t *apn = NULL;
+	struct gtp_apn *apn = NULL;
 
 	if (argc >= 1) {
 		apn = gtp_apn_get(argv[0]);
@@ -1016,10 +1018,10 @@ DEFUN(show_apn,
 
 /* Configuration writer */
 static int
-apn_config_imsi_match(vty_t *vty, gtp_apn_t *apn)
+apn_config_imsi_match(struct vty *vty, struct gtp_apn *apn)
 {
-        list_head_t *l = &apn->imsi_match;
-	gtp_rewrite_rule_t *rule;
+        struct list_head *l = &apn->imsi_match;
+	struct gtp_rewrite_rule *rule;
 	char match_str[32], rewrite_str[32];
 	char match[8], rewrite[8];
 
@@ -1044,10 +1046,10 @@ apn_config_imsi_match(vty_t *vty, gtp_apn_t *apn)
 }
 
 static int
-apn_config_apn_oi_match(vty_t *vty, gtp_apn_t *apn)
+apn_config_apn_oi_match(struct vty *vty, struct gtp_apn *apn)
 {
-	list_head_t *l = &apn->oi_match;
-	gtp_rewrite_rule_t *rule;
+	struct list_head *l = &apn->oi_match;
+	struct gtp_rewrite_rule *rule;
 
 	list_for_each_entry(rule, l, next) {
 		vty_out(vty, " apn-oi-match %s rewrite %s%s"
@@ -1058,10 +1060,10 @@ apn_config_apn_oi_match(vty_t *vty, gtp_apn_t *apn)
 }
 
 static int
-apn_config_write(vty_t *vty)
+apn_config_write(struct vty *vty)
 {
-        list_head_t *l = &daemon_data->gtp_apn;
-        gtp_apn_t *apn;
+        struct list_head *l = &daemon_data->gtp_apn;
+        struct gtp_apn *apn;
 
         list_for_each_entry(apn, l, next) {
         	vty_out(vty, "access-point-name %s%s", apn->name, VTY_NEWLINE);
@@ -1178,14 +1180,14 @@ cmd_ext_apn_install(void)
 	return 0;
 }
 
-cmd_node_t apn_node = {
+struct cmd_node apn_node = {
 	.node = APN_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(gtp-apn)# ",
 	.config_write = apn_config_write,
 };
 
-static cmd_ext_t cmd_ext_apn = {
+static struct cmd_ext cmd_ext_apn = {
 	.node = &apn_node,
 	.install = cmd_ext_apn_install,
 };

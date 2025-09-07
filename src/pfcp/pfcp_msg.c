@@ -24,6 +24,7 @@
 #include <arpa/inet.h>
 
 #include "pfcp_msg.h"
+#include "rbtree_api.h"
 #include "memory.h"
 #include "pfcp.h"
 #include "utils.h"
@@ -39,7 +40,7 @@
  */
 
 size_t
-pfcp_msg_hlen(pfcp_hdr_t *h)
+pfcp_msg_hlen(struct pfcp_hdr *h)
 {
 	size_t len = PFCP_HEADER_LEN;
 
@@ -53,76 +54,76 @@ static int
 pfcp_msg_ie_cmp(const void *type, const struct rb_node *a)
 {
 	return less_equal_greater_than(ntohs(*((uint16_t *) type)),
-				       ntohs(rb_entry_const(a, pfcp_msg_ie_t, n)->h->type));
+				       ntohs(rb_entry_const(a, struct pfcp_msg_ie, n)->h->type));
 }
 
-pfcp_msg_ie_t *
-pfcp_msg_ie_get(pfcp_msg_t *msg, uint16_t type)
+struct pfcp_msg_ie *
+pfcp_msg_ie_get(struct pfcp_msg *msg, uint16_t type)
 {
-	rb_root_cached_t *root = &msg->ie;
+	struct rb_root_cached *root = &msg->ie;
 	uint16_t t = htons(type);
-	rb_node_t *node;
+	struct rb_node *node;
 
 	node = rb_find(&t, &root->rb_root, pfcp_msg_ie_cmp);
-	return (node) ? rb_entry(node, pfcp_msg_ie_t, n) : NULL;
+	return (node) ? rb_entry(node, struct pfcp_msg_ie, n) : NULL;
 }
 
 static inline bool
-pfcp_msg_ie_less(rb_node_t *a, const rb_node_t *b)
+pfcp_msg_ie_less(struct rb_node *a, const struct rb_node *b)
 {
-	const pfcp_msg_ie_t *r1 = rb_entry_const(a, pfcp_msg_ie_t, n);
-	const pfcp_msg_ie_t *r2 = rb_entry_const(b, pfcp_msg_ie_t, n);
+	const struct pfcp_msg_ie *r1 = rb_entry_const(a, struct pfcp_msg_ie, n);
+	const struct pfcp_msg_ie *r2 = rb_entry_const(b, struct pfcp_msg_ie, n);
 
 	return ntohs(r1->h->type) < ntohs(r2->h->type);
 }
 
-static pfcp_msg_ie_t *
-pfcp_msg_ie_alloc(const uint8_t *buffer, rb_root_cached_t *rbroot)
+static struct pfcp_msg_ie *
+pfcp_msg_ie_alloc(const uint8_t *buffer, struct rb_root_cached *rbroot)
 {
-	pfcp_msg_ie_t *msg_ie;
+	struct pfcp_msg_ie *msg_ie;
 
 	PMALLOC(msg_ie);
 	if (!msg_ie)
 		return NULL;
-	msg_ie->h = (pfcp_ie_t *) buffer;
-	msg_ie->data = buffer + sizeof(pfcp_ie_t);
+	msg_ie->h = (struct pfcp_ie *) buffer;
+	msg_ie->data = buffer + sizeof(struct pfcp_ie);
 	rb_add_cached(&msg_ie->n, rbroot, pfcp_msg_ie_less);
 
 	return msg_ie;
 }
 
 void
-pfcp_msg_ie_destroy(pfcp_msg_ie_t *msg_ie)
+pfcp_msg_ie_destroy(struct pfcp_msg_ie *msg_ie)
 {
 	FREE(msg_ie);
 }
 
 void
-pfcp_msg_ie_dump(const char *prefix, const pfcp_msg_ie_t *msg_ie)
+pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie)
 {
 	printf("%sIE Type : %d\n", prefix, ntohs(msg_ie->h->type));
 	dump_buffer(prefix, (char *) msg_ie->data, ntohs(msg_ie->h->length));
 }
 
 
-pfcp_msg_t *
-pfcp_msg_alloc(const pkt_buffer_t *pbuff)
+struct pfcp_msg *
+pfcp_msg_alloc(const struct pkt_buffer *pbuff)
 {
 	const uint8_t *cp;
 	size_t offset;
-	pfcp_msg_t *msg;
-	pfcp_ie_t *ie;
+	struct pfcp_msg *msg;
+	struct pfcp_ie *ie;
 
 	PMALLOC(msg);
 	if (!msg)
 		return NULL;
-	msg->h = (pfcp_hdr_t *) pbuff->head;
+	msg->h = (struct pfcp_hdr *) pbuff->head;
 	msg->ie = RB_ROOT_CACHED;
 	offset = pfcp_msg_hlen(msg->h);
 
 	for (cp = pbuff->head + offset; cp < pbuff->end; cp += offset) {
-		ie = (pfcp_ie_t *) cp;
-		offset = sizeof(pfcp_ie_t) + ntohs(ie->length);
+		ie = (struct pfcp_ie *) cp;
+		offset = sizeof(struct pfcp_ie) + ntohs(ie->length);
 
 		/* if not the case length is bogus ?! */
 		if (cp + offset > pbuff->end)
@@ -135,10 +136,10 @@ pfcp_msg_alloc(const pkt_buffer_t *pbuff)
 }
 
 void
-pfcp_msg_destroy(pfcp_msg_t *msg)
+pfcp_msg_destroy(struct pfcp_msg *msg)
 {
-	pfcp_msg_ie_t *msg_ie, *_msg_ie;
-	rb_root_cached_t *root = (msg) ? &msg->ie : NULL;
+	struct pfcp_msg_ie *msg_ie, *_msg_ie;
+	struct rb_root_cached *root = (msg) ? &msg->ie : NULL;
 
 	if (!msg)
 		return;
@@ -151,10 +152,10 @@ pfcp_msg_destroy(pfcp_msg_t *msg)
 }
 
 void
-pfcp_msg_dump(const char *prefix, pfcp_msg_t *msg)
+pfcp_msg_dump(const char *prefix, struct pfcp_msg *msg)
 {
-	pfcp_hdr_t *h = msg->h;
-	pfcp_msg_ie_t *msg_ie;
+	struct pfcp_hdr *h = msg->h;
+	struct pfcp_msg_ie *msg_ie;
 
 	printf("%sPacket Forwarding Control Protocol\n", prefix);
 	printf("%sFlags : 0x%.x\n", prefix, h->flags);

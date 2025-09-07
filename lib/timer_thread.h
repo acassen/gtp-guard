@@ -21,7 +21,7 @@
 #pragma once
 
 #include <pthread.h>
-#include "rbtree_api.h"
+#include "rbtree_types.h"
 #include "timer.h"
 
 enum {
@@ -31,7 +31,7 @@ enum {
 #define TIMER_THREAD_NAMESIZ	128
 typedef struct timer_thread {
 	char			name[TIMER_THREAD_NAMESIZ];
-	rb_root_cached_t	timer;
+	struct rb_root_cached	timer;
 	pthread_mutex_t		timer_mutex;
 	pthread_t		task;
 	pthread_cond_t		cond;
@@ -45,7 +45,7 @@ typedef struct timer_node {
 	int		(*to_func) (void *);
 	void		*to_arg;
 	timeval_t	sands;
-	rb_node_t	n;
+	struct rb_node	n;
 } timer_node_t;
 
 

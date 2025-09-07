@@ -35,7 +35,7 @@
 #include "utils.h"
 
 /* Extern data */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 /*
  *	Egress Handling
@@ -43,13 +43,13 @@ extern thread_master_t *master;
 
 /* Packet related */
 static int
-gtp_dpd_build_gtpu(gtp_iptnl_t *t, uint8_t *buffer)
+gtp_dpd_build_gtpu(struct gtp_iptnl *t, uint8_t *buffer)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) buffer;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) buffer;
 	off_t offset = GTPV1U_HEADER_LEN;
-	gtpu_ie_t *ie;
-	gtpu_ie_private_t *priv;
-	uint8_t *payload = buffer + GTPV1U_HEADER_LEN + sizeof(gtpu_ie_t);
+	struct gtpu_ie *ie;
+	struct gtpu_ie_private *priv;
+	uint8_t *payload = buffer + GTPV1U_HEADER_LEN + sizeof(struct gtpu_ie);
 
 	gtph->version = 2;
 	gtph->piggybacked = 0;
@@ -60,26 +60,26 @@ gtp_dpd_build_gtpu(gtp_iptnl_t *t, uint8_t *buffer)
 	gtph->sqn_only = htonl(0x8badf00d);
 
 	if (!t->payload_len)
-		return sizeof(gtp_hdr_t);
+		return sizeof(struct gtp_hdr);
 
-	ie = (gtpu_ie_t *) (buffer + offset);
+	ie = (struct gtpu_ie *) (buffer + offset);
 	ie->type = 0xff;
-	ie->length = htons(t->payload_len-sizeof(gtpu_ie_t)-1);
+	ie->length = htons(t->payload_len-sizeof(struct gtpu_ie)-1);
 
-	offset += sizeof(gtpu_ie_t);
-	priv = (gtpu_ie_private_t *) (buffer + offset);
+	offset += sizeof(struct gtpu_ie);
+	priv = (struct gtpu_ie_private *) (buffer + offset);
 	priv->type = 0;
 	priv->id = htons(0);
-	offset += sizeof(gtpu_ie_private_t);
+	offset += sizeof(struct gtpu_ie_private);
 
 	payload = buffer + offset;
-	memset(payload, '!', t->payload_len-sizeof(gtpu_ie_t)-sizeof(gtpu_ie_private_t));
+	memset(payload, '!', t->payload_len-sizeof(struct gtpu_ie)-sizeof(struct gtpu_ie_private));
 
-	return sizeof(gtp_hdr_t) + t->payload_len;
+	return sizeof(struct gtp_hdr) + t->payload_len;
 }
 
 static int
-gtp_dpd_build_udp(gtp_iptnl_t *t, uint8_t *buffer)
+gtp_dpd_build_udp(struct gtp_iptnl *t, uint8_t *buffer)
 {
 	struct udphdr *udph = (struct udphdr *) buffer;
 
@@ -92,7 +92,7 @@ gtp_dpd_build_udp(gtp_iptnl_t *t, uint8_t *buffer)
 }
 
 static int
-gtp_dpd_build_ip(gtp_iptnl_t *t, uint8_t *buffer)
+gtp_dpd_build_ip(struct gtp_iptnl *t, uint8_t *buffer)
 {
 	struct iphdr *iph = (struct iphdr *) buffer;
 
@@ -115,7 +115,7 @@ gtp_dpd_build_ip(gtp_iptnl_t *t, uint8_t *buffer)
 }
 
 static int
-gtp_dpd_build_ip_encap(gtp_iptnl_t *t, uint8_t *buffer)
+gtp_dpd_build_ip_encap(struct gtp_iptnl *t, uint8_t *buffer)
 {
 	struct iphdr *iph = (struct iphdr *) buffer;
 
@@ -137,7 +137,7 @@ gtp_dpd_build_ip_encap(gtp_iptnl_t *t, uint8_t *buffer)
 }
 
 static int
-gtp_dpd_build_pkt(gtp_iptnl_t *t)
+gtp_dpd_build_pkt(struct gtp_iptnl *t)
 {
 	uint8_t *bufptr = t->send_buffer;
 	size_t offset = 0;
@@ -153,7 +153,7 @@ gtp_dpd_build_pkt(gtp_iptnl_t *t)
 
 /* Socket related */
 static ssize_t
-gtp_dpd_send_pkt(gtp_iptnl_t *t)
+gtp_dpd_send_pkt(struct gtp_iptnl *t)
 {
 	struct sockaddr_in dst;
 	struct msghdr msg;
@@ -178,10 +178,10 @@ gtp_dpd_send_pkt(gtp_iptnl_t *t)
 
 
 static void
-gtp_dpd_timer_thread(thread_t *thread)
+gtp_dpd_timer_thread(struct thread *thread)
 {
-	gtp_proxy_t *p = THREAD_ARG(thread);
-	gtp_iptnl_t *t = &p->iptnl;
+	struct gtp_proxy *p = THREAD_ARG(thread);
+	struct gtp_iptnl *t = &p->iptnl;
 	ssize_t ret;
 
 	ret = gtp_dpd_send_pkt(t);
@@ -243,11 +243,11 @@ gtp_dpd_egress_socket_init(void)
  *	Ingress handling
  */
 static int
-gtp_dpd_ingress_sanitize(gtp_iptnl_t *t)
+gtp_dpd_ingress_sanitize(struct gtp_iptnl *t)
 {
 	struct iphdr *iph = (struct iphdr *) t->recv_buffer;
 	struct udphdr *udph;
-	gtp_hdr_t *gtph;
+	struct gtp_hdr *gtph;
 
 	/* IP Header sanitize */
 	if (iph->protocol != IPPROTO_UDP	||
@@ -261,7 +261,7 @@ gtp_dpd_ingress_sanitize(gtp_iptnl_t *t)
 		return -1;
 
 	/* GTP-U header sanitize */
-	gtph = (gtp_hdr_t *) (t->recv_buffer + sizeof(struct iphdr) + sizeof(struct udphdr));
+	gtph = (struct gtp_hdr *) (t->recv_buffer + sizeof(struct iphdr) + sizeof(struct udphdr));
 	if (gtph->type != GTPU_ECHO_REQ_TYPE || gtph->sqn_only != htonl(0x8badf00d))
 		return -1;
 
@@ -269,35 +269,35 @@ gtp_dpd_ingress_sanitize(gtp_iptnl_t *t)
 }
 
 static void
-gtp_dpd_read_thread(thread_t *thread)
+gtp_dpd_read_thread(struct thread *t)
 {
-	gtp_proxy_t *p = THREAD_ARG(thread);
-	gtp_iptnl_t *t = &p->iptnl;
+	struct gtp_proxy *p = THREAD_ARG(t);
+	struct gtp_iptnl *tnl = &p->iptnl;
 	ssize_t len;
 	int ret;
 
 	/* Handle read timeout */
-	if (thread->type == THREAD_READ_TIMEOUT)
+	if (t->type == THREAD_READ_TIMEOUT)
 		goto end;
 
-	len = read(t->fd_in, (unsigned char *) t->recv_buffer, GTP_BUFFER_SIZE);
+	len = read(tnl->fd_in, (unsigned char *) tnl->recv_buffer, GTP_BUFFER_SIZE);
 	if (len < 0) {
 		log_message(LOG_INFO, "%s(): Error receiving DPD heartbeat (%m)"
 				    , __FUNCTION__);
 		goto end;
 	}
-	t->recv_buffer_size = len;
+	tnl->recv_buffer_size = len;
 
 	/* Sanitize */
-	ret = gtp_dpd_ingress_sanitize(t);
+	ret = gtp_dpd_ingress_sanitize(tnl);
 	if (ret < 0)
 		goto end;
 
 	/* Update expire */
-	t->expire = timer_long(time_now) + t->credit;
+	tnl->expire = timer_long(time_now) + tnl->credit;
 
-  end:
-	t->r_thread = thread_add_read(master, gtp_dpd_read_thread, p, t->fd_in, TIMER_HZ, 0);
+end:
+	tnl->r_thread = thread_add_read(master, gtp_dpd_read_thread, p, tnl->fd_in, TIMER_HZ, 0);
 }
 
 /*
@@ -324,7 +324,7 @@ gtp_dpd_read_thread(thread_t *thread)
  *	(017) ret      #0
  */
 static int
-gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
+gtp_dpd_ingress_socket_init(struct gtp_iptnl *t)
 {
 	int fd, err;
 	struct sock_filter bpfcode[18] = {
@@ -393,9 +393,9 @@ gtp_dpd_ingress_socket_init(gtp_iptnl_t *t)
  *      Dead-Peer-Detection channel
  */
 int
-gtp_dpd_init(gtp_proxy_t *p)
+gtp_dpd_init(struct gtp_proxy *p)
 {
-	gtp_iptnl_t *t = &p->iptnl;
+	struct gtp_iptnl *t = &p->iptnl;
 
 	/* Ingress Channel */
 	t->fd_in = gtp_dpd_ingress_socket_init(t);
@@ -423,9 +423,9 @@ gtp_dpd_init(gtp_proxy_t *p)
 }
 
 int
-gtp_dpd_destroy(gtp_proxy_t *p)
+gtp_dpd_destroy(struct gtp_proxy *p)
 {
-	gtp_iptnl_t *t = &p->iptnl;
+	struct gtp_iptnl *t = &p->iptnl;
 
 	if (!(t->flags & IPTNL_FL_DPD))
 		return -1;

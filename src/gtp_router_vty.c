@@ -33,7 +33,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -45,7 +45,7 @@ DEFUN(gtp_router,
       "Configure GTP routing context\n"
       "Context Name")
 {
-	gtp_router_t *new;
+	struct gtp_router *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -72,7 +72,7 @@ DEFUN(no_gtp_router,
       "Configure GTP routing context\n"
       "Context Name")
 {
-	gtp_router_t *ctx;
+	struct gtp_router *ctx;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -98,8 +98,8 @@ DEFUN(gtp_router_bpf_program,
       "Use BPF Program\n"
       "BPF Program name")
 {
-        gtp_router_t *ctx = vty->index;
-	gtp_bpf_prog_t *p;
+        struct gtp_router *ctx = vty->index;
+	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -126,8 +126,8 @@ DEFUN(gtpc_router_tunnel_endpoint,
       "listening UDP Port (default = 2123)\n"
       "Number\n")
 {
-        gtp_router_t *ctx = vty->index;
-        gtp_server_t *srv = &ctx->gtpc;
+        struct gtp_router *ctx = vty->index;
+        struct gtp_server *srv = &ctx->gtpc;
 	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
@@ -171,8 +171,8 @@ DEFUN(gtpu_router_tunnel_endpoint,
       "listening UDP Port (default = 2152)\n"
       "Number\n")
 {
-	gtp_router_t *ctx = vty->index;
-	gtp_server_t *srv = &ctx->gtpu;
+	struct gtp_router *ctx = vty->index;
+	struct gtp_server *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2152, err = 0;
 
@@ -210,11 +210,11 @@ DEFUN(gtpu_router_tunnel_endpoint,
 
 /* Configuration writer */
 static int
-gtp_config_write(vty_t *vty)
+gtp_config_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->gtp_router_ctx;
-	gtp_server_t *srv;
-	gtp_router_t *ctx;
+	struct list_head *l = &daemon_data->gtp_router_ctx;
+	struct gtp_server *srv;
+	struct gtp_router *ctx;
 
 	list_for_each_entry(ctx, l, next) {
 		vty_out(vty, "gtp-router %s%s", ctx->name, VTY_NEWLINE);
@@ -242,7 +242,7 @@ gtp_config_write(vty_t *vty)
 }
 
 static int
-vty_server(vty_t *vty, gtp_server_t *srv, const char *gtplane)
+vty_server(struct vty *vty, struct gtp_server *srv, const char *gtplane)
 {
 	char flags2str[BUFSIZ];
 	int i, type = -1;
@@ -330,11 +330,11 @@ DEFUN(show_gtp_router,
       "GTPc\n"
       "both GTPu and GTPc\n")
 {
-	const list_head_t *l = &daemon_data->gtp_router_ctx;
+	const struct list_head *l = &daemon_data->gtp_router_ctx;
 	const char *name =  (argc > 0) ? argv[0] : "*";
 	const char *plane = (argc > 2) ? argv[2] : "both";
-	gtp_router_t *ctx;
-	gtp_server_t *srv;
+	struct gtp_router *ctx;
+	struct gtp_server *srv;
 
         list_for_each_entry(ctx, l, next) {
 		char flags2str[BUFSIZ];
@@ -429,14 +429,14 @@ cmd_ext_gtp_router_install(void)
 	return 0;
 }
 
-cmd_node_t gtp_router_node = {
+struct cmd_node gtp_router_node = {
 	.node = GTP_ROUTER_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(gtp-router)# ",
 	.config_write = gtp_config_write,
 };
 
-static cmd_ext_t cmd_ext_gtp_router = {
+static struct cmd_ext cmd_ext_gtp_router = {
 	.node = &gtp_router_node,
 	.install = cmd_ext_gtp_router_install,
 };

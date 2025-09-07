@@ -32,19 +32,19 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	MAP related
  */
 static int
-gtp_bpf_mirror_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
+gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, struct bpf_object *bpf_obj)
 {
 	struct bpf_map *map;
 
 	/* MAP ref for faster access */
-	p->bpf_maps = MALLOC(sizeof(gtp_bpf_maps_t) * TC_MIRROR_MAP_CNT);
+	p->bpf_maps = MALLOC(sizeof(struct gtp_bpf_maps) * TC_MIRROR_MAP_CNT);
 	map = gtp_bpf_load_map(bpf_obj, "mirror_rules");
 	if (!map)
 		return -1;
@@ -58,7 +58,7 @@ gtp_bpf_mirror_load_maps(gtp_bpf_prog_t *p, struct bpf_object *bpf_obj)
  *	Mirroring handling
  */
 static int
-gtp_bpf_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
+gtp_bpf_mirror_rule_set(struct gtp_bpf_mirror_rule *r,  struct gtp_mirror_rule *m)
 {
 	r->addr = ((struct sockaddr_in *) &m->addr)->sin_addr.s_addr;
 	r->port = ((struct sockaddr_in *) &m->addr)->sin_port;
@@ -68,11 +68,11 @@ gtp_bpf_mirror_rule_set(struct gtp_mirror_rule *r,  gtp_mirror_rule_t *m)
 }
 
 int
-gtp_bpf_mirror_action(int action, void *arg, gtp_bpf_prog_t *p)
+gtp_bpf_mirror_action(int action, void *arg, struct gtp_bpf_prog *p)
 {
-	gtp_mirror_rule_t *m = arg;
+	struct gtp_mirror_rule *m = arg;
 	struct bpf_map *map;
-	struct gtp_mirror_rule r;
+	struct gtp_bpf_mirror_rule r;
 	const char *action_str = "adding";
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
@@ -92,12 +92,12 @@ gtp_bpf_mirror_action(int action, void *arg, gtp_bpf_prog_t *p)
 	if (__test_bit(GTP_FL_STOP_BIT, &daemon_data->flags))
 		return 0;
 
-	memset(&r, 0, sizeof(struct gtp_mirror_rule));
+	memset(&r, 0, sizeof(struct gtp_bpf_mirror_rule));
 	gtp_bpf_mirror_rule_set(&r, m);
 
 	if (action == RULE_ADD) {
 		err = bpf_map__update_elem(map, &r.addr, sizeof(uint32_t)
-					      , &r, sizeof(struct gtp_mirror_rule), BPF_NOEXIST);
+					      , &r, sizeof(struct gtp_bpf_mirror_rule), BPF_NOEXIST);
 	} else if (action == RULE_DEL) {
 		action_str = "deleting";
 		err = bpf_map__delete_elem(map, &r.addr, sizeof(uint32_t), 0);
@@ -129,12 +129,12 @@ gtp_bpf_mirror_action(int action, void *arg, gtp_bpf_prog_t *p)
 }
 
 int
-gtp_bpf_mirror_vty(vty_t *vty, gtp_bpf_prog_t *p)
+gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 {
 	struct bpf_map *map;
 	__be32 key, next_key;
-	struct gtp_mirror_rule r;
-	size_t sz = sizeof(struct gtp_mirror_rule);
+	struct gtp_bpf_mirror_rule r;
+	size_t sz = sizeof(struct gtp_bpf_mirror_rule);
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	char ipaddr[16], ifname[IF_NAMESIZE];
 	int err = 0;
@@ -151,7 +151,7 @@ gtp_bpf_mirror_vty(vty_t *vty, gtp_bpf_prog_t *p)
 	/* Walk hashtab */
 	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
 		key = next_key;
-		memset(&r, 0, sizeof(struct gtp_mirror_rule));
+		memset(&r, 0, sizeof(struct gtp_bpf_mirror_rule));
 		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), &r, sz, 0);
 		if (err) {
 			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
@@ -173,7 +173,7 @@ gtp_bpf_mirror_vty(vty_t *vty, gtp_bpf_prog_t *p)
 	return 0;
 }
 
-static gtp_bpf_prog_tpl_t gtp_bpf_tpl_mirror = {
+static struct gtp_bpf_prog_tpl gtp_bpf_tpl_mirror = {
 	.mode = BPF_PROG_MODE_GTP_MIRROR,
 	.description = "gtp-mirror",
 	.loaded = gtp_bpf_mirror_load_maps,

@@ -167,7 +167,7 @@ disk_mmap(int fd, size_t size)
 }
 
 static int
-disk_map(map_file_t *m)
+disk_map(struct map_file *m)
 {
 	if (m->map) {
 		log_message(LOG_INFO, "%s(): Error opening file [%s] (already mapped)"
@@ -200,7 +200,7 @@ disk_map(map_file_t *m)
 }
 
 int
-disk_map_open(map_file_t *m, size_t size)
+disk_map_open(struct map_file *m, size_t size)
 {
 	int err = 0;
 
@@ -230,7 +230,7 @@ end:
 }
 
 int
-disk_map_close(map_file_t *m)
+disk_map_close(struct map_file *m)
 {
 	if (!m)
 		return -1;
@@ -245,7 +245,7 @@ disk_map_close(map_file_t *m)
 }
 
 int
-disk_msync_offset(map_file_t *map_file, off_t offset, size_t ssize, int flags)
+disk_msync_offset(struct map_file *map_file, off_t offset, size_t ssize, int flags)
 {
 	off_t sync_offset;
 	int sync_flags = (flags) ? MS_SYNC : MS_ASYNC;
@@ -262,7 +262,7 @@ disk_msync_offset(map_file_t *map_file, off_t offset, size_t ssize, int flags)
 }
 
 int
-disk_map_resize(map_file_t *m, size_t new_size)
+disk_map_resize(struct map_file *m, size_t new_size)
 {
 	int err = 0;
 
@@ -290,7 +290,7 @@ disk_map_resize(map_file_t *m, size_t new_size)
 }
 
 int
-disk_map_write(map_file_t *m, off_t offset, const void *buf, size_t bsize)
+disk_map_write(struct map_file *m, off_t offset, const void *buf, size_t bsize)
 {
 	void *cp, *end = m->map + m->fstat.st_size;
 
@@ -315,7 +315,7 @@ disk_map_write(map_file_t *m, off_t offset, const void *buf, size_t bsize)
 }
 
 int
-disk_map_write_async(map_file_t *m, off_t offset, const void *buf, size_t bsize)
+disk_map_write_async(struct map_file *m, off_t offset, const void *buf, size_t bsize)
 {
 	int err = disk_map_write(m, offset, buf, bsize);
 
@@ -323,7 +323,7 @@ disk_map_write_async(map_file_t *m, off_t offset, const void *buf, size_t bsize)
 }
 
 int
-disk_map_write_sync(map_file_t *m, off_t offset, const void *buf, size_t bsize)
+disk_map_write_sync(struct map_file *m, off_t offset, const void *buf, size_t bsize)
 {
 	int err = disk_map_write(m, offset, buf, bsize);
 

@@ -36,7 +36,8 @@
 
 /* Move ready thread into ready queue */
 static void
-thread_move_ready(thread_master_t *m, rb_root_cached_t *root, thread_t *t, int type)
+thread_move_ready(struct thread_master *m, struct rb_root_cached *root,
+		  struct thread *t, int type)
 {
 	rb_erase_cached(&t->n, root);
 	INIT_LIST_HEAD(&t->e_list);
@@ -47,13 +48,13 @@ thread_move_ready(thread_master_t *m, rb_root_cached_t *root, thread_t *t, int t
 
 /* Move ready thread into ready queue */
 static void
-thread_rb_move_ready(thread_master_t *m, rb_root_cached_t *root, int type)
+thread_rb_move_ready(struct thread_master *m, struct rb_root_cached *root, int type)
 {
-	thread_t *t;
-	rb_node_t *t_node;
+	struct thread *t;
+	struct rb_node *t_node;
 
 	while ((t_node = rb_first_cached(root))) {
-		t = rb_entry(t_node, thread_t, n);
+		t = rb_entry(t_node, struct thread, n);
 
 		if (t->sands.tv_sec == TIMER_DISABLED || timercmp(&time_now, &t->sands, <))
 			break;
@@ -69,15 +70,15 @@ thread_rb_move_ready(thread_master_t *m, rb_root_cached_t *root, int type)
 
 /* Update timer value */
 static void
-thread_update_timer(rb_root_cached_t *root, timeval_t *timer_min)
+thread_update_timer(struct rb_root_cached *root, timeval_t *timer_min)
 {
-	const thread_t *first;
-	rb_node_t *first_node;
+	const struct thread *first;
+	struct rb_node *first_node;
 
 	if (!(first_node = rb_first_cached(root)))
 		return;
 
-	first = rb_entry(first_node, thread_t, n);
+	first = rb_entry(first_node, struct thread, n);
 
 	if (first->sands.tv_sec == TIMER_DISABLED)
 		return;
@@ -89,7 +90,7 @@ thread_update_timer(rb_root_cached_t *root, timeval_t *timer_min)
 
 /* Compute the wait timer. Take care of timeouted fd */
 static timeval_t
-thread_set_timer(thread_master_t *m)
+thread_set_timer(struct thread_master *m)
 {
 	timeval_t timer_wait, timer_wait_time;
 	struct itimerspec its;
@@ -137,9 +138,9 @@ thread_set_timer(thread_master_t *m)
 }
 
 static void
-thread_timerfd_handler(thread_t *t)
+thread_timerfd_handler(struct thread *t)
 {
-	thread_master_t *m = t->master;
+	struct thread_master *m = t->master;
 	uint64_t expired;
 	ssize_t len;
 
@@ -158,7 +159,7 @@ thread_timerfd_handler(thread_t *t)
 
 /* epoll related */
 static int
-thread_events_resize(thread_master_t *m, int delta)
+thread_events_resize(struct thread_master *m, int delta)
 {
 	unsigned int new_size;
 
@@ -182,23 +183,23 @@ thread_events_resize(thread_master_t *m, int delta)
 }
 
 static inline int
-thread_event_cmp(const void *key, const rb_node_t *a)
+thread_event_cmp(const void *key, const struct rb_node *a)
 {
 	int fd = *((int *) key);
 
-	return fd - rb_entry_const(a, thread_event_t, n)->fd;
+	return fd - rb_entry_const(a, struct thread_event, n)->fd;
 }
 
 static inline bool
-thread_event_less(rb_node_t *a, const rb_node_t *b)
+thread_event_less(struct rb_node *a, const struct rb_node *b)
 {
-	return rb_entry(a, thread_event_t, n)->fd < rb_entry_const(b, thread_event_t, n)->fd;
+	return rb_entry(a, struct thread_event, n)->fd < rb_entry_const(b, struct thread_event, n)->fd;
 }
 
-static thread_event_t *
-thread_event_new(thread_master_t *m, int fd)
+static struct thread_event *
+thread_event_new(struct thread_master *m, int fd)
 {
-	thread_event_t *event;
+	struct thread_event *event;
 
 	PMALLOC(event);
 	if (!event)
@@ -216,22 +217,22 @@ thread_event_new(thread_master_t *m, int fd)
 	return event;
 }
 
-static thread_event_t * __attribute__ ((pure))
-thread_event_get(thread_master_t *m, int fd)
+static struct thread_event * __attribute__ ((pure))
+thread_event_get(struct thread_master *m, int fd)
 {
-	rb_node_t *node;
+	struct rb_node *node;
 
 	node = rb_find(&fd, &m->io_events, thread_event_cmp);
 
 	if (!node)
 		return NULL;
-	return rb_entry(node, thread_event_t, n);
+	return rb_entry(node, struct thread_event, n);
 }
 
 static void
-thread_event_clean(thread_master_t *m)
+thread_event_clean(struct thread_master *m)
 {
-	thread_event_t *tev, *tev_tmp;
+	struct thread_event *tev, *tev_tmp;
 
 	rbtree_postorder_for_each_entry_safe(tev, tev_tmp, &m->io_events, n) {
 		free(tev);
@@ -239,10 +240,10 @@ thread_event_clean(thread_master_t *m)
 }
 
 static int
-thread_event_set(const thread_t *t)
+thread_event_set(const struct thread *t)
 {
-	thread_event_t *event = t->event;
-	thread_master_t *m = t->master;
+	struct thread_event *event = t->event;
+	struct thread_master *m = t->master;
 	struct epoll_event ev = { .events = 0, .data.ptr = event };
 	int op;
 
@@ -267,10 +268,10 @@ thread_event_set(const thread_t *t)
 }
 
 static int
-thread_event_cancel(const thread_t *t)
+thread_event_cancel(const struct thread *t)
 {
-	thread_event_t *event = t->event;
-	thread_master_t *m = t->master;
+	struct thread_event *event = t->event;
+	struct thread_master *m = t->master;
 
 	if (!event) {
 		log_message(LOG_INFO, "scheduler: Error performing epoll_ctl DEL op no event linked?!");
@@ -292,9 +293,9 @@ thread_event_cancel(const thread_t *t)
 }
 
 static int
-thread_event_del(const thread_t *t, unsigned flag)
+thread_event_del(const struct thread *t, unsigned flag)
 {
-	thread_event_t *event = t->event;
+	struct thread_event *event = t->event;
 
 	if (!__test_bit(flag, &event->flags))
 		return 0;
@@ -322,10 +323,10 @@ thread_event_del(const thread_t *t, unsigned flag)
 }
 
 /* Make thread master. */
-thread_master_t *
+struct thread_master *
 thread_make_master(bool nosignal)
 {
-	thread_master_t *new;
+	struct thread_master *new;
 
 	PMALLOC(new);
 
@@ -369,10 +370,10 @@ RB_TIMER_LESS(thread, n);
 
 /* Free all unused thread. */
 static void
-thread_clean_unuse(thread_master_t *m)
+thread_clean_unuse(struct thread_master *m)
 {
-	thread_t *t, *_t;
-	list_head_t *l = &m->unuse;
+	struct thread *t, *_t;
+	struct list_head *l = &m->unuse;
 
 	list_for_each_entry_safe(t, _t, l, e_list) {
 		list_del_init(&t->e_list);
@@ -387,7 +388,7 @@ thread_clean_unuse(thread_master_t *m)
 
 /* Move thread to unuse list. */
 static void
-thread_add_unuse(thread_master_t *m, thread_t *t)
+thread_add_unuse(struct thread_master *m, struct thread *t)
 {
 	assert(m != NULL);
 
@@ -398,9 +399,9 @@ thread_add_unuse(thread_master_t *m, thread_t *t)
 
 /* Move list element to unuse queue */
 static void
-thread_destroy_list(thread_master_t *m, list_head_t *l)
+thread_destroy_list(struct thread_master *m, struct list_head *l)
 {
-	thread_t *t, *_t;
+	struct thread *t, *_t;
 
 	list_for_each_entry_safe(t, _t, l, e_list) {
 		/* The following thread types are relevant for the ready list */
@@ -425,9 +426,9 @@ thread_destroy_list(thread_master_t *m, list_head_t *l)
 }
 
 static void
-thread_destroy_rb(thread_master_t *m, rb_root_cached_t *root)
+thread_destroy_rb(struct thread_master *m, struct rb_root_cached *root)
 {
-	thread_t *t, *_t;
+	struct thread *t, *_t;
 
 	rbtree_postorder_for_each_entry_safe(t, _t, &root->rb_root, n) {
 		/* The following are relevant for the read and write rb lists */
@@ -450,7 +451,7 @@ thread_destroy_rb(thread_master_t *m, rb_root_cached_t *root)
 
 /* Stop thread scheduler. */
 void
-thread_destroy_master(thread_master_t *m)
+thread_destroy_master(struct thread_master *m)
 {
 	if (m->epoll_fd != -1) {
 		close(m->epoll_fd);
@@ -479,31 +480,31 @@ thread_destroy_master(thread_master_t *m)
 }
 
 /* Delete top of the list and return it. */
-static thread_t *
-thread_trim_head(list_head_t *l)
+static struct thread *
+thread_trim_head(struct list_head *l)
 {
-	thread_t *t;
+	struct thread *t;
 
 	if (list_empty(l))
 		return NULL;
 
-	t = list_first_entry(l, thread_t, e_list);
+	t = list_first_entry(l, struct thread, e_list);
 	list_del_init(&t->e_list);
 	return t;
 }
 
 /* Make unique thread id for non pthread version of thread manager. */
 static inline unsigned long
-thread_get_id(thread_master_t *m)
+thread_get_id(struct thread_master *m)
 {
 	return m->id++;
 }
 
 /* Make new thread. */
-static thread_t *
-thread_new(thread_master_t *m)
+static struct thread *
+thread_new(struct thread_master *m)
 {
-	thread_t *new;
+	struct thread *new;
 
 	/* If one thread is already allocated return it */
 	new = thread_trim_head(&m->unuse);
@@ -518,11 +519,11 @@ thread_new(thread_master_t *m)
 }
 
 /* Add new read thread. */
-thread_t *
-thread_add_read_sands(thread_master_t *m, thread_func_t func, void *arg, int fd, const timeval_t *sands, unsigned flags)
+struct thread *
+thread_add_read_sands(struct thread_master *m, thread_func_t func, void *arg, int fd, const timeval_t *sands, unsigned flags)
 {
-	thread_event_t *event;
-	thread_t *t;
+	struct thread_event *event;
+	struct thread *t;
 
 	assert(m != NULL);
 
@@ -572,8 +573,8 @@ thread_add_read_sands(thread_master_t *m, thread_func_t func, void *arg, int fd,
 	return t;
 }
 
-thread_t *
-thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
+struct thread *
+thread_add_read(struct thread_master *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
 {
 	timeval_t sands;
 
@@ -591,10 +592,10 @@ thread_add_read(thread_master_t *m, thread_func_t func, void *arg, int fd, unsig
 
 /* Adjust the timeout of a read thread */
 void
-thread_requeue_read(thread_master_t *m, int fd, const timeval_t *sands)
+thread_requeue_read(struct thread_master *m, int fd, const timeval_t *sands)
 {
-	thread_t *t;
-	thread_event_t *event;
+	struct thread *t;
+	struct thread_event *event;
 
 	event = thread_event_get(m, fd);
 	if (!event || !event->read)
@@ -613,11 +614,11 @@ thread_requeue_read(thread_master_t *m, int fd, const timeval_t *sands)
 }
 
 /* Add new write thread. */
-thread_t *
-thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
+struct thread *
+thread_add_write(struct thread_master *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
 {
-	thread_event_t *event;
-	thread_t *t;
+	struct thread_event *event;
+	struct thread *t;
 
 	assert(m != NULL);
 
@@ -674,7 +675,7 @@ thread_add_write(thread_master_t *m, thread_func_t func, void *arg, int fd, unsi
 }
 
 void
-thread_close_fd(thread_t *t)
+thread_close_fd(struct thread *t)
 {
 	if (t->u.f.fd == -1)
 		return;
@@ -687,10 +688,10 @@ thread_close_fd(thread_t *t)
 }
 
 /* Add timer event thread. */
-thread_t *
-thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigned val, uint64_t timer)
+struct thread *
+thread_add_timer_uval(struct thread_master *m, thread_func_t func, void *arg, unsigned val, uint64_t timer)
 {
-	thread_t *t;
+	struct thread *t;
 
 	assert(m != NULL);
 
@@ -715,14 +716,14 @@ thread_add_timer_uval(thread_master_t *m, thread_func_t func, void *arg, unsigne
 	return t;
 }
 
-thread_t *
-thread_add_timer(thread_master_t *m, thread_func_t func, void *arg, uint64_t timer)
+struct thread *
+thread_add_timer(struct thread_master *m, thread_func_t func, void *arg, uint64_t timer)
 {
 	return thread_add_timer_uval(m, func, arg, 0, timer);
 }
 
 void
-thread_mod_timer(thread_t *t, uint64_t timer)
+thread_mod_timer(struct thread *t, uint64_t timer)
 {
 	timeval_t sands;
 
@@ -738,10 +739,10 @@ thread_mod_timer(thread_t *t, uint64_t timer)
 }
 
 /* Add simple event thread. */
-thread_t *
-thread_add_event(thread_master_t *m, thread_func_t func, void *arg, int val)
+struct thread *
+thread_add_event(struct thread_master *m, thread_func_t func, void *arg, int val)
 {
-	thread_t *t;
+	struct thread *t;
 
 	assert(m != NULL);
 
@@ -758,10 +759,10 @@ thread_add_event(thread_master_t *m, thread_func_t func, void *arg, int val)
 }
 
 /* Add terminate event thread. */
-thread_t *
-thread_add_terminate_event(thread_master_t *m)
+struct thread *
+thread_add_terminate_event(struct thread_master *m)
 {
-	thread_t *t;
+	struct thread *t;
 
 	assert(m != NULL);
 
@@ -780,9 +781,9 @@ thread_add_terminate_event(thread_master_t *m)
 
 /* Remove thread from scheduler. */
 void
-thread_del(thread_t *t)
+thread_del(struct thread *t)
 {
-	thread_master_t *m;
+	struct thread_master *m;
 
 	if (!t)
 		return;
@@ -837,8 +838,8 @@ thread_del(thread_t *t)
 
 
 /* Fetch next ready thread. */
-static list_head_t *
-thread_fetch_next_queue(thread_master_t *m)
+static struct list_head *
+thread_fetch_next_queue(struct thread_master *m)
 {
 	int last_epoll_errno = 0, ret, i;
 	timeval_t earliest_timer;
@@ -914,7 +915,7 @@ thread_fetch_next_queue(thread_master_t *m)
 		/* Handle epoll events */
 		for (i = 0; i < ret; i++) {
 			struct epoll_event *ep_ev;
-			thread_event_t *ev;
+			struct thread_event *ev;
 
 			ep_ev = &m->epoll_events[i];
 			ev = ep_ev->data.ptr;
@@ -970,10 +971,10 @@ thread_fetch_next_queue(thread_master_t *m)
 
 /* Our infinite scheduling loop */
 void
-launch_thread_scheduler(thread_master_t *m)
+launch_thread_scheduler(struct thread_master *m)
 {
-	thread_t *t;
-	list_head_t *thread_list;
+	struct thread *t;
+	struct list_head *thread_list;
 	int thread_type;
 
 	/*

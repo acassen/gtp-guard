@@ -37,7 +37,7 @@
 
 
 /* 3GPP.TS.29.244 7.2.2.1 */
-typedef struct pfcp_hdr {
+struct pfcp_hdr {
 	union {
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -69,7 +69,7 @@ typedef struct pfcp_hdr {
 		uint32_t		sqn_only;
 
 	};
-} __attribute__((packed)) pfcp_hdr_t;
+} __attribute__((packed));
 
 
 /*
@@ -110,10 +110,10 @@ typedef struct pfcp_hdr {
  *	PFCP IE
  */
 /* 3GPP.TS.29.244.8 */
-typedef struct pfcp_ie {
+struct pfcp_ie {
 	uint16_t	type;
 	uint16_t	length;
-} __attribute__((packed)) pfcp_ie_t;
+} __attribute__((packed));
 
 
 

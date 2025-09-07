@@ -44,9 +44,9 @@
  * using the generic single-entry routines.
  */
 
-typedef struct list_head {
+struct list_head {
 	struct list_head *next, *prev;
-} list_head_t;
+};
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 

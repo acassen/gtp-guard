@@ -14,17 +14,17 @@
  * Initialize vector struct.
  * allocalted 'size' slot elements then return vector.
  */
-vector_t *
+struct vector *
 vector_alloc(void)
 {
-	vector_t *v = (vector_t *) MALLOC(sizeof(vector_t));
+	struct vector *v = (struct vector *) MALLOC(sizeof(*v));
 	return v;
 }
 
-vector_t *
+struct vector *
 vector_init(unsigned int size)
 {
-	vector_t *v = vector_alloc();
+	struct vector *v = vector_alloc();
 
 	/* allocate at least one slot */
 	if (size == 0)
@@ -38,7 +38,7 @@ vector_init(unsigned int size)
 
 /* allocated one slot */
 void
-vector_alloc_slot(vector_t *v)
+vector_alloc_slot(struct vector *v)
 {
 	v->allocated += VECTOR_DEFAULT_SIZE;
 	if (v->slot)
@@ -49,7 +49,7 @@ vector_alloc_slot(vector_t *v)
 
 /* Insert a value into a specific slot */
 void
-vector_insert_slot(vector_t *v, int index, void *value)
+vector_insert_slot(struct vector *v, int index, void *value)
 {
 	int i;
 
@@ -60,11 +60,11 @@ vector_insert_slot(vector_t *v, int index, void *value)
 }
 
 /* Copy / dup a vector */
-vector_t *
-vector_copy(vector_t *v)
+struct vector *
+vector_copy(struct vector *v)
 {
 	unsigned int size;
-	vector_t *new = vector_alloc();
+	struct vector *new = vector_alloc();
 
 	new->active = v->active;
 	new->allocated = v->allocated;
@@ -78,7 +78,7 @@ vector_copy(vector_t *v)
 
 /* Check assigned index, and if it runs short double index pointer */
 void
-vector_ensure(vector_t *v, unsigned int num)
+vector_ensure(struct vector *v, unsigned int num)
 {
 	if (v->allocated > num)
 		return;
@@ -96,7 +96,7 @@ vector_ensure(vector_t *v, unsigned int num)
  * after calling this function.
  */
 int
-vector_empty_slot(vector_t *v)
+vector_empty_slot(struct vector *v)
 {
 	unsigned int i;
 
@@ -114,7 +114,7 @@ vector_empty_slot(vector_t *v)
 
 /* Set value to the smallest empty slot. */
 int
-vector_set(vector_t *v, void *val)
+vector_set(struct vector *v, void *val)
 {
 	unsigned int i;
 
@@ -131,7 +131,7 @@ vector_set(vector_t *v, void *val)
 
 /* Set a vector slot value */
 void
-vector_set_slot(vector_t *v, void *val)
+vector_set_slot(struct vector *v, void *val)
 {
 	unsigned int i = v->allocated - 1;
 
@@ -140,7 +140,7 @@ vector_set_slot(vector_t *v, void *val)
 
 /* Set value to specified index slot. */
 int
-vector_set_index(vector_t *v, unsigned int i, const void *val)
+vector_set_index(struct vector *v, unsigned int i, const void *val)
 {
 	vector_ensure(v, i);
 
@@ -154,7 +154,7 @@ vector_set_index(vector_t *v, unsigned int i, const void *val)
 
 /* Look up vector.  */
 void *
-vector_lookup(vector_t *v, unsigned int i)
+vector_lookup(struct vector *v, unsigned int i)
 {
 	if (i >= v->active)
 		return NULL;
@@ -163,7 +163,7 @@ vector_lookup(vector_t *v, unsigned int i)
 
 /* Lookup vector, ensure it. */
 void *
-vector_lookup_ensure(vector_t *v, unsigned int i)
+vector_lookup_ensure(struct vector *v, unsigned int i)
 {
 	vector_ensure(v, i);
 	return v->slot[i];
@@ -171,7 +171,7 @@ vector_lookup_ensure(vector_t *v, unsigned int i)
 
 /* Unset value at specified index slot. */
 void
-vector_unset(vector_t *v, unsigned int i)
+vector_unset(struct vector *v, unsigned int i)
 {
 	if (i >= v->allocated)
 		return;
@@ -187,7 +187,7 @@ vector_unset(vector_t *v, unsigned int i)
 
 /* Count the number of not emplty slot. */
 unsigned int
-vector_count(vector_t *v)
+vector_count(struct vector *v)
 {
 	unsigned int i;
 	unsigned count = 0;
@@ -203,7 +203,7 @@ vector_count(vector_t *v)
 
 /* Free memory vector allocation */
 void
-vector_only_wrapper_free(vector_t *v)
+vector_only_wrapper_free(struct vector *v)
 {
 	FREE(v);
 }
@@ -221,7 +221,7 @@ vector_only_index_free(void *slot)
 }
 
 void
-vector_free(vector_t *v)
+vector_free(struct vector *v)
 {
 	FREE(v->slot);
 	FREE(v);
@@ -229,7 +229,7 @@ vector_free(vector_t *v)
 
 /* dump vector slots */
 void
-vector_dump(vector_t *v)
+vector_dump(struct vector *v)
 {
 	int i;
 
@@ -245,7 +245,7 @@ vector_dump(vector_t *v)
 
 /* String vector related */
 void
-free_strvec(vector_t *strvec)
+free_strvec(struct vector *strvec)
 {
 	int i;
 	char *str;
@@ -263,7 +263,7 @@ free_strvec(vector_t *strvec)
 }
 
 void
-dump_strvec(vector_t *strvec)
+dump_strvec(struct vector *strvec)
 {
 	int i;
 	char *str;

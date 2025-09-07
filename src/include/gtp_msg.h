@@ -21,31 +21,31 @@
 #pragma once
 
 #include <stdint.h>
-#include "rbtree_api.h"
+#include "rbtree_types.h"
 #include "gtp.h"
 #include "pkt_buffer.h"
 
 /*
  *	GTPv2 Message
  */
-typedef struct gtp_msg_ie {
-	gtp_ie_t		*h;
+struct gtp_msg_ie {
+	struct gtp_ie		*h;
 	void const		*data;
 
-	rb_node_t		n;
-} gtp_msg_ie_t;
+	struct rb_node		n;
+};
 
-typedef struct gtp_msg {
-	gtp_hdr_t		*h;
+struct gtp_msg {
+	struct gtp_hdr		*h;
 
-	rb_root_cached_t	ie;
-} gtp_msg_t;
+	struct rb_root_cached	ie;
+};
 
 
 /* Prototypes */
-size_t gtp_msg_hlen(gtp_hdr_t *);
-void gtp_msg_ie_dump(const char *, const gtp_msg_ie_t *);
-gtp_msg_ie_t *gtp_msg_ie_get(gtp_msg_t *, uint8_t);
-gtp_msg_t *gtp_msg_alloc(const pkt_buffer_t *);
-void gtp_msg_destroy(gtp_msg_t *);
-void gtp_msg_dump(const char *, gtp_msg_t *);
+size_t gtp_msg_hlen(struct gtp_hdr *);
+void gtp_msg_ie_dump(const char *, const struct gtp_msg_ie *);
+struct gtp_msg_ie *gtp_msg_ie_get(struct gtp_msg *, uint8_t);
+struct gtp_msg *gtp_msg_alloc(const struct pkt_buffer *);
+void gtp_msg_destroy(struct gtp_msg *);
+void gtp_msg_dump(const char *, struct gtp_msg *);

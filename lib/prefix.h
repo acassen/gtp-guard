@@ -11,7 +11,7 @@
 /*
  *	IPv4 and IPv6 unified prefix structure
  */
-typedef struct _prefix {
+struct prefix {
 	uint8_t		family;
 	uint8_t		prefixlen;
 	union {
@@ -19,19 +19,19 @@ typedef struct _prefix {
 		struct in_addr	prefix4;
 		struct in6_addr	prefix6;
 	} u __attribute__ ((aligned (8)));
-} prefix_t;
+};
 
-typedef struct _prefix_ipv4 {
+struct prefix_ipv4 {
 	uint8_t		family;
 	uint8_t		prefixlen;
 	struct in_addr	prefix __attribute__ ((aligned (8)));
-} prefix_ipv4_t;
+};
 
-typedef struct _prefix_ipv6 {
+struct prefix_ipv6 {
 	uint8_t		family;
 	uint8_t		prefixlen;
 	struct in6_addr	prefix __attribute__ ((aligned (8)));
-} prefix_ipv6_t;
+};
 
 
 /* Max bit/byte length of IPv4 address */
@@ -80,10 +80,10 @@ prefix6_bit(const struct in6_addr *prefix, const uint8_t prefixlen)
 /*
  *	Prototypes
  */
-int prefix_match(const prefix_t *n, const prefix_t *p);
-int prefix_copy(prefix_t *dst, const prefix_t *src);
-int str2prefix(const char *str, prefix_t *p);
-int ip2prefix_ipv4(const uint32_t addr, prefix_t *p);
-prefix_t *prefix_alloc(void);
-void prefix_free(prefix_t *p);
-void prefix_dump(prefix_t *p);
+int prefix_match(const struct prefix *n, const struct prefix *p);
+int prefix_copy(struct prefix *dst, const struct prefix *src);
+int str2prefix(const char *str, struct prefix *p);
+int ip2prefix_ipv4(const uint32_t addr, struct prefix *p);
+struct prefix *prefix_alloc(void);
+void prefix_free(struct prefix *p);
+void prefix_dump(struct prefix *p);

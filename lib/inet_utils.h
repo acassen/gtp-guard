@@ -62,13 +62,13 @@
 	  (__eth_addr)[3] & (__eth_addr)[4] & (__eth_addr)[5]) == 0xff)
 
 /* struct */
-typedef struct _ip_address {
+struct ip_address {
 	uint16_t		family;
 	union {
 		struct in_addr	sin_addr;
 		struct in6_addr	sin6_addr;
 	} u;
-} ip_address_t;
+};
 
 
 /* Prototypes defs */
@@ -79,8 +79,8 @@ char *inet_ntop2(uint32_t addr);
 char *inet_ntoa2(uint32_t addr, char *buffer);
 uint8_t inet_stom(char *str);
 uint8_t inet_stor(char *str);
-int inet_stoipaddress(const char *str, ip_address_t *addr);
-char *inet_ipaddresstos(ip_address_t *addr, char *str);
+int inet_stoipaddress(const char *str, struct ip_address *addr);
+char *inet_ipaddresstos(struct ip_address *addr, char *str);
 int inet_stosockaddr(const char *str, const uint16_t port,
 		     struct sockaddr_storage *addr);
 int inet_ip4tosockaddr(uint32_t addr_ip,

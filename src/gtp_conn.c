@@ -46,7 +46,7 @@ gtp_conn_count_read(void)
  *      Refcounting
  */
 int
-gtp_conn_get(gtp_conn_t *c)
+gtp_conn_get(struct gtp_conn *c)
 {
 	if (!c)
 		return 0;
@@ -55,7 +55,7 @@ gtp_conn_get(gtp_conn_t *c)
 }
 
 int
-gtp_conn_put(gtp_conn_t *c)
+gtp_conn_put(struct gtp_conn *c)
 {
 	if (!c)
 		return 0;
@@ -73,12 +73,12 @@ gtp_conn_hashkey(uint64_t id)
 	return gtp_conn_tab + (jhash_2words((uint32_t)id, (uint32_t) (id >> 32), 0) & CONN_HASHTAB_MASK);
 }
 
-gtp_conn_t *
+struct gtp_conn *
 gtp_conn_get_by_imsi(uint64_t imsi)
 {
 	struct hlist_head *head = gtp_conn_hashkey(imsi);
 	struct hlist_node *n;
-	gtp_conn_t *c;
+	struct gtp_conn *c;
 
 	hlist_for_each_entry(c, n, head, hlist) {
 		if (c->imsi == imsi) {
@@ -91,7 +91,7 @@ gtp_conn_get_by_imsi(uint64_t imsi)
 }
 
 int
-gtp_conn_hash(gtp_conn_t *c)
+gtp_conn_hash(struct gtp_conn *c)
 {
 	struct hlist_head *head;
 
@@ -107,7 +107,7 @@ gtp_conn_hash(gtp_conn_t *c)
 }
 
 int
-gtp_conn_unhash(gtp_conn_t *c)
+gtp_conn_unhash(struct gtp_conn *c)
 {
 	if (!c)
 		return -1;
@@ -120,10 +120,10 @@ gtp_conn_unhash(gtp_conn_t *c)
 }
 
 int
-gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
+gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t imsi)
 {
 	struct hlist_node *n;
-	gtp_conn_t *c;
+	struct gtp_conn *c;
 	int i;
 
 	if (imsi) {
@@ -151,10 +151,10 @@ gtp_conn_vty(vty_t *vty, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t imsi)
 /*
  *	Connection related
  */
-gtp_conn_t *
+struct gtp_conn *
 gtp_conn_alloc(uint64_t imsi)
 {
-	gtp_conn_t *new;
+	struct gtp_conn *new;
 
 	PMALLOC(new);
 	new->imsi = imsi;
@@ -183,7 +183,7 @@ int
 gtp_conn_destroy(void)
 {
 	struct hlist_node *n, *n2;
-	gtp_conn_t *c;
+	struct gtp_conn *c;
 	int i;
 
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {

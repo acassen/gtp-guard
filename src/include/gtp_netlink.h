@@ -25,12 +25,12 @@
 #include "thread.h"
 
 /* types definitions */
-typedef struct nl_handle {
+struct nl_handle {
 	int			fd;
 	uint32_t		nl_pid;
 	__u32			seq;
-	thread_t		*thread;
-} nl_handle_t;
+	struct thread		*thread;
+};
 
 
 /* Defines */

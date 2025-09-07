@@ -23,11 +23,12 @@
 #include <arpa/inet.h>
 
 #include "gtp_msg.h"
+#include "rbtree_api.h"
 #include "memory.h"
 #include "utils.h"
 
 size_t
-gtp_msg_hlen(gtp_hdr_t *h)
+gtp_msg_hlen(struct gtp_hdr *h)
 {
 	size_t len = GTPV2C_HEADER_LEN;
 
@@ -41,75 +42,75 @@ static int
 gtp_msg_ie_cmp(const void *type, const struct rb_node *a)
 {
 	return less_equal_greater_than(*((uint8_t *) type),
-				       rb_entry_const(a, gtp_msg_ie_t, n)->h->type);
+				       rb_entry_const(a, struct gtp_msg_ie, n)->h->type);
 }
 
-gtp_msg_ie_t *
-gtp_msg_ie_get(gtp_msg_t *msg, uint8_t type)
+struct gtp_msg_ie *
+gtp_msg_ie_get(struct gtp_msg *msg, uint8_t type)
 {
-	rb_root_cached_t *root = &msg->ie;
-	rb_node_t *node;
+	struct rb_root_cached *root = &msg->ie;
+	struct rb_node *node;
 
 	node = rb_find(&type, &root->rb_root, gtp_msg_ie_cmp);
-	return (node) ? rb_entry(node, gtp_msg_ie_t, n) : NULL;
+	return (node) ? rb_entry(node, struct gtp_msg_ie, n) : NULL;
 }
 
 static inline bool
-gtp_msg_ie_less(rb_node_t *a, const rb_node_t *b)
+gtp_msg_ie_less(struct rb_node *a, const struct rb_node *b)
 {
-	const gtp_msg_ie_t *r1 = rb_entry_const(a, gtp_msg_ie_t, n);
-	const gtp_msg_ie_t *r2 = rb_entry_const(b, gtp_msg_ie_t, n);
+	const struct gtp_msg_ie *r1 = rb_entry_const(a, struct gtp_msg_ie, n);
+	const struct gtp_msg_ie *r2 = rb_entry_const(b, struct gtp_msg_ie, n);
 
 	return r1->h->type < r2->h->type;
 }
 
-static gtp_msg_ie_t *
-gtp_msg_ie_alloc(const uint8_t *buffer, rb_root_cached_t *rbroot)
+static struct gtp_msg_ie *
+gtp_msg_ie_alloc(const uint8_t *buffer, struct rb_root_cached *rbroot)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 
 	PMALLOC(msg_ie);
 	if (!msg_ie)
 		return NULL;
-	msg_ie->h = (gtp_ie_t *) buffer;
-	msg_ie->data = buffer + sizeof(gtp_ie_t);
+	msg_ie->h = (struct gtp_ie *) buffer;
+	msg_ie->data = buffer + sizeof(struct gtp_ie);
 	rb_add_cached(&msg_ie->n, rbroot, gtp_msg_ie_less);
 
 	return msg_ie;
 }
 
 void
-gtp_msg_ie_destroy(gtp_msg_ie_t *msg_ie)
+gtp_msg_ie_destroy(struct gtp_msg_ie *msg_ie)
 {
 	FREE(msg_ie);
 }
 
 void
-gtp_msg_ie_dump(const char *prefix, const gtp_msg_ie_t *msg_ie)
+gtp_msg_ie_dump(const char *prefix, const struct gtp_msg_ie *msg_ie)
 {
 	printf("%sIE Type : %d\n", prefix, msg_ie->h->type);
 	dump_buffer(prefix, (char *) msg_ie->data, ntohs(msg_ie->h->length));
 }
 
 
-gtp_msg_t *
-gtp_msg_alloc(const pkt_buffer_t *pbuff)
+struct gtp_msg *
+gtp_msg_alloc(const struct pkt_buffer *pbuff)
 {
 	const uint8_t *cp;
 	size_t offset;
-	gtp_msg_t *msg;
-	gtp_ie_t *ie;
+	struct gtp_msg *msg;
+	struct gtp_ie *ie;
 
 	PMALLOC(msg);
 	if (!msg)
 		return NULL;
-	msg->h = (gtp_hdr_t *) pbuff->head;
+	msg->h = (struct gtp_hdr *) pbuff->head;
 	msg->ie = RB_ROOT_CACHED;
 	offset = gtp_msg_hlen(msg->h);
 
 	for (cp = pbuff->head + offset; cp < pbuff->end; cp += offset) {
-		ie = (gtp_ie_t *) cp;
-		offset = sizeof(gtp_ie_t) + ntohs(ie->length);
+		ie = (struct gtp_ie *) cp;
+		offset = sizeof(struct gtp_ie) + ntohs(ie->length);
 
 		/* if not the case length is bogus ?! */
 		if (cp + offset > pbuff->end)
@@ -122,10 +123,10 @@ gtp_msg_alloc(const pkt_buffer_t *pbuff)
 }
 
 void
-gtp_msg_destroy(gtp_msg_t *msg)
+gtp_msg_destroy(struct gtp_msg *msg)
 {
-	gtp_msg_ie_t *msg_ie, *_msg_ie;
-	rb_root_cached_t *root = (msg) ? &msg->ie : NULL;
+	struct gtp_msg_ie *msg_ie, *_msg_ie;
+	struct rb_root_cached *root = (msg) ? &msg->ie : NULL;
 
 	if (!msg)
 		return;
@@ -138,10 +139,10 @@ gtp_msg_destroy(gtp_msg_t *msg)
 }
 
 void
-gtp_msg_dump(const char *prefix, gtp_msg_t *msg)
+gtp_msg_dump(const char *prefix, struct gtp_msg *msg)
 {
-	gtp_hdr_t *h = msg->h;
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_hdr *h = msg->h;
+	struct gtp_msg_ie *msg_ie;
 
 	printf("%sGPRS Tunneling Protocol V2\n", prefix);
 	printf("%sFlags : 0x%.x\n", prefix, h->flags);

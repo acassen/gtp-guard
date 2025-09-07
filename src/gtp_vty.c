@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
 #include <net/if.h>
 
 #include "gtp_data.h"
@@ -34,7 +35,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -123,7 +124,7 @@ DEFUN(restart_counter_file,
 }
 
 static int
-pdn_channel_prepare(int argc, const char **argv, vty_t *vty, inet_server_t *srv)
+pdn_channel_prepare(int argc, const char **argv, struct vty *vty, struct inet_server *srv)
 {
 	struct sockaddr_storage *addr = &srv->addr;
 	int port = 0, err = 0;
@@ -164,7 +165,7 @@ DEFUN(request_channel,
       "listening TCP Port\n"
       "Number\n")
 {
-	inet_server_t *srv = &daemon_data->request_channel;
+	struct inet_server *srv = &daemon_data->request_channel;
 	int err = pdn_channel_prepare(argc, argv, vty, srv);
 
 	if (err != CMD_SUCCESS)
@@ -185,7 +186,7 @@ DEFUN(metrics_channel,
       "listening TCP Port\n"
       "Number\n")
 {
-	inet_server_t *srv = &daemon_data->metrics_channel;
+	struct inet_server *srv = &daemon_data->metrics_channel;
 	int err = pdn_channel_prepare(argc, argv, vty, srv);
 
 	if (err != CMD_SUCCESS)
@@ -218,7 +219,7 @@ DEFUN(gtp_send_echo_request_standard,
       "Number of message to send\n"
       "Number between 1 and 20\n")
 {
-	gtp_cmd_args_t *gtp_cmd_args;
+	struct gtp_cmd_args *gtp_cmd_args;
 	int version, port, err = 0, count = 3;
 
 	if (argc < 3) {
@@ -279,7 +280,7 @@ DEFUN(gtp_send_echo_request_extended,
       "Number of message to send\n"
       "Number between 1 and 20\n")
 {
-	gtp_cmd_args_t *gtp_cmd_args;
+	struct gtp_cmd_args *gtp_cmd_args;
 	int version, port, err = 0, count = 3, ifindex;
 
 	if (argc < 6) {
@@ -333,9 +334,9 @@ DEFUN(gtp_send_echo_request_extended,
 }
 
 static int
-vty_request_worker(inet_worker_t *w, void *arg)
+vty_request_worker(struct inet_worker *w, void *arg)
 {
-	vty_t *vty = (vty_t *) arg;
+	struct vty *vty = (struct vty *) arg;
 	char flags2str[BUFSIZ];
 	char fdpath[PATH_MAX];
 
@@ -358,7 +359,7 @@ DEFUN(show_workers_request_channel,
       "workers tasks\n"
       "pdn request-channel workers\n")
 {
-	inet_server_t *srv = &daemon_data->request_channel;
+	struct inet_server *srv = &daemon_data->request_channel;
 	char addr_str[INET6_ADDRSTRLEN];
 	char flags2str[BUFSIZ];
 
@@ -384,7 +385,7 @@ DEFUN(show_workers_request_channel,
 
 /* Configuration writer */
 static int
-pdn_config_write(vty_t *vty)
+pdn_config_write(struct vty *vty)
 {
 	vty_out(vty, "pdn%s", VTY_NEWLINE);
 	if (daemon_data->nameserver.ss_family)
@@ -429,14 +430,14 @@ cmd_ext_pdn_install(void)
 	return 0;
 }
 
-cmd_node_t pdn_node = {
+struct cmd_node pdn_node = {
 	.node = PDN_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(pdn)# ",
 	.config_write = pdn_config_write,
 };
 
-static cmd_ext_t cmd_ext_pdn = {
+static struct cmd_ext cmd_ext_pdn = {
 	.node = &pdn_node,
 	.install = cmd_ext_pdn_install,
 };

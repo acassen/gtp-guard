@@ -13,7 +13,7 @@
 /*
  *	command definition
  */
-typedef struct _host {
+struct host {
 	char			*name;			/* Host name of this router. */
 
 	char			*password;		/* Password for vty interface. */
@@ -33,10 +33,10 @@ typedef struct _host {
 
 	const char		*motd;			/* Banner configuration. */
 	char			*motdfile;
-} host_t;
+};
 
 /* There are some command levels which called from command node. */
-typedef enum _node_type {
+enum node_type {
 	AUTH_NODE,					/* Authentication mode of vty interface. */
 	VIEW_NODE,					/* View node. Default mode of vty interface. */
 	AUTH_ENABLE_NODE,				/* Authentication mode for change enable. */
@@ -62,10 +62,10 @@ typedef enum _node_type {
 	PFCP_ROUTER_NODE,				/* PFCP Router commands. */
 
 	VTY_NODE,					/* Vty node. */
-} node_type_t;
+};
 
 /* Completion match types. */
-typedef enum match_type {
+enum match_type {
 	no_match,
 	extend_match,
 	ipv4_prefix_match,
@@ -76,44 +76,44 @@ typedef enum match_type {
 	vararg_match,
 	partly_match,
 	exact_match
-} match_type_t;
+};
 
 /* Node which has some commands and prompt string and configuration
  * function pointer . */
-typedef struct cmd_node {
-	node_type_t		node;			/* Node index. */
-	node_type_t		parent_node;		/* Parent Node index. */
+struct cmd_node {
+	enum node_type		node;			/* Node index. */
+	enum node_type		parent_node;		/* Parent Node index. */
 	const char		*prompt;		/* Prompt character at vty interface. */
-	int			(*config_write) (vty_t *);	/* Node's configuration write function */
-	vector_t		*cmd_vector;		/* Vector of this node's command list. */
-} cmd_node_t;
+	int			(*config_write) (struct vty *);	/* Node's configuration write function */
+	struct vector		*cmd_vector;		/* Vector of this node's command list. */
+};
 
-typedef struct cmd_ext {
-	cmd_node_t		*node;
+struct cmd_ext {
+	struct cmd_node		*node;
 	int (*install) (void);
 
-	list_head_t		next;
-} cmd_ext_t;
+	struct list_head	next;
+};
 
 /* Structure of command element. */
-typedef struct cmd_element {
+struct cmd_element {
 	const char		*string;		/* Command specification by string. */
 	int			(*func) (struct cmd_element *,
-					 vty_t *, int, const char *[]);
+					 struct vty *, int, const char *[]);
 	const char		*doc;			/* Documentation of this command. */
 	int			daemon;			/* Daemon to which this command belong. */
-	vector_t		*strvec;		/* Pointing out each description vector. */
+	struct vector		*strvec;		/* Pointing out each description vector. */
 	unsigned int		cmdsize;		/* Command index count. */
 	char			*config;		/* Configuration string */
-	vector_t		*subconfig;		/* Sub configuration string */
+	struct vector		*subconfig;		/* Sub configuration string */
 	uint8_t			attr;			/* Command attributes */
-} cmd_element_t;
+};
 
 /* Command description structure. */
-typedef struct _desc {
+struct desc {
 	char			*cmd;			/* Command string. */
 	char			*str;			/* Command's description. */
-} desc_t;
+};
 
 
 /*
@@ -158,7 +158,7 @@ enum {
 
 /* helper defines for end-user DEFUN* macros */
 #define DEFUN_CMD_ELEMENT(funcname, cmdname, cmdstr, helpstr, attrs, dnum)	\
-	cmd_element_t cmdname = {						\
+	struct cmd_element cmdname = {						\
 		.string = cmdstr,						\
 		.func = funcname,						\
 		.doc = helpstr,							\
@@ -167,11 +167,11 @@ enum {
 	};
 
 #define DEFUN_CMD_FUNC_DECL(funcname) \
-	static int funcname(cmd_element_t *, vty_t *, int, const char *[]);
+	static int funcname(struct cmd_element *, struct vty *, int, const char *[]);
 
 #define DEFUN_CMD_FUNC_TEXT(funcname)						\
-	static int funcname(cmd_element_t *self __attribute__ ((unused)),	\
-			    vty_t *vty __attribute__ ((unused)),		\
+	static int funcname(struct cmd_element *self __attribute__ ((unused)),	\
+			    struct vty *vty __attribute__ ((unused)),		\
 			    int argc __attribute__ ((unused)),			\
 			    const char *argv[] __attribute__ ((unused)))
 
@@ -263,33 +263,33 @@ enum {
 /*
  *	Global vars
  */
-extern cmd_element_t config_exit_cmd;
-extern cmd_element_t config_help_cmd;
-extern cmd_element_t config_list_cmd;
-extern host_t host;
+extern struct cmd_element config_exit_cmd;
+extern struct cmd_element config_help_cmd;
+extern struct cmd_element config_list_cmd;
+extern struct host host;
 extern char *command_cr;
 
 
 /*
  *	Prototypes
  */
-void install_node(cmd_node_t *node);
-void install_default(node_type_t ntype);
-void install_element(node_type_t ntype, cmd_element_t *cmd);
+void install_node(struct cmd_node *node);
+void install_default(enum node_type ntype);
+void install_element(enum node_type ntype, struct cmd_element *cmd);
 void sort_node(void);
 char *argv_concat(const char **argv, int argc, int shift);
-vector_t *cmd_make_strvec(const char *string);
-void cmd_free_strvec(vector_t *v);
-vector_t *cmd_describe_command(vector_t *vline, vty_t *vty, int *status);
-char **cmd_complete_command(vector_t *vline, vty_t *vty, int *status);
-const char *cmd_prompt(node_type_t ntype);
-int config_from_file(vty_t *vty, FILE *fp);
-node_type_t node_parent(node_type_t ntype);
-int cmd_execute_command(vector_t *vline, vty_t *vty, cmd_element_t **cmd,
+struct vector *cmd_make_strvec(const char *string);
+void cmd_free_strvec(struct vector *v);
+struct vector *cmd_describe_command(struct vector *vline, struct vty *vty, int *status);
+char **cmd_complete_command(struct vector *vline, struct vty *vty, int *status);
+const char *cmd_prompt(enum node_type ntype);
+int config_from_file(struct vty *vty, FILE *fp);
+enum node_type node_parent(enum node_type ntype);
+int cmd_execute_command(struct vector *vline, struct vty *vty, struct cmd_element **cmd,
 			int vtysh);
-int cmd_execute_command_strict(vector_t *vline, vty_t *vty,
-			       cmd_element_t **cmd);
-void cmd_ext_register(cmd_ext_t *ext);
+int cmd_execute_command_strict(struct vector *vline, struct vty *vty,
+			       struct cmd_element **cmd);
+void cmd_ext_register(struct cmd_ext *ext);
 void cmd_init(void);
 void cmd_terminate(void);
 char *host_config_file(void);

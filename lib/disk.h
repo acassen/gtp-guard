@@ -30,12 +30,12 @@
 #define DISK_SYNC	1
 
 /* Map file */
-typedef struct _map_file {
+struct map_file {
 	char			path[PATH_MAX_LEN];
 	struct stat		fstat;
 	int			fd;
 	void			*map;
-} map_file_t;
+};
 
 /* Prototypes */
 int disk_create(char *pathname, bool append);
@@ -43,14 +43,14 @@ void disk_close_fd(int *fd);
 int disk_rm(const char *pathname);
 int disk_mv(char *pathsrc, char *pathdst);
 int disk_chown(const char *pathname, uid_t uid, gid_t gid);
-int disk_map_open(map_file_t *m, size_t size);
-int disk_map_close(map_file_t *m);
-int disk_msync_offset(map_file_t *m, off_t offset,
+int disk_map_open(struct map_file *m, size_t size);
+int disk_map_close(struct map_file *m);
+int disk_msync_offset(struct map_file *m, off_t offset,
 		      size_t ssize, int flags);
-int disk_map_resize(map_file_t *m, size_t new_size);
-int disk_map_write(map_file_t *m, off_t offset,
+int disk_map_resize(struct map_file *m, size_t new_size);
+int disk_map_write(struct map_file *m, off_t offset,
 		   const void *buf, size_t bsize);
-int disk_map_write_sync(map_file_t *m, off_t offset, const void *buffer, size_t bsize);
-int disk_map_write_async(map_file_t *m, off_t offset, const void *buffer, size_t bsize);
+int disk_map_write_sync(struct map_file *m, off_t offset, const void *buffer, size_t bsize);
+int disk_map_write_async(struct map_file *m, off_t offset, const void *buffer, size_t bsize);
 int disk_write(int fd, const void *buffer, int size);
 int disk_read(int fd, void *buffer, int size);

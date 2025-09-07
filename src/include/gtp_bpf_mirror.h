@@ -29,7 +29,7 @@ enum {
 	TC_MIRROR_MAP_CNT
 };
 
-struct gtp_mirror_rule {
+struct gtp_bpf_mirror_rule {
 	__be32	addr;
 	__be16	port;
 	__u8	protocol;
@@ -38,5 +38,5 @@ struct gtp_mirror_rule {
 
 
 /* Prototypes */
-int gtp_bpf_mirror_action(int, void *, gtp_bpf_prog_t *);
-int gtp_bpf_mirror_vty(vty_t *, gtp_bpf_prog_t *);
+int gtp_bpf_mirror_action(int, void *, struct gtp_bpf_prog *);
+int gtp_bpf_mirror_vty(struct vty *, struct gtp_bpf_prog *);

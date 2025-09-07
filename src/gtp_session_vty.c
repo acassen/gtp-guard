@@ -32,9 +32,9 @@
  *	VTY Command
  */
 static int
-__gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
+__gtp_session_teid_cp_vty(struct vty *vty, struct list_head *l)
 {
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	/* Walk the line */
 	list_for_each_entry(t, l, next) {
@@ -56,9 +56,9 @@ __gtp_session_teid_cp_vty(vty_t *vty, list_head_t *l)
 }
 
 static int
-__gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
+__gtp_session_teid_up_vty(struct vty *vty, struct list_head *l)
 {
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	/* Walk the line */
 	list_for_each_entry(t, l, next) {
@@ -81,11 +81,11 @@ __gtp_session_teid_up_vty(vty_t *vty, list_head_t *l)
 }
 
 int
-gtp_session_vty(vty_t *vty, gtp_conn_t *c)
+gtp_session_vty(struct vty *vty, struct gtp_conn *c)
 {
-	list_head_t *l = &c->gtp_sessions;
+	struct list_head *l = &c->gtp_sessions;
+	struct gtp_session *s;
 	time_t timeout = 0;
-	gtp_session_t *s;
 	struct tm *t;
 
 	/* Walk the line */
@@ -116,12 +116,12 @@ gtp_session_vty(vty_t *vty, gtp_conn_t *c)
 }
 
 int
-gtp_session_summary_vty(vty_t *vty, gtp_conn_t *c)
+gtp_session_summary_vty(struct vty *vty, struct gtp_conn *c)
 {
-	list_head_t *l = &c->gtp_sessions;
+	struct list_head *l = &c->gtp_sessions;
+	struct gtp_session *s;
 	time_t timeout = 0;
-	gtp_session_t *s;
-	gtp_apn_t *apn = NULL;
+	struct gtp_apn *apn = NULL;
 
 	/* Walk the line */
 	list_for_each_entry(s, l, next) {
@@ -186,8 +186,8 @@ DEFUN(clear_gtp_session,
       "GTP Session\n"
       "IMSI\n")
 {
+	struct gtp_conn *c;
 	uint64_t imsi = 0;
-	gtp_conn_t *c;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -221,7 +221,7 @@ cmd_ext_gtp_session_install(void)
 	return 0;
 }
 
-static cmd_ext_t cmd_ext_gtp_session = {
+static struct cmd_ext cmd_ext_gtp_session = {
 	.install = cmd_ext_gtp_session_install,
 };
 

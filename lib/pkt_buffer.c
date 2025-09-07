@@ -33,7 +33,7 @@
  *	Pkt helpers
  */
 ssize_t
-pkt_send(int fd, pkt_queue_t *q, pkt_t *p)
+pkt_send(int fd, struct pkt_queue *q, struct pkt *p)
 {
 	ssize_t ret;
 
@@ -43,7 +43,7 @@ pkt_send(int fd, pkt_queue_t *q, pkt_t *p)
 }
 
 ssize_t
-pkt_recv(int fd, pkt_t *p)
+pkt_recv(int fd, struct pkt *p)
 {
 	ssize_t nbytes;
 
@@ -60,9 +60,9 @@ pkt_recv(int fd, pkt_t *p)
  *	Pkt queue helpers
  */
 void
-pkt_queue_run(pkt_queue_t *q, int (*run) (pkt_t *, void *), void *arg)
+pkt_queue_run(struct pkt_queue *q, int (*run) (struct pkt *, void *), void *arg)
 {
-	pkt_t *p, *_p;
+	struct pkt *p, *_p;
 
 	pthread_mutex_lock(&q->mutex);
 	list_for_each_entry_safe(p, _p, &q->queue, next) {
@@ -75,10 +75,10 @@ pkt_queue_run(pkt_queue_t *q, int (*run) (pkt_t *, void *), void *arg)
 	pthread_mutex_unlock(&q->mutex);
 }
 
-static pkt_t *
+static struct pkt *
 pkt_alloc(unsigned int size)
 {
-	pkt_t *p;
+	struct pkt *p;
 
 	PMALLOC(p);
 	if (!p)
@@ -94,16 +94,16 @@ pkt_alloc(unsigned int size)
 }
 
 static void
-pkt_free(pkt_t *p)
+pkt_free(struct pkt *p)
 {
 	pkt_buffer_free(p->pbuff);
 	FREE(p);
 }
 
-pkt_t *
-pkt_queue_get(pkt_queue_t *q)
+struct pkt *
+pkt_queue_get(struct pkt_queue *q)
 {
-	pkt_t *pkt;
+	struct pkt *pkt;
 
 	pthread_mutex_lock(&q->mutex);
 	if (list_empty(&q->queue)) {
@@ -111,7 +111,7 @@ pkt_queue_get(pkt_queue_t *q)
 		return pkt_alloc(DEFAULT_PKT_BUFFER_SIZE);
 	}
 
-	pkt = list_first_entry(&q->queue, pkt_t, next);
+	pkt = list_first_entry(&q->queue, struct pkt, next);
 	list_del_init(&pkt->next);
 	pthread_mutex_unlock(&q->mutex);
 	pkt_buffer_reset(pkt->pbuff);
@@ -119,7 +119,7 @@ pkt_queue_get(pkt_queue_t *q)
 }
 
 int
-__pkt_queue_put(pkt_queue_t *q, pkt_t *p)
+__pkt_queue_put(struct pkt_queue *q, struct pkt *p)
 {
 	if (!p)
 		return -1;
@@ -129,7 +129,7 @@ __pkt_queue_put(pkt_queue_t *q, pkt_t *p)
 }
 
 int
-pkt_queue_put(pkt_queue_t *q, pkt_t *p)
+pkt_queue_put(struct pkt_queue *q, struct pkt *p)
 {
 	pthread_mutex_lock(&q->mutex);
 	__pkt_queue_put(q, p);
@@ -138,7 +138,7 @@ pkt_queue_put(pkt_queue_t *q, pkt_t *p)
 }
 
 int
-pkt_queue_init(pkt_queue_t *q)
+pkt_queue_init(struct pkt_queue *q)
 {
 	INIT_LIST_HEAD(&q->queue);
 	pthread_mutex_init(&q->mutex, NULL);
@@ -146,9 +146,9 @@ pkt_queue_init(pkt_queue_t *q)
 }
 
 int
-pkt_queue_destroy(pkt_queue_t *q)
+pkt_queue_destroy(struct pkt_queue *q)
 {
-	pkt_t *pkt, *_pkt;
+	struct pkt *pkt, *_pkt;
 
 	pthread_mutex_lock(&q->mutex);
 	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {
@@ -165,7 +165,7 @@ pkt_queue_destroy(pkt_queue_t *q)
  *	mpkt helpers
  */
 int
-mpkt_dump(mpkt_t *mp, int count)
+mpkt_dump(struct mpkt *mp, int count)
 {
 	int i;
 
@@ -180,7 +180,7 @@ mpkt_dump(mpkt_t *mp, int count)
 }
 
 int
-mpkt_recv(int fd, mpkt_t *mp)
+mpkt_recv(int fd, struct mpkt *mp)
 {
 	int ret, i;
 
@@ -195,10 +195,10 @@ mpkt_recv(int fd, mpkt_t *mp)
 }
 
 int
-mpkt_init(mpkt_t *mp, unsigned int vlen)
+mpkt_init(struct mpkt *mp, unsigned int vlen)
 {
 	mp->vlen = vlen;
-	mp->pkt = MALLOC(sizeof(pkt_t) * vlen);
+	mp->pkt = MALLOC(sizeof(struct pkt) * vlen);
 	if (!mp->pkt)
 		return -1;
 	mp->msgs = MALLOC(sizeof(struct mmsghdr) * vlen);
@@ -217,7 +217,7 @@ mpkt_init(mpkt_t *mp, unsigned int vlen)
 }
 
 void
-mpkt_process(mpkt_t *mp, unsigned int vlen, void (*process) (pkt_t *, void *), void *arg)
+mpkt_process(struct mpkt *mp, unsigned int vlen, void (*process) (struct pkt *, void *), void *arg)
 {
 	int i;
 
@@ -226,7 +226,7 @@ mpkt_process(mpkt_t *mp, unsigned int vlen, void (*process) (pkt_t *, void *), v
 }
 
 static void
-mpkt_release(mpkt_t *mp)
+mpkt_release(struct mpkt *mp)
 {
 	int i;
 	for (i=0; i < mp->vlen; i++) {
@@ -239,7 +239,7 @@ mpkt_release(mpkt_t *mp)
 }
 
 void
-mpkt_destroy(mpkt_t *mp)
+mpkt_destroy(struct mpkt *mp)
 {
 	mpkt_release(mp);
 	FREE(mp->msgs);
@@ -247,9 +247,9 @@ mpkt_destroy(mpkt_t *mp)
 }
 
 static int
-mpkt_alloc(mpkt_t *mp, unsigned int size)
+mpkt_alloc(struct mpkt *mp, unsigned int size)
 {
-	pkt_t *pkt;
+	struct pkt *pkt;
 	int i;
 
 	for (i=0; i < mp->vlen; i++) {
@@ -263,7 +263,7 @@ mpkt_alloc(mpkt_t *mp, unsigned int size)
 }
 
 static void
-mpkt_prepare(mpkt_t *mp)
+mpkt_prepare(struct mpkt *mp)
 {
 	int i;
 
@@ -276,7 +276,7 @@ mpkt_prepare(mpkt_t *mp)
 }
 
 void
-mpkt_reset(mpkt_t *mp)
+mpkt_reset(struct mpkt *mp)
 {
 	int i;
 
@@ -285,9 +285,9 @@ mpkt_reset(mpkt_t *mp)
 }
 
 int
-__pkt_queue_mget(pkt_queue_t *q, mpkt_t *mp)
+__pkt_queue_mget(struct pkt_queue *q, struct mpkt *mp)
 {
-	pkt_t *pkt, *_pkt;
+	struct pkt *pkt, *_pkt;
 	int ret, i, idx = 0;
 
 	if (list_empty(&q->queue)) {
@@ -329,7 +329,7 @@ __pkt_queue_mget(pkt_queue_t *q, mpkt_t *mp)
 }
 
 int
-pkt_queue_mget(pkt_queue_t *q, mpkt_t *mp)
+pkt_queue_mget(struct pkt_queue *q, struct mpkt *mp)
 {
 	pthread_mutex_lock(&q->mutex);
 	__pkt_queue_mget(q, mp);
@@ -338,9 +338,9 @@ pkt_queue_mget(pkt_queue_t *q, mpkt_t *mp)
 }
 
 int
-__pkt_queue_mput(pkt_queue_t *q, mpkt_t *mp)
+__pkt_queue_mput(struct pkt_queue *q, struct mpkt *mp)
 {
-	pkt_t *pkt;
+	struct pkt *pkt;
 	int i;
 
 	for (i=0; i < mp->vlen; i++) {
@@ -355,7 +355,7 @@ __pkt_queue_mput(pkt_queue_t *q, mpkt_t *mp)
 }
 
 int
-pkt_queue_mput(pkt_queue_t *q, mpkt_t *mp)
+pkt_queue_mput(struct pkt_queue *q, struct mpkt *mp)
 {
 	pthread_mutex_lock(&q->mutex);
 	__pkt_queue_mput(q, mp);
@@ -369,7 +369,7 @@ pkt_queue_mput(pkt_queue_t *q, mpkt_t *mp)
  *	Pkt buffer helpers
  */
 ssize_t
-pkt_buffer_send(int fd, pkt_buffer_t *b, struct sockaddr_storage *addr)
+pkt_buffer_send(int fd, struct pkt_buffer *b, struct sockaddr_storage *addr)
 {
 	struct iovec iov = { .iov_base = b->head, .iov_len = pkt_buffer_len(b) };
 	struct msghdr msg = {
@@ -396,7 +396,7 @@ pkt_buffer_send(int fd, pkt_buffer_t *b, struct sockaddr_storage *addr)
 }
 
 int
-pkt_buffer_put_zero(pkt_buffer_t *b, unsigned int size)
+pkt_buffer_put_zero(struct pkt_buffer *b, unsigned int size)
 {
 	if (pkt_buffer_tailroom(b) < size)
 		return -1;
@@ -407,7 +407,7 @@ pkt_buffer_put_zero(pkt_buffer_t *b, unsigned int size)
 }
 
 int
-pkt_buffer_pad(pkt_buffer_t *b, unsigned int size)
+pkt_buffer_pad(struct pkt_buffer *b, unsigned int size)
 {
 	int len = pkt_buffer_len(b);
 
@@ -417,10 +417,10 @@ pkt_buffer_pad(pkt_buffer_t *b, unsigned int size)
 	return pkt_buffer_put_zero(b, size - len);
 }
 
-pkt_buffer_t *
+struct pkt_buffer *
 pkt_buffer_alloc(unsigned int size)
 {
-	pkt_buffer_t *new;
+	struct pkt_buffer *new;
 	void *data;
 
 	PMALLOC(new);
@@ -440,7 +440,7 @@ pkt_buffer_alloc(unsigned int size)
 }
 
 void
-pkt_buffer_free(pkt_buffer_t *b)
+pkt_buffer_free(struct pkt_buffer *b)
 {
 	if (!b)
 		return;

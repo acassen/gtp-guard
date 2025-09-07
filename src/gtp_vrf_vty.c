@@ -30,7 +30,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 /* Local data */
 static uint32_t gtp_vrf_id;
@@ -45,7 +45,7 @@ DEFUN(ip_vrf,
       "Configure IP VRF\n"
       "VRF Name")
 {
-	ip_vrf_t *new;
+	struct ip_vrf *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -71,7 +71,7 @@ DEFUN(no_ip_vrf,
       "Destroy IP VRF\n"
       "VRF Name")
 {
-	ip_vrf_t *vrf;
+	struct ip_vrf *vrf;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -97,7 +97,7 @@ DEFUN(ip_vrf_description,
       "IP VRF Description\n"
       "Description String")
 {
-	ip_vrf_t *vrf = vty->index;
+	struct ip_vrf *vrf = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -114,7 +114,7 @@ DEFUN(ip_vrf_gtp_udp_port_learning,
       "gtp-udp-port-learning",
       "GTP-U UDP src-port learning\n")
 {
-	ip_vrf_t *vrf = vty->index;
+	struct ip_vrf *vrf = vty->index;
 
 	__set_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags);
 	return CMD_SUCCESS;
@@ -125,7 +125,7 @@ DEFUN(no_ip_vrf_gtp_udp_port_learning,
       "no gtp-udp-port-learning",
       "GTP-U UDP src-port learning\n")
 {
-	ip_vrf_t *vrf = vty->index;
+	struct ip_vrf *vrf = vty->index;
 
 	__clear_bit(IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT, &vrf->flags);
 	return CMD_SUCCESS;
@@ -136,7 +136,7 @@ DEFUN(ip_vrf_direct_tx,
       "direct-tx",
       "xmit packet to the same interface it was received on\n")
 {
-	ip_vrf_t *vrf = vty->index;
+	struct ip_vrf *vrf = vty->index;
 
 	__set_bit(IP_VRF_FL_DIRECT_TX_BIT, &vrf->flags);
 	return CMD_SUCCESS;
@@ -147,7 +147,7 @@ DEFUN(no_ip_vrf_direct_tx,
       "no direct-tx",
       "xmit packet to the same interface it was received on\n")
 {
-	ip_vrf_t *vrf = vty->index;
+	struct ip_vrf *vrf = vty->index;
 
 	__clear_bit(IP_VRF_FL_DIRECT_TX_BIT, &vrf->flags);
 	return CMD_SUCCESS;
@@ -160,8 +160,8 @@ DEFUN(ip_vrf_encapsulation_dot1q,
       "802.1q type\n"
       "Vlan ID between 1 and 65535\n")
 {
-	ip_vrf_t *vrf = vty->index;
-	gtp_iptnl_t *t = &vrf->iptnl;
+	struct ip_vrf *vrf = vty->index;
+	struct gtp_iptnl *t = &vrf->iptnl;
 	int vlan_id;
 
 	if (argc < 1) {
@@ -185,8 +185,8 @@ DEFUN(ip_vrf_decapsulation_dot1q,
       "802.1q type\n"
       "Vlan ID between 1 and 65535\n")
 {
-	ip_vrf_t *vrf = vty->index;
-	gtp_iptnl_t *t = &vrf->iptnl;
+	struct ip_vrf *vrf = vty->index;
+	struct gtp_iptnl *t = &vrf->iptnl;
 	int vlan_id;
 
 	if (argc < 1) {
@@ -215,8 +215,8 @@ DEFUN(ip_vrf_encapsulation_ipip,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-	ip_vrf_t *vrf = vty->index;
-	gtp_iptnl_t *t = &vrf->iptnl;
+	struct ip_vrf *vrf = vty->index;
+	struct gtp_iptnl *t = &vrf->iptnl;
 	uint32_t laddr, raddr;
 	int ret;
 
@@ -243,7 +243,7 @@ DEFUN(ip_vrf_encapsulation_ipip,
 	ret = gtp_bpf_rt_iptnl_action(RULE_ADD, t);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to create XDP IPIP-Tunnel%s", VTY_NEWLINE);
-		memset(t, 0, sizeof(gtp_iptnl_t));
+		memset(t, 0, sizeof(struct gtp_iptnl));
 		return CMD_WARNING;
 	}
 
@@ -258,8 +258,8 @@ DEFUN(ip_vrf_pppoe,
       "Instance\n"
       "NAME\n")
 {
-	ip_vrf_t *vrf = vty->index;
-	pppoe_t *pppoe;
+	struct ip_vrf *vrf = vty->index;
+	struct pppoe *pppoe;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -294,8 +294,8 @@ DEFUN(ip_vrf_pppoe_bundle,
       "Bundle\n"
       "NAME\n")
 {
-	ip_vrf_t *vrf = vty->index;
-	pppoe_bundle_t *bundle;
+	struct ip_vrf *vrf = vty->index;
+	struct pppoe_bundle *bundle;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -334,7 +334,7 @@ DEFUN(show_ip_vrf,
       "IP VRF\n"
       "VRF")
 {
-	ip_vrf_t *vrf;
+	struct ip_vrf *vrf;
 	const char *vrf_name = NULL;
 
 	if (list_empty(&daemon_data->ip_vrf)) {
@@ -359,12 +359,12 @@ DEFUN(show_ip_vrf,
 
 /* Configuration writer */
 static int
-gtp_config_write(vty_t *vty)
+gtp_config_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->ip_vrf;
-	pppoe_t *pppoe;
-	pppoe_bundle_t *bundle;
-	ip_vrf_t *vrf;
+	struct list_head *l = &daemon_data->ip_vrf;
+	struct pppoe *pppoe;
+	struct pppoe_bundle *bundle;
+	struct ip_vrf *vrf;
 
         list_for_each_entry(vrf, l, next) {
 		vty_out(vty, "ip vrf %s%s", vrf->name, VTY_NEWLINE);
@@ -427,14 +427,14 @@ cmd_ext_ip_vrf_install(void)
 	return 0;
 }
 
-cmd_node_t ip_vrf_node = {
+struct cmd_node ip_vrf_node = {
 	.node = IP_VRF_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt ="%s(ip-vrf)# ",
 	.config_write = gtp_config_write,
 };
 
-static cmd_ext_t cmd_ext_ip_vrf = {
+static struct cmd_ext cmd_ext_ip_vrf = {
 	.node = &ip_vrf_node,
 	.install = cmd_ext_ip_vrf_install,
 };

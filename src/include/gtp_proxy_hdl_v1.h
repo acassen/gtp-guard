@@ -25,4 +25,4 @@
 #include "gtp_teid.h"
 
 /* Prototypes */
-gtp_teid_t *gtpc_proxy_handle_v1(gtp_server_t *, struct sockaddr_storage *);
+struct gtp_teid *gtpc_proxy_handle_v1(struct gtp_server *, struct sockaddr_storage *);

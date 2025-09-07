@@ -34,7 +34,7 @@
  * https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
  */
 static int
-gtp_interface_nl_rx_dump(gtp_interface_t *iface, FILE *fp,
+gtp_interface_nl_rx_dump(struct gtp_interface *iface, FILE *fp,
 			 const char *var, __u8 type)
 {
 	struct rtnl_link_stats64 *s = iface->link_metrics;
@@ -81,7 +81,7 @@ gtp_interface_nl_rx_dump(gtp_interface_t *iface, FILE *fp,
 }
 
 static int
-gtp_interface_nl_tx_dump(gtp_interface_t *iface, FILE *fp,
+gtp_interface_nl_tx_dump(struct gtp_interface *iface, FILE *fp,
 			 const char *var, __u8 type)
 {
 	struct rtnl_link_stats64 *s = iface->link_metrics;
@@ -119,7 +119,7 @@ gtp_interface_nl_tx_dump(gtp_interface_t *iface, FILE *fp,
 }
 
 static int
-link_metrics_var_dump(gtp_interface_t *iface, void *arg,
+link_metrics_var_dump(struct gtp_interface *iface, void *arg,
 		      const char *var, int var_type,
 		      __u8 type, __u8 direction)
 {
@@ -194,7 +194,7 @@ gtp_interface_nl_metrics_dump(FILE *fp)
 
 
 static int
-gtp_interface_metric_inuse(gtp_interface_t *iface, void *arg)
+gtp_interface_metric_inuse(struct gtp_interface *iface, void *arg)
 {
 	__u16 *type = arg;
 
@@ -238,11 +238,11 @@ gtp_bytes_dropped_dump(void *arg, __u8 type, __u8 direction, struct metrics *m)
 }
 
 static int
-gtp_interface_metrics_var_dump(gtp_interface_t *iface, void *arg,
+gtp_interface_metrics_var_dump(struct gtp_interface *iface, void *arg,
 			       const char *var, int var_type,
 			       __u8 type, __u8 direction)
 {
-	gtp_bpf_prog_t *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
+	struct gtp_bpf_prog *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
 	__u16 inuse = type << 8;
 	FILE *fp = arg;
 

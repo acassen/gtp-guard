@@ -19,22 +19,24 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "gtp_data.h"
 #include "gtp_vrf.h"
 #include "memory.h"
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	IP VRF init
  */
-ip_vrf_t *
+struct ip_vrf *
 gtp_ip_vrf_get(const char *name)
 {
-	ip_vrf_t *vrf;
+	struct ip_vrf *vrf;
 	size_t len = strlen(name);
 
 	list_for_each_entry(vrf, &daemon_data->ip_vrf, next) {
@@ -45,10 +47,10 @@ gtp_ip_vrf_get(const char *name)
 	return NULL;
 }
 
-ip_vrf_t *
+struct ip_vrf *
 gtp_ip_vrf_alloc(const char *name)
 {
-	ip_vrf_t *new;
+	struct ip_vrf *new;
 
 	PMALLOC(new);
         INIT_LIST_HEAD(&new->next);
@@ -60,7 +62,7 @@ gtp_ip_vrf_alloc(const char *name)
 
 
 int
-gtp_ip_vrf_destroy(ip_vrf_t *vrf)
+gtp_ip_vrf_destroy(struct ip_vrf *vrf)
 {
 	list_head_del(&vrf->next);
 	return 0;
@@ -69,7 +71,7 @@ gtp_ip_vrf_destroy(ip_vrf_t *vrf)
 int
 gtp_vrf_destroy(void)
 {
-	ip_vrf_t *vrf, *_vrf;
+	struct ip_vrf *vrf, *_vrf;
 
 	list_for_each_entry_safe(vrf, _vrf, &daemon_data->ip_vrf, next) {
 		gtp_ip_vrf_destroy(vrf);

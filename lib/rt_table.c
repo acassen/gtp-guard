@@ -16,12 +16,12 @@ static const uint8_t maskbit[] = { 0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xf
 /*
  *	Routing table structure
  */
-rt_table_t *
+struct rt_table *
 rt_table_init(int (*free) (void *), int (*dump) (void *))
 {
-	rt_table_t *rt;
+	struct rt_table *rt;
 
-	rt = (rt_table_t *) MALLOC(sizeof(rt_table_t));
+	rt = (struct rt_table *) MALLOC(sizeof(*rt));
 	rt->free_info = free;
 	rt->dump_info = dump;
 
@@ -29,25 +29,25 @@ rt_table_init(int (*free) (void *), int (*dump) (void *))
 }
 
 void
-rt_table_finish(rt_table_t *rt)
+rt_table_finish(struct rt_table *rt)
 {
 	rt_table_free(rt);
 }
 
-static rt_node_t *
+static struct rt_node *
 rt_node_new(void)
 {
-	rt_node_t *node;
+	struct rt_node *node;
 
-	node = (rt_node_t *) MALLOC(sizeof(rt_node_t));
+	node = (struct rt_node *) MALLOC(sizeof(*node));
 
 	return node;
 }
 
-static rt_node_t *
-rt_node_set(rt_table_t *table, prefix_t *prefix)
+static struct rt_node *
+rt_node_set(struct rt_table *table, struct prefix *prefix)
 {
-	rt_node_t *node = rt_node_new();
+	struct rt_node *node = rt_node_new();
 
 	prefix_copy(&node->p, prefix);
 	node->table = table;
@@ -56,15 +56,15 @@ rt_node_set(rt_table_t *table, prefix_t *prefix)
 }
 
 static void
-rt_node_free(rt_node_t *node)
+rt_node_free(struct rt_node *node)
 {
 	FREE(node);
 }
 
 int
-rt_table_free(rt_table_t *rt)
+rt_table_free(struct rt_table *rt)
 {
-	rt_node_t *tmp_node, *node;
+	struct rt_node *tmp_node, *node;
 
 	if (rt == NULL)
 		return -1;
@@ -107,9 +107,9 @@ rt_table_free(rt_table_t *rt)
 }
 
 int
-rt_table_dump(rt_table_t *rt)
+rt_table_dump(struct rt_table *rt)
 {
-	rt_node_t *tmp_node, *node;
+	struct rt_node *tmp_node, *node;
 
 	if (rt == NULL)
 		return -1;
@@ -157,7 +157,7 @@ rt_table_dump(rt_table_t *rt)
  *	Routing table handler
  */
 static void
-rt_common(prefix_t *n, prefix_t *p, prefix_t *new)
+rt_common(struct prefix *n, struct prefix *p, struct prefix *new)
 {
 	int i;
 	uint8_t diff, mask;
@@ -186,7 +186,7 @@ rt_common(prefix_t *n, prefix_t *p, prefix_t *new)
 }
 
 static void
-set_link(rt_node_t *node, rt_node_t *new)
+set_link(struct rt_node *node, struct rt_node *new)
 {
 	unsigned int bit = prefix_bit(&new->p.u.prefix, node->p.prefixlen);
 
@@ -195,8 +195,8 @@ set_link(rt_node_t *node, rt_node_t *new)
 }
 
 /* Lock node. */
-rt_node_t *
-rt_lock_node(rt_node_t *node)
+struct rt_node *
+rt_lock_node(struct rt_node *node)
 {
 	node->lock++;
 	return node;
@@ -204,7 +204,7 @@ rt_lock_node(rt_node_t *node)
 
 /* Unlock node. */
 void
-rt_unlock_node(rt_node_t *node)
+rt_unlock_node(struct rt_node *node)
 {
 	node->lock--;
 
@@ -213,10 +213,10 @@ rt_unlock_node(rt_node_t *node)
 }
 
 /* Find matched prefix. */
-rt_node_t *
-rt_node_match(const rt_table_t *table, const prefix_t *p)
+struct rt_node *
+rt_node_match(const struct rt_table *table, const struct prefix *p)
 {
-	rt_node_t *node, *matched;
+	struct rt_node *node, *matched;
 
 	matched = NULL;
 	node = table->top;
@@ -240,38 +240,38 @@ rt_node_match(const rt_table_t *table, const prefix_t *p)
 	return NULL;
 }
 
-rt_node_t *
-rt_node_match_ipv4(const rt_table_t *table, const struct in_addr *addr)
+struct rt_node *
+rt_node_match_ipv4(const struct rt_table *table, const struct in_addr *addr)
 {
-	prefix_ipv4_t p;
+	struct prefix_ipv4 p;
 
-	memset(&p, 0, sizeof(prefix_ipv4_t));
+	memset(&p, 0, sizeof(struct prefix_ipv4));
 	p.family = AF_INET;
 	p.prefixlen = IPV4_MAX_PREFIXLEN;
 	p.prefix = *addr;
 
-	return rt_node_match(table, (prefix_t *) &p);
+	return rt_node_match(table, (struct prefix *) &p);
 }
 
-rt_node_t *
-rt_node_match_ipv6(const rt_table_t *table, const struct in6_addr *addr)
+struct rt_node *
+rt_node_match_ipv6(const struct rt_table *table, const struct in6_addr *addr)
 {
-	prefix_ipv6_t p;
+	struct prefix_ipv6 p;
 
-	memset(&p, 0, sizeof(prefix_ipv6_t));
+	memset(&p, 0, sizeof(struct prefix_ipv6));
 	p.family = AF_INET6;
 	p.prefixlen = IPV6_MAX_PREFIXLEN;
 	p.prefix = *addr;
 
-	return rt_node_match(table, (prefix_t *) &p);
+	return rt_node_match(table, (struct prefix *) &p);
 }
 
 
 /* Lookup same prefix node.  Return NULL when we can't find route. */
-rt_node_t *
-rt_node_lookup(rt_table_t *table, prefix_t *p)
+struct rt_node *
+rt_node_lookup(struct rt_table *table, struct prefix *p)
 {
-	rt_node_t *node = table->top;
+	struct rt_node *node = table->top;
 
 	while (node && node->p.prefixlen <= p->prefixlen && prefix_match(&node->p, p)) {
 		if (node->p.prefixlen == p->prefixlen) {
@@ -285,10 +285,10 @@ rt_node_lookup(rt_table_t *table, prefix_t *p)
 }
 
 /* Longest prefix match */
-rt_node_t *
-rt_node_lookup_lpm(rt_table_t *table, prefix_t *p)
+struct rt_node *
+rt_node_lookup_lpm(struct rt_table *table, struct prefix *p)
 {
-	rt_node_t *node = table->top, *match = NULL;
+	struct rt_node *node = table->top, *match = NULL;
 
 	while (node && node->p.prefixlen <= p->prefixlen && prefix_match(&node->p, p)) {
 		if (node->info)
@@ -300,10 +300,10 @@ rt_node_lookup_lpm(rt_table_t *table, prefix_t *p)
 }
 
 /* Add node to routing table. */
-rt_node_t *
-rt_node_get(rt_table_t *table, prefix_t *p)
+struct rt_node *
+rt_node_get(struct rt_table *table, struct prefix *p)
 {
-	rt_node_t *new, *node = table->top, *match = NULL;
+	struct rt_node *new, *node = table->top, *match = NULL;
 
 	while (node && node->p.prefixlen <= p->prefixlen && prefix_match(&node->p, p)) {
 		if (node->p.prefixlen == p->prefixlen)
@@ -345,9 +345,9 @@ rt_node_get(rt_table_t *table, prefix_t *p)
 
 /* Delete node from the routing table. */
 int
-rt_node_delete(rt_node_t *node)
+rt_node_delete(struct rt_node *node)
 {
-	rt_node_t *child, *parent;
+	struct rt_node *child, *parent;
 
 	if (node->lock == 0 || node->info == NULL)
 		return -1;
@@ -385,8 +385,8 @@ rt_node_delete(rt_node_t *node)
 
 /* Get first node and lock it.  This function is useful when one want
    to lookup all the node exist in the routing table. */
-rt_node_t *
-rt_top(rt_table_t *table)
+struct rt_node *
+rt_top(struct rt_table *table)
 {
 	/* If there is no node in the routing table return NULL. */
 	if (table->top == NULL)
@@ -398,10 +398,10 @@ rt_top(rt_table_t *table)
 }
 
 /* Unlock current node and lock next node then return it. */
-rt_node_t *
-rt_next(rt_node_t *node)
+struct rt_node *
+rt_next(struct rt_node *node)
 {
-	rt_node_t *next, *start;
+	struct rt_node *next, *start;
 
 	/* Node may be deleted from route_unlock_node so we have to preserve
 	   next node's pointer. */
@@ -436,10 +436,10 @@ rt_next(rt_node_t *node)
 }
 
 /* Unlock current node and lock next node until limit. */
-rt_node_t *
-rt_next_until(rt_node_t *node, rt_node_t *limit)
+struct rt_node *
+rt_next_until(struct rt_node *node, struct rt_node *limit)
 {
-	rt_node_t *next, *start;
+	struct rt_node *next, *start;
 
 	/* Node may be deleted from route_unlock_node so we have to preserve
 	   next node's pointer. */

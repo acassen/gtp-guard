@@ -21,6 +21,7 @@
 
 #include <pthread.h>
 #include <fnmatch.h>
+#include <string.h>
 #include <sys/prctl.h>
 #include <arpa/inet.h>
 
@@ -35,18 +36,18 @@
 #include "gtp_utils.h"
 
 /* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
  *	Utilities
  */
 void
-gtp_apn_foreach(int (*hdl) (gtp_apn_t *, void *), void *arg)
+gtp_apn_foreach(int (*hdl) (struct gtp_apn *, void *), void *arg)
 {
-	list_head_t *l = &daemon_data->gtp_apn;
-	gtp_apn_t *apn;
+	struct list_head *l = &daemon_data->gtp_apn;
+	struct gtp_apn *apn;
 
 	list_for_each_entry(apn, l, next)
 		(*(hdl)) (apn, arg);
@@ -55,10 +56,10 @@ gtp_apn_foreach(int (*hdl) (gtp_apn_t *, void *), void *arg)
 /*
  *	Rewrite rule related
  */
-gtp_rewrite_rule_t *
-gtp_rewrite_rule_alloc(gtp_apn_t *apn, list_head_t *l)
+struct gtp_rewrite_rule *
+gtp_rewrite_rule_alloc(struct gtp_apn *apn, struct list_head *l)
 {
-	gtp_rewrite_rule_t *new;
+	struct gtp_rewrite_rule *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
@@ -71,9 +72,9 @@ gtp_rewrite_rule_alloc(gtp_apn_t *apn, list_head_t *l)
 }
 
 static int
-gtp_rewrite_rule_destroy(gtp_apn_t *apn, list_head_t *l)
+gtp_rewrite_rule_destroy(struct gtp_apn *apn, struct list_head *l)
 {
-	gtp_rewrite_rule_t *r, *_r;
+	struct gtp_rewrite_rule *r, *_r;
 
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry_safe(r, _r, l, next) {
@@ -89,10 +90,10 @@ gtp_rewrite_rule_destroy(gtp_apn_t *apn, list_head_t *l)
  *	APN Resolv cache maintain
  */
 int
-apn_resolv_cache_realloc(gtp_apn_t *apn)
+apn_resolv_cache_realloc(struct gtp_apn *apn)
 {
-	gtp_resolv_ctx_t *ctx;
-	list_head_t l, old_naptr;
+	struct gtp_resolv_ctx *ctx;
+	struct list_head l, old_naptr;
 	int err;
 
 	/* Context init */
@@ -148,7 +149,7 @@ apn_resolv_cache_realloc(gtp_apn_t *apn)
 void *
 apn_resolv_cache_task(void *arg)
 {
-	gtp_apn_t *apn = arg;
+	struct gtp_apn *apn = arg;
 	struct timeval tval;
 	struct timespec timeout;
 
@@ -177,7 +178,7 @@ apn_resolv_cache_task(void *arg)
 }
 
 int
-apn_resolv_cache_signal(gtp_apn_t *apn)
+apn_resolv_cache_signal(struct gtp_apn *apn)
 {
 	pthread_mutex_lock(&apn->cache_mutex);
 	pthread_cond_signal(&apn->cache_cond);
@@ -186,7 +187,7 @@ apn_resolv_cache_signal(gtp_apn_t *apn)
 }
 
 static int
-apn_resolv_cache_destroy(gtp_apn_t *apn)
+apn_resolv_cache_destroy(struct gtp_apn *apn)
 {
 	apn_resolv_cache_signal(apn);
 	pthread_join(apn->cache_task, NULL);
@@ -198,10 +199,10 @@ apn_resolv_cache_destroy(gtp_apn_t *apn)
 /*
  *	Static IP Pool related
  */
-gtp_ip_pool_t *
+struct gtp_ip_pool *
 gtp_ip_pool_alloc(uint32_t network, uint32_t netmask)
 {
-	gtp_ip_pool_t *new;
+	struct gtp_ip_pool *new;
 
 	PMALLOC(new);
 	if (!new)
@@ -215,7 +216,7 @@ gtp_ip_pool_alloc(uint32_t network, uint32_t netmask)
 }
 
 void
-gtp_ip_pool_destroy(gtp_ip_pool_t *ip_pool)
+gtp_ip_pool_destroy(struct gtp_ip_pool *ip_pool)
 {
 	if (!ip_pool)
 		return;
@@ -225,9 +226,9 @@ gtp_ip_pool_destroy(gtp_ip_pool_t *ip_pool)
 }
 
 uint32_t
-gtp_ip_pool_get(gtp_apn_t *apn)
+gtp_ip_pool_get(struct gtp_apn *apn)
 {
-	gtp_ip_pool_t *ip_pool = apn->ip_pool;
+	struct gtp_ip_pool *ip_pool = apn->ip_pool;
 	int idx;
 
 	if (!ip_pool)
@@ -254,9 +255,9 @@ gtp_ip_pool_get(gtp_apn_t *apn)
 }
 
 int
-gtp_ip_pool_put(gtp_apn_t *apn, uint32_t addr_ip)
+gtp_ip_pool_put(struct gtp_apn *apn, uint32_t addr_ip)
 {
-	gtp_ip_pool_t *ip_pool = apn->ip_pool;
+	struct gtp_ip_pool *ip_pool = apn->ip_pool;
 	int idx;
 
 	if (!ip_pool)
@@ -271,10 +272,10 @@ gtp_ip_pool_put(gtp_apn_t *apn, uint32_t addr_ip)
 /*
  *	PCO related
  */
-static gtp_pco_t *
+static struct gtp_pco *
 gtp_pco_alloc(void)
 {
-	gtp_pco_t *pco;
+	struct gtp_pco *pco;
 
 	PMALLOC(pco);
 	if (!pco)
@@ -285,9 +286,9 @@ gtp_pco_alloc(void)
 }
 
 static void
-gtp_pco_destroy(gtp_pco_t *pco)
+gtp_pco_destroy(struct gtp_pco *pco)
 {
-	gtp_ns_t *ns, *_ns;
+	struct gtp_ns *ns, *_ns;
 
 	if (!pco)
 		return;
@@ -303,10 +304,10 @@ gtp_pco_destroy(gtp_pco_t *pco)
 /*
  *	HPLMN related
  */
-gtp_plmn_t *
-gtp_apn_hplmn_alloc(gtp_apn_t *apn, uint8_t *plmn)
+struct gtp_plmn *
+gtp_apn_hplmn_alloc(struct gtp_apn *apn, uint8_t *plmn)
 {
-	gtp_plmn_t *new;
+	struct gtp_plmn *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
@@ -320,14 +321,14 @@ gtp_apn_hplmn_alloc(gtp_apn_t *apn, uint8_t *plmn)
 }
 
 static void
-__gtp_apn_hplmn_del(gtp_plmn_t *p)
+__gtp_apn_hplmn_del(struct gtp_plmn *p)
 {
 	list_head_del(&p->next);
 	FREE(p);
 }
 
 void
-gtp_apn_hplmn_del(gtp_apn_t *apn, gtp_plmn_t *p)
+gtp_apn_hplmn_del(struct gtp_apn *apn, struct gtp_plmn *p)
 {
 	pthread_mutex_lock(&apn->mutex);
 	__gtp_apn_hplmn_del(p);
@@ -335,10 +336,10 @@ gtp_apn_hplmn_del(gtp_apn_t *apn, gtp_plmn_t *p)
 }
 
 void
-gtp_apn_hplmn_destroy(gtp_apn_t *apn)
+gtp_apn_hplmn_destroy(struct gtp_apn *apn)
 {
-	list_head_t *l = &apn->hplmn;
-	gtp_plmn_t *p, *_p;
+	struct list_head *l = &apn->hplmn;
+	struct gtp_plmn *p, *_p;
 
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry_safe(p, _p, l, next) {
@@ -347,11 +348,11 @@ gtp_apn_hplmn_destroy(gtp_apn_t *apn)
 	pthread_mutex_unlock(&apn->mutex);
 }
 
-static gtp_plmn_t *
-__gtp_apn_hplmn_get(gtp_apn_t *apn, uint8_t *plmn)
+static struct gtp_plmn *
+__gtp_apn_hplmn_get(struct gtp_apn *apn, uint8_t *plmn)
 {
-	list_head_t *l = &apn->hplmn;
-	gtp_plmn_t *p;
+	struct list_head *l = &apn->hplmn;
+	struct gtp_plmn *p;
 
 	list_for_each_entry(p, l, next) {
 		if (!bcd_plmn_cmp(p->plmn, plmn)) {
@@ -362,10 +363,10 @@ __gtp_apn_hplmn_get(gtp_apn_t *apn, uint8_t *plmn)
 	return NULL;
 }
 
-gtp_plmn_t *
-gtp_apn_hplmn_get(gtp_apn_t *apn, uint8_t *plmn)
+struct gtp_plmn *
+gtp_apn_hplmn_get(struct gtp_apn *apn, uint8_t *plmn)
 {
-	gtp_plmn_t *p;
+	struct gtp_plmn *p;
 
 	pthread_mutex_lock(&apn->mutex);
 	p = __gtp_apn_hplmn_get(apn, plmn);
@@ -378,10 +379,10 @@ gtp_apn_hplmn_get(gtp_apn_t *apn, uint8_t *plmn)
 /*
  *	APN related
  */
-gtp_apn_t *
+struct gtp_apn *
 gtp_apn_alloc(const char *name)
 {
-	gtp_apn_t *new;
+	struct gtp_apn *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->naptr);
@@ -401,8 +402,8 @@ gtp_apn_alloc(const char *name)
 	return new;
 }
 
-gtp_pco_t *
-gtp_apn_pco(gtp_apn_t *apn)
+struct gtp_pco *
+gtp_apn_pco(struct gtp_apn *apn)
 {
 	if (apn->pco)
 		return apn->pco;
@@ -414,8 +415,8 @@ gtp_apn_pco(gtp_apn_t *apn)
 int
 gtp_apn_destroy(void)
 {
-	list_head_t *l = &daemon_data->gtp_apn;
-	gtp_apn_t *apn, *_apn;
+	struct list_head *l = &daemon_data->gtp_apn;
+	struct gtp_apn *apn, *_apn;
 
 	list_for_each_entry_safe(apn, _apn, l, next) {
 		gtp_service_destroy(apn);
@@ -432,10 +433,10 @@ gtp_apn_destroy(void)
 	return 0;
 }
 
-gtp_apn_t *
+struct gtp_apn *
 gtp_apn_get(const char *name)
 {
-	gtp_apn_t *apn;
+	struct gtp_apn *apn;
 
 	list_for_each_entry(apn, &daemon_data->gtp_apn, next) {
 		if (!fnmatch(apn->name, name, 0))
@@ -447,7 +448,7 @@ gtp_apn_get(const char *name)
 }
 
 int
-gtp_apn_cdr_commit(gtp_apn_t *apn, gtp_cdr_t *cdr)
+gtp_apn_cdr_commit(struct gtp_apn *apn, struct gtp_cdr *cdr)
 {
 	if (!cdr)
 		return -1;

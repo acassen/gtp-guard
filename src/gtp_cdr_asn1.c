@@ -52,7 +52,7 @@ gtp_cdr_asn1_tag_integer(uint8_t *dst, const uint8_t *end, uint32_t tag, uint8_t
 }
 
 static uint8_t *
-gtp_cdr_asn1_served_addr(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
+gtp_cdr_asn1_served_addr(struct gtp_cdr *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	uint8_t *cp;
 
@@ -65,7 +65,7 @@ gtp_cdr_asn1_served_addr(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, cons
 }
 
 static uint8_t *
-gtp_cdr_asn1_service_data(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
+gtp_cdr_asn1_service_data(struct gtp_cdr *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	uint8_t *cp, *outer, *seq;
 	uint16_t *len, *len_seq;
@@ -92,7 +92,7 @@ gtp_cdr_asn1_service_data(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, con
 }
 
 static uint8_t *
-gtp_cdr_asn1_serving_node_type(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
+gtp_cdr_asn1_serving_node_type(struct gtp_cdr *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	uint8_t *cp = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 3);
 
@@ -114,7 +114,7 @@ static const struct {
 };
 
 static uint8_t *
-gtp_cdr_asn1_encode(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
+gtp_cdr_asn1_encode(struct gtp_cdr *cdr, int m, uint32_t tag, uint8_t *dst, const uint8_t *end)
 {
 	if (!cdr || !cdr->asn1_ctx[tag].data || m >= M_MAX)
 		return dst;
@@ -126,7 +126,7 @@ gtp_cdr_asn1_encode(gtp_cdr_t *cdr, int m, uint32_t tag, uint8_t *dst, const uin
 
 static const struct {
 	uint32_t tag;
-	uint8_t * (*encode) (gtp_cdr_t *, int, uint32_t, uint8_t *, const uint8_t *);
+	uint8_t * (*encode) (struct gtp_cdr *, int, uint32_t, uint8_t *, const uint8_t *);
 	int method;
 } cdr_asn1_encoder[] = {
 	{ 0,	gtp_cdr_asn1_encode		,	M_RAW		},
@@ -158,7 +158,7 @@ static const struct {
 };
 
 int
-gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
+gtp_cdr_asn1_pgw_record_encode(struct gtp_cdr *cdr, uint8_t *dst, size_t dsize)
 {
 	const uint8_t *end = dst + dsize;
 	uint8_t *outer, *cp;
@@ -184,7 +184,7 @@ gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 }
 
 int
-gtp_cdr_asn1_ctx_set(gtp_cdr_ctx_t *ctx, uint32_t tag, uint8_t *data, size_t dlen)
+gtp_cdr_asn1_ctx_set(struct gtp_cdr_ctx *ctx, uint32_t tag, uint8_t *data, size_t dlen)
 {
 	if (!ctx)
 		return -1;

@@ -25,7 +25,7 @@
 
 static int
 gtp_vrf_pppoe_metrics_tmpl_dump(FILE *fp, const char *apn_name,
-				pppoe_t *pppoe)
+				struct pppoe *pppoe)
 {
 	if (!pppoe)
 		return -1;
@@ -38,7 +38,7 @@ gtp_vrf_pppoe_metrics_tmpl_dump(FILE *fp, const char *apn_name,
 
 static int
 gtp_vrf_pppoe_bundle_metrics_tmpl_dump(FILE *fp, const char *apn_name,
-				       pppoe_bundle_t *bundle)
+				       struct pppoe_bundle *bundle)
 {
 	int i;
 
@@ -52,10 +52,10 @@ gtp_vrf_pppoe_bundle_metrics_tmpl_dump(FILE *fp, const char *apn_name,
 }
 
 static int
-gtp_apn_metrics_tmpl_dump(gtp_apn_t *apn, void *arg)
+gtp_apn_metrics_tmpl_dump(struct gtp_apn *apn, void *arg)
 {
 	FILE *fp = arg;
-	ip_vrf_t *vrf = apn->vrf;
+	struct ip_vrf *vrf = apn->vrf;
 
 	if (!vrf || (!vrf->pppoe && !vrf->pppoe_bundle))
 		return -1;

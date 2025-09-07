@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
 #include <stdarg.h>
 #include <arpa/inet.h>
 #include <netinet/ip.h>
@@ -34,7 +35,7 @@
 
 
 /* Extern data */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 
 /*
@@ -48,7 +49,7 @@ extern thread_master_t *master;
 
 /* a dummy, used to drop uninteresting events */
 static void
-sppp_null(__attribute__((unused)) sppp_t *unused)
+sppp_null(__attribute__((unused)) struct sppp *unused)
 {
 	/* do just nothing */
 }
@@ -69,20 +70,20 @@ struct cp {
 #define CP_QUAL	0x08	/* this is a quality reporting protocol */
 	const char	*name;	/* name of this control protocol */
 	/* event handlers */
-	void	(*Up) (sppp_t *);
-	void	(*Down) (sppp_t *);
-	void	(*Open) (sppp_t *);
-	void	(*Close) (sppp_t *);
-	void	(*TO) (thread_t *);
-	int	(*RCR) (sppp_t *, lcp_hdr_t *, int);
-	void	(*RCN_rej) (sppp_t *, lcp_hdr_t *, int);
-	void	(*RCN_nak) (sppp_t *, lcp_hdr_t *, int);
+	void	(*Up) (struct sppp *);
+	void	(*Down) (struct sppp *);
+	void	(*Open) (struct sppp *);
+	void	(*Close) (struct sppp *);
+	void	(*TO) (struct thread *);
+	int	(*RCR) (struct sppp *, struct lcp_hdr *, int);
+	void	(*RCN_rej) (struct sppp *, struct lcp_hdr *, int);
+	void	(*RCN_nak) (struct sppp *, struct lcp_hdr *, int);
 	/* actions */
-	void	(*tlu) (sppp_t *);
-	void	(*tld) (sppp_t *);
-	void	(*tls) (sppp_t *);
-	void	(*tlf) (sppp_t *);
-	void	(*scr) (sppp_t *);
+	void	(*tlu) (struct sppp *);
+	void	(*tld) (struct sppp *);
+	void	(*tls) (struct sppp *);
+	void	(*tlf) (struct sppp *);
+	void	(*scr) (struct sppp *);
 };
 
 /* our control protocol descriptors */
@@ -279,9 +280,9 @@ sppp_print_string(const char *p, uint8_t len)
 }
 
 static void
-sppp_log_error(sppp_t *sp, const char *errmsg)
+sppp_log_error(struct sppp *sp, const char *errmsg)
 {
-	spppoe_t *s = sp->s_pppoe;
+	struct spppoe *s = sp->s_pppoe;
 	log_message(LOG_INFO, "PPP-Error:={Host-Uniq:0x%.8x errmsg:%s}"
 			    , s->unique
 			    , errmsg);
@@ -292,7 +293,7 @@ sppp_log_error(sppp_t *sp, const char *errmsg)
  */
 
 void
-sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
+sppp_increasing_timeout(const struct cp *cp, struct sppp *sp)
 {
 	unsigned long timer;
 	int timo;
@@ -312,9 +313,9 @@ sppp_increasing_timeout(const struct cp *cp, sppp_t *sp)
  * Takes care of starting/stopping the restart timer.
  */
 void
-sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
+sppp_cp_change_state(const struct cp *cp, struct sppp *sp, int newstate)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	if (debug & 8 && sp->state[cp->protoidx] != newstate)
 		printf("%s: %s %s->%s\n",
@@ -347,14 +348,14 @@ sppp_cp_change_state(const struct cp *cp, sppp_t *sp, int newstate)
  * Send PPP control protocol packet.
  */
 int
-sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
+sppp_cp_send(struct sppp *sp, uint16_t proto, uint8_t type,
 	     uint8_t ident, uint16_t len, void *data)
 {
-	spppoe_t *s = sp->s_pppoe;
-	pppoe_t *pppoe = s->pppoe;
-	lcp_hdr_t *lh;
+	struct spppoe *s = sp->s_pppoe;
+	struct pppoe *pppoe = s->pppoe;
+	struct lcp_hdr *lh;
 	uint8_t *p;
-	pkt_t *pkt;
+	struct pkt *pkt;
 	int plen;
 
 	/* get ethernet pkt buffer */
@@ -362,9 +363,9 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 
 	/* PPPoE header*/
 	p = pkt->pbuff->data;
-	plen = sizeof(uint16_t) + sizeof(lcp_hdr_t) + len;
+	plen = sizeof(uint16_t) + sizeof(struct lcp_hdr) + len;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_SESSION, s->session_id, plen);
-	pkt_buffer_put_data(pkt->pbuff, sizeof(pppoe_hdr_t));
+	pkt_buffer_put_data(pkt->pbuff, sizeof(struct pppoe_hdr));
 
 	/* PPP LCP TAG */
 	p = pkt->pbuff->data;
@@ -372,13 +373,13 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
 	pkt_buffer_put_data(pkt->pbuff, sizeof(uint16_t));
 
 	/* LCP header */
-	lh = (lcp_hdr_t *) pkt->pbuff->data;
+	lh = (struct lcp_hdr *) pkt->pbuff->data;
 	lh->type = type;
 	lh->ident = ident;
 	lh->len = htons(LCP_HEADER_LEN + len);
 	if (len)
 		bcopy(data, lh+1, len);
-	pkt_buffer_put_data(pkt->pbuff, sizeof(lcp_hdr_t) + len);
+	pkt_buffer_put_data(pkt->pbuff, sizeof(struct lcp_hdr) + len);
 
 	PPPDEBUG(("%s: %s output <%s id=0x%x len=%d",
 		 pppoe->ifname,
@@ -410,13 +411,13 @@ sppp_cp_send(sppp_t *sp, uint16_t proto, uint8_t type,
  * Handle incoming PPP control protocol packets.
  */
 static void
-sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
+sppp_cp_input(const struct cp *cp, struct sppp *sp, struct pkt *pkt)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	pkt_buffer_t *pbuff = pkt->pbuff;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
+	struct pkt_buffer *pbuff = pkt->pbuff;
 	uint16_t protocol = ntohs(*(uint16_t *) pbuff->data);
 	int rv, len = pbuff->end - pbuff->data;
-	lcp_hdr_t *h;
+	struct lcp_hdr *h;
 	uint32_t nmagic;
 	uint8_t *p;
 
@@ -426,7 +427,7 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 		return;
 	}
 
-	h = (lcp_hdr_t *) pbuff->data;
+	h = (struct lcp_hdr *) pbuff->data;
 	PPPDEBUG(("%s: %s input(%s): <%s id=0x%x len=%d",
 	         pppoe->ifname, cp->name,
 	         sppp_state_name(sp->state[cp->protoidx]),
@@ -767,10 +768,10 @@ sppp_cp_input(const struct cp *cp, sppp_t *sp, pkt_t *pkt)
 }
 
 void
-sppp_input(sppp_t *sp, pkt_t *pkt)
+sppp_input(struct sppp *sp, struct pkt *pkt)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	ppp_hdr_t ht;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
+	struct ppp_hdr ht;
 	timeval_t tv;
 
 	gettimeofday(&tv, NULL);
@@ -823,9 +824,9 @@ sppp_input(sppp_t *sp, pkt_t *pkt)
  * Basically, the state transition handling in the automaton.
  */
 void
-sppp_up_event(const struct cp *cp, sppp_t *sp)
+sppp_up_event(const struct cp *cp, struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s up(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -849,9 +850,9 @@ sppp_up_event(const struct cp *cp, sppp_t *sp)
 }
 
 void
-sppp_down_event(const struct cp *cp, sppp_t *sp)
+sppp_down_event(const struct cp *cp, struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s down(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -886,9 +887,9 @@ sppp_down_event(const struct cp *cp, sppp_t *sp)
 
 
 void
-sppp_open_event(const struct cp *cp, sppp_t *sp)
+sppp_open_event(const struct cp *cp, struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s open(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -921,9 +922,9 @@ sppp_open_event(const struct cp *cp, sppp_t *sp)
 
 
 void
-sppp_close_event(const struct cp *cp, sppp_t *sp)
+sppp_close_event(const struct cp *cp, struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s close(%s)\n",
 		 pppoe->ifname, cp->name,
@@ -961,9 +962,9 @@ sppp_close_event(const struct cp *cp, sppp_t *sp)
 }
 
 void
-sppp_to_event(const struct cp *cp, sppp_t *sp)
+sppp_to_event(const struct cp *cp, struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: %s TO(%s) rst_counter = %d\n",
 		 pppoe->ifname, cp->name,
@@ -1012,7 +1013,7 @@ sppp_to_event(const struct cp *cp, sppp_t *sp)
 }
 
 void
-sppp_phase_network(sppp_t *sp)
+sppp_phase_network(struct sppp *sp)
 {
 	int i;
 	uint32_t mask;
@@ -1042,9 +1043,9 @@ sppp_phase_network(sppp_t *sp)
  *--------------------------------------------------------------------------*
  */
 void
-sppp_lcp_init(sppp_t *sp)
+sppp_lcp_init(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	__set_bit(LCP_OPT_MAGIC, &sp->lcp.opts);
 	sp->lcp.magic = 0;
@@ -1068,9 +1069,9 @@ sppp_lcp_init(sppp_t *sp)
 }
 
 void
-sppp_lcp_up(sppp_t *sp)
+sppp_lcp_up(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	timeval_t tv;
 
 	sp->pp_alivecnt = 0;
@@ -1093,9 +1094,9 @@ sppp_lcp_up(sppp_t *sp)
 }
 
 void
-sppp_lcp_down(sppp_t *sp)
+sppp_lcp_down(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_DOWN, METRICS_DIR_IN);
 	sppp_down_event(&lcp, sp);
@@ -1109,9 +1110,9 @@ sppp_lcp_down(sppp_t *sp)
 }
 
 void
-sppp_lcp_open(sppp_t *sp)
+sppp_lcp_open(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	/*
 	 * If we are authenticator, negotiate LCP_AUTH
@@ -1127,18 +1128,18 @@ sppp_lcp_open(sppp_t *sp)
 }
 
 void
-sppp_lcp_close(sppp_t *sp)
+sppp_lcp_close(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_LCP, PPP_METRIC_CLOSE, METRICS_DIR_IN);
 	sppp_close_event(&lcp, sp);
 }
 
 void
-sppp_lcp_TO(thread_t *thread)
+sppp_lcp_TO(struct thread *thread)
 {
-	sppp_to_event(&lcp, (sppp_t *) THREAD_ARG(thread));
+	sppp_to_event(&lcp, (struct sppp *) THREAD_ARG(thread));
 }
 
 /*
@@ -1148,9 +1149,9 @@ sppp_lcp_TO(thread_t *thread)
  * transition decision in the state automaton.)
  */
 int
-sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_lcp_RCR(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *buf, *r, *p;
 	int origlen, rlen;
 	uint32_t nmagic;
@@ -1332,9 +1333,9 @@ sppp_lcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
  * negotiation.
  */
 void
-sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_lcp_RCN_rej(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 
 	len -= 4;
@@ -1386,9 +1387,9 @@ sppp_lcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
  * negotiation.
  */
 void
-sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_lcp_RCN_nak(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 	uint32_t magic;
 
@@ -1454,7 +1455,7 @@ sppp_lcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 }
 
 void
-sppp_lcp_tlu(sppp_t *sp)
+sppp_lcp_tlu(struct sppp *sp)
 {
 	int i;
 	uint32_t mask;
@@ -1502,7 +1503,7 @@ sppp_lcp_tlu(sppp_t *sp)
 }
 
 void
-sppp_lcp_tld(sppp_t *sp)
+sppp_lcp_tld(struct sppp *sp)
 {
 	int i;
 	uint32_t mask;
@@ -1524,7 +1525,7 @@ sppp_lcp_tld(sppp_t *sp)
 }
 
 void
-sppp_lcp_tls(sppp_t *sp)
+sppp_lcp_tls(struct sppp *sp)
 {
 	sp->pp_phase = PHASE_ESTABLISH;
 
@@ -1534,7 +1535,7 @@ sppp_lcp_tls(sppp_t *sp)
 }
 
 void
-sppp_lcp_tlf(sppp_t *sp)
+sppp_lcp_tlf(struct sppp *sp)
 {
 	sp->pp_phase = PHASE_DEAD;
 
@@ -1544,9 +1545,9 @@ sppp_lcp_tlf(sppp_t *sp)
 }
 
 void
-sppp_lcp_scr(sppp_t *sp)
+sppp_lcp_scr(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	char opt[6 /* magicnum */ + 4 /* mru */ + 5 /* chap */];
 	int i = 0;
 	uint16_t authproto;
@@ -1588,7 +1589,7 @@ sppp_lcp_scr(sppp_t *sp)
  * Check the open NCPs, return true if at least one NCP is open.
  */
 int
-sppp_ncp_check(sppp_t *sp)
+sppp_ncp_check(struct sppp *sp)
 {
 	int i, mask;
 
@@ -1605,7 +1606,7 @@ sppp_ncp_check(sppp_t *sp)
  * Called by the NCPs during their tlf action handling.
  */
 void
-sppp_lcp_check_and_close(sppp_t *sp)
+sppp_lcp_check_and_close(struct sppp *sp)
 {
 
 	if (sp->pp_phase < PHASE_NETWORK)
@@ -1628,7 +1629,7 @@ sppp_lcp_check_and_close(sppp_t *sp)
  */
 
 void
-sppp_ipcp_init(sppp_t *sp)
+sppp_ipcp_init(struct sppp *sp)
 {
 	sp->ipcp.opts = 0;
 	sp->ipcp.flags = 0;
@@ -1637,42 +1638,42 @@ sppp_ipcp_init(sppp_t *sp)
 }
 
 void
-sppp_ipcp_destroy(sppp_t *sp)
+sppp_ipcp_destroy(struct sppp *sp)
 {
 }
 
 void
-sppp_ipcp_up(sppp_t *sp)
+sppp_ipcp_up(struct sppp *sp)
 {
 	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_UP, METRICS_DIR_IN);
 	sppp_up_event(&ipcp, sp);
 }
 
 void
-sppp_ipcp_down(sppp_t *sp)
+sppp_ipcp_down(struct sppp *sp)
 {
 	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_DOWN, METRICS_DIR_IN);
 	sppp_down_event(&ipcp, sp);
 }
 
 void
-sppp_ipcp_open(sppp_t *sp)
+sppp_ipcp_open(struct sppp *sp)
 {
 	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_OPEN, METRICS_DIR_IN);
 	sppp_open_event(&ipcp, sp);
 }
 
 void
-sppp_ipcp_close(sppp_t *sp)
+sppp_ipcp_close(struct sppp *sp)
 {
 	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPCP, PPP_METRIC_CLOSE, METRICS_DIR_IN);
 	sppp_close_event(&ipcp, sp);
 }
 
 void
-sppp_ipcp_TO(thread_t *thread)
+sppp_ipcp_TO(struct thread *thread)
 {
-	sppp_to_event(&ipcp, (sppp_t *) THREAD_ARG(thread));
+	sppp_to_event(&ipcp, (struct sppp *) THREAD_ARG(thread));
 }
 
 /*
@@ -1682,9 +1683,9 @@ sppp_ipcp_TO(thread_t *thread)
  * transition decision in the state automaton.)
  */
 int
-sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_ipcp_RCR(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *buf, *r, *p;
 	int rlen, origlen, buflen;
 	uint32_t hisaddr = 0, desiredaddr;
@@ -1830,9 +1831,9 @@ sppp_ipcp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
  * negotiation.
  */
 void
-sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_ipcp_RCN_rej(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 
 	len -= 4;
@@ -1868,9 +1869,9 @@ sppp_ipcp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
  * negotiation.
  */
 void
-sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_ipcp_RCN_nak(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 	uint32_t wantaddr;
 
@@ -1926,14 +1927,14 @@ sppp_ipcp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 }
 
 void
-sppp_ipcp_tlu(sppp_t *sp)
+sppp_ipcp_tlu(struct sppp *sp)
 {
 	if (sp->pp_con)
 		(sp->pp_con)(sp);
 }
 
 void
-sppp_ipcp_tls(sppp_t *sp)
+sppp_ipcp_tls(struct sppp *sp)
 {
 	sp->ipcp.flags &= ~(IPCP_HISADDR_SEEN|IPCP_MYADDR_SEEN|IPCP_MYADDR_DYN|IPCP_HISADDR_DYN);
 	sp->ipcp.req_myaddr = 0;
@@ -1961,7 +1962,7 @@ sppp_ipcp_tls(sppp_t *sp)
 }
 
 void
-sppp_ipcp_tlf(sppp_t *sp)
+sppp_ipcp_tlf(struct sppp *sp)
 {
 	/* we no longer need LCP */
 	sp->lcp.protos &= ~(1 << IDX_IPCP);
@@ -1969,7 +1970,7 @@ sppp_ipcp_tlf(sppp_t *sp)
 }
 
 void
-sppp_ipcp_scr(sppp_t *sp)
+sppp_ipcp_scr(struct sppp *sp)
 {
 	uint8_t opt[6 /* compression */ + 6 /* address */ + 12 /* dns addrs */];
 	u_int32_t ouraddr = 0;
@@ -2014,9 +2015,9 @@ sppp_ipcp_scr(sppp_t *sp)
  */
 
 void
-sppp_ipv6cp_init(sppp_t *sp)
+sppp_ipv6cp_init(struct sppp *sp)
 {
-	spppoe_t *s = sp->s_pppoe;
+	struct spppoe *s = sp->s_pppoe;
 
 	sp->ipv6cp.opts = 0;
 	sp->ipv6cp.flags = IPV6CP_MYIFID_DYN;
@@ -2028,14 +2029,14 @@ sppp_ipv6cp_init(sppp_t *sp)
 }
 
 void
-sppp_ipv6cp_destroy(sppp_t *sp)
+sppp_ipv6cp_destroy(struct sppp *sp)
 {
 }
 
 void
-sppp_ipv6cp_up(sppp_t *sp)
+sppp_ipv6cp_up(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_UP, METRICS_DIR_IN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
@@ -2044,16 +2045,16 @@ sppp_ipv6cp_up(sppp_t *sp)
 }
 
 void
-sppp_ipv6cp_down(sppp_t *sp)
+sppp_ipv6cp_down(struct sppp *sp)
 {
 	ppp_metric_update(sp->s_pppoe->pppoe, PPP_IPV6CP, PPP_METRIC_DOWN, METRICS_DIR_IN);
 	sppp_down_event(&ipv6cp, sp);
 }
 
 void
-sppp_ipv6cp_open(sppp_t *sp)
+sppp_ipv6cp_open(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_OPEN, METRICS_DIR_IN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
@@ -2063,9 +2064,9 @@ sppp_ipv6cp_open(sppp_t *sp)
 }
 
 void
-sppp_ipv6cp_close(sppp_t *sp)
+sppp_ipv6cp_close(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	ppp_metric_update(pppoe, PPP_IPV6CP, PPP_METRIC_CLOSE, METRICS_DIR_IN);
 	if (__test_bit(PPPOE_FL_IPV6CP_DISABLE_BIT, &pppoe->flags))
@@ -2074,15 +2075,15 @@ sppp_ipv6cp_close(sppp_t *sp)
 }
 
 void
-sppp_ipv6cp_TO(thread_t *thread)
+sppp_ipv6cp_TO(struct thread *thread)
 {
-	sppp_to_event(&ipv6cp, (sppp_t *) THREAD_ARG(thread));
+	sppp_to_event(&ipv6cp, (struct sppp *) THREAD_ARG(thread));
 }
 
 int
-sppp_ipv6cp_RCR(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_ipv6cp_RCR(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *buf, *r, *p;
 	int rlen, origlen, buflen;
 	struct in6_addr myaddr, desiredaddr, suggestaddr = IN6ADDR_ANY_INIT;
@@ -2210,9 +2211,9 @@ end:
 }
 
 void
-sppp_ipv6cp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_ipv6cp_RCN_rej(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 
 	len -= 4;
@@ -2239,9 +2240,9 @@ sppp_ipv6cp_RCN_rej(sppp_t *sp, lcp_hdr_t *h, int len)
 }
 
 void
-sppp_ipv6cp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
+sppp_ipv6cp_RCN_nak(struct sppp *sp, struct lcp_hdr *h, int len)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	uint8_t *p;
 	struct in6_addr suggestaddr = IN6ADDR_ANY_INIT;
 	char addr[INET6_ADDRSTRLEN];
@@ -2292,19 +2293,19 @@ sppp_ipv6cp_RCN_nak(sppp_t *sp, lcp_hdr_t *h, int len)
 }
 
 void
-sppp_ipv6cp_tlu(sppp_t *sp)
+sppp_ipv6cp_tlu(struct sppp *sp)
 {
 }
 
 void
-sppp_ipv6cp_tls(sppp_t *sp)
+sppp_ipv6cp_tls(struct sppp *sp)
 {
 	/* indicate to LCP that it must stay alive */
 	sp->lcp.protos |= (1 << IDX_IPV6CP);
 }
 
 void
-sppp_ipv6cp_tlf(sppp_t *sp)
+sppp_ipv6cp_tlf(struct sppp *sp)
 {
 	/* we no longer need LCP */
 	sp->lcp.protos &= ~(1 << IDX_IPV6CP);
@@ -2312,7 +2313,7 @@ sppp_ipv6cp_tlf(sppp_t *sp)
 }
 
 void
-sppp_ipv6cp_scr(sppp_t *sp)
+sppp_ipv6cp_scr(struct sppp *sp)
 {
 	char opt[10 /* ifid */ + 4 /* compression, minimum */];
 	struct in6_addr ouraddr = IN6ADDR_ANY_INIT;
@@ -2348,13 +2349,13 @@ sppp_ipv6cp_scr(sppp_t *sp)
  */
 
 void
-sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
+sppp_auth_send(const struct cp *cp, struct sppp *sp, unsigned int type, int id, ...)
 {
-	spppoe_t *s = sp->s_pppoe;
-	pppoe_t *pppoe = s->pppoe;
-	pppoe_hdr_t *ph;
-	lcp_hdr_t *lh;
-	pkt_t *pkt;
+	struct spppoe *s = sp->s_pppoe;
+	struct pppoe *pppoe = s->pppoe;
+	struct pppoe_hdr *ph;
+	struct lcp_hdr *lh;
+	struct pkt *pkt;
 	uint8_t *p;
 	int len = 0;
 	unsigned int mlen;
@@ -2366,10 +2367,10 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 	pkt = pppoe_eth_pkt_get(s, &s->hw_dst, ETH_P_PPP_SES);
 
 	/* PPPoE header */
-	ph = (pppoe_hdr_t *) pkt->pbuff->data;
+	ph = (struct pppoe_hdr *) pkt->pbuff->data;
 	p = pkt->pbuff->data;
 	PPPOE_ADD_HEADER(p, PPPOE_CODE_SESSION, s->session_id, 0);
-	pkt_buffer_put_data(pkt->pbuff, sizeof(pppoe_hdr_t));
+	pkt_buffer_put_data(pkt->pbuff, sizeof(*ph));
 
 	/* PPP Auth TAG */
 	proto = (uint16_t *) pkt->pbuff->data;
@@ -2377,7 +2378,7 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 	pkt_buffer_put_data(pkt->pbuff, sizeof(uint16_t));
 
 	/* LCP header */
-	lh = (lcp_hdr_t *) pkt->pbuff->data;
+	lh = (struct lcp_hdr *) pkt->pbuff->data;
 	lh->type = type;
 	lh->ident = id;
 	pkt_buffer_put_data(pkt->pbuff, LCP_HEADER_LEN);
@@ -2420,12 +2421,12 @@ sppp_auth_send(const struct cp *cp, sppp_t *sp, unsigned int type, int id, ...)
 /*
  * Handle incoming PAP packets.  */
 void
-sppp_pap_input(sppp_t *sp, pkt_t *pkt)
+sppp_pap_input(struct sppp *sp, struct pkt *pkt)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
-	pkt_buffer_t *pbuff = pkt->pbuff;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
+	struct pkt_buffer *pbuff = pkt->pbuff;
 	int len = pbuff->end - pbuff->data;
-	lcp_hdr_t *h;
+	struct lcp_hdr *h;
 	uint8_t *name, *passwd, mlen;
 	int name_len, passwd_len;
 
@@ -2435,7 +2436,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 		return;
 	}
 
-	h = (lcp_hdr_t *) pbuff->data;
+	h = (struct lcp_hdr *) pbuff->data;
 	if (len > ntohs(h->len))
 		len = ntohs(h->len);
 	switch (h->type) {
@@ -2557,7 +2558,7 @@ sppp_pap_input(sppp_t *sp, pkt_t *pkt)
 }
 
 void
-sppp_pap_init(sppp_t *sp)
+sppp_pap_init(struct sppp *sp)
 {
 	/* PAP doesn't have STATE_INITIAL at all. */
 	sp->state[IDX_PAP] = STATE_CLOSED;
@@ -2565,9 +2566,9 @@ sppp_pap_init(sppp_t *sp)
 }
 
 void
-sppp_pap_open(sppp_t *sp)
+sppp_pap_open(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	if (sp->hisauth.proto == PPP_PAP &&
 	    (sp->lcp.opts & (1 << LCP_OPT_AUTH_PROTO)) != 0) {
@@ -2586,7 +2587,7 @@ sppp_pap_open(sppp_t *sp)
 }
 
 void
-sppp_pap_close(sppp_t *sp)
+sppp_pap_close(struct sppp *sp)
 {
 	if (sp->state[IDX_PAP] != STATE_CLOSED)
 		sppp_cp_change_state(&pap, sp, STATE_CLOSED);
@@ -2598,10 +2599,10 @@ sppp_pap_close(sppp_t *sp)
  * authenticator is basically passive in PAP, we can't do much here.
  */
 void
-sppp_pap_TO(thread_t *thread)
+sppp_pap_TO(struct thread *thread)
 {
-	sppp_t *sp = THREAD_ARG(thread);
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct sppp *sp = THREAD_ARG(thread);
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap TO(%s) rst_counter = %d\n",
 		 pppoe->ifname,
@@ -2633,10 +2634,10 @@ sppp_pap_TO(thread_t *thread)
  * XXX We should impose a max counter.
  */
 void
-sppp_pap_my_TO(thread_t *thread)
+sppp_pap_my_TO(struct thread *thread)
 {
-	sppp_t *sp = THREAD_ARG(thread);
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct sppp *sp = THREAD_ARG(thread);
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap peer TO\n", pppoe->ifname));
 	sp->pap_my_to_ch = NULL;
@@ -2644,9 +2645,9 @@ sppp_pap_my_TO(thread_t *thread)
 }
 
 void
-sppp_pap_tlu(sppp_t *sp)
+sppp_pap_tlu(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	sp->rst_counter[IDX_PAP] = sp->lcp.max_configure;
 
@@ -2667,9 +2668,9 @@ sppp_pap_tlu(sppp_t *sp)
 }
 
 void
-sppp_pap_tld(sppp_t *sp)
+sppp_pap_tld(struct sppp *sp)
 {
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 
 	PPPDEBUG(("%s: pap tld\n", pppoe->ifname));
 	thread_del(sp->ch[IDX_PAP]);
@@ -2682,7 +2683,7 @@ sppp_pap_tld(sppp_t *sp)
 }
 
 void
-sppp_pap_scr(sppp_t *sp)
+sppp_pap_scr(struct sppp *sp)
 {
 	uint8_t idlen, pwdlen;
 
@@ -2703,10 +2704,10 @@ sppp_pap_scr(sppp_t *sp)
  *	PPP Timer related
  */
 static void
-sppp_keepalive(thread_t *thread)
+sppp_keepalive(struct thread *thread)
 {
-	sppp_t *sp = THREAD_ARG(thread);
-	pppoe_t *pppoe = sp->s_pppoe->pppoe;
+	struct sppp *sp = THREAD_ARG(thread);
+	struct pppoe *pppoe = sp->s_pppoe->pppoe;
 	timeval_t tv;
 
 	/* Keepalive mode disabled */
@@ -2765,10 +2766,10 @@ sppp_keepalive(thread_t *thread)
  *	PPP Sessions related
  */
 int
-sppp_up(spppoe_t *s)
+sppp_up(struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
-	sppp_t *sp = s->s_ppp;
+	struct pppoe *pppoe = s->pppoe;
+	struct sppp *sp = s->s_ppp;
 
 	/* LCP layer */
 	(sp->pp_up)(sp);
@@ -2783,10 +2784,10 @@ sppp_up(spppoe_t *s)
 }
 
 int
-sppp_down(spppoe_t *s)
+sppp_down(struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
-	sppp_t *sp = s->s_ppp;
+	struct pppoe *pppoe = s->pppoe;
+	struct sppp *sp = s->s_ppp;
 	int i;
 
 	/* LCP layer */
@@ -2808,12 +2809,12 @@ sppp_down(spppoe_t *s)
 	return 0;
 }
 
-sppp_t *
-sppp_init(spppoe_t *s, void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *)
-		     , void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int))
+struct sppp *
+sppp_init(struct spppoe *s, void (*pp_tls)(struct sppp *), void (*pp_tlf)(struct sppp *),
+	  void (*pp_con)(struct sppp *), void (*pp_chg)(struct sppp *, int))
 {
-	pppoe_t *pppoe = s->pppoe;
-	sppp_t *sp;
+	struct pppoe *pppoe = s->pppoe;
+	struct sppp *sp;
 
 	PMALLOC(sp);
 	sp->s_pppoe = s;
@@ -2858,7 +2859,7 @@ sppp_init(spppoe_t *s, void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *)
 }
 
 void
-sppp_destroy(sppp_t *sp)
+sppp_destroy(struct sppp *sp)
 {
 	int i;
 
@@ -2889,7 +2890,7 @@ sppp_destroy(sppp_t *sp)
  *	PPP service init
  */
 int
-ppp_set_default(pppoe_t *pppoe)
+ppp_set_default(struct pppoe *pppoe)
 {
 	/* Default value */
 	pppoe->lcp_timeout = 1;		/* seconds */

@@ -22,7 +22,7 @@
 #include "gtp_data.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*

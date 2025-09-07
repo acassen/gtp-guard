@@ -32,32 +32,32 @@ enum daemon_flags {
 };
 
 /* Main control block */
-typedef struct data {
+struct data {
 	char			realm[GTP_STR_MAX_LEN];
 	struct sockaddr_storage	nameserver;
-	inet_server_t		request_channel;
-	inet_server_t		metrics_channel;
+	struct inet_server	request_channel;
+	struct inet_server	metrics_channel;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
 	unsigned		nl_rcvbuf_size;
 
-	list_head_t		mirror;
-	list_head_t		cgn;
-	list_head_t		pppoe;
-	list_head_t		pppoe_bundle;
-	list_head_t		ip_vrf;
-	list_head_t		bpf_progs;
-	list_head_t		interfaces;
-	list_head_t		gtp_apn;
-	list_head_t		gtp_cdr;
-	list_head_t		gtp_proxy_ctx;
-	list_head_t		gtp_router_ctx;
-	list_head_t		pfcp_router_ctx;;
+	struct list_head	mirror;
+	struct list_head	cgn;
+	struct list_head	pppoe;
+	struct list_head	pppoe_bundle;
+	struct list_head	ip_vrf;
+	struct list_head	bpf_progs;
+	struct list_head	interfaces;
+	struct list_head	gtp_apn;
+	struct list_head	gtp_cdr;
+	struct list_head	gtp_proxy_ctx;
+	struct list_head	gtp_router_ctx;
+	struct list_head	pfcp_router_ctx;;
 
 	unsigned long		flags;
-} data_t;
+};
 
 
 /* Prototypes */
-data_t *alloc_daemon_data(void);
+struct data *alloc_daemon_data(void);
 void free_daemon_data(void);

@@ -33,7 +33,7 @@
 #include "logger.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -42,7 +42,7 @@ extern data_t *daemon_data;
 static int
 gtp_interface_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics *m)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 
 	vty_out(vty, "   %s: packets:%lld bytes:%lld%s"
 		   , (direction) ? "TX" : "RX"
@@ -55,10 +55,10 @@ gtp_interface_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics 
 }
 
 static int
-gtp_interface_show(gtp_interface_t *iface, void *arg)
+gtp_interface_show(struct gtp_interface *iface, void *arg)
 {
-	gtp_bpf_prog_t *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
-	vty_t *vty = arg;
+	struct gtp_bpf_prog *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
+	struct vty *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
 
 	vty_out(vty, "interface %s%s"
@@ -106,7 +106,7 @@ DEFUN(interface,
       "Configure Interface\n"
       "Local system interface name\n")
 {
-	gtp_interface_t *new;
+	struct gtp_interface *new;
 	int ifindex;
 
 	if (argc < 1) {
@@ -142,7 +142,7 @@ DEFUN(no_interface,
       "Configure interface\n"
       "Local system interface name\n")
 {
-	gtp_interface_t *iface;
+	struct gtp_interface *iface;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -166,8 +166,8 @@ DEFUN(interface_bpf_prog,
       "Attach a BPF program to the interface\n"
       "BPF program name\n")
 {
-	gtp_interface_t *iface = vty->index;
-	gtp_bpf_prog_t *p;
+	struct gtp_interface *iface = vty->index;
+	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -199,8 +199,8 @@ DEFUN(interface_direct_tx_gw,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-	gtp_interface_t *iface = vty->index;
-	ip_address_t *ip_addr = &iface->direct_tx_gw;
+	struct gtp_interface *iface = vty->index;
+	struct ip_address *ip_addr = &iface->direct_tx_gw;
 	int err;
 
 	if (argc < 1) {
@@ -211,7 +211,7 @@ DEFUN(interface_direct_tx_gw,
 	err = inet_stoipaddress(argv[0], ip_addr);
 	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		memset(ip_addr, 0, sizeof(ip_address_t));
+		memset(ip_addr, 0, sizeof(struct ip_address));
 		return CMD_WARNING;
 	}
 
@@ -228,7 +228,7 @@ DEFUN(interface_carrier_grade_nat,
       "Network's operator side (private,local,inside)\n"
       "Internet side (public,remote,outside)\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
 	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
@@ -247,7 +247,7 @@ DEFUN(interface_description,
       "Set Interface description\n"
       "description\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -263,7 +263,7 @@ DEFUN(interface_metrics_gtp,
       "metrics gtp",
       "Enable GTP metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__set_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags);
 	return CMD_SUCCESS;
@@ -274,7 +274,7 @@ DEFUN(no_interface_metrics_gtp,
       "no metrics gtp",
       "Disable GTP metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__clear_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags);
 	return CMD_SUCCESS;
@@ -285,7 +285,7 @@ DEFUN(interface_metrics_pppoe,
       "metrics pppoe",
       "Enable PPPoE metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__set_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags);
 	return CMD_SUCCESS;
@@ -296,7 +296,7 @@ DEFUN(no_interface_metrics_pppoe,
       "no metrics pppoe",
       "Disable PPPoE metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__clear_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags);
 	return CMD_SUCCESS;
@@ -307,7 +307,7 @@ DEFUN(interface_metrics_ipip,
       "metrics ipip",
       "Enable IPIP metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__set_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags);
 	return CMD_SUCCESS;
@@ -318,7 +318,7 @@ DEFUN(no_interface_metrics_ipip,
       "no metrics ipip",
       "Disable IPIP metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	__clear_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags);
 	return CMD_SUCCESS;
@@ -329,7 +329,7 @@ DEFUN(interface_metrics_link,
       "metrics link",
       "Enable link metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
 		return CMD_SUCCESS;
@@ -344,7 +344,7 @@ DEFUN(no_interface_metrics_link,
       "no metrics link",
       "Disable link metrics\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	FREE_PTR(iface->link_metrics);
 	iface->link_metrics = NULL;
@@ -357,7 +357,7 @@ DEFUN(interface_shutdown,
       "shutdown",
       "Shutdown interface\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 
 	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
 		vty_out(vty, "%% interface:'%s' is already shutdown%s"
@@ -376,8 +376,8 @@ DEFUN(interface_no_shutdown,
       "no shutdown",
       "Activate interface\n")
 {
-	gtp_interface_t *iface = vty->index;
-	gtp_bpf_prog_t *p, *p_xdp = NULL;
+	struct gtp_interface *iface = vty->index;
+	struct gtp_bpf_prog *p, *p_xdp = NULL;
 	int err = 0, i;
 
 	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
@@ -449,7 +449,7 @@ DEFUN(show_interface,
       SHOW_STR
       "Interface\n")
 {
-	gtp_interface_t *iface = NULL;
+	struct gtp_interface *iface = NULL;
 
 	if (argc >= 1) {
 		iface = gtp_interface_get(argv[0]);
@@ -470,9 +470,9 @@ DEFUN(show_interface,
 
 /* Configuration writer */
 static int
-interface_config_bpf_write(vty_t *vty, gtp_interface_t *iface)
+interface_config_bpf_write(struct vty *vty, struct gtp_interface *iface)
 {
-	gtp_bpf_prog_t *p;
+	struct gtp_bpf_prog *p;
 	int i;
 
 	for (i = 0; i < GTP_BPF_PROG_TYPE_MAX; i++) {
@@ -487,11 +487,11 @@ interface_config_bpf_write(vty_t *vty, gtp_interface_t *iface)
 }
 
 static int
-interface_config_write(vty_t *vty)
+interface_config_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->interfaces;
+	struct list_head *l = &daemon_data->interfaces;
 	char addr_str[INET6_ADDRSTRLEN];
-	gtp_interface_t *iface;
+	struct gtp_interface *iface;
 
 	list_for_each_entry(iface, l, next) {
 		vty_out(vty, "interface %s%s", iface->ifname, VTY_NEWLINE);
@@ -561,14 +561,14 @@ cmd_ext_interface_install(void)
 	return 0;
 }
 
-cmd_node_t interface_node = {
+struct cmd_node interface_node = {
 	.node = INTERFACE_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(interface)# ",
 	.config_write = interface_config_write,
 };
 
-static cmd_ext_t cmd_ext_interface = {
+static struct cmd_ext cmd_ext_interface = {
 	.node = &interface_node,
 	.install = cmd_ext_interface_install,
 };

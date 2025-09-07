@@ -25,8 +25,8 @@
 #include "gtp_data.h"
 
 /* global var */
-thread_master_t *master = NULL;					/* Scheduling master thread */
+struct thread_master *master = NULL;				/* Scheduling master thread */
 char *conf_file = NULL;						/* Configuration file */
 int log_facility = LOG_DAEMON;					/* Optional logging facilities */
-data_t *daemon_data = NULL;					/* Daemon Control Block data */
+struct data *daemon_data = NULL;				/* Daemon Control Block data */
 char *default_conf_file = "/etc/gtp-guard/gtp-guard.conf";	/* Default configuration file */

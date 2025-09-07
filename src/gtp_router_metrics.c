@@ -30,10 +30,10 @@
  *	Metrics
  */
 static int
-gtp_router_server_rx_dump(gtp_router_t *r, void *arg)
+gtp_router_server_rx_dump(struct gtp_router *r, void *arg)
 {
-	gtp_server_t *srv = &r->gtpc;
-	gtp_router_t *ctx = srv->ctx;
+	struct gtp_server *srv = &r->gtpc;
+	struct gtp_router *ctx = srv->ctx;
 	const char *var = "gtpguard_gtpc_in_packet_total";
 	FILE *fp = arg;
 	int i, type = -1;
@@ -69,10 +69,10 @@ gtp_router_server_rx_dump(gtp_router_t *r, void *arg)
 }
 
 static int
-gtp_router_server_tx_dump(gtp_router_t *r, void *arg)
+gtp_router_server_tx_dump(struct gtp_router *r, void *arg)
 {
-	gtp_server_t *srv = &r->gtpc;
-	gtp_router_t *ctx = srv->ctx;
+	struct gtp_server *srv = &r->gtpc;
+	struct gtp_router *ctx = srv->ctx;
 	const char *var = "gtpguard_gtpc_out_packet_total";
 	FILE *fp = arg;
 	int i, type = -1;

@@ -29,43 +29,43 @@
 #include "gtp_bpf_prog.h"
 
 /* GTP Proxy context */
-typedef struct gtp_proxy {
+struct gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];
-	gtp_bpf_prog_t		*bpf_prog;
-	gtp_server_t		gtpc;
-	gtp_server_t		gtpc_egress;
-	gtp_server_t		gtpu;
-	gtp_server_t		gtpu_egress;
+	struct gtp_bpf_prog	*bpf_prog;
+	struct gtp_server	gtpc;
+	struct gtp_server	gtpc_egress;
+	struct gtp_server	gtpu;
+	struct gtp_server	gtpu_egress;
 	int			session_delete_to;
 
-	gtp_htab_t		gtpc_teid_tab;	/* GTP-C teid hashtab */
-	gtp_htab_t		gtpu_teid_tab;	/* GTP-U teid hashtab */
-	gtp_htab_t		vteid_tab;	/* virtual teid hashtab */
-	gtp_htab_t		vsqn_tab;	/* virtual Seqnum hashtab */
+	struct gtp_htab		gtpc_teid_tab;	/* GTP-C teid hashtab */
+	struct gtp_htab		gtpu_teid_tab;	/* GTP-U teid hashtab */
+	struct gtp_htab		vteid_tab;	/* virtual teid hashtab */
+	struct gtp_htab		vsqn_tab;	/* virtual Seqnum hashtab */
 	uint32_t		seqnum;		/* Global context Seqnum */
 
-	gtp_naptr_t		*pgw;
+	struct gtp_naptr	*pgw;
 	struct sockaddr_storage	pgw_addr;
 
-	gtp_iptnl_t		iptnl;
+	struct gtp_iptnl	iptnl;
 
 	unsigned long		flags;
 	uint32_t		refcnt;
 
-	list_head_t		next;
-} gtp_proxy_t;
+	struct list_head	next;
+};
 
 
 /* Prototypes */
-int gtp_proxy_gtpc_teid_destroy(gtp_teid_t *teid);
-int gtp_proxy_gtpu_teid_destroy(gtp_teid_t *teid);
-int gtp_proxy_ingress_init(inet_server_t *srv);
-int gtp_proxy_ingress_process(inet_server_t *srv,
+int gtp_proxy_gtpc_teid_destroy(struct gtp_teid *teid);
+int gtp_proxy_gtpu_teid_destroy(struct gtp_teid *teid);
+int gtp_proxy_ingress_init(struct inet_server *srv);
+int gtp_proxy_ingress_process(struct inet_server *srv,
 			      struct sockaddr_storage *addr_from);
-gtp_proxy_t *gtp_proxy_get(const char *name);
-gtp_proxy_t *gtp_proxy_init(const char *name);
-int gtp_proxy_ctx_server_destroy(gtp_proxy_t *ctx);
-int gtp_proxy_ctx_destroy(gtp_proxy_t *ctx);
+struct gtp_proxy *gtp_proxy_get(const char *name);
+struct gtp_proxy *gtp_proxy_init(const char *name);
+int gtp_proxy_ctx_server_destroy(struct gtp_proxy *ctx);
+int gtp_proxy_ctx_destroy(struct gtp_proxy *ctx);
 int gtp_proxy_server_destroy(void);
 int gtp_proxy_destroy(void);
 int gtp_proxy_vty_init(void);

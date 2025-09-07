@@ -29,17 +29,17 @@
 #include "utils.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 /*
  *	Rules helpers
  */
-gtp_mirror_rule_t *
-gtp_mirror_rule_get(gtp_mirror_t *m, const struct sockaddr_storage *addr,
+struct gtp_mirror_rule *
+gtp_mirror_rule_get(struct gtp_mirror *m, const struct sockaddr_storage *addr,
 		    uint8_t protocol, int ifindex)
 {
-	list_head_t *l = &m->rules;
-	gtp_mirror_rule_t *r;
+	struct list_head *l = &m->rules;
+	struct gtp_mirror_rule *r;
 
 	list_for_each_entry(r, l, next) {
 		if (!ss_cmp(addr, &r->addr) &&
@@ -52,12 +52,12 @@ gtp_mirror_rule_get(gtp_mirror_t *m, const struct sockaddr_storage *addr,
 	return NULL;
 }
 
-gtp_mirror_rule_t *
-gtp_mirror_rule_add(gtp_mirror_t *m, const struct sockaddr_storage *addr,
+struct gtp_mirror_rule *
+gtp_mirror_rule_add(struct gtp_mirror *m, const struct sockaddr_storage *addr,
 		    uint8_t protocol, int ifindex)
 {
-	list_head_t *l = &m->rules;
-	gtp_mirror_rule_t *r;
+	struct list_head *l = &m->rules;
+	struct gtp_mirror_rule *r;
 
 	PMALLOC(r);
 	INIT_LIST_HEAD(&r->next);
@@ -71,16 +71,16 @@ gtp_mirror_rule_add(gtp_mirror_t *m, const struct sockaddr_storage *addr,
 }
 
 void
-gtp_mirror_rule_del(gtp_mirror_rule_t *r)
+gtp_mirror_rule_del(struct gtp_mirror_rule *r)
 {
 	list_head_del(&r->next);
 }
 
 static void
-gtp_mirror_action(gtp_mirror_t *m, int action, int ifindex)
+gtp_mirror_action(struct gtp_mirror *m, int action, int ifindex)
 {
-	list_head_t *l = &m->rules;
-	gtp_mirror_rule_t *r;
+	struct list_head *l = &m->rules;
+	struct gtp_mirror_rule *r;
 
 	list_for_each_entry(r, l, next) {
 		if (r->ifindex != ifindex)
@@ -93,8 +93,8 @@ gtp_mirror_action(gtp_mirror_t *m, int action, int ifindex)
 void
 gtp_mirror_brd_action(int action, int ifindex)
 {
-	list_head_t *l = &daemon_data->mirror;
-	gtp_mirror_t *m;
+	struct list_head *l = &daemon_data->mirror;
+	struct gtp_mirror *m;
 
 	list_for_each_entry(m, l, next) {
 		__sync_add_and_fetch(&m->refcnt, 1);
@@ -104,10 +104,10 @@ gtp_mirror_brd_action(int action, int ifindex)
 }
 
 static void
-gtp_mirror_action_bpf(gtp_mirror_t *m, int action)
+gtp_mirror_action_bpf(struct gtp_mirror *m, int action)
 {
-	list_head_t *l = &m->rules;
-	gtp_mirror_rule_t *r;
+	struct list_head *l = &m->rules;
+	struct gtp_mirror_rule *r;
 
 	list_for_each_entry(r, l, next) {
 		gtp_bpf_mirror_action(action, r, m->bpf_prog);
@@ -115,13 +115,13 @@ gtp_mirror_action_bpf(gtp_mirror_t *m, int action)
 }
 
 void
-gtp_mirror_load_bpf(gtp_mirror_t *m)
+gtp_mirror_load_bpf(struct gtp_mirror *m)
 {
 	gtp_mirror_action_bpf(m, RULE_ADD);
 }
 
 void
-gtp_mirror_unload_bpf(gtp_mirror_t *m)
+gtp_mirror_unload_bpf(struct gtp_mirror *m)
 {
 	gtp_mirror_action_bpf(m, RULE_DEL);
 }
@@ -130,10 +130,10 @@ gtp_mirror_unload_bpf(gtp_mirror_t *m)
  *	Mirror helpers
  */
 void
-gtp_mirror_foreach(int (*hdl) (gtp_mirror_t *, void *), void *arg)
+gtp_mirror_foreach(int (*hdl) (struct gtp_mirror *, void *), void *arg)
 {
-	list_head_t *l = &daemon_data->mirror;
-	gtp_mirror_t *m;
+	struct list_head *l = &daemon_data->mirror;
+	struct gtp_mirror *m;
 
 	list_for_each_entry(m, l, next) {
 		__sync_add_and_fetch(&m->refcnt, 1);
@@ -142,11 +142,11 @@ gtp_mirror_foreach(int (*hdl) (gtp_mirror_t *, void *), void *arg)
 	}
 }
 
-gtp_mirror_t *
+struct gtp_mirror *
 gtp_mirror_get(const char *name)
 {
-	list_head_t *l = &daemon_data->mirror;
-	gtp_mirror_t *m;
+	struct list_head *l = &daemon_data->mirror;
+	struct gtp_mirror *m;
 
 	list_for_each_entry(m, l, next) {
 		if (!strncmp(m->name, name, strlen(name))) {
@@ -159,16 +159,16 @@ gtp_mirror_get(const char *name)
 }
 
 int
-gtp_mirror_put(gtp_mirror_t *m)
+gtp_mirror_put(struct gtp_mirror *m)
 {
 	__sync_sub_and_fetch(&m->refcnt, 1);
 	return 0;
 }
 
-gtp_mirror_t *
+struct gtp_mirror *
 gtp_mirror_alloc(const char *name)
 {
-	gtp_mirror_t *new;
+	struct gtp_mirror *new;
 
 	PMALLOC(new);
 	if (!new)
@@ -187,10 +187,10 @@ gtp_mirror_alloc(const char *name)
 }
 
 int
-__gtp_mirror_destroy(gtp_mirror_t *m)
+__gtp_mirror_destroy(struct gtp_mirror *m)
 {
-	gtp_mirror_rule_t *r, *_r;
-	list_head_t *l = &m->rules;
+	struct gtp_mirror_rule *r, *_r;
+	struct list_head *l = &m->rules;
 
 	list_for_each_entry_safe(r, _r, l, next) {
 		list_head_del(&r->next);
@@ -203,7 +203,7 @@ __gtp_mirror_destroy(gtp_mirror_t *m)
 }
 
 int
-gtp_mirror_destroy(gtp_mirror_t *m)
+gtp_mirror_destroy(struct gtp_mirror *m)
 {
 	__gtp_mirror_destroy(m);
 	return 0;
@@ -212,8 +212,8 @@ gtp_mirror_destroy(gtp_mirror_t *m)
 int
 gtp_mirrors_destroy(void)
 {
-	list_head_t *l = &daemon_data->mirror;
-	gtp_mirror_t *m, *_m;
+	struct list_head *l = &daemon_data->mirror;
+	struct gtp_mirror *m, *_m;
 
 	list_for_each_entry_safe(m, _m, l, next)
 		__gtp_mirror_destroy(m);

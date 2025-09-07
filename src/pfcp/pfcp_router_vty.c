@@ -18,13 +18,15 @@
  * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com> 
  */
 
+#include <string.h>
+
 #include "gtp_data.h"
 #include "pfcp_router.h"
 #include "command.h"
 #include "bitops.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -36,7 +38,7 @@ DEFUN(pfcp_router,
       "Configure PFCP Router Instance\n"
       "PFCP Instance Name")
 {
-	pfcp_router_t *c;
+	struct pfcp_router *c;
 
 	c = pfcp_router_get_by_name(argv[0]);
 	if (c == NULL) {
@@ -55,7 +57,7 @@ DEFUN(no_pfcp_router,
       "Destroy PFCP Router Instance\n"
       "Instance Name")
 {
-	pfcp_router_t *c;
+	struct pfcp_router *c;
 
 	/* Already existing ? */
 	c = pfcp_router_get_by_name(argv[0]);
@@ -75,7 +77,7 @@ DEFUN(pfcp_router_desciption,
       "Set PFCP Router description\n"
       "description\n")
 {
-	pfcp_router_t *c = vty->index;
+	struct pfcp_router *c = vty->index;
 
 	snprintf(c->description, GTP_STR_MAX_LEN, "%s", argv[0]);
 
@@ -87,7 +89,7 @@ DEFUN(pfcp_router_desciption,
  *	Show commands
  */
 static int
-pfcp_vty(vty_t *vty, pfcp_router_t *c)
+pfcp_vty(struct vty *vty, struct pfcp_router *c)
 {
 	char buf[4096];
 
@@ -107,7 +109,7 @@ DEFUN(show_pfcp_router,
       "PFCP Router\n"
       "Instance name")
 {
-	pfcp_router_t *c;
+	struct pfcp_router *c;
 	const char *name = NULL;
 
 	if (list_empty(&daemon_data->pfcp_router_ctx)) {
@@ -133,10 +135,10 @@ DEFUN(show_pfcp_router,
  *	Configuration writer
  */
 static int
-config_pfcp_router_write(vty_t *vty)
+config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
-	pfcp_router_t *c;
+	struct pfcp_router *c;
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "pfcp-router %s\n", c->name);
@@ -171,14 +173,14 @@ cmd_ext_pfcp_router_install(void)
 	return 0;
 }
 
-cmd_node_t pfcp_router_node = {
+struct cmd_node pfcp_router_node = {
 	.node = PFCP_ROUTER_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt ="%s(pfcp)# ",
 	.config_write = config_pfcp_router_write,
 };
 
-static cmd_ext_t cmd_ext_pfcp_router = {
+static struct cmd_ext cmd_ext_pfcp_router = {
 	.node = &pfcp_router_node,
 	.install = cmd_ext_pfcp_router_install,
 };

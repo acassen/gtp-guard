@@ -35,9 +35,9 @@
  *	Monitoring thread
  */
 static void
-pppoe_vrrp_timer_thread(thread_t *thread)
+pppoe_vrrp_timer_thread(struct thread *thread)
 {
-	pppoe_t *pppoe = THREAD_ARG(thread);
+	struct pppoe *pppoe = THREAD_ARG(thread);
 
 	/* Timer fired ? */
 	if (__test_bit(PPPOE_FL_FAULT_BIT, &pppoe->flags) && (pppoe->expire > timer_long(time_now))) {
@@ -60,9 +60,9 @@ pppoe_vrrp_timer_thread(thread_t *thread)
 }
 
 static void
-pppoe_vrrp_read_thread(thread_t *thread)
+pppoe_vrrp_read_thread(struct thread *thread)
 {
-	pppoe_t *pppoe = THREAD_ARG(thread);
+	struct pppoe *pppoe = THREAD_ARG(thread);
 	ssize_t len;
 
 	/* Handle read timeout */
@@ -100,7 +100,7 @@ pppoe_vrrp_read_thread(thread_t *thread)
  *	(005) ret      #0
  */
 static int
-pppoe_monitor_vrrp_socket_init(pppoe_t *pppoe)
+pppoe_monitor_vrrp_socket_init(struct pppoe *pppoe)
 {
 	int fd, err;
 	struct sock_filter bpfcode[6] = {
@@ -153,7 +153,7 @@ pppoe_monitor_vrrp_socket_init(pppoe_t *pppoe)
  *	PPPoE Monitoring
  */
 int
-pppoe_monitor_vrrp_init(pppoe_t *pppoe)
+pppoe_monitor_vrrp_init(struct pppoe *pppoe)
 {
 	pppoe->monitor_fd = pppoe_monitor_vrrp_socket_init(pppoe);
 	if (pppoe->monitor_fd < 0) {
@@ -174,7 +174,7 @@ pppoe_monitor_vrrp_init(pppoe_t *pppoe)
 }
 
 int
-pppoe_monitor_vrrp_destroy(pppoe_t *pppoe)
+pppoe_monitor_vrrp_destroy(struct pppoe *pppoe)
 {
 	if (__test_bit(PPPOE_FL_VRRP_MONITOR_BIT, &pppoe->flags))
 		close(pppoe->monitor_fd);

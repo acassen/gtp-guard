@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "gtp_resolv.h"
 #include "gtp_sched.h"
 #include "gtp_session.h"
@@ -29,11 +31,11 @@
 /*
  *	Scheduling decision
  */
-static gtp_pgw_t *
-gtp_sched_pgw_wlc(gtp_naptr_t *naptr, struct sockaddr_in *addr_skip)
+static struct gtp_pgw *
+gtp_sched_pgw_wlc(struct gtp_naptr *naptr, struct sockaddr_in *addr_skip)
 {
 	uint64_t loh = 0, doh;
-	gtp_pgw_t *pgw, *least = NULL;
+	struct gtp_pgw *pgw, *least = NULL;
 	struct sockaddr_in *paddr;
 	uint16_t priority = 0;
 
@@ -79,11 +81,11 @@ gtp_sched_pgw_wlc(gtp_naptr_t *naptr, struct sockaddr_in *addr_skip)
 	return least;
 }
 
-static gtp_pgw_t *
-__gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_skip)
+static struct gtp_pgw *
+__gtp_sched_naptr(struct list_head *l, const char *service, struct sockaddr_in *addr_skip)
 {
-	gtp_naptr_t *naptr, *least = NULL;
-	gtp_pgw_t *pgw = NULL;
+	struct gtp_naptr *naptr, *least = NULL;
+	struct gtp_pgw *pgw = NULL;
 
 	/* First stage: Reset previous scheduling flags */
 	list_for_each_entry(naptr, l, next)
@@ -117,12 +119,12 @@ __gtp_sched_naptr(list_head_t *l, const char *service, struct sockaddr_in *addr_
 }
 
 static int
-gtp_sched_generic(gtp_apn_t *apn, list_head_t *l, const char *service_base,
+gtp_sched_generic(struct gtp_apn *apn, struct list_head *l, const char *service_base,
 		  struct sockaddr_in *addr, struct sockaddr_in *addr_skip)
 {
 	char service_str[GTP_SCHED_MAX_LEN+1] = {};
-	gtp_service_t *service;
-	gtp_pgw_t *pgw = NULL;
+	struct gtp_service *service;
+	struct gtp_pgw *pgw = NULL;
 	int err;
 
 	/* Service selection list is already sorted by prio */
@@ -158,11 +160,12 @@ gtp_sched_roaming_status_to_str(unsigned long *flags)
 }
 
 static int
-gtp_sched_or_fallback(gtp_apn_t *apn, list_head_t *l,
-		      struct sockaddr_in *addr, struct sockaddr_in *addr_skip, unsigned long *flags)
+gtp_sched_or_fallback(struct gtp_apn *apn, struct list_head *l,
+		      struct sockaddr_in *addr, struct sockaddr_in *addr_skip,
+		      unsigned long *flags)
 {
 	const char *service_base = gtp_sched_roaming_status_to_str(flags);
-	gtp_pgw_t *pgw = NULL;
+	struct gtp_pgw *pgw = NULL;
 	int err;
 
 	if (!service_base) {
@@ -189,18 +192,19 @@ gtp_sched_or_fallback(gtp_apn_t *apn, list_head_t *l,
 }
 
 int
-gtp_sched(gtp_apn_t *apn, struct sockaddr_in *addr, struct sockaddr_in *addr_skip, unsigned long *flags)
+gtp_sched(struct gtp_apn *apn, struct sockaddr_in *addr,
+	  struct sockaddr_in *addr_skip, unsigned long *flags)
 {
 	return gtp_sched_or_fallback(apn, &apn->naptr, addr, addr_skip, flags);
 }
 
 int
-gtp_sched_dynamic(gtp_apn_t *apn, const char *apn_name, const char *plmn,
+gtp_sched_dynamic(struct gtp_apn *apn, const char *apn_name, const char *plmn,
 		  struct sockaddr_in *addr, struct sockaddr_in *addr_skip,
 		  unsigned long *flags)
 {
-	gtp_resolv_ctx_t *ctx;
-	list_head_t l;
+	struct gtp_resolv_ctx *ctx;
+	struct list_head l;
 	int err = 0;
 
 	ctx = gtp_resolv_ctx_alloc(apn);

@@ -23,5 +23,5 @@
 #include "pppoe.h"
 
 /* Prototypes */
-int pppoe_monitor_vrrp_init(pppoe_t *);
-int pppoe_monitor_vrrp_destroy(pppoe_t *);
+int pppoe_monitor_vrrp_init(struct pppoe *);
+int pppoe_monitor_vrrp_destroy(struct pppoe *);

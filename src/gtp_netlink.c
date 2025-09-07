@@ -36,12 +36,12 @@
 
 
 /* Local data */
-static nl_handle_t nl_kernel = { .fd = -1 };	/* Kernel reflection channel */
-static nl_handle_t nl_cmd = { .fd = -1 };	/* Kernel command channel */
+static struct nl_handle nl_kernel = { .fd = -1 };	/* Kernel reflection channel */
+static struct nl_handle nl_cmd = { .fd = -1 };	/* Kernel command channel */
 
 /* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+extern struct data *daemon_data;
+extern struct thread_master *master;
 
 static const char *
 get_nl_msg_type(unsigned type)
@@ -116,7 +116,7 @@ parse_rtattr(struct rtattr **tb, int max, struct rtattr *rta, size_t len, unsign
 /* Parse Netlink message */
 static int
 netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *),
-		   nl_handle_t *nl, struct nlmsghdr *n, bool read_all)
+		   struct nl_handle *nl, struct nlmsghdr *n, bool read_all)
 {
 	ssize_t len;
 	int ret = 0;
@@ -265,7 +265,7 @@ netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *),
 
 /* Open Netlink channel with kernel */
 static int
-netlink_open(nl_handle_t *nl, unsigned rcvbuf_size, int flags, int protocol, unsigned group, ...)
+netlink_open(struct nl_handle *nl, unsigned rcvbuf_size, int flags, int protocol, unsigned group, ...)
 {
 	socklen_t addr_len;
 	struct sockaddr_nl snl;
@@ -333,7 +333,7 @@ netlink_open(nl_handle_t *nl, unsigned rcvbuf_size, int flags, int protocol, uns
 
 /* Close Netlink channel with kernel */
 static void
-netlink_close(nl_handle_t *nl)
+netlink_close(struct nl_handle *nl)
 {
 	if (!nl)
 		return;
@@ -357,7 +357,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 {
 	struct ndmsg *r = NLMSG_DATA(h);
 	struct rtattr *tb[NDA_MAX + 1];
-	ip_address_t *addr;
+	struct ip_address *addr;
 	int len = h->nlmsg_len;
 
 	if (h->nlmsg_type != RTM_NEWNEIGH && h->nlmsg_type != RTM_GETNEIGH)
@@ -390,7 +390,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 }
 
 static int
-netlink_neigh_request(nl_handle_t *nl, unsigned char family, uint16_t type)
+netlink_neigh_request(struct nl_handle *nl, unsigned char family, uint16_t type)
 {
 	ssize_t status;
 	struct sockaddr_nl snl = { .nl_family = AF_NETLINK };
@@ -417,7 +417,7 @@ netlink_neigh_request(nl_handle_t *nl, unsigned char family, uint16_t type)
 }
 
 static void
-netlink_neigh_lookup(__attribute__((unused)) thread_t *thread)
+netlink_neigh_lookup(__attribute__((unused)) struct thread *thread)
 {
 	int err;
 
@@ -446,9 +446,9 @@ netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h)
 }
 
 static void
-kernel_netlink(thread_t *thread)
+kernel_netlink(struct thread *thread)
 {
-	nl_handle_t *nl = THREAD_ARG(thread);
+	struct nl_handle *nl = THREAD_ARG(thread);
 
 	if (thread->type != THREAD_READ_TIMEOUT)
 		netlink_parse_info(netlink_filter, nl, NULL, true);
@@ -461,7 +461,7 @@ kernel_netlink(thread_t *thread)
  *	Netlink Interface lookup
  */
 static int
-netlink_if_get_ll_addr(gtp_interface_t *iface, struct rtattr *tb[], int type)
+netlink_if_get_ll_addr(struct gtp_interface *iface, struct rtattr *tb[], int type)
 {
 	size_t i;
 
@@ -497,7 +497,7 @@ netlink_if_get_ll_addr(gtp_interface_t *iface, struct rtattr *tb[], int type)
 }
 
 static int
-netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type, bool stats)
+netlink_if_request(struct nl_handle *nl, unsigned char family, uint16_t type, bool stats)
 {
 	ssize_t status;
 	struct sockaddr_nl snl = { .nl_family = AF_NETLINK };
@@ -531,7 +531,7 @@ netlink_if_request(nl_handle_t *nl, unsigned char family, uint16_t type, bool st
 }
 
 static int
-netlink_if_link_info(struct rtattr *tb, gtp_interface_t *iface)
+netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 {
 	struct rtattr *linkinfo[IFLA_INFO_MAX+1];
 	struct rtattr *attr[IFLA_VLAN_MAX+1], **data = NULL;
@@ -575,7 +575,7 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 {
 	struct ifinfomsg *ifi = NLMSG_DATA(h);
 	struct rtattr *tb[IFLA_MAX + 1];
-	gtp_interface_t *iface;
+	struct gtp_interface *iface;
 	int len = h->nlmsg_len;
 	int err = 0;
 
@@ -616,7 +616,7 @@ netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, s
 {
 	struct ifinfomsg *ifi = NLMSG_DATA(h);
 	struct rtattr *tb[IFLA_MAX + 1];
-	gtp_interface_t *iface;
+	struct gtp_interface *iface;
 	int len = h->nlmsg_len;
 
 	if (h->nlmsg_type != RTM_NEWLINK)
@@ -640,7 +640,7 @@ netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, s
 }
 
 static void
-netlink_if_stats_update(thread_t *thread)
+netlink_if_stats_update(__attribute__((unused)) struct thread *t)
 {
 	int err;
 
