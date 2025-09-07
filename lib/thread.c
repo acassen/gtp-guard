@@ -520,7 +520,8 @@ thread_new(struct thread_master *m)
 
 /* Add new read thread. */
 struct thread *
-thread_add_read_sands(struct thread_master *m, thread_func_t func, void *arg, int fd, const timeval_t *sands, unsigned flags)
+thread_add_read_sands(struct thread_master *m, void (*func)(struct thread *),
+		      void *arg, int fd, const timeval_t *sands, unsigned flags)
 {
 	struct thread_event *event;
 	struct thread *t;
@@ -574,7 +575,8 @@ thread_add_read_sands(struct thread_master *m, thread_func_t func, void *arg, in
 }
 
 struct thread *
-thread_add_read(struct thread_master *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
+thread_add_read(struct thread_master *m, void (*func)(struct thread *),
+		void *arg, int fd, unsigned long timer, unsigned flags)
 {
 	timeval_t sands;
 
@@ -615,7 +617,8 @@ thread_requeue_read(struct thread_master *m, int fd, const timeval_t *sands)
 
 /* Add new write thread. */
 struct thread *
-thread_add_write(struct thread_master *m, thread_func_t func, void *arg, int fd, unsigned long timer, unsigned flags)
+thread_add_write(struct thread_master *m, void (*func)(struct thread *),
+		 void *arg, int fd, unsigned long timer, unsigned flags)
 {
 	struct thread_event *event;
 	struct thread *t;
@@ -689,7 +692,8 @@ thread_close_fd(struct thread *t)
 
 /* Add timer event thread. */
 struct thread *
-thread_add_timer_uval(struct thread_master *m, thread_func_t func, void *arg, unsigned val, uint64_t timer)
+thread_add_timer_uval(struct thread_master *m, void (*func)(struct thread *),
+		      void *arg, unsigned val, uint64_t timer)
 {
 	struct thread *t;
 
@@ -717,7 +721,8 @@ thread_add_timer_uval(struct thread_master *m, thread_func_t func, void *arg, un
 }
 
 struct thread *
-thread_add_timer(struct thread_master *m, thread_func_t func, void *arg, uint64_t timer)
+thread_add_timer(struct thread_master *m, void (*func)(struct thread *),
+		 void *arg, uint64_t timer)
 {
 	return thread_add_timer_uval(m, func, arg, 0, timer);
 }
@@ -740,7 +745,8 @@ thread_mod_timer(struct thread *t, uint64_t timer)
 
 /* Add simple event thread. */
 struct thread *
-thread_add_event(struct thread_master *m, thread_func_t func, void *arg, int val)
+thread_add_event(struct thread_master *m, void (*func)(struct thread *),
+		 void *arg, int val)
 {
 	struct thread *t;
 

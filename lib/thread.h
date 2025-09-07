@@ -65,9 +65,6 @@ enum thread_flags {
 #define THREAD_DESTROY_CLOSE_FD	0x01
 #define THREAD_DESTROY_FREE_ARG	0x02
 
-struct thread;
-typedef void (*thread_func_t)(struct thread *);
-
 union thread_arg2 {
 	int val;
 	unsigned uval;
@@ -86,7 +83,7 @@ struct thread {
 	unsigned long id;
 	enum thread_type type;		/* thread type */
 	struct thread_master *master;	/* pointer to the struct thread_master. */
-	thread_func_t func;		/* event function */
+	void (*func)(struct thread *);	/* event function */
 	void *arg;			/* event argument */
 	timeval_t sands;		/* rest of time sands value. */
 	union thread_arg2 u;		/* second argument of the event. */
@@ -167,19 +164,20 @@ extern struct thread_master *master;
 struct thread_master *thread_make_master(bool nosignal);
 struct thread *thread_add_terminate_event(struct thread_master *m);
 void thread_destroy_master(struct thread_master *m);
-struct thread *thread_add_read_sands(struct thread_master *m, thread_func_t func, void *arg, int fd,
-				     const timeval_t *sands, unsigned flags);
-struct thread *thread_add_read(struct thread_master *m, thread_func_t func, void *arg, int fd,
-			       unsigned long timer, unsigned flags);
+struct thread *thread_add_read_sands(struct thread_master *m, void (*func)(struct thread *),
+				     void *arg, int fd, const timeval_t *sands, unsigned flags);
+struct thread *thread_add_read(struct thread_master *m, void (*func)(struct thread *),
+			       void *arg, int fd, unsigned long timer, unsigned flags);
 void thread_requeue_read(struct thread_master *m, int, const timeval_t *sands);
-struct thread *thread_add_write(struct thread_master *m, thread_func_t func, void *arg, int fd,
+struct thread *thread_add_write(struct thread_master *m, void (*func)(struct thread *), void *arg, int fd,
 				unsigned long timer, unsigned flags);
 void thread_close_fd(struct thread *t);
-struct thread *thread_add_timer_uval(struct thread_master *m, thread_func_t func, void *arg,
-				     unsigned val, uint64_t timer);
-struct thread *thread_add_timer(struct thread_master *m, thread_func_t func, void *arg,
-				uint64_t timer);
+struct thread *thread_add_timer_uval(struct thread_master *m, void (*func)(struct thread *),
+				     void *arg, unsigned val, uint64_t timer);
+struct thread *thread_add_timer(struct thread_master *m, void (*func)(struct thread *),
+				void *arg, uint64_t timer);
 void thread_mod_timer(struct thread *t, uint64_t timer);
-struct thread *thread_add_event(struct thread_master *m, thread_func_t func, void *arg, int val);
+struct thread *thread_add_event(struct thread_master *m, void (*func)(struct thread *),
+				void *arg, int val);
 void thread_del(struct thread *t);
 void launch_thread_scheduler(struct thread_master *m);
