@@ -19,7 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <unistd.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/param.h>

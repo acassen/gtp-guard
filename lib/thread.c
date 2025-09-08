@@ -19,7 +19,6 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <unistd.h>
 #include <errno.h>
 #include <sys/epoll.h>
 #include <assert.h>
