@@ -19,7 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <string.h>
+#include <unistd.h>
 #include <stdarg.h>
 #include <netdb.h>
 
