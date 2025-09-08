@@ -32,8 +32,11 @@
  * know whether LCP is up.
  */
 enum ppp_phase {
-	PHASE_DEAD, PHASE_ESTABLISH, PHASE_TERMINATE,
-	PHASE_AUTHENTICATE, PHASE_NETWORK
+	PHASE_DEAD,
+	PHASE_ESTABLISH,
+	PHASE_TERMINATE,
+	PHASE_AUTHENTICATE,
+	PHASE_NETWORK
 };
 
 
@@ -48,7 +51,7 @@ struct sdnsreq {
 
 #define IDX_LCP 0		/* idx into state table */
 
-typedef struct slcp {
+struct slcp {
 	unsigned long	opts;		/* LCP options to send (bitfield) */
 	uint32_t	magic;          /* local magic number */
 	uint32_t	mru;		/* our max receive unit */
@@ -60,13 +63,13 @@ typedef struct slcp {
 	int		max_terminate;
 	int		max_configure;
 	int		max_failure;
-} slcp_t;
+};
 
 
 #define IDX_IPCP	1		/* idx into state table */
 #define IDX_IPV6CP	2
 
-typedef struct sipcp {
+struct sipcp {
 	unsigned long	opts;		/* IPCP options to send (bitfield) */
 	uint32_t	flags;
 #define IPCP_HISADDR_SEEN	1	/* have seen his address already */
@@ -81,21 +84,21 @@ typedef struct sipcp {
 	uint32_t	req_myaddr;	/* local address requested (IPv4) */
 	struct in_addr	dns[IPCP_MAX_DNSSRV]; /* IPv4 DNS servers (RFC 1877) */
 	struct in6_addr	req_ifid;	/* local ifid requested (IPv6) */
-} sipcp_t;
+};
 
-typedef struct sauth {
+struct sauth {
 	uint16_t	proto;		/* authentication protocol to use */
 	uint16_t	flags;
 	char		*name;		/* system identification name */
 	char		*secret;	/* secret password */
-} sauth_t;
+};
 
 #define IDX_PAP		3
 
 #define IDX_COUNT (IDX_PAP + 1) /* bump this when adding cp's! */
 
-typedef struct sppp {
-	spppoe_t	*s_pppoe;		/* PPPoE back-pointer */
+struct sppp {
+	struct spppoe	*s_pppoe;		/* PPPoE back-pointer */
 	unsigned long	pp_flags;
 	uint32_t	pp_framebytes;		/* number of bytes added by hardware framing */
 	uint16_t	pp_alivecnt;		/* keepalive packets counter */
@@ -109,14 +112,14 @@ typedef struct sppp {
 	uint8_t		confid[IDX_COUNT];	/* id of last configuration request */
 	int		rst_counter[IDX_COUNT];	/* restart counter */
 	int		fail_counter[IDX_COUNT];/* negotiation failure counter */
-	thread_t	*ch[IDX_COUNT];
-	thread_t	*pap_my_to_ch;
-	thread_t	*keepalive;
-	slcp_t		lcp;			/* LCP params */
-	sipcp_t		ipcp;			/* IPCP params */
-	sipcp_t		ipv6cp;			/* IPV6CP params */
-	sauth_t		myauth;			/* auth params, i'm peer */
-	sauth_t		hisauth;		/* auth params, i'm authenticator */
+	struct thread	*ch[IDX_COUNT];
+	struct thread	*pap_my_to_ch;
+	struct thread	*keepalive;
+	struct slcp	lcp;			/* LCP params */
+	struct sipcp	ipcp;			/* IPCP params */
+	struct sipcp	ipv6cp;			/* IPV6CP params */
+	struct sauth	myauth;			/* auth params, i'm peer */
+	struct sauth	hisauth;		/* auth params, i'm authenticator */
 	uint8_t		chap_challenge[AUTHCHALEN]; /* random challenge used by CHAP */
 
 	/*
@@ -146,7 +149,7 @@ typedef struct sppp {
 	 */
 	void	(*pp_con)(struct sppp *);
 	void	(*pp_chg)(struct sppp *, int);
-} sppp_t;
+};
 
 #define PP_KEEPALIVE	0x01	/* use keepalive protocol */
 				/* 0x02 was PP_CISCO */
@@ -168,69 +171,69 @@ typedef struct sppp {
 #define SUCCMSG "Welcome!"
 
 /* Prototypes */
-void sppp_lcp_init(sppp_t *);
-void sppp_lcp_up(sppp_t *);
-void sppp_lcp_down(sppp_t *);
-void sppp_lcp_open(sppp_t *);
-void sppp_lcp_close(sppp_t *);
-void sppp_lcp_TO(thread_t *);
-int sppp_lcp_RCR(sppp_t *, lcp_hdr_t *, int);
-void sppp_lcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
-void sppp_lcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-void sppp_lcp_tlu(sppp_t *);
-void sppp_lcp_tld(sppp_t *);
-void sppp_lcp_tls(sppp_t *);
-void sppp_lcp_tlf(sppp_t *);
-void sppp_lcp_scr(sppp_t *);
-void sppp_lcp_check_and_close(sppp_t *);
-int sppp_ncp_check(sppp_t *);
+void sppp_lcp_init(struct sppp *);
+void sppp_lcp_up(struct sppp *);
+void sppp_lcp_down(struct sppp *);
+void sppp_lcp_open(struct sppp *);
+void sppp_lcp_close(struct sppp *);
+void sppp_lcp_TO(struct thread *);
+int sppp_lcp_RCR(struct sppp *, struct lcp_hdr *, int);
+void sppp_lcp_RCN_rej(struct sppp *, struct lcp_hdr *, int);
+void sppp_lcp_RCN_nak(struct sppp *, struct lcp_hdr *, int);
+void sppp_lcp_tlu(struct sppp *);
+void sppp_lcp_tld(struct sppp *);
+void sppp_lcp_tls(struct sppp *);
+void sppp_lcp_tlf(struct sppp *);
+void sppp_lcp_scr(struct sppp *);
+void sppp_lcp_check_and_close(struct sppp *);
+int sppp_ncp_check(struct sppp *);
 
-void sppp_ipcp_init(sppp_t *);
-void sppp_ipcp_destroy(sppp_t *);
-void sppp_ipcp_up(sppp_t *);
-void sppp_ipcp_down(sppp_t *);
-void sppp_ipcp_open(sppp_t *);
-void sppp_ipcp_close(sppp_t *);
-void sppp_ipcp_TO(thread_t *);
-int sppp_ipcp_RCR(sppp_t *, lcp_hdr_t *, int);
-void sppp_ipcp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
-void sppp_ipcp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-void sppp_ipcp_tlu(sppp_t *);
-void sppp_ipcp_tls(sppp_t *);
-void sppp_ipcp_tlf(sppp_t *);
-void sppp_ipcp_scr(sppp_t *);
+void sppp_ipcp_init(struct sppp *);
+void sppp_ipcp_destroy(struct sppp *);
+void sppp_ipcp_up(struct sppp *);
+void sppp_ipcp_down(struct sppp *);
+void sppp_ipcp_open(struct sppp *);
+void sppp_ipcp_close(struct sppp *);
+void sppp_ipcp_TO(struct thread *);
+int sppp_ipcp_RCR(struct sppp *, struct lcp_hdr *, int);
+void sppp_ipcp_RCN_rej(struct sppp *, struct lcp_hdr *, int);
+void sppp_ipcp_RCN_nak(struct sppp *, struct lcp_hdr *, int);
+void sppp_ipcp_tlu(struct sppp *);
+void sppp_ipcp_tls(struct sppp *);
+void sppp_ipcp_tlf(struct sppp *);
+void sppp_ipcp_scr(struct sppp *);
 
-void sppp_ipv6cp_init(sppp_t *);
-void sppp_ipv6cp_destroy(sppp_t *);
-void sppp_ipv6cp_up(sppp_t *);
-void sppp_ipv6cp_down(sppp_t *);
-void sppp_ipv6cp_open(sppp_t *);
-void sppp_ipv6cp_close(sppp_t *);
-void sppp_ipv6cp_TO(thread_t *);
-int sppp_ipv6cp_RCR(sppp_t *, lcp_hdr_t *, int);
-void sppp_ipv6cp_RCN_rej(sppp_t *, lcp_hdr_t *, int);
-void sppp_ipv6cp_RCN_nak(sppp_t *, lcp_hdr_t *, int);
-void sppp_ipv6cp_tlu(sppp_t *);
-void sppp_ipv6cp_tld(sppp_t *);
-void sppp_ipv6cp_tls(sppp_t *);
-void sppp_ipv6cp_tlf(sppp_t *);
-void sppp_ipv6cp_scr(sppp_t *);
+void sppp_ipv6cp_init(struct sppp *);
+void sppp_ipv6cp_destroy(struct sppp *);
+void sppp_ipv6cp_up(struct sppp *);
+void sppp_ipv6cp_down(struct sppp *);
+void sppp_ipv6cp_open(struct sppp *);
+void sppp_ipv6cp_close(struct sppp *);
+void sppp_ipv6cp_TO(struct thread *);
+int sppp_ipv6cp_RCR(struct sppp *, struct lcp_hdr *, int);
+void sppp_ipv6cp_RCN_rej(struct sppp *, struct lcp_hdr *, int);
+void sppp_ipv6cp_RCN_nak(struct sppp *, struct lcp_hdr *, int);
+void sppp_ipv6cp_tlu(struct sppp *);
+void sppp_ipv6cp_tld(struct sppp *);
+void sppp_ipv6cp_tls(struct sppp *);
+void sppp_ipv6cp_tlf(struct sppp *);
+void sppp_ipv6cp_scr(struct sppp *);
 
-void sppp_pap_input(sppp_t *, pkt_t *pkt);
-void sppp_pap_init(sppp_t *);
-void sppp_pap_open(sppp_t *);
-void sppp_pap_close(sppp_t *);
-void sppp_pap_TO(thread_t *);
-void sppp_pap_my_TO(thread_t *);
-void sppp_pap_tlu(sppp_t *);
-void sppp_pap_tld(sppp_t *);
-void sppp_pap_scr(sppp_t *);
+void sppp_pap_input(struct sppp *, struct pkt *pkt);
+void sppp_pap_init(struct sppp *);
+void sppp_pap_open(struct sppp *);
+void sppp_pap_close(struct sppp *);
+void sppp_pap_TO(struct thread *);
+void sppp_pap_my_TO(struct thread *);
+void sppp_pap_tlu(struct sppp *);
+void sppp_pap_tld(struct sppp *);
+void sppp_pap_scr(struct sppp *);
 
-void sppp_input(sppp_t *, pkt_t *);
-int sppp_up(spppoe_t *);
-int sppp_down(spppoe_t *);
-sppp_t *sppp_init(spppoe_t *, void (*pp_tls)(struct sppp *)
-			    , void (*pp_tlf)(sppp_t *)
-			    , void (*pp_con)(sppp_t *)
-			    , void (*pp_chg)(struct sppp *, int));
-void sppp_destroy(sppp_t *);
+void sppp_input(struct sppp *, struct pkt *);
+int sppp_up(struct spppoe *);
+int sppp_down(struct spppoe *);
+struct sppp *sppp_init(struct spppoe *, void (*pp_tls)(struct sppp *),
+		       void (*pp_tlf)(struct sppp *),
+		       void (*pp_con)(struct sppp *),
+		       void (*pp_chg)(struct sppp *, int));
+void sppp_destroy(struct sppp *);

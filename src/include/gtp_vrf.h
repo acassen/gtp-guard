@@ -33,25 +33,25 @@ enum ip_vrf_flags {
 	IP_VRF_FL_GTP_UDP_PORT_LEARNING_BIT,
 };
 
-typedef struct ip_vrf {
+struct ip_vrf {
 	uint32_t		id;
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	uint16_t		encap_vlan_id;
 	uint16_t		decap_vlan_id;
-	gtp_iptnl_t		iptnl;
-	pppoe_t			*pppoe;
-	pppoe_bundle_t		*pppoe_bundle;
+	struct gtp_iptnl	iptnl;
+	struct pppoe		*pppoe;
+	struct pppoe_bundle	*pppoe_bundle;
 
-	list_head_t		next;
+	struct list_head	next;
 
 	unsigned long		flags;
-} ip_vrf_t;
+};
 
 
 /* Prototypes */
-ip_vrf_t *gtp_ip_vrf_get(const char *);
-ip_vrf_t *gtp_ip_vrf_alloc(const char *);
-int gtp_ip_vrf_destroy(ip_vrf_t *);
+struct ip_vrf *gtp_ip_vrf_get(const char *);
+struct ip_vrf *gtp_ip_vrf_alloc(const char *);
+int gtp_ip_vrf_destroy(struct ip_vrf *);
 int gtp_vrf_init(void);
 int gtp_vrf_destroy(void);

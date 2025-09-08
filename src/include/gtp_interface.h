@@ -39,26 +39,26 @@ enum gtp_interface_flags {
 };
 
 /* Interface structure */
-typedef struct gtp_interface {
+struct gtp_interface {
 	char			ifname[IF_NAMESIZE];
 	uint8_t			hw_addr[ETH_ALEN];
 	uint8_t			hw_addr_len;
 	uint16_t		vlan_id;
-	ip_address_t		direct_tx_gw;
+	struct ip_address		direct_tx_gw;
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
 	char			cgn_name[GTP_STR_MAX_LEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
-	gtp_bpf_prog_attr_t	bpf_prog_attr[GTP_BPF_PROG_TYPE_MAX];
+	struct gtp_bpf_prog_attr bpf_prog_attr[GTP_BPF_PROG_TYPE_MAX];
 
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
 
-	list_head_t		next;
+	struct list_head	next;
 
 	int			refcnt;
 	unsigned long		flags;
-} gtp_interface_t;
+};
 
 /* BPF interface attributes */
 struct ll_attr {
@@ -69,15 +69,15 @@ struct ll_attr {
 
 /* Prototypes */
 int gtp_interface_metrics_dump(FILE *);
-void gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
+void gtp_interface_metrics_foreach(int (*hdl) (struct gtp_interface *, void *, const char *, int, __u8, __u8),
  				   void *, const char *, int, __u8, __u8);
-void gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *);
-void gtp_interface_update_direct_tx_lladdr(ip_address_t *, const uint8_t *);
-gtp_interface_t *gtp_interface_get(const char *);
-gtp_interface_t *gtp_interface_get_by_ifindex(int);
-int gtp_interface_put(gtp_interface_t *);
-gtp_interface_t *gtp_interface_alloc(const char *, int);
-int gtp_interface_load_bpf(gtp_interface_t *);
-int gtp_interface_unload_bpf(gtp_interface_t *);
-int gtp_interface_destroy(gtp_interface_t *);
+void gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *);
+void gtp_interface_update_direct_tx_lladdr(struct ip_address *, const uint8_t *);
+struct gtp_interface *gtp_interface_get(const char *);
+struct gtp_interface *gtp_interface_get_by_ifindex(int);
+int gtp_interface_put(struct gtp_interface *);
+struct gtp_interface *gtp_interface_alloc(const char *, int);
+int gtp_interface_load_bpf(struct gtp_interface *);
+int gtp_interface_unload_bpf(struct gtp_interface *);
+int gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);

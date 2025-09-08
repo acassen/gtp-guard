@@ -22,25 +22,30 @@
 #pragma once
 
 #include "gtp_stddef.h"
+#include "inet_server.h"
 #include "list_head.h"
 
 enum pfcp_flags {
 	PFCP_ROUTER_FL_SHUTDOWN_BIT,
 };
 
-typedef struct pfcp_router {
+struct pfcp_router {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
-	unsigned long		flags;
-	struct list_head	next;
+	struct inet_server	s;
 
 	/* metrics */
-} pfcp_router_t;
+
+
+	struct list_head	next;
+
+	unsigned long		flags;
+};
 
 /* Prototypes */
-int pfcp_router_dump(pfcp_router_t *c, char *buffer, size_t bsize);
-pfcp_router_t *pfcp_router_get_by_name(const char *name);
-void pfcp_router_release(pfcp_router_t *c);
-pfcp_router_t *pfcp_router_alloc(const char *name);
+int pfcp_router_dump(struct pfcp_router *c, char *buffer, size_t bsize);
+struct pfcp_router *pfcp_router_get_by_name(const char *name);
+void pfcp_router_release(struct pfcp_router *c);
+struct pfcp_router *pfcp_router_alloc(const char *name);
 int pfcp_router_init(void);
 int pfcp_router_destroy(void);

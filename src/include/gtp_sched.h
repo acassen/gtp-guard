@@ -26,6 +26,6 @@
 #define GTP_SCHED_MAX_LEN	64
 
 /* Prototypes */
-int gtp_sched(gtp_apn_t *, struct sockaddr_in *, struct sockaddr_in *, unsigned long *);
-int gtp_sched_dynamic(gtp_apn_t *, const char *, const char *, struct sockaddr_in *,
+int gtp_sched(struct gtp_apn *, struct sockaddr_in *, struct sockaddr_in *, unsigned long *);
+int gtp_sched_dynamic(struct gtp_apn *, const char *, const char *, struct sockaddr_in *,
 		      struct sockaddr_in *, unsigned long *);

@@ -20,6 +20,7 @@
  */
 
 #include <unistd.h>
+#include <string.h>
 #include <errno.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
@@ -37,38 +38,38 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
  *	PPPoE utilities
  */
 void
-pppoe_metrics_foreach(int (*hdl) (pppoe_t *, void *, const char *, int),
-				      void *arg, const char *var, int direction)
+pppoe_metrics_foreach(int (*hdl) (struct pppoe *, void *, const char *, int),
+		      void *arg, const char *var, int direction)
 {
-	list_head_t *l = &daemon_data->pppoe;
-	pppoe_t *pppoe;
+	struct list_head *l = &daemon_data->pppoe;
+	struct pppoe *pppoe;
 
 	list_for_each_entry(pppoe, l, next)
 		(*(hdl)) (pppoe, arg, var, direction);
 }
 
 void
-pppoe_foreach(int (*hdl) (pppoe_t *, void *), void *arg)
+pppoe_foreach(int (*hdl) (struct pppoe *, void *), void *arg)
 {
-	list_head_t *l = &daemon_data->pppoe;
-	pppoe_t *pppoe;
+	struct list_head *l = &daemon_data->pppoe;
+	struct pppoe *pppoe;
 
 	list_for_each_entry(pppoe, l, next)
 		(*(hdl)) (pppoe, arg);
 }
 
-pppoe_t *
+struct pppoe *
 pppoe_get_by_name(const char *name)
 {
-	pppoe_t *pppoe;
+	struct pppoe *pppoe;
 
 	list_for_each_entry(pppoe, &daemon_data->pppoe, next) {
 		if (!strncmp(pppoe->name, name, GTP_NAME_MAX_LEN)) {
@@ -79,10 +80,10 @@ pppoe_get_by_name(const char *name)
 	return NULL;
 }
 
-pppoe_bundle_t *
+struct pppoe_bundle *
 pppoe_bundle_get_by_name(const char *name)
 {
-	pppoe_bundle_t *bundle;
+	struct pppoe_bundle *bundle;
 
 	list_for_each_entry(bundle, &daemon_data->pppoe_bundle, next) {
 		if (!strncmp(bundle->name, name, GTP_NAME_MAX_LEN)) {
@@ -92,10 +93,10 @@ pppoe_bundle_get_by_name(const char *name)
 	return NULL;
 }
 
-static pppoe_t *
+static struct pppoe *
 pppoe_get_by_ifindex(const unsigned int ifindex)
 {
-	pppoe_t *pppoe;
+	struct pppoe *pppoe;
 
 	list_for_each_entry(pppoe, &daemon_data->pppoe, next) {
 		if (pppoe->ifindex == ifindex) {
@@ -107,21 +108,21 @@ pppoe_get_by_ifindex(const unsigned int ifindex)
 }
 
 int
-pppoe_put(pppoe_t *pppoe)
+pppoe_put(struct pppoe *pppoe)
 {
 	pppoe->refcnt--;
 	return 0;
 }
 
 static int
-pppoe_add(pppoe_t *pppoe)
+pppoe_add(struct pppoe *pppoe)
 {
 	list_add_tail(&pppoe->next, &daemon_data->pppoe);
 	return 0;
 }
 
 static int
-pppoe_bundle_add(pppoe_bundle_t *bundle)
+pppoe_bundle_add(struct pppoe_bundle *bundle)
 {
 	list_add_tail(&bundle->next, &daemon_data->pppoe_bundle);
 	return 0;
@@ -132,7 +133,7 @@ pppoe_bundle_add(pppoe_bundle_t *bundle)
  *	PPPoE Workers
  */
 static int
-pppoe_send(pppoe_t *pppoe, pppoe_channel_t *ch, pkt_t *pkt)
+pppoe_send(struct pppoe *pppoe, struct pppoe_channel *ch, struct pkt *pkt)
 {
 	gtp_metrics_pkt_update(&ch->tx_metrics, pkt_buffer_len(pkt->pbuff));
 
@@ -140,23 +141,23 @@ pppoe_send(pppoe_t *pppoe, pppoe_channel_t *ch, pkt_t *pkt)
 }
 
 int
-pppoe_disc_send(pppoe_t *pppoe, pkt_t *pkt)
+pppoe_disc_send(struct pppoe *pppoe, struct pkt *pkt)
 {
 	return pppoe_send(pppoe, &pppoe->channel_disc, pkt);
 }
 
 int
-pppoe_ses_send(pppoe_t *pppoe, pkt_t *pkt)
+pppoe_ses_send(struct pppoe *pppoe, struct pkt *pkt)
 {
 	return pppoe_send(pppoe, &pppoe->channel_ses, pkt);
 }
 
 static void
-pppoe_ingress(pkt_t *pkt, void *arg)
+pppoe_ingress(struct pkt *pkt, void *arg)
 {
 	struct ether_header *eh = (struct ether_header *) pkt->pbuff->head;
-	pppoe_channel_t *ch = arg;
-	pppoe_t *pppoe = ch->pppoe;
+	struct pppoe_channel *ch = arg;
+	struct pppoe *pppoe = ch->pppoe;
 
 	switch (ntohs(eh->ether_type)) {
 	case ETH_P_PPP_DISC:
@@ -173,9 +174,9 @@ pppoe_ingress(pkt_t *pkt, void *arg)
 }
 
 static int
-pppoe_socket_init(pppoe_channel_t *ch, uint16_t proto)
+pppoe_socket_init(struct pppoe_channel *ch, uint16_t proto)
 {
-	pppoe_t *pppoe = ch->pppoe;
+	struct pppoe *pppoe = ch->pppoe;
 	struct sockaddr_ll sll;
 	int fd, err;
 
@@ -210,10 +211,10 @@ pppoe_socket_init(pppoe_channel_t *ch, uint16_t proto)
 }
 
 static void
-pppoe_async_recv_thread(thread_t *thread)
+pppoe_async_recv_thread(struct thread *thread)
 {
-	pppoe_channel_t *ch = THREAD_ARG(thread);
-	pppoe_t *pppoe = ch->pppoe;
+	struct pppoe_channel *ch = THREAD_ARG(thread);
+	struct pppoe *pppoe = ch->pppoe;
 	int ret;
 
 	if (thread->type == THREAD_READ_TIMEOUT)
@@ -244,7 +245,7 @@ pppoe_async_recv_thread(thread_t *thread)
 }
 
 static int
-pppoe_channel_init(pppoe_t *pppoe, pppoe_channel_t *ch, uint16_t proto)
+pppoe_channel_init(struct pppoe *pppoe, struct pppoe_channel *ch, uint16_t proto)
 {
 	int err;
 
@@ -274,7 +275,7 @@ pppoe_channel_init(pppoe_t *pppoe, pppoe_channel_t *ch, uint16_t proto)
 }
 
 static void
-pppoe_channel_release(pppoe_channel_t *ch)
+pppoe_channel_release(struct pppoe_channel *ch)
 {
 	mpkt_destroy(&ch->mpkt);
 	pkt_queue_destroy(&ch->pkt_q);
@@ -282,7 +283,7 @@ pppoe_channel_release(pppoe_channel_t *ch)
 }
 
 static int
-pppoe_channel_destroy(pppoe_t *pppoe)
+pppoe_channel_destroy(struct pppoe *pppoe)
 {
 	if (!__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
 		return -1;
@@ -297,7 +298,7 @@ pppoe_channel_destroy(pppoe_t *pppoe)
  *	PPPoE service init
  */
 int
-pppoe_start(pppoe_t *pppoe)
+pppoe_start(struct pppoe *pppoe)
 {
 	if (__test_bit(PPPOE_FL_RUNNING_BIT, &pppoe->flags))
 		return -1;
@@ -311,7 +312,7 @@ pppoe_start(pppoe_t *pppoe)
 }
 
 int
-pppoe_interface_init(pppoe_t *pppoe, const char *ifname)
+pppoe_interface_init(struct pppoe *pppoe, const char *ifname)
 {
 	unsigned int ifindex = if_nametoindex(ifname);
 
@@ -330,10 +331,10 @@ pppoe_interface_init(pppoe_t *pppoe, const char *ifname)
 	return 0;
 }
 
-pppoe_t *
+struct pppoe *
 pppoe_alloc(const char *name)
 {
-	pppoe_t *new = NULL;
+	struct pppoe *new = NULL;
 
 	PMALLOC(new);
 	if (!new) {
@@ -352,7 +353,7 @@ pppoe_alloc(const char *name)
 }
 
 int
-pppoe_release(pppoe_t *pppoe)
+pppoe_release(struct pppoe *pppoe)
 {
 	__set_bit(PPPOE_FL_STOPPING_BIT, &pppoe->flags);
 	pppoe_channel_destroy(pppoe);
@@ -376,7 +377,7 @@ pppoe_init(void)
 int
 pppoe_destroy(void)
 {
-	pppoe_t *pppoe, *_pppoe;
+	struct pppoe *pppoe, *_pppoe;
 
 	ppp_destroy();
 	pppoe_proto_destroy();
@@ -390,10 +391,10 @@ pppoe_destroy(void)
 /*
  *	PPPoE Bundle init
  */
-pppoe_bundle_t *
+struct pppoe_bundle *
 pppoe_bundle_init(const char *name)
 {
-	pppoe_bundle_t *bundle = NULL;
+	struct pppoe_bundle *bundle = NULL;
 
 	bundle = pppoe_bundle_get_by_name(name);
 	if (bundle) {
@@ -408,17 +409,17 @@ pppoe_bundle_init(const char *name)
 	}
 	bsd_strlcpy(bundle->name, name, GTP_NAME_MAX_LEN);
 	INIT_LIST_HEAD(&bundle->next);
-	bundle->pppoe = MALLOC(sizeof(pppoe_t) * PPPOE_BUNDLE_MAXSIZE);
+	bundle->pppoe = MALLOC(sizeof(struct pppoe) * PPPOE_BUNDLE_MAXSIZE);
 
 	pppoe_bundle_add(bundle);
 
 	return bundle;
 }
 
-pppoe_t *
-pppoe_bundle_get_active_instance(pppoe_bundle_t *bundle)
+struct pppoe *
+pppoe_bundle_get_active_instance(struct pppoe_bundle *bundle)
 {
-	pppoe_t *pppoe;
+	struct pppoe *pppoe;
 	int i;
 
 	/* try match primary !fault instance */
@@ -443,7 +444,7 @@ pppoe_bundle_get_active_instance(pppoe_bundle_t *bundle)
 }
 
 int
-pppoe_bundle_release(pppoe_bundle_t *bundle)
+pppoe_bundle_release(struct pppoe_bundle *bundle)
 {
 	list_head_del(&bundle->next);
 	FREE(bundle->pppoe);
@@ -453,7 +454,7 @@ pppoe_bundle_release(pppoe_bundle_t *bundle)
 int
 pppoe_bundle_destroy(void)
 {
-	pppoe_bundle_t *bundle, *_bundle;
+	struct pppoe_bundle *bundle, *_bundle;
 
 	list_for_each_entry_safe(bundle, _bundle, &daemon_data->pppoe_bundle, next)
 		pppoe_bundle_release(bundle);

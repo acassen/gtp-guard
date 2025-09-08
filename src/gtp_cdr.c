@@ -34,7 +34,7 @@
  *	Utilities
  */
 static int
-cdr_current_date_to_bcd(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
+cdr_current_date_to_bcd(struct gtp_cdr *cdr, uint8_t *dst, size_t dsize)
 {
 	struct tm *date = &cdr->date;
 	time_t now;
@@ -61,9 +61,9 @@ cdr_current_date_to_bcd(gtp_cdr_t *cdr, uint8_t *dst, size_t dsize)
 }
 
 static uint8_t *
-cdr_apn_ni_alloc(gtp_msg_t *msg)
+cdr_apn_ni_alloc(struct gtp_msg *msg)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 	char tmp_str[64];
 	uint8_t *apn_ni;
 	int err;
@@ -73,7 +73,7 @@ cdr_apn_ni_alloc(gtp_msg_t *msg)
 		return NULL;
 
 	memset(tmp_str, 0, 64);
-	err = gtp_ie_apn_extract_ni((gtp_ie_apn_t *) msg_ie->h, tmp_str, 64);
+	err = gtp_ie_apn_extract_ni((struct gtp_ie_apn *) msg_ie->h, tmp_str, 64);
 	if (err)
 		return NULL;
 
@@ -86,8 +86,8 @@ cdr_apn_ni_alloc(gtp_msg_t *msg)
 static int
 cdr_hplmn_set(uint8_t *apn_ni, uint8_t *plmn)
 {
-	gtp_apn_t *apn;
-	gtp_plmn_t *hplmn;
+	struct gtp_apn *apn;
+	struct gtp_plmn *hplmn;
 
 	if (!apn_ni)
 		return -1;
@@ -100,15 +100,15 @@ cdr_hplmn_set(uint8_t *apn_ni, uint8_t *plmn)
 	if (list_empty(&apn->hplmn))
 		return -1;
 
-	hplmn = list_first_entry(&apn->hplmn, gtp_plmn_t, next);
+	hplmn = list_first_entry(&apn->hplmn, struct gtp_plmn, next);
 	memcpy(plmn, hplmn->plmn, GTP_PLMN_MAX_LEN);
 	return 0;
 }
 
 static int
-cdr_pdn_type_set(gtp_msg_t *msg, uint8_t *pdn_type)
+cdr_pdn_type_set(struct gtp_msg *msg, uint8_t *pdn_type)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 	uint8_t *cp;
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_PDN_TYPE);
@@ -128,16 +128,16 @@ cdr_pdn_type_set(gtp_msg_t *msg, uint8_t *pdn_type)
 }
 
 int
-cdr_teid_addr_set(gtp_msg_t *msg, uint32_t *dst)
+cdr_teid_addr_set(struct gtp_msg *msg, uint32_t *dst)
 {
-	gtp_msg_ie_t *msg_ie;
-	gtp_ie_f_teid_t *f_teid;
+	struct gtp_msg_ie *msg_ie;
+	struct gtp_ie_f_teid *f_teid;
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_F_TEID_TYPE);
 	if (!msg_ie)
 		return -1;
 	
-	f_teid = (gtp_ie_f_teid_t *) msg_ie->h;
+	f_teid = (struct gtp_ie_f_teid *) msg_ie->h;
 	if (!f_teid->v4)
 		return -1;
 
@@ -146,16 +146,16 @@ cdr_teid_addr_set(gtp_msg_t *msg, uint32_t *dst)
 }
 
 int
-cdr_paa_set(gtp_msg_t *msg, uint32_t *dst)
+cdr_paa_set(struct gtp_msg *msg, uint32_t *dst)
 {
-	gtp_msg_ie_t *msg_ie;
-	gtp_ie_paa_t *paa;
+	struct gtp_msg_ie *msg_ie;
+	struct gtp_ie_paa *paa;
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_PAA_TYPE);
 	if (!msg_ie)
 		return -1;
 
-	paa = (gtp_ie_paa_t *) msg_ie->h;
+	paa = (struct gtp_ie_paa *) msg_ie->h;
 	if (paa->type != GTP_PAA_IPV4_TYPE)
 		return -1;
 
@@ -164,9 +164,9 @@ cdr_paa_set(gtp_msg_t *msg, uint32_t *dst)
 }
 
 uint8_t *
-cdr_msisdn_set(gtp_msg_t *msg, int *len)
+cdr_msisdn_set(struct gtp_msg *msg, int *len)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 	uint8_t *msisdn;
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_MSISDN_TYPE);
@@ -182,9 +182,9 @@ cdr_msisdn_set(gtp_msg_t *msg, int *len)
 }
 
 int
-cdr_ie_data_cpy(gtp_msg_t *msg, int ie_type, uint8_t *dst)
+cdr_ie_data_cpy(struct gtp_msg *msg, int ie_type, uint8_t *dst)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 
 	msg_ie = gtp_msg_ie_get(msg, ie_type);
 	if (!msg_ie)
@@ -199,9 +199,9 @@ cdr_ie_data_cpy(gtp_msg_t *msg, int ie_type, uint8_t *dst)
  *	Update CDR according to GTP-C msg type
  */
 static int
-cdr_create_session_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
+cdr_create_session_request(struct gtp_cdr *cdr, struct gtp_msg *msg)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 
 	cdr_ie_data_cpy(msg, GTP_IE_IMSI_TYPE, cdr->served_imsi);
 	gtp_cdr_asn1_ctx_set(cdr->asn1_ctx, PGW_IMSI_TAG, cdr->served_imsi, 8);
@@ -284,9 +284,9 @@ cdr_create_session_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
 }
 
 static int
-cdr_create_session_response(gtp_cdr_t *cdr, gtp_msg_t *msg)
+cdr_create_session_response(struct gtp_cdr *cdr, struct gtp_msg *msg)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 	uint8_t cause;
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_CAUSE_TYPE);
@@ -304,7 +304,7 @@ cdr_create_session_response(gtp_cdr_t *cdr, gtp_msg_t *msg)
 }
 
 static int
-cdr_delete_session_response(gtp_cdr_t *cdr, gtp_msg_t *msg)
+cdr_delete_session_response(struct gtp_cdr *cdr, struct gtp_msg *msg)
 {
 	time_t now = time(NULL);
 
@@ -317,9 +317,9 @@ cdr_delete_session_response(gtp_cdr_t *cdr, gtp_msg_t *msg)
 }
 
 static int
-cdr_modify_bearer_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
+cdr_modify_bearer_request(struct gtp_cdr *cdr, struct gtp_msg *msg)
 {
-	gtp_msg_ie_t *msg_ie;
+	struct gtp_msg_ie *msg_ie;
 
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_ULI_TYPE);
 	if (!msg_ie)
@@ -335,7 +335,7 @@ cdr_modify_bearer_request(gtp_cdr_t *cdr, gtp_msg_t *msg)
 }
 
 static const struct {
-	int (*update) (gtp_cdr_t *, gtp_msg_t *);
+	int (*update) (struct gtp_cdr *, struct gtp_msg *);
 } cdr_msg_hdl[0xff + 1] = {
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { cdr_create_session_request },
 	[GTP_CREATE_SESSION_RESPONSE_TYPE]	= { cdr_create_session_response },
@@ -344,10 +344,10 @@ static const struct {
 };
 
 int
-gtp_cdr_update(pkt_buffer_t *pbuff, gtp_msg_t *msg, gtp_cdr_t *cdr)
+gtp_cdr_update(struct pkt_buffer *pbuff, struct gtp_msg *msg, struct gtp_cdr *cdr)
 {
-	gtp_hdr_t *gtph;
-	gtp_msg_t *m = NULL;
+	struct gtp_hdr *gtph;
+	struct gtp_msg *m = NULL;
 	int err = -1;
 
 	if (!cdr || !pbuff)
@@ -359,7 +359,7 @@ gtp_cdr_update(pkt_buffer_t *pbuff, gtp_msg_t *msg, gtp_cdr_t *cdr)
 			return -1;
 	}
 
-	gtph = (gtp_hdr_t *) pbuff->head;
+	gtph = (struct gtp_hdr *) pbuff->head;
 	if (*(cdr_msg_hdl[gtph->type].update))
 		err = (*(cdr_msg_hdl[gtph->type].update)) (cdr, (msg) ? : m);
 
@@ -368,7 +368,7 @@ gtp_cdr_update(pkt_buffer_t *pbuff, gtp_msg_t *msg, gtp_cdr_t *cdr)
 }
 
 int
-gtp_cdr_volumes_update(gtp_cdr_t *cdr, uint64_t up, uint64_t down)
+gtp_cdr_volumes_update(struct gtp_cdr *cdr, uint64_t up, uint64_t down)
 {
 	cdr->volume_up += up;
 	cdr->volume_down += down;
@@ -376,10 +376,10 @@ gtp_cdr_volumes_update(gtp_cdr_t *cdr, uint64_t up, uint64_t down)
 }
 
 int
-gtp_cdr_volumes_update_from_bpf(gtp_teid_t *t)
+gtp_cdr_volumes_update_from_bpf(struct gtp_teid *t)
 {
-	gtp_session_t *s = t->session;
-	gtp_cdr_t *cdr = s->cdr;
+	struct gtp_session *s = t->session;
+	struct gtp_cdr *cdr = s->cdr;
 	uint64_t bytes = 0;
 
 	if (!cdr)
@@ -400,15 +400,15 @@ gtp_cdr_volumes_update_from_bpf(gtp_teid_t *t)
 }
 
 int
-gtp_cdr_close(gtp_cdr_t *cdr)
+gtp_cdr_close(struct gtp_cdr *cdr)
 {
 	return cdr_delete_session_response(cdr, NULL);
 }
 
-gtp_cdr_t *
+struct gtp_cdr *
 gtp_cdr_alloc(void)
 {
-	gtp_cdr_t *cdr;
+	struct gtp_cdr *cdr;
 
 	PMALLOC(cdr);
 	if (!cdr)
@@ -421,7 +421,7 @@ gtp_cdr_alloc(void)
 }
 
 void
-gtp_cdr_destroy(gtp_cdr_t *cdr)
+gtp_cdr_destroy(struct gtp_cdr *cdr)
 {
 	if (!cdr)
 		return;

@@ -26,16 +26,17 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include "thread.h"
+#include "pkt_buffer.h"
 
 
 /* Default values */
 #define INET_SRV_THREAD_CNT_DEFAULT	5
 #define INET_BUFFER_SIZE		4096
+#define INET_SOCKBUF_SIZE		(64 * 1024)
 
 /* Default TCP timer */
-#define INET_TCP_TIMEOUT	(3 * TIMER_HZ)
-#define INET_TCP_LISTENER_TIMER	(3 * TIMER_HZ)
-#define INET_TCP_TIMER		(3 * TIMER_HZ)
+#define INET_SRV_TIMEOUT	(3 * TIMER_HZ)
+#define INET_SRV_LISTENER_TIMER	(3 * TIMER_HZ)
 #define INET_SRV_TIMER		(3 * TIMER_HZ)
 
 /* session flags */
@@ -46,7 +47,7 @@ enum inet_server_flags {
 };
 
 /* Server */
-typedef struct _inet_cnx {
+struct inet_cnx {
 	pthread_t		task;
 	pthread_attr_t		task_attr;
 	struct sockaddr_storage	addr;
@@ -54,7 +55,7 @@ typedef struct _inet_cnx {
 	FILE			*fp;
 	uint32_t                id;
 
-	struct _inet_worker	*worker;
+	struct inet_worker	*worker;
 	void			*arg;
 
 	char			buffer_in[INET_BUFFER_SIZE];
@@ -63,48 +64,69 @@ typedef struct _inet_cnx {
 	ssize_t			buffer_out_size;
 
 	unsigned long		flags;
-} inet_cnx_t;
+};
 
-typedef struct _inet_worker {
+struct inet_worker {
 	int			id;
 	pthread_t		task;
 	int			fd;
-	struct _inet_server	*server;	/* backpointer */
+	struct inet_server	*server;	/* backpointer */
 	int			event_pipe[2];
 
 	/* I/O MUX related */
-	thread_master_t		*master;
-	thread_t		*r_thread;
+	struct thread_master	*master;
+	struct thread		*r_thread;
 
-	list_head_t		next;
+	struct list_head	next;
 
 	unsigned long		flags;
-} inet_worker_t;
+};
 
-typedef struct _inet_server {
+struct inet_server {
 	struct sockaddr_storage	addr;
-	int			thread_cnt;
+	int			type;		/* SOCK_DGRAM or SOCK_STREAM */
 
+	/* async I/O MUX related */
+	int			fd;
+	struct pkt_buffer	*pbuff;
+	unsigned int		seed;
+	void			*ctx;		/* context backpointer */
+	struct thread		*r_thread;
+	struct thread		*w_thread;
+
+	/* pthread related */
+	int			thread_cnt;
 	pthread_mutex_t		workers_mutex;
-	list_head_t		workers;
+	struct list_head	workers;
 
 	/* Call-back */
-	int (*init) (struct _inet_server *);
-	int (*destroy) (struct _inet_server *);
-	int (*cnx_init) (inet_cnx_t *);
-	int (*cnx_destroy) (inet_cnx_t *);
-	ssize_t (*cnx_rcv) (inet_cnx_t *);
-	int (*cnx_process) (inet_cnx_t *);
+	int (*init) (struct inet_server *);
+	int (*snd) (struct inet_server *, ssize_t);
+	int (*rcv) (struct inet_server *, ssize_t);
+	int (*process) (struct inet_server *, struct sockaddr_storage *);
+	int (*destroy) (struct inet_server *);
+	int (*cnx_init) (struct inet_cnx *);
+	int (*cnx_destroy) (struct inet_cnx *);
+	ssize_t (*cnx_rcv) (struct inet_cnx *);
+	int (*cnx_process) (struct inet_cnx *);
+
+	/* metrics */
+	uint64_t		rx_pkts;
+	uint64_t		rx_errors;
+	uint64_t		tx_pkts;
+	uint64_t		tx_errors;
 
 	unsigned long		flags;
-} inet_server_t;
+};
 
 
 /* Prototypes */
-ssize_t inet_http_read(inet_cnx_t *c);
-int inet_server_worker_start(inet_server_t *s);
-int inet_server_init(inet_server_t *s);
-int inet_server_destroy(inet_server_t *s);
-int inet_server_for_each_worker(inet_server_t *s,
-				int (*cb) (inet_worker_t *, void *),
+ssize_t inet_server_snd(struct inet_server *s, int fd, struct pkt_buffer *pbuff,
+			struct sockaddr_in *addr);
+ssize_t inet_http_read(struct inet_cnx *c);
+int inet_server_start(struct inet_server *s, struct thread_master *m);
+int inet_server_init(struct inet_server *s, int type);
+int inet_server_destroy(struct inet_server *s);
+int inet_server_for_each_worker(struct inet_server *s,
+				int (*cb) (struct inet_worker *, void *),
 				void *arg);

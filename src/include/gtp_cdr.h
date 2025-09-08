@@ -33,12 +33,12 @@
 #define GTP_CDR_TAG_MAX	46
 
 /* GTP CDR informations */
-typedef struct gtp_cdr_ctx {
+struct gtp_cdr_ctx {
 	uint8_t		*data;
 	size_t		data_len;
-} gtp_cdr_ctx_t;
+};
 
-typedef struct gtp_cdr {
+struct gtp_cdr {
 	/* Start infos */
 	uint8_t		served_imsi[8];
 	uint8_t		served_imei[8];
@@ -79,15 +79,15 @@ typedef struct gtp_cdr {
 	struct tm	date;
 
 	/* ASN.1 context */
-	gtp_cdr_ctx_t	asn1_ctx[GTP_CDR_TAG_MAX];
+	struct gtp_cdr_ctx asn1_ctx[GTP_CDR_TAG_MAX];
 
-	list_head_t	next;
-} gtp_cdr_t;
+	struct list_head next;
+};
 
 /* Prototypes */
-int gtp_cdr_volumes_update(gtp_cdr_t *, uint64_t, uint64_t);
-int gtp_cdr_volumes_update_from_bpf(gtp_teid_t *);
-int gtp_cdr_update(pkt_buffer_t *, gtp_msg_t *, gtp_cdr_t *);
-int gtp_cdr_close(gtp_cdr_t *);
-gtp_cdr_t *gtp_cdr_alloc(void);
-void gtp_cdr_destroy(gtp_cdr_t *);
+int gtp_cdr_volumes_update(struct gtp_cdr *, uint64_t, uint64_t);
+int gtp_cdr_volumes_update_from_bpf(struct gtp_teid *);
+int gtp_cdr_update(struct pkt_buffer *, struct gtp_msg *, struct gtp_cdr *);
+int gtp_cdr_close(struct gtp_cdr *);
+struct gtp_cdr *gtp_cdr_alloc(void);
+void gtp_cdr_destroy(struct gtp_cdr *);

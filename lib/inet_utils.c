@@ -165,9 +165,9 @@ inet_stor(char *str)
 	return 0;
 }
 
-/* IP string to ip_address_t */
+/* IP string to struct ip_address */
 int
-inet_stoipaddress(const char *str, ip_address_t *addr)
+inet_stoipaddress(const char *str, struct ip_address *addr)
 {
 	void *addr_ip;
 	int family = (strchr(str, ':')) ? AF_INET6 : AF_INET;
@@ -189,7 +189,7 @@ inet_stoipaddress(const char *str, ip_address_t *addr)
 }
 
 char *
-inet_ipaddresstos(ip_address_t *addr, char *str)
+inet_ipaddresstos(struct ip_address *addr, char *str)
 {
 	void *addr_ip;
 

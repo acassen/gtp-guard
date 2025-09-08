@@ -33,42 +33,42 @@
 #include "logger.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Utilities
  */
 int
-gtp_metrics_rx(gtp_metrics_msg_t *m, uint8_t msg_type)
+gtp_metrics_rx(struct gtp_metrics_msg *m, uint8_t msg_type)
 {
 	m->rx[msg_type].count++;
 	return 0;
 }
 
 int
-gtp_metrics_rx_notsup(gtp_metrics_msg_t *m, uint8_t msg_type)
+gtp_metrics_rx_notsup(struct gtp_metrics_msg *m, uint8_t msg_type)
 {
 	m->rx[msg_type].unsupported++;
 	return 0;
 }
 
 int
-gtp_metrics_tx(gtp_metrics_msg_t *m, uint8_t msg_type)
+gtp_metrics_tx(struct gtp_metrics_msg *m, uint8_t msg_type)
 {
 	m->tx[msg_type].count++;
 	return 0;
 }
 
 int
-gtp_metrics_tx_notsup(gtp_metrics_msg_t *m, uint8_t msg_type)
+gtp_metrics_tx_notsup(struct gtp_metrics_msg *m, uint8_t msg_type)
 {
 	m->tx[msg_type].unsupported++;
 	return 0;
 }
 
 int
-gtp_metrics_pkt_update(gtp_metrics_pkt_t *m, ssize_t nbytes)
+gtp_metrics_pkt_update(struct gtp_metrics_pkt *m, ssize_t nbytes)
 {
 	if (nbytes <= 0)
 		return -1;
@@ -79,16 +79,16 @@ gtp_metrics_pkt_update(gtp_metrics_pkt_t *m, ssize_t nbytes)
 }
 
 int
-gtp_metrics_cause_update(gtp_metrics_cause_t *m, pkt_buffer_t *pbuff)
+gtp_metrics_cause_update(struct gtp_metrics_cause *m, struct pkt_buffer *pbuff)
 {
-	gtp_ie_cause_t *ie_cause;
+	struct gtp_ie_cause *ie_cause;
 	uint8_t *cp;
 
 	cp = gtp_get_ie(GTP_IE_CAUSE_TYPE, pbuff);
 	if (!cp)
 		return -1;
 
-	ie_cause = (gtp_ie_cause_t *) cp;
+	ie_cause = (struct gtp_ie_cause *) cp;
 	m->cause[ie_cause->value]++;
 	return 0;
 }
@@ -98,7 +98,7 @@ gtp_metrics_cause_update(gtp_metrics_cause_t *m, pkt_buffer_t *pbuff)
  *	Metrics dump
  */
 static int
-gtp_sessions_metrics_tmpl_dump(gtp_apn_t *apn, void *arg)
+gtp_sessions_metrics_tmpl_dump(struct gtp_apn *apn, void *arg)
 {
 	fprintf((FILE *) arg, "%s{apn=\"%s\"} %d\n"
 			    , "gtpguard_gtp_sessions_current"
@@ -122,7 +122,7 @@ gtp_metrics_dump(FILE *fp)
  *	Handle request
  */
 static int
-gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
+gtp_metrics_json_parse_cmd(struct inet_cnx *c, struct json_node *json)
 {
 	char *cmd_str = NULL;
 
@@ -152,9 +152,9 @@ gtp_metrics_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
  *	Request listener init
  */
 int
-gtp_metrics_cnx_process(inet_cnx_t *c)
+gtp_metrics_cnx_process(struct inet_cnx *c)
 {
-	json_node_t *json;
+	struct json_node *json;
 
 	json = json_decode(c->buffer_in);
 	if (!json) {
@@ -170,7 +170,7 @@ gtp_metrics_cnx_process(inet_cnx_t *c)
 }
 
 int
-gtp_metrics_srv_prepare(inet_server_t *s)
+gtp_metrics_srv_prepare(struct inet_server *s)
 {
 	struct sockaddr_storage	*addr = &s->addr;
 
@@ -187,15 +187,15 @@ gtp_metrics_srv_prepare(inet_server_t *s)
 int
 gtp_metrics_init(void)
 {
-	inet_server_t *s = &daemon_data->metrics_channel;
+	struct inet_server *s = &daemon_data->metrics_channel;
 
 	s->init = &gtp_metrics_srv_prepare;
 	s->destroy = &gtp_metrics_srv_prepare;
 	s->cnx_rcv = &inet_http_read;
 	s->cnx_process = &gtp_metrics_cnx_process;
 
-	inet_server_init(s);
-	return inet_server_worker_start(s);
+	inet_server_init(s, SOCK_STREAM);
+	return inet_server_start(s, NULL);
 }
 
 int

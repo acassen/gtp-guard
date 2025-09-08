@@ -30,18 +30,18 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Interface helpers
  */
 void
-gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char *, int, __u8, __u8),
+gtp_interface_metrics_foreach(int (*hdl) (struct gtp_interface *, void *, const char *, int, __u8, __u8),
 			      void *arg, const char *var, int var_type, __u8 type, __u8 direction)
 {
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface;
+	struct list_head *l = &daemon_data->interfaces;
+	struct gtp_interface *iface;
 
 	list_for_each_entry(iface, l, next) {
 		__sync_add_and_fetch(&iface->refcnt, 1);
@@ -51,10 +51,10 @@ gtp_interface_metrics_foreach(int (*hdl) (gtp_interface_t *, void *, const char 
 }
 
 void
-gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *arg)
+gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *arg)
 {
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface;
+	struct list_head *l = &daemon_data->interfaces;
+	struct gtp_interface *iface;
 
 	list_for_each_entry(iface, l, next) {
 		__sync_add_and_fetch(&iface->refcnt, 1);
@@ -64,12 +64,12 @@ gtp_interface_foreach(int (*hdl) (gtp_interface_t *, void *), void *arg)
 }
 
 void
-gtp_interface_update_direct_tx_lladdr(ip_address_t *addr, const uint8_t *hw_addr)
+gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw_addr)
 {
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface;
-	ip_address_t *addr_iface;
-	gtp_bpf_prog_t *p;
+	struct list_head *l = &daemon_data->interfaces;
+	struct gtp_interface *iface;
+	struct ip_address *addr_iface;
+	struct gtp_bpf_prog *p;
 
 	list_for_each_entry(iface, l, next) {
 		addr_iface = &iface->direct_tx_gw;
@@ -107,11 +107,11 @@ gtp_interface_update_direct_tx_lladdr(ip_address_t *addr, const uint8_t *hw_addr
 		p->tpl->direct_tx_lladdr_updated(p, iface);
 }
 
-gtp_interface_t *
+struct gtp_interface *
 gtp_interface_get(const char *name)
 {
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface;
+	struct list_head *l = &daemon_data->interfaces;
+	struct gtp_interface *iface;
 
 	list_for_each_entry(iface, l, next) {
 		if (!strncmp(iface->ifname, name, strlen(name))) {
@@ -123,11 +123,11 @@ gtp_interface_get(const char *name)
 	return NULL;
 }
 
-gtp_interface_t *
+struct gtp_interface *
 gtp_interface_get_by_ifindex(int ifindex)
 {
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface;
+	struct list_head *l = &daemon_data->interfaces;
+	struct gtp_interface *iface;
 
 	list_for_each_entry(iface, l, next) {
 		if (iface->ifindex == ifindex) {
@@ -140,16 +140,16 @@ gtp_interface_get_by_ifindex(int ifindex)
 }
 
 int
-gtp_interface_put(gtp_interface_t *iface)
+gtp_interface_put(struct gtp_interface *iface)
 {
 	__sync_sub_and_fetch(&iface->refcnt, 1);
 	return 0;
 }
 
-gtp_interface_t *
+struct gtp_interface *
 gtp_interface_alloc(const char *name, int ifindex)
 {
-	gtp_interface_t *new;
+	struct gtp_interface *new;
 
 	PMALLOC(new);
 	if (!new)
@@ -168,9 +168,9 @@ gtp_interface_alloc(const char *name, int ifindex)
 }
 
 int
-gtp_interface_load_bpf(gtp_interface_t *iface)
+gtp_interface_load_bpf(struct gtp_interface *iface)
 {
-	gtp_bpf_prog_t *p;
+	struct gtp_bpf_prog *p;
 	struct bpf_link *lnk = NULL;
 	int err;
 
@@ -203,7 +203,7 @@ gtp_interface_load_bpf(gtp_interface_t *iface)
 }
 
 int
-gtp_interface_unload_bpf(gtp_interface_t *iface)
+gtp_interface_unload_bpf(struct gtp_interface *iface)
 {
 	gtp_bpf_prog_detach_xdp(iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].lnk);
 	gtp_bpf_prog_detach_tc(iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog,
@@ -214,7 +214,7 @@ gtp_interface_unload_bpf(gtp_interface_t *iface)
 }
 
 int
-__gtp_interface_destroy(gtp_interface_t *iface)
+__gtp_interface_destroy(struct gtp_interface *iface)
 {
 	gtp_interface_unload_bpf(iface);
 	FREE_PTR(iface->link_metrics);
@@ -224,7 +224,7 @@ __gtp_interface_destroy(gtp_interface_t *iface)
 }
 
 int
-gtp_interface_destroy(gtp_interface_t *iface)
+gtp_interface_destroy(struct gtp_interface *iface)
 {
 	__gtp_interface_destroy(iface);
 	return 0;
@@ -233,8 +233,8 @@ gtp_interface_destroy(gtp_interface_t *iface)
 int
 gtp_interfaces_destroy(void)
 {
-	list_head_t *l = &daemon_data->interfaces;
-	gtp_interface_t *iface, *_iface;
+	struct list_head *l = &daemon_data->interfaces;
+	struct gtp_interface *iface, *_iface;
 
 	list_for_each_entry_safe(iface, _iface, l, next)
 		__gtp_interface_destroy(iface);

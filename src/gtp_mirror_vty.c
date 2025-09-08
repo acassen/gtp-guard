@@ -33,16 +33,16 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	VTY helpers
  */
 static int
-gtp_mirror_show(gtp_mirror_t *m, void *arg)
+gtp_mirror_show(struct gtp_mirror *m, void *arg)
 {
-	return gtp_bpf_mirror_vty((vty_t *) arg, m->bpf_prog);
+	return gtp_bpf_mirror_vty((struct vty *) arg, m->bpf_prog);
 }
 
 
@@ -55,7 +55,7 @@ DEFUN(mirror,
       "Configure mirror\n"
       "mirror name\n")
 {
-	gtp_mirror_t *new;
+	struct gtp_mirror *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -83,7 +83,7 @@ DEFUN(no_mirror,
       "Configure interface\n"
       "Local system interface name\n")
 {
-	gtp_mirror_t *m;
+	struct gtp_mirror *m;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -107,8 +107,8 @@ DEFUN(mirror_bpf_prog,
       "Attach a BPF program to the mirror\n"
       "BPF program name\n")
 {
-	gtp_mirror_t *m = vty->index;
-	gtp_bpf_prog_t *p;
+	struct gtp_mirror *m = vty->index;
+	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -145,7 +145,7 @@ DEFUN(mirror_description,
       "Set mirror description\n"
       "description\n")
 {
-	gtp_mirror_t *m = vty->index;
+	struct gtp_mirror *m = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -161,7 +161,7 @@ DEFUN(mirror_shutdown,
       "mirror",
       "Shutdown mirror\n")
 {
-	gtp_mirror_t *m = vty->index;
+	struct gtp_mirror *m = vty->index;
 
 	if (__test_bit(GTP_MIRROR_FL_SHUTDOWN_BIT, &m->flags)) {
 		vty_out(vty, "%% mirror:'%s' is already shutdown%s"
@@ -180,7 +180,7 @@ DEFUN(mirror_no_shutdown,
       "no shutdown",
       "Activate mirror\n")
 {
-	gtp_mirror_t *m = vty->index;
+	struct gtp_mirror *m = vty->index;
 
 	if (!__test_bit(GTP_MIRROR_FL_SHUTDOWN_BIT, &m->flags)) {
 		vty_out(vty, "%% mirror:'%s' is already running%s"
@@ -202,7 +202,7 @@ DEFUN(mirror_no_shutdown,
 }
 
 static int
-mirror_prepare(int argc, const char **argv, vty_t *vty,
+mirror_prepare(int argc, const char **argv, struct vty *vty,
 	       struct sockaddr_storage *addr, uint8_t *protocol, int *ifindex)
 {
 	int err, port;
@@ -260,8 +260,8 @@ DEFUN(mirror_rule,
       "Interface to redirect mirrored traffic to\n"
       "Name\n")
 {
-	gtp_mirror_t *m = vty->index;
-	gtp_mirror_rule_t *r;
+	struct gtp_mirror *m = vty->index;
+	struct gtp_mirror_rule *r;
 	struct sockaddr_storage addr;
 	uint8_t protocol;
 	int ifindex, err;
@@ -316,8 +316,8 @@ DEFUN(mirror_no_rule,
       "Interface to redirect mirrored traffic to\n"
       "Name\n")
 {
-	gtp_mirror_t *m = vty->index;
-	gtp_mirror_rule_t *r;
+	struct gtp_mirror *m = vty->index;
+	struct gtp_mirror_rule *r;
 	struct sockaddr_storage addr;
 	uint8_t protocol;
 	int ifindex, err;
@@ -361,7 +361,7 @@ DEFUN(show_bpf_mirror,
       SHOW_STR
       "mirror\n")
 {
-	gtp_mirror_t *m = NULL;
+	struct gtp_mirror *m = NULL;
 
 	if (argc >= 1) {
 		m = gtp_mirror_get(argv[0]);
@@ -382,12 +382,12 @@ DEFUN(show_bpf_mirror,
 
 /* Configuration writer */
 static int
-mirror_config_rules_write(vty_t *vty, gtp_mirror_t *m)
+mirror_config_rules_write(struct vty *vty, struct gtp_mirror *m)
 {
-	list_head_t *l = &m->rules;
+	struct list_head *l = &m->rules;
 	char addr_str[INET6_ADDRSTRLEN];
 	char ifname[IF_NAMESIZE];
-	gtp_mirror_rule_t *r;
+	struct gtp_mirror_rule *r;
 
 	list_for_each_entry(r, l, next) {
 		vty_out(vty, " ip-src-dst %s port %d protocol %s interface %s%s"
@@ -402,10 +402,10 @@ mirror_config_rules_write(vty_t *vty, gtp_mirror_t *m)
 }
 
 static int
-mirror_config_write(vty_t *vty)
+mirror_config_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->mirror;
-	gtp_mirror_t *m;
+	struct list_head *l = &daemon_data->mirror;
+	struct gtp_mirror *m;
 
 	list_for_each_entry(m, l, next) {
 		vty_out(vty, "mirror %s%s", m->name, VTY_NEWLINE);
@@ -449,14 +449,14 @@ cmd_ext_mirror_install(void)
 	return 0;
 }
 
-cmd_node_t mirror_node = {
+struct cmd_node mirror_node = {
 	.node = MIRROR_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(mirror)# ",
 	.config_write = mirror_config_write,
 };
 
-static cmd_ext_t cmd_ext_mirror = {
+static struct cmd_ext cmd_ext_mirror = {
 	.node = &mirror_node,
 	.install = cmd_ext_mirror_install,
 };

@@ -34,10 +34,10 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 /* Forward declaration */
-static gtp_bpf_prog_mode_t gtp_bpf_prog_tpl_str2mode(const char *name);
+static enum gtp_bpf_prog_mode gtp_bpf_prog_tpl_str2mode(const char *name);
 
 
 /*
@@ -128,7 +128,7 @@ _get_datasec_type(struct bpf_object *obj, const char *datasec_name, void **out_d
 
 
 int
-gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *consts)
+gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const struct gtp_bpf_prog_var *consts)
 {
 	struct btf *btf;
 	const struct btf_type *sec;
@@ -175,13 +175,13 @@ gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const gtp_bpf_prog_var_t *co
 	return 0;
 }
 
-static const gtp_bpf_prog_tpl_t *
+static const struct gtp_bpf_prog_tpl *
 gtp_bpf_prog_obj_get_mode(struct bpf_object *obj)
 {
 	struct btf *btf;
 	const struct btf_type *sec;
 	struct btf_var_secinfo *secinfo;
-	const gtp_bpf_prog_tpl_t *tpl;
+	const struct gtp_bpf_prog_tpl *tpl;
 	char buf[GTP_STR_MAX_LEN];
 	void *data;
 	int i;
@@ -219,7 +219,7 @@ gtp_bpf_prog_obj_get_mode(struct bpf_object *obj)
  *	BPF helpers
  */
 int
-gtp_bpf_prog_attr_reset(gtp_bpf_prog_attr_t *attr)
+gtp_bpf_prog_attr_reset(struct gtp_bpf_prog_attr *attr)
 {
 	attr->lnk = NULL;
 	attr->prog = NULL;
@@ -273,7 +273,7 @@ gtp_bpf_tc_filter_add(struct bpf_tc_hook *q_hook, enum bpf_tc_attach_point direc
 }
 
 void
-gtp_bpf_prog_detach_tc(gtp_bpf_prog_t *p, gtp_interface_t *iface)
+gtp_bpf_prog_detach_tc(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 {
 	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = iface->ifindex,
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
@@ -281,7 +281,7 @@ gtp_bpf_prog_detach_tc(gtp_bpf_prog_t *p, gtp_interface_t *iface)
 }
 
 int
-gtp_bpf_prog_attach_tc(gtp_bpf_prog_t *p, gtp_interface_t *iface)
+gtp_bpf_prog_attach_tc(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 {
 	DECLARE_LIBBPF_OPTS(bpf_tc_hook, q_hook, .ifindex = iface->ifindex,
 			    .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
@@ -304,7 +304,7 @@ gtp_bpf_prog_detach_xdp(struct bpf_link *link)
 }
 
 struct bpf_link *
-gtp_bpf_prog_attach_xdp(gtp_bpf_prog_t *p, gtp_interface_t *iface)
+gtp_bpf_prog_attach_xdp(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 {
 	struct bpf_link *link;
 	int ifindex = iface->ifindex;
@@ -343,11 +343,11 @@ gtp_bpf_prog_attach_xdp(gtp_bpf_prog_t *p, gtp_interface_t *iface)
 }
 
 int
-gtp_bpf_prog_open(gtp_bpf_prog_t *p)
+gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	struct bpf_object *bpf_obj;
-	const gtp_bpf_prog_tpl_t *t;
+	const struct gtp_bpf_prog_tpl *t;
 
 	/* Already opened */
 	if (p->bpf_obj)
@@ -381,7 +381,7 @@ gtp_bpf_prog_open(gtp_bpf_prog_t *p)
 }
 
 static int
-gtp_bpf_prog_set_type(gtp_bpf_prog_t *p)
+gtp_bpf_prog_set_type(struct gtp_bpf_prog *p)
 {
 	enum bpf_attach_type atype;
 
@@ -403,7 +403,7 @@ gtp_bpf_prog_set_type(gtp_bpf_prog_t *p)
 }
 
 int
-gtp_bpf_prog_load(gtp_bpf_prog_t *p)
+gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
@@ -459,7 +459,7 @@ gtp_bpf_prog_load(gtp_bpf_prog_t *p)
 }
 
 void
-gtp_bpf_prog_unload(gtp_bpf_prog_t *p)
+gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 {
 	if (__sync_add_and_fetch(&p->refcnt, 0))
 		return;
@@ -469,7 +469,7 @@ gtp_bpf_prog_unload(gtp_bpf_prog_t *p)
 }
 
 int
-gtp_bpf_prog_destroy(gtp_bpf_prog_t *p)
+gtp_bpf_prog_destroy(struct gtp_bpf_prog *p)
 {
 	if (__sync_add_and_fetch(&p->refcnt, 0))
 		return -1;
@@ -485,10 +485,10 @@ gtp_bpf_prog_destroy(gtp_bpf_prog_t *p)
  *	BPF progs related
  */
 void
-gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg,
-			  gtp_bpf_prog_mode_t filter_mode)
+gtp_bpf_prog_foreach_prog(int (*hdl) (struct gtp_bpf_prog *, void *), void *arg,
+			  enum gtp_bpf_prog_mode filter_mode)
 {
-	gtp_bpf_prog_t *p;
+	struct gtp_bpf_prog *p;
 
 	/* filter_mode == BPF_PROG_MODE_MAX means dump all */
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
@@ -502,10 +502,10 @@ gtp_bpf_prog_foreach_prog(int (*hdl) (gtp_bpf_prog_t *, void *), void *arg,
 	}
 }
 
-gtp_bpf_prog_t *
+struct gtp_bpf_prog *
 gtp_bpf_prog_get(const char *name)
 {
-	gtp_bpf_prog_t *p;
+	struct gtp_bpf_prog *p;
 
 	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
 		if (!strncmp(p->name, name, strlen(name))) {
@@ -518,16 +518,16 @@ gtp_bpf_prog_get(const char *name)
 }
 
 int
-gtp_bpf_prog_put(gtp_bpf_prog_t *p)
+gtp_bpf_prog_put(struct gtp_bpf_prog *p)
 {
 	__sync_sub_and_fetch(&p->refcnt, 1);
 	return 0;
 }
 
-gtp_bpf_prog_t *
+struct gtp_bpf_prog *
 gtp_bpf_prog_alloc(const char *name)
 {
-	gtp_bpf_prog_t *new;
+	struct gtp_bpf_prog *new;
 
 	PMALLOC(new);
 	bsd_strlcpy(new->name, name, GTP_STR_MAX_LEN - 1);
@@ -540,8 +540,8 @@ gtp_bpf_prog_alloc(const char *name)
 int
 gtp_bpf_progs_destroy(void)
 {
-	list_head_t *l = &daemon_data->bpf_progs;
-	gtp_bpf_prog_t *p, *_p;
+	struct list_head *l = &daemon_data->bpf_progs;
+	struct gtp_bpf_prog *p, *_p;
 
 	list_for_each_entry_safe(p, _p, l, next) {
 		gtp_bpf_prog_unload(p);
@@ -568,7 +568,7 @@ gtp_bpf_progs_destroy(void)
 static LIST_HEAD(bpf_prog_tpl_list);
 
 const char *
-gtp_bpf_prog_tpl_mode2str(gtp_bpf_prog_mode_t mode)
+gtp_bpf_prog_tpl_mode2str(enum gtp_bpf_prog_mode mode)
 {
 	switch (mode) {
 	case BPF_PROG_MODE_GTP_FORWARD:
@@ -586,7 +586,7 @@ gtp_bpf_prog_tpl_mode2str(gtp_bpf_prog_mode_t mode)
 	return NULL;
 }
 
-static gtp_bpf_prog_mode_t
+static enum gtp_bpf_prog_mode
 gtp_bpf_prog_tpl_str2mode(const char *name)
 {
 	if (!strcmp(name, "gtp_fwd"))
@@ -602,15 +602,15 @@ gtp_bpf_prog_tpl_str2mode(const char *name)
 }
 
 void
-gtp_bpf_prog_tpl_register(gtp_bpf_prog_tpl_t *tpl)
+gtp_bpf_prog_tpl_register(struct gtp_bpf_prog_tpl *tpl)
 {
 	list_add(&tpl->next, &bpf_prog_tpl_list);
 }
 
-const gtp_bpf_prog_tpl_t *
-gtp_bpf_prog_tpl_get(gtp_bpf_prog_mode_t mode)
+const struct gtp_bpf_prog_tpl *
+gtp_bpf_prog_tpl_get(enum gtp_bpf_prog_mode mode)
 {
-	gtp_bpf_prog_tpl_t *tpl;
+	struct gtp_bpf_prog_tpl *tpl;
 
 	list_for_each_entry(tpl, &bpf_prog_tpl_list, next) {
 		if (tpl->mode == mode)

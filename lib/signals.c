@@ -57,7 +57,7 @@ static sigset_t dfl_sig;
 static sigset_t parent_sig;
 
 /* Signal handling thread */
-static thread_t *signal_thread;
+static struct thread *signal_thread;
 
 int __attribute__((pure))
 get_signum(const char *sigfunc)
@@ -210,7 +210,7 @@ signal_ignore(int signo)
 
 /* Handlers callback  */
 static void
-signal_run_callback(thread_t *thread)
+signal_run_callback(struct thread *thread)
 {
 	uint32_t sig;
 	struct signalfd_siginfo siginfo;
@@ -258,7 +258,7 @@ clear_signal_handler_addresses(void)
 
 /* Handlers intialization */
 void
-add_signal_read_thread(thread_master_t *m)
+add_signal_read_thread(struct thread_master *m)
 {
 	signal_thread = thread_add_read(m, signal_run_callback, NULL, m->signal_fd, TIMER_NEVER, 0);
 }

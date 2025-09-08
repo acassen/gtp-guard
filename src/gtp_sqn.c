@@ -33,17 +33,17 @@
  *	Virtual sqn hashtab
  */
 static struct hlist_head *
-gtp_sqn_hashkey(gtp_htab_t *h, uint32_t id)
+gtp_sqn_hashkey(struct gtp_htab *h, uint32_t id)
 {
 	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
 }
 
-gtp_teid_t *
-gtp_vsqn_get(gtp_htab_t *h, uint32_t sqn)
+struct gtp_teid *
+gtp_vsqn_get(struct gtp_htab *h, uint32_t sqn)
 {
 	struct hlist_head *head = gtp_sqn_hashkey(h, sqn);
 	struct hlist_node *n;
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	hlist_for_each_entry(t, n, head, hlist_vsqn) {
 		if (t->vsqn == sqn) {
@@ -56,7 +56,7 @@ gtp_vsqn_get(gtp_htab_t *h, uint32_t sqn)
 }
 
 int
-gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
+gtp_vsqn_hash(struct gtp_htab *h, struct gtp_teid *t, uint32_t sqn)
 {
 	struct hlist_head *head;
 
@@ -74,7 +74,7 @@ gtp_vsqn_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t sqn)
 }
 
 int
-gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
+gtp_vsqn_unhash(struct gtp_htab *h, struct gtp_teid *t)
 {
 	if (!t->vsqn)
 		return -1;
@@ -90,10 +90,10 @@ gtp_vsqn_unhash(gtp_htab_t *h, gtp_teid_t *t)
 }
 
 int
-gtp_vsqn_alloc(gtp_server_t *s, gtp_teid_t *teid, bool set_msb)
+gtp_vsqn_alloc(struct gtp_server *s, struct gtp_teid *teid, bool set_msb)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
-	gtp_proxy_t *ctx = s->ctx;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) s->s.pbuff->head;
+	struct gtp_proxy *ctx = s->ctx;
 	uint32_t *sqn = &ctx->seqnum;
 	uint32_t sqn_max = ~(1 << 31) >> 8; /* MSB is reserved */
 	uint32_t vsqn;
@@ -118,10 +118,10 @@ gtp_vsqn_alloc(gtp_server_t *s, gtp_teid_t *teid, bool set_msb)
 }
 
 int
-gtp_sqn_update(gtp_server_t *s, gtp_teid_t *teid)
+gtp_sqn_update(struct gtp_server *s, struct gtp_teid *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) s->pbuff->head;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
+	struct gtp1_hdr *gtp1h = (struct gtp1_hdr *) s->s.pbuff->head;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) s->s.pbuff->head;
 
 	if (!teid)
 		return -1;
@@ -136,10 +136,10 @@ gtp_sqn_update(gtp_server_t *s, gtp_teid_t *teid)
 }
 
 int
-gtp_sqn_masq(gtp_server_t *s, gtp_teid_t *teid)
+gtp_sqn_masq(struct gtp_server *s, struct gtp_teid *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) s->pbuff->head;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
+	struct gtp1_hdr *gtp1h = (struct gtp1_hdr *) s->s.pbuff->head;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) s->s.pbuff->head;
 
 	if (gtph->version == 1) {
 		if (gtp1h->seq)
@@ -157,10 +157,10 @@ gtp_sqn_masq(gtp_server_t *s, gtp_teid_t *teid)
 }
 
 int
-gtp_sqn_restore(gtp_server_t *s, gtp_teid_t *teid)
+gtp_sqn_restore(struct gtp_server *s, struct gtp_teid *teid)
 {
-	gtp1_hdr_t *gtp1h = (gtp1_hdr_t *) s->pbuff->head;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) s->pbuff->head;
+	struct gtp1_hdr *gtp1h = (struct gtp1_hdr *) s->s.pbuff->head;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) s->s.pbuff->head;
 
 	if (!teid)
 		return -1;

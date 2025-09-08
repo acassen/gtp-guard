@@ -20,6 +20,7 @@
  */
 
 #include <unistd.h>
+#include <string.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <linux/if_packet.h>
@@ -36,38 +37,38 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
  *	Some GTP command tools
  */
-static void gtp_cmd_write_thread(thread_t *);
+static void gtp_cmd_write_thread(struct thread *);
 static int gtp_cmd_update_udp_hlen(char *, size_t);
 static int gtp_cmd_update_ip_hlen(char *, size_t);
 
 static int
-gtp_cmd_build_gtp_v1(gtp_cmd_args_t *args)
+gtp_cmd_build_gtp_v1(struct gtp_cmd_args *args)
 {
 	char *buffer = args->buffer + args->buffer_offset;
-	gtp1_hdr_t *gtph = (gtp1_hdr_t *) buffer;
-	gtp1_ie_recovery_t *recovery;
-	off_t hlen = sizeof(gtp1_hdr_t);
+	struct gtp1_hdr *gtph = (struct gtp1_hdr *) buffer;
+	struct gtp1_ie_recovery *recovery;
+	off_t hlen = sizeof(struct gtp1_hdr);
 	size_t tot_len;
 
 	gtph->version = 1;
 	gtph->protocoltype = 1;
 	gtph->seq = 1;
 	gtph->type = GTP_ECHO_REQUEST_TYPE;
-	gtph->length = htons(sizeof(gtp1_ie_recovery_t) + 4);
+	gtph->length = htons(sizeof(struct gtp1_ie_recovery) + 4);
 	gtph->sqn = htons(args->sqn++);
-	tot_len = sizeof(gtp1_hdr_t) + ntohs(gtph->length);
+	tot_len = sizeof(struct gtp1_hdr) + ntohs(gtph->length);
 
 	/* Recovery is not mandatory as per 3GPP howver on the field
 	 * it seems some GTPv1 peer really need it
 	 */
-	recovery = (gtp1_ie_recovery_t *) (buffer + hlen);
+	recovery = (struct gtp1_ie_recovery *) (buffer + hlen);
 	recovery->type = GTP1_IE_RECOVERY_TYPE;
 	recovery->recovery = daemon_data->restart_counter;
 
@@ -82,20 +83,20 @@ gtp_cmd_build_gtp_v1(gtp_cmd_args_t *args)
 }
 
 static int
-gtp_cmd_build_gtp_v2(gtp_cmd_args_t *args)
+gtp_cmd_build_gtp_v2(struct gtp_cmd_args *args)
 {
 	char *buffer = args->buffer + args->buffer_offset;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) buffer;
-	gtp_ie_recovery_t *recovery;
-	off_t hlen = sizeof(gtp_hdr_t) - 4;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) buffer;
+	struct gtp_ie_recovery *recovery;
+	off_t hlen = sizeof(struct gtp_hdr) - 4;
 	size_t tot_len;
 
 	gtph->version = 2;
 	gtph->type = GTP_ECHO_REQUEST_TYPE;
-	gtph->length = htons(sizeof(gtp_ie_recovery_t) + 4);
+	gtph->length = htons(sizeof(struct gtp_ie_recovery) + 4);
 	tot_len = hlen + ntohs(gtph->length) - 4;
 
-	recovery = (gtp_ie_recovery_t *) (buffer + hlen);
+	recovery = (struct gtp_ie_recovery *) (buffer + hlen);
 	recovery->h.type = GTP_IE_RECOVERY_TYPE;
 	recovery->h.length = htons(1);
 	recovery->recovery = daemon_data->restart_counter;
@@ -120,7 +121,7 @@ gtp_cmd_update_udp_hlen(char *buffer, size_t len)
 }
 
 static int
-gtp_cmd_build_udp(gtp_cmd_args_t *args, char *buffer)
+gtp_cmd_build_udp(struct gtp_cmd_args *args, char *buffer)
 {
 	struct udphdr *udph = (struct udphdr *) buffer;
 
@@ -143,7 +144,7 @@ gtp_cmd_update_ip_hlen(char *buffer, size_t len)
 }
 
 static int
-gtp_cmd_build_ip(gtp_cmd_args_t *args, char *buffer)
+gtp_cmd_build_ip(struct gtp_cmd_args *args, char *buffer)
 {
 	struct iphdr *iph = (struct iphdr *) buffer;
 
@@ -167,7 +168,7 @@ gtp_cmd_build_ip(gtp_cmd_args_t *args, char *buffer)
 }
 
 static size_t
-gtp_cmd_build_pkt(gtp_cmd_args_t *args)
+gtp_cmd_build_pkt(struct gtp_cmd_args *args)
 {
 	char *bufptr = args->buffer;
 	size_t offset = 0;
@@ -179,7 +180,7 @@ gtp_cmd_build_pkt(gtp_cmd_args_t *args)
 }
 
 static int
-gtp_cmd_sendmsg(gtp_cmd_args_t *args)
+gtp_cmd_sendmsg(struct gtp_cmd_args *args)
 {
 	struct sockaddr_storage *addr = &args->dst_addr;
 	struct msghdr msg;
@@ -202,9 +203,9 @@ gtp_cmd_sendmsg(gtp_cmd_args_t *args)
 }
 
 static int
-gtp_cmd_args_destroy(gtp_cmd_args_t *args)
+gtp_cmd_args_destroy(struct gtp_cmd_args *args)
 {
-	vty_t *vty = args->vty;
+	struct vty *vty = args->vty;
 
 	vty_prompt_restore(vty);
 	close(args->fd_in);
@@ -215,13 +216,13 @@ gtp_cmd_args_destroy(gtp_cmd_args_t *args)
 }
 
 static void
-gtp_cmd_read_thread(thread_t *thread)
+gtp_cmd_read_thread(struct thread *t)
 {
-	gtp_cmd_args_t *args = THREAD_ARG(thread);
+	struct gtp_cmd_args *args = THREAD_ARG(t);
 	struct sockaddr_storage addr_from;
 	socklen_t addrlen = sizeof(addr_from);
-	vty_t *vty = args->vty;
-	gtp_hdr_t *gtph;
+	struct vty *vty = args->vty;
+	struct gtp_hdr *gtph;
 	off_t offset = 0;
 	int ret, fd;
 
@@ -229,7 +230,7 @@ gtp_cmd_read_thread(thread_t *thread)
 	args->t_read = NULL;
 
 	/* Handle read timeout */
-	if (thread->type == THREAD_READ_TIMEOUT) {
+	if (t->type == THREAD_READ_TIMEOUT) {
 		vty_send_out(vty, ".");
 		log_message(LOG_INFO, "%s(): Timeout receiving GTPv%d Echo-Response from remote-peer [%s]:%d"
 				    , __FUNCTION__
@@ -254,7 +255,7 @@ gtp_cmd_read_thread(thread_t *thread)
 		offset = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr);
 	}
 
-	gtph = (gtp_hdr_t *) (args->buffer + offset);
+	gtph = (struct gtp_hdr *) (args->buffer + offset);
 	vty_send_out(vty, "%s", (gtph->type == GTP_ECHO_RESPONSE_TYPE) ? "!" : "?");
 
 	log_message(LOG_INFO, "%s(): Receiving GTPv%d Echo-Response from remote-peer [%s]:%d"
@@ -263,7 +264,7 @@ gtp_cmd_read_thread(thread_t *thread)
 			    , inet_sockaddrtos(&addr_from)
 			    , ntohs(inet_sockaddrport(&addr_from)));
 
-  end:
+end:
 	if (!--args->count) {
 		vty_send_out(vty, "\r\n");
 		gtp_cmd_args_destroy(args);
@@ -276,18 +277,18 @@ gtp_cmd_read_thread(thread_t *thread)
 }
 
 static void
-gtp_cmd_write_thread(thread_t *thread)
+gtp_cmd_write_thread(struct thread *t)
 {
-	gtp_cmd_args_t *args = THREAD_ARG(thread);
+	struct gtp_cmd_args *args = THREAD_ARG(t);
 	struct sockaddr_storage *addr = &args->dst_addr;
-	vty_t *vty = args->vty;
+	struct vty *vty = args->vty;
 	int ret = 0;
 
 	thread_del(args->t_write);
 	args->t_write = NULL;
 
 	/* Handle read timeout */
-	if (thread->type == THREAD_WRITE_TIMEOUT) {
+	if (t->type == THREAD_WRITE_TIMEOUT) {
 		vty_send_out(vty, ".");
 		gtp_cmd_args_destroy(args);
 		return;
@@ -372,9 +373,9 @@ gtp_cmd_cbpf_egress_init(void)
  *	(020) ret      #0
  */
 static int
-gtp_cmd_echo_request_cbpf_ingress_init(gtp_cmd_args_t *args)
+gtp_cmd_echo_request_cbpf_ingress_init(struct gtp_cmd_args *args)
 {
-	vty_t *vty = args->vty;
+	struct vty *vty = args->vty;
 	int fd, ret;
 	struct sock_filter bpfcode[21] = {
 		{ 0x28, 0, 0, 0x0000000c },
@@ -443,9 +444,9 @@ gtp_cmd_echo_request_cbpf_ingress_init(gtp_cmd_args_t *args)
 }
 
 static int
-gtp_cmd_echo_request_cbpf_init(gtp_cmd_args_t *args)
+gtp_cmd_echo_request_cbpf_init(struct gtp_cmd_args *args)
 {
-	vty_t *vty = args->vty;
+	struct vty *vty = args->vty;
 
 	/* Ingress Channel*/
 	args->fd_in = gtp_cmd_echo_request_cbpf_ingress_init(args);
@@ -465,9 +466,9 @@ gtp_cmd_echo_request_cbpf_init(gtp_cmd_args_t *args)
 }
 
 int
-gtp_cmd_echo_request(gtp_cmd_args_t *args)
+gtp_cmd_echo_request(struct gtp_cmd_args *args)
 {
-	vty_t *vty = args->vty;
+	struct vty *vty = args->vty;
 
 	/* Unnumbered init */
 	if (args->type == GTP_CMD_ECHO_REQUEST) {

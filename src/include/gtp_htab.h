@@ -28,12 +28,12 @@
 #define DLOCK_HASHTAB_MASK    (DLOCK_HASHTAB_SIZE - 1)
 
 /* htab */
-typedef struct gtp_htab {
+struct gtp_htab {
 	struct hlist_head	*htab;
-} gtp_htab_t;
+};
 
 /* Prototypes */
-void gtp_htab_init(gtp_htab_t *, size_t);
-gtp_htab_t *gtp_htab_alloc(size_t);
-void gtp_htab_destroy(gtp_htab_t *);
-void gtp_htab_free(gtp_htab_t *);
+void gtp_htab_init(struct gtp_htab *, size_t);
+struct gtp_htab *gtp_htab_alloc(size_t);
+void gtp_htab_destroy(struct gtp_htab *);
+void gtp_htab_free(struct gtp_htab *);

@@ -33,7 +33,7 @@ struct json_writer {
 };
 
 /* indentation for pretty print */
-static void jsonw_indent(const json_writer_t *self)
+static void jsonw_indent(const struct json_writer *self)
 {
 	unsigned i;
 	for (i = 0; i < self->depth; ++i)
@@ -41,7 +41,7 @@ static void jsonw_indent(const json_writer_t *self)
 }
 
 /* end current line and indent if pretty printing */
-static void jsonw_eol(const json_writer_t *self)
+static void jsonw_eol(const struct json_writer *self)
 {
 	if (!self->pretty)
 		return;
@@ -51,7 +51,7 @@ static void jsonw_eol(const json_writer_t *self)
 }
 
 /* If current object is not empty print a comma */
-static void jsonw_eor(json_writer_t *self)
+static void jsonw_eor(struct json_writer *self)
 {
 	if (self->sep != '\0')
 		putc(self->sep, self->out);
@@ -61,7 +61,7 @@ static void jsonw_eor(json_writer_t *self)
 
 /* Output JSON encoded string */
 /* Handles C escapes, does not do Unicode */
-static void jsonw_puts(const json_writer_t *self, const char *str)
+static void jsonw_puts(const struct json_writer *self, const char *str)
 {
 	putc('"', self->out);
 	for (; *str; ++str)
@@ -97,9 +97,9 @@ static void jsonw_puts(const json_writer_t *self, const char *str)
 }
 
 /* Create a new JSON stream */
-json_writer_t *jsonw_new(FILE *f)
+struct json_writer *jsonw_new(FILE *f)
 {
-	json_writer_t *self = MALLOC(sizeof(*self));
+	struct json_writer *self = MALLOC(sizeof(*self));
 	if (self) {
 		self->out = f;
 		self->depth = 0;
@@ -110,9 +110,9 @@ json_writer_t *jsonw_new(FILE *f)
 }
 
 /* End output to JSON stream */
-void jsonw_destroy(json_writer_t ** const self_p)
+void jsonw_destroy(struct json_writer ** const self_p)
 {
-	json_writer_t *self = *self_p;
+	struct json_writer *self = *self_p;
 
 	if (!self)
 		return;
@@ -124,13 +124,13 @@ void jsonw_destroy(json_writer_t ** const self_p)
 	*self_p = NULL;
 }
 
-void jsonw_pretty(json_writer_t *self, bool on)
+void jsonw_pretty(struct json_writer *self, bool on)
 {
 	self->pretty = on;
 }
 
 /* Basic blocks */
-static void jsonw_begin(json_writer_t *self, int c)
+static void jsonw_begin(struct json_writer *self, int c)
 {
 	jsonw_eor(self);
 	putc(c, self->out);
@@ -138,7 +138,7 @@ static void jsonw_begin(json_writer_t *self, int c)
 	self->sep = '\0';
 }
 
-static void jsonw_end(json_writer_t *self, int c)
+static void jsonw_end(struct json_writer *self, int c)
 {
 	assert(self->depth > 0);
 
@@ -151,7 +151,7 @@ static void jsonw_end(json_writer_t *self, int c)
 
 
 /* Add a JSON property name */
-void jsonw_name(json_writer_t *self, const char *name)
+void jsonw_name(struct json_writer *self, const char *name)
 {
 	jsonw_eor(self);
 	jsonw_eol(self);
@@ -162,7 +162,7 @@ void jsonw_name(json_writer_t *self, const char *name)
 		putc(' ', self->out);
 }
 
-void jsonw_vprintf_enquote(json_writer_t *self, const char *fmt, va_list ap)
+void jsonw_vprintf_enquote(struct json_writer *self, const char *fmt, va_list ap)
 {
 	jsonw_eor(self);
 	putc('"', self->out);
@@ -170,7 +170,7 @@ void jsonw_vprintf_enquote(json_writer_t *self, const char *fmt, va_list ap)
 	putc('"', self->out);
 }
 
-void jsonw_printf_enquote(json_writer_t *self, const char *fmt, ...)
+void jsonw_printf_enquote(struct json_writer *self, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -184,7 +184,7 @@ void jsonw_printf_enquote(json_writer_t *self, const char *fmt, ...)
 	putc('"', self->out);
 }
 
-void jsonw_printf(json_writer_t *self, const char *fmt, ...)
+void jsonw_printf(struct json_writer *self, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -195,82 +195,82 @@ void jsonw_printf(json_writer_t *self, const char *fmt, ...)
 }
 
 /* Collections */
-void jsonw_start_object(json_writer_t *self)
+void jsonw_start_object(struct json_writer *self)
 {
 	jsonw_begin(self, '{');
 }
 
-void jsonw_end_object(json_writer_t *self)
+void jsonw_end_object(struct json_writer *self)
 {
 	jsonw_end(self, '}');
 }
 
-void jsonw_start_array(json_writer_t *self)
+void jsonw_start_array(struct json_writer *self)
 {
 	jsonw_begin(self, '[');
 }
 
-void jsonw_end_array(json_writer_t *self)
+void jsonw_end_array(struct json_writer *self)
 {
 	jsonw_end(self, ']');
 }
 
 /* JSON value types */
-void jsonw_string(json_writer_t *self, const char *value)
+void jsonw_string(struct json_writer *self, const char *value)
 {
 	jsonw_eor(self);
 	jsonw_puts(self, value);
 }
 
-void jsonw_bool(json_writer_t *self, bool val)
+void jsonw_bool(struct json_writer *self, bool val)
 {
 	jsonw_printf(self, "%s", val ? "true" : "false");
 }
 
-void jsonw_null(json_writer_t *self)
+void jsonw_null(struct json_writer *self)
 {
 	jsonw_printf(self, "null");
 }
 
-void jsonw_float_fmt(json_writer_t *self, const char *fmt, double num)
+void jsonw_float_fmt(struct json_writer *self, const char *fmt, double num)
 {
 	jsonw_printf(self, fmt, num);
 }
 
-void jsonw_float(json_writer_t *self, double num)
+void jsonw_float(struct json_writer *self, double num)
 {
 	jsonw_printf(self, "%f", num);
 }
 
-void jsonw_hu(json_writer_t *self, unsigned short num)
+void jsonw_hu(struct json_writer *self, unsigned short num)
 {
 	jsonw_printf(self, "%hu", num);
 }
 
-void jsonw_uint(json_writer_t *self, uint64_t num)
+void jsonw_uint(struct json_writer *self, uint64_t num)
 {
 	jsonw_printf(self, "%"PRIu64, num);
 }
 
-void jsonw_lluint(json_writer_t *self, unsigned long long int num)
+void jsonw_lluint(struct json_writer *self, unsigned long long int num)
 {
 	jsonw_printf(self, "%llu", num);
 }
 
-void jsonw_int(json_writer_t *self, int64_t num)
+void jsonw_int(struct json_writer *self, int64_t num)
 {
 	jsonw_printf(self, "%"PRId64, num);
 }
 
 /* Basic name/value objects */
-void jsonw_string_field(json_writer_t *self, const char *prop, const char *val)
+void jsonw_string_field(struct json_writer *self, const char *prop, const char *val)
 {
 	jsonw_name(self, prop);
 //	jsonw_string(self, val);
 	jsonw_printf_enquote(self, "%s", val);
 }
 
-void jsonw_string_field_fmt(json_writer_t *self, const char *prop, const char *fmt, ...)
+void jsonw_string_field_fmt(struct json_writer *self, const char *prop, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -280,19 +280,19 @@ void jsonw_string_field_fmt(json_writer_t *self, const char *prop, const char *f
 	va_end(ap);
 }
 
-void jsonw_bool_field(json_writer_t *self, const char *prop, bool val)
+void jsonw_bool_field(struct json_writer *self, const char *prop, bool val)
 {
 	jsonw_name(self, prop);
 	jsonw_bool(self, val);
 }
 
-void jsonw_float_field(json_writer_t *self, const char *prop, double val)
+void jsonw_float_field(struct json_writer *self, const char *prop, double val)
 {
 	jsonw_name(self, prop);
 	jsonw_float(self, val);
 }
 
-void jsonw_float_field_fmt(json_writer_t *self,
+void jsonw_float_field_fmt(struct json_writer *self,
 			   const char *prop,
 			   const char *fmt,
 			   double val)
@@ -301,19 +301,19 @@ void jsonw_float_field_fmt(json_writer_t *self,
 	jsonw_float_fmt(self, fmt, val);
 }
 
-void jsonw_uint_field(json_writer_t *self, const char *prop, uint64_t num)
+void jsonw_uint_field(struct json_writer *self, const char *prop, uint64_t num)
 {
 	jsonw_name(self, prop);
 	jsonw_uint(self, num);
 }
 
-void jsonw_hu_field(json_writer_t *self, const char *prop, unsigned short num)
+void jsonw_hu_field(struct json_writer *self, const char *prop, unsigned short num)
 {
 	jsonw_name(self, prop);
 	jsonw_hu(self, num);
 }
 
-void jsonw_lluint_field(json_writer_t *self,
+void jsonw_lluint_field(struct json_writer *self,
 			const char *prop,
 			unsigned long long int num)
 {
@@ -321,13 +321,13 @@ void jsonw_lluint_field(json_writer_t *self,
 	jsonw_lluint(self, num);
 }
 
-void jsonw_int_field(json_writer_t *self, const char *prop, int64_t num)
+void jsonw_int_field(struct json_writer *self, const char *prop, int64_t num)
 {
 	jsonw_name(self, prop);
 	jsonw_int(self, num);
 }
 
-void jsonw_null_field(json_writer_t *self, const char *prop)
+void jsonw_null_field(struct json_writer *self, const char *prop)
 {
 	jsonw_name(self, prop);
 	jsonw_null(self);

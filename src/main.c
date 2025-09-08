@@ -49,7 +49,7 @@ struct {
 	{LOG_LOCAL4}, {LOG_LOCAL5}, {LOG_LOCAL6}, {LOG_LOCAL7}
 };
 
-static char * __prog_pid_file = PROG_PID_FILE;
+static char *__prog_pid_file = PROG_PID_FILE;
 
 /* Daemon stop sequence */
 static void

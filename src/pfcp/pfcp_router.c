@@ -19,6 +19,7 @@
  * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
 #include <assert.h>
 
 #include "gtp_data.h"
@@ -27,23 +28,23 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	PFCP utilities
  */
 int
-pfcp_router_dump(pfcp_router_t *c, char *buffer, size_t bsize)
+pfcp_router_dump(struct pfcp_router *c, char *buffer, size_t bsize)
 {
 	return 0;
 }
 
-pfcp_router_t *
+struct pfcp_router *
 pfcp_router_get_by_name(const char *name)
 {
-	list_head_t *l = &daemon_data->pfcp_router_ctx;
-	pfcp_router_t *c;
+	struct list_head *l = &daemon_data->pfcp_router_ctx;
+	struct pfcp_router *c;
 
 	list_for_each_entry(c, l, next) {
 		if (!strcmp(c->name, name))
@@ -53,10 +54,10 @@ pfcp_router_get_by_name(const char *name)
 	return NULL;
 }
 
-pfcp_router_t *
+struct pfcp_router *
 pfcp_router_alloc(const char *name)
 {
-	pfcp_router_t *c = NULL;
+	struct pfcp_router *c = NULL;
 
 	PMALLOC(c);
 	assert(c != NULL);
@@ -67,7 +68,7 @@ pfcp_router_alloc(const char *name)
 }
 
 void
-pfcp_router_release(pfcp_router_t *c)
+pfcp_router_release(struct pfcp_router *c)
 {
 	list_del(&c->next);
 	free(c);
@@ -86,8 +87,8 @@ pfcp_router_init(void)
 int
 pfcp_router_destroy(void)
 {
-	list_head_t *l = &daemon_data->pfcp_router_ctx;
-	pfcp_router_t *c, *_c;
+	struct list_head *l = &daemon_data->pfcp_router_ctx;
+	struct pfcp_router *c, *_c;
 
 	list_for_each_entry_safe(c, _c, l, next) {
 		pfcp_router_release(c);

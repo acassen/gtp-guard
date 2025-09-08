@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "gtp_teid.h"
 #include "gtp_conn.h"
 #include "jhash.h"
@@ -31,15 +33,15 @@
 /*
  *	Unuse queue
  */
-static list_head_t gtp_teid_unuse;
+static struct list_head gtp_teid_unuse;
 static int gtp_teid_unuse_count;
-static gtp_htab_t gtpc_teid_tab;
-static gtp_htab_t gtpu_teid_tab;
+static struct gtp_htab gtpc_teid_tab;
+static struct gtp_htab gtpu_teid_tab;
 
 static int
 gtp_teid_unuse_destroy(void)
 {
-	gtp_teid_t *t, *_t;
+	struct gtp_teid *t, *_t;
 
 	list_for_each_entry_safe(t, _t, &gtp_teid_unuse, next) {
 		list_head_del(&t->next);
@@ -56,27 +58,27 @@ gtp_teid_unuse_queue_size(void)
 	return gtp_teid_unuse_count;
 }
 
-static gtp_teid_t *
+static struct gtp_teid *
 gtp_teid_unuse_trim_head(void)
 {
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	if (list_empty(&gtp_teid_unuse))
 		return NULL;
 
-	t = list_first_entry(&gtp_teid_unuse, gtp_teid_t, next);
+	t = list_first_entry(&gtp_teid_unuse, struct gtp_teid, next);
 	list_head_del(&t->next);
-	memset(t, 0, sizeof(gtp_teid_t));
+	memset(t, 0, sizeof(*t));
 
 	__sync_sub_and_fetch(&gtp_teid_unuse_count, 1);
 	return t;
 }
 
 
-static gtp_teid_t *
+static struct gtp_teid *
 gtp_teid_malloc(void)
 {
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	t = gtp_teid_unuse_trim_head();
 	if (!t)
@@ -86,7 +88,7 @@ gtp_teid_malloc(void)
 }
 
 void
-gtp_teid_free(gtp_teid_t *t)
+gtp_teid_free(struct gtp_teid *t)
 {
 	INIT_LIST_HEAD(&t->next);
 	list_add_tail(&t->next, &gtp_teid_unuse);
@@ -98,17 +100,17 @@ gtp_teid_free(gtp_teid_t *t)
  *	TEID hashtab
  */
 static struct hlist_head *
-gtp_teid_hashkey(gtp_htab_t *h, uint32_t id, uint32_t ipv4)
+gtp_teid_hashkey(struct gtp_htab *h, uint32_t id, uint32_t ipv4)
 {
 	return h->htab + (jhash_2words(id, ipv4, 0) & CONN_HASHTAB_MASK);
 }
 
-static gtp_teid_t *
-__gtp_teid_get(gtp_htab_t *h, uint32_t id, uint32_t ipv4)
+static struct gtp_teid *
+__gtp_teid_get(struct gtp_htab *h, uint32_t id, uint32_t ipv4)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, id, ipv4);
 	struct hlist_node *n;
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	hlist_for_each_entry(t, n, head, hlist_teid) {
 		if (t->id == id && t->ipv4 == ipv4) {
@@ -120,26 +122,26 @@ __gtp_teid_get(gtp_htab_t *h, uint32_t id, uint32_t ipv4)
 	return NULL;
 }
 
-gtp_teid_t *
-gtp_teid_get(gtp_htab_t *h, gtp_f_teid_t *f_teid)
+struct gtp_teid *
+gtp_teid_get(struct gtp_htab *h, struct gtp_f_teid *f_teid)
 {
 	return __gtp_teid_get(h, *f_teid->teid_grekey, *f_teid->ipv4);
 }
 
-gtp_teid_t *
-gtpc_teid_get(gtp_f_teid_t *f_teid)
+struct gtp_teid *
+gtpc_teid_get(struct gtp_f_teid *f_teid)
 {
 	return gtp_teid_get(&gtpc_teid_tab, f_teid);
 }
 
-gtp_teid_t *
-gtpu_teid_get(gtp_f_teid_t *f_teid)
+struct gtp_teid *
+gtpu_teid_get(struct gtp_f_teid *f_teid)
 {
 	return gtp_teid_get(&gtpu_teid_tab, f_teid);
 }
 
 int
-gtp_teid_put(gtp_teid_t *t)
+gtp_teid_put(struct gtp_teid *t)
 {
 	if (!t)
 		return -1;
@@ -149,7 +151,7 @@ gtp_teid_put(gtp_teid_t *t)
 }
 
 static int
-gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
+gtp_teid_hash(struct gtp_htab *h, struct gtp_teid *teid)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, teid->id, teid->ipv4);
 
@@ -165,7 +167,7 @@ gtp_teid_hash(gtp_htab_t *h, gtp_teid_t *teid)
 }
 
 int
-gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
+gtp_teid_unhash(struct gtp_htab *h, struct gtp_teid *teid)
 {
 	if (!teid)
 		return -1;
@@ -181,23 +183,23 @@ gtp_teid_unhash(gtp_htab_t *h, gtp_teid_t *teid)
 }
 
 int
-gtpc_teid_unhash(gtp_teid_t *teid)
+gtpc_teid_unhash(struct gtp_teid *teid)
 {
 	return gtp_teid_unhash(&gtpc_teid_tab, teid);
 }
 
 int
-gtpu_teid_unhash(gtp_teid_t *teid)
+gtpu_teid_unhash(struct gtp_teid *teid)
 {
 	return gtp_teid_unhash(&gtpu_teid_tab, teid);
 }
 
-gtp_teid_t *
-gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
-		    gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
+struct gtp_teid *
+gtp_teid_alloc_peer(struct gtp_htab *h, struct gtp_teid *teid, uint32_t ipv4,
+		    struct gtp_ie_eps_bearer_id *bid, unsigned int *seed)
 {
+	struct gtp_teid *new, *t;
 	uint32_t id;
-	gtp_teid_t *new, *t;
 
 	if (!teid)
 		return NULL;
@@ -239,24 +241,24 @@ gtp_teid_alloc_peer(gtp_htab_t *h, gtp_teid_t *teid, uint32_t ipv4,
 	return new;
 }
 
-gtp_teid_t *
-gtpc_teid_alloc_peer(gtp_teid_t *teid, uint32_t ipv4,
-		     gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
+struct gtp_teid *
+gtpc_teid_alloc_peer(struct gtp_teid *teid, uint32_t ipv4,
+		     struct gtp_ie_eps_bearer_id *bid, unsigned int *seed)
 {
 	return gtp_teid_alloc_peer(&gtpc_teid_tab, teid, ipv4, bid, seed);
 }
 
-gtp_teid_t *
-gtpu_teid_alloc_peer(gtp_teid_t *teid, uint32_t ipv4,
-		     gtp_ie_eps_bearer_id_t *bid, unsigned int *seed)
+struct gtp_teid *
+gtpu_teid_alloc_peer(struct gtp_teid *teid, uint32_t ipv4,
+		     struct gtp_ie_eps_bearer_id *bid, unsigned int *seed)
 {
 	return gtp_teid_alloc_peer(&gtpu_teid_tab, teid, ipv4, bid, seed);
 }
 
-gtp_teid_t *
-gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
+struct gtp_teid *
+gtp_teid_alloc(struct gtp_htab *h, struct gtp_f_teid *f_teid, struct gtp_ie_eps_bearer_id *bid)
 {
-	gtp_teid_t *new;
+	struct gtp_teid *new;
 
 	new = gtp_teid_malloc();
 	new->version = f_teid->version;
@@ -271,20 +273,20 @@ gtp_teid_alloc(gtp_htab_t *h, gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
 	return new;
 }
 
-gtp_teid_t *
-gtpc_teid_alloc(gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
+struct gtp_teid *
+gtpc_teid_alloc(struct gtp_f_teid *f_teid, struct gtp_ie_eps_bearer_id *bid)
 {
 	return gtp_teid_alloc(&gtpc_teid_tab, f_teid, bid);
 }
 
-gtp_teid_t *
-gtpu_teid_alloc(gtp_f_teid_t *f_teid, gtp_ie_eps_bearer_id_t *bid)
+struct gtp_teid *
+gtpu_teid_alloc(struct gtp_f_teid *f_teid, struct gtp_ie_eps_bearer_id *bid)
 {
 	return gtp_teid_alloc(&gtpu_teid_tab, f_teid, bid);
 }
 
 void
-gtp_teid_bind(gtp_teid_t *teid, gtp_teid_t *t)
+gtp_teid_bind(struct gtp_teid *teid, struct gtp_teid *t)
 {
 	if (!teid || !t)
 		return;
@@ -294,7 +296,7 @@ gtp_teid_bind(gtp_teid_t *teid, gtp_teid_t *t)
 }
 
 int
-gtp_teid_masq(gtp_f_teid_t *f_teid, struct sockaddr_storage *addr, uint32_t vid)
+gtp_teid_masq(struct gtp_f_teid *f_teid, struct sockaddr_storage *addr, uint32_t vid)
 {
 	*f_teid->teid_grekey = htonl(vid);
 	*f_teid->ipv4 = ((struct sockaddr_in *) addr)->sin_addr.s_addr;
@@ -302,7 +304,7 @@ gtp_teid_masq(gtp_f_teid_t *f_teid, struct sockaddr_storage *addr, uint32_t vid)
 }
 
 int
-gtp_teid_restore(gtp_teid_t *teid, gtp_f_teid_t *f_teid)
+gtp_teid_restore(struct gtp_teid *teid, struct gtp_f_teid *f_teid)
 {
 	*f_teid->teid_grekey = teid->id;
 	*f_teid->ipv4 = teid->ipv4;
@@ -310,7 +312,7 @@ gtp_teid_restore(gtp_teid_t *teid, gtp_f_teid_t *f_teid)
 }
 
 int
-gtp_teid_update_sgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
+gtp_teid_update_sgw(struct gtp_teid *teid, struct sockaddr_storage *addr)
 {
 	if (!teid)
 		return -1;
@@ -320,7 +322,7 @@ gtp_teid_update_sgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
 }
 
 int
-gtp_teid_update_pgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
+gtp_teid_update_pgw(struct gtp_teid *teid, struct sockaddr_storage *addr)
 {
 	if (!teid)
 		return -1;
@@ -330,7 +332,7 @@ gtp_teid_update_pgw(gtp_teid_t *teid, struct sockaddr_storage *addr)
 }
 
 void
-gtp_teid_dump(gtp_teid_t *teid)
+gtp_teid_dump(struct gtp_teid *teid)
 {
 	printf(" - F-TEID\n");
 	printf("  . TEID/GRE Key=0x%.4x\n", ntohl(teid->id));
@@ -343,12 +345,12 @@ gtp_teid_dump(gtp_teid_t *teid)
 /*
  *	Virtual TEID hashtab
  */
-gtp_teid_t *
-gtp_vteid_get(gtp_htab_t *h, uint32_t id)
+struct gtp_teid *
+gtp_vteid_get(struct gtp_htab *h, uint32_t id)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, id, 0);
 	struct hlist_node *n;
-	gtp_teid_t *t;
+	struct gtp_teid *t;
 
 	hlist_for_each_entry(t, n, head, hlist_vteid) {
 		if (t->vid == id) {
@@ -361,7 +363,7 @@ gtp_vteid_get(gtp_htab_t *h, uint32_t id)
 }
 
 int
-gtp_vteid_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t vid)
+gtp_vteid_hash(struct gtp_htab *h, struct gtp_teid *t, uint32_t vid)
 {
 	struct hlist_head *head;
 
@@ -380,7 +382,7 @@ gtp_vteid_hash(gtp_htab_t *h, gtp_teid_t *t, uint32_t vid)
 }
 
 int
-gtp_vteid_unhash(gtp_htab_t *h, gtp_teid_t *t)
+gtp_vteid_unhash(struct gtp_htab *h, struct gtp_teid *t)
 {
 	if (!__test_and_clear_bit(GTP_TEID_FL_VTEID_HASHED, &t->flags)) {
 		log_message(LOG_INFO, "%s(): VTEID:0x%.8x for TEID:0x%.8x already unhashed !!!"
@@ -394,10 +396,10 @@ gtp_vteid_unhash(gtp_htab_t *h, gtp_teid_t *t)
 }
 
 int
-gtp_vteid_alloc(gtp_htab_t *h, gtp_teid_t *teid, unsigned int *seed)
+gtp_vteid_alloc(struct gtp_htab *h, struct gtp_teid *teid, unsigned int *seed)
 {
+	struct gtp_teid *t;
 	uint32_t vid;
-	gtp_teid_t *t;
 
   shoot_again:
 	vid = poor_prng(seed);

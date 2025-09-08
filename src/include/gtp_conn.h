@@ -36,13 +36,13 @@ enum conn_flags {
 	GTP_CONN_F_DEBUG,
 };
 
-typedef struct gtp_conn {
+struct gtp_conn {
         uint64_t                imsi;
 	struct sockaddr_in	sgw_addr;
 
 	/* FIXME: maybe use a global dlock here */
-	list_head_t		gtp_sessions;
-	list_head_t		pppoe_sessions;
+	struct list_head	gtp_sessions;
+	struct list_head	pppoe_sessions;
 	int			pppoe_cnt;
 	time_t			ts;
 
@@ -51,17 +51,17 @@ typedef struct gtp_conn {
 
 	unsigned long		flags;
 	int			refcnt;
-} gtp_conn_t;
+};
 
 
 /* Prototypes */
 int gtp_conn_count_read(void);
-int gtp_conn_get(gtp_conn_t *);
-int gtp_conn_put(gtp_conn_t *);
-gtp_conn_t *gtp_conn_alloc(uint64_t);
-gtp_conn_t *gtp_conn_get_by_imsi(uint64_t);
-int gtp_conn_hash(gtp_conn_t *);
-int gtp_conn_unhash(gtp_conn_t *);
-int gtp_conn_vty(vty_t *, int (*vty_conn) (vty_t *, gtp_conn_t *), uint64_t);
+int gtp_conn_get(struct gtp_conn *);
+int gtp_conn_put(struct gtp_conn *);
+struct gtp_conn *gtp_conn_alloc(uint64_t);
+struct gtp_conn *gtp_conn_get_by_imsi(uint64_t);
+int gtp_conn_hash(struct gtp_conn *);
+int gtp_conn_unhash(struct gtp_conn *);
+int gtp_conn_vty(struct vty *, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t);
 int gtp_conn_init(void);
 int gtp_conn_destroy(void);

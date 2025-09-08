@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
 #include <errno.h>
 
 #include "gtp_cdr_file.h"
@@ -30,28 +31,28 @@
 
 
 static int
-gtp_cdr_file_header_sync(gtp_cdr_file_t *f)
+gtp_cdr_file_header_sync(struct gtp_cdr_file *f)
 {
-	gtp_cdr_spool_t *s = f->spool;
+	struct gtp_cdr_spool *s = f->spool;
 
-	map_file_t *map_file = f->file;
-	int hlen = sizeof(gtp_cdr_file_header_t);
+	struct map_file *map_file = f->file;
+	int hlen = sizeof(struct gtp_cdr_file_header);
 	int sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? DISK_ASYNC :
 								       DISK_SYNC;
 	return disk_msync_offset(map_file, 0, hlen, sync);
 }
 
 int
-gtp_cdr_file_header_init(gtp_cdr_file_t *f)
+gtp_cdr_file_header_init(struct gtp_cdr_file *f)
 {
-	map_file_t *map_file = f->file;
-	gtp_cdr_file_header_t *h;
-	int hlen = sizeof(gtp_cdr_file_header_t);
+	struct map_file *map_file = f->file;
+	struct gtp_cdr_file_header *h;
+	int hlen = sizeof(struct gtp_cdr_file_header);
 
 	if (!map_file || !map_file->map)
 		return -1;
 
-	h = (gtp_cdr_file_header_t *) map_file->map;
+	h = (struct gtp_cdr_file_header *) map_file->map;
 
 	/* skip if previously initalized. In case where
 	 * daemon restart with existing file. */
@@ -67,12 +68,12 @@ gtp_cdr_file_header_init(gtp_cdr_file_t *f)
 }
 
 int
-gtp_cdr_file_write(gtp_cdr_file_t *f, const void *buf, size_t bsize)
+gtp_cdr_file_write(struct gtp_cdr_file *f, const void *buf, size_t bsize)
 {
-	gtp_cdr_spool_t *s = f->spool;
-	map_file_t *map_file;
-	gtp_cdr_file_header_t *h;
-	gtp_cdr_header_t *cdrh;
+	struct gtp_cdr_spool *s = f->spool;
+	struct map_file *map_file;
+	struct gtp_cdr_file_header *h;
+	struct gtp_cdr_header *cdrh;
 	int err, sync, retry_cnt = 0;
 	off_t offset;
 
@@ -93,11 +94,11 @@ retry:
 
 	/* Pointer */
 	map_file = f->file;
-	h = (gtp_cdr_file_header_t *) map_file->map;
+	h = (struct gtp_cdr_file_header *) map_file->map;
 	offset = ntohl(h->flen);
 
 	/* Write CDR */
-	err = disk_map_write(map_file, offset + sizeof(gtp_cdr_header_t), buf, bsize);
+	err = disk_map_write(map_file, offset + sizeof(struct gtp_cdr_header), buf, bsize);
 	if (err) {
 		if (errno == ENOSPC) {
 			log_message(LOG_INFO, "%s(): file:[%s] exceed max size."
@@ -119,14 +120,14 @@ retry:
 	}
 
 	/* Create cdr header */
-	cdrh = (gtp_cdr_header_t *) ((uint8_t *)map_file->map + offset);
+	cdrh = (struct gtp_cdr_header *) ((uint8_t *)map_file->map + offset);
 	cdrh->clen = htons(bsize);
 	cdrh->magic = GTP_CDR_MAGIC;
 
 	sync = __test_bit(GTP_CDR_SPOOL_FL_ASYNC_BIT, &s->flags) ? DISK_ASYNC :
 								   DISK_SYNC;
 	err = disk_msync_offset(map_file, offset
-					    , bsize + sizeof(gtp_cdr_header_t)
+					    , bsize + sizeof(struct gtp_cdr_header)
 					    , sync);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Cant sync cdr into file:[%s] (%m)"
@@ -136,18 +137,18 @@ retry:
 	}
 
 	/* Update file header */
-	offset += sizeof(gtp_cdr_header_t) + bsize;
+	offset += sizeof(struct gtp_cdr_header) + bsize;
 	h->flen = htonl(offset);
 	h->cdr_count = htonl(ntohl(h->cdr_count) + 1);
 
 	return gtp_cdr_file_header_sync(f);
 }
 
-static map_file_t *
-gtp_cdr_file_open(gtp_cdr_file_t *f)
+static struct map_file *
+gtp_cdr_file_open(struct gtp_cdr_file *f)
 {
-	gtp_cdr_spool_t *s = f->spool;
-	map_file_t *n;
+	struct gtp_cdr_spool *s = f->spool;
+	struct map_file *n;
 	time_t t;
 	int err;
 
@@ -179,9 +180,9 @@ gtp_cdr_file_open(gtp_cdr_file_t *f)
 }
 
 static int
-gtp_cdr_file_build_dst_path(gtp_cdr_file_t *f, char *dst, size_t dsize, time_t t)
+gtp_cdr_file_build_dst_path(struct gtp_cdr_file *f, char *dst, size_t dsize, time_t t)
 {
-	gtp_cdr_spool_t *s = f->spool;
+	struct gtp_cdr_spool *s = f->spool;
 	struct tm *date = &f->date;
 	char filename[256];
 	char *document_root;
@@ -209,18 +210,18 @@ gtp_cdr_file_build_dst_path(gtp_cdr_file_t *f, char *dst, size_t dsize, time_t t
 }
 
 int
-gtp_cdr_file_close(gtp_cdr_file_t *f)
+gtp_cdr_file_close(struct gtp_cdr_file *f)
 {
-	map_file_t *map_file = f->file;
-	gtp_cdr_spool_t *s = f->spool;
-	gtp_cdr_file_header_t *h;
+	struct map_file *map_file = f->file;
+	struct gtp_cdr_spool *s = f->spool;
+	struct gtp_cdr_file_header *h;
 	time_t t;
 	int err;
 
 	if (!map_file)
 		return -1;
 
-	h = (gtp_cdr_file_header_t *) map_file->map;
+	h = (struct gtp_cdr_file_header *) map_file->map;
 	t = be64toh(h->file_creation_ts);
 
 	err = gtp_cdr_file_build_dst_path(f, f->dst_path, GTP_PATH_MAX_LEN, t);
@@ -245,9 +246,9 @@ end:
 }
 
 int
-gtp_cdr_file_create(gtp_cdr_file_t *f)
+gtp_cdr_file_create(struct gtp_cdr_file *f)
 {
-	map_file_t *map_file;
+	struct map_file *map_file;
 	int err;
 
 	map_file = gtp_cdr_file_open(f);
@@ -268,10 +269,10 @@ gtp_cdr_file_create(gtp_cdr_file_t *f)
 	return 0;
 }
 
-gtp_cdr_file_t *
+struct gtp_cdr_file *
 gtp_cdr_file_alloc(void)
 {
-	gtp_cdr_file_t *n;
+	struct gtp_cdr_file *n;
 
 	PMALLOC(n);
 	if (!n) {
@@ -283,7 +284,7 @@ gtp_cdr_file_alloc(void)
 }
 
 int
-gtp_cdr_file_destroy(gtp_cdr_file_t *f)
+gtp_cdr_file_destroy(struct gtp_cdr_file *f)
 {
 	gtp_cdr_file_close(f);
 	FREE(f);

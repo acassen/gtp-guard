@@ -34,16 +34,16 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Daemon Control Block helpers
  */
-data_t *
+struct data *
 alloc_daemon_data(void)
 {
-	data_t *new;
+	struct data *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->mirror);

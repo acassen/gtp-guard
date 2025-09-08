@@ -34,18 +34,18 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Helpers
  */
 int
-gtp_proxy_gtpc_teid_destroy(gtp_teid_t *teid)
+gtp_proxy_gtpc_teid_destroy(struct gtp_teid *teid)
 {
-	gtp_session_t *s = teid->session;
-	gtp_server_t *srv = s->srv;
-	gtp_proxy_t *ctx = srv->ctx;
+	struct gtp_session *s = teid->session;
+	struct gtp_server *srv = s->srv;
+	struct gtp_proxy *ctx = srv->ctx;
 
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
@@ -54,11 +54,11 @@ gtp_proxy_gtpc_teid_destroy(gtp_teid_t *teid)
 }
 
 int
-gtp_proxy_gtpu_teid_destroy(gtp_teid_t *teid)
+gtp_proxy_gtpu_teid_destroy(struct gtp_teid *teid)
 {
-	gtp_session_t *s = teid->session;
-	gtp_server_t *srv = s->srv;
-	gtp_proxy_t *ctx = srv->ctx;
+	struct gtp_session *s = teid->session;
+	struct gtp_server *srv = s->srv;
+	struct gtp_proxy *ctx = srv->ctx;
 
 	gtp_vteid_unhash(&ctx->vteid_tab, teid);
 	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
@@ -66,7 +66,7 @@ gtp_proxy_gtpu_teid_destroy(gtp_teid_t *teid)
 }
 
 static void
-gtp_proxy_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct sockaddr_in *to)
+gtp_proxy_fwd_addr_get(struct gtp_teid *teid, struct sockaddr_storage *from, struct sockaddr_in *to)
 {
 	struct sockaddr_in *addr4 = (struct sockaddr_in *) from;
 
@@ -81,19 +81,20 @@ gtp_proxy_fwd_addr_get(gtp_teid_t *teid, struct sockaddr_storage *from, struct s
 }
 
 int
-gtp_proxy_ingress_init(gtp_server_t *s)
+gtp_proxy_ingress_init(struct inet_server *srv)
 {
 	return 0;
 }
 
 int
-gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
+gtp_proxy_ingress_process(struct inet_server *srv, struct sockaddr_storage *addr_from)
 {
-	gtp_proxy_t *ctx = s->ctx;
-	gtp_server_t *s_egress = &ctx->gtpc_egress;
+	struct gtp_server *s = srv->ctx;
+	struct gtp_proxy *ctx = s->ctx;
+	struct gtp_server *s_egress = &ctx->gtpc_egress;
 	struct sockaddr_in addr_to;
-	gtp_teid_t *teid;
-	int fd = s->fd;
+	struct gtp_teid *teid;
+	int fd = srv->fd;
 
 	/* GTP-U handling */
 	if (__test_bit(GTP_FL_UPF_BIT, &s->flags)) {
@@ -101,7 +102,7 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 		if (!teid)
 			return -1;
 
-		gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) addr_from);
+		inet_server_snd(srv, srv->fd, srv->pbuff, (struct sockaddr_in *) addr_from);
 		return 0;
 	}
 
@@ -114,15 +115,15 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 	 * then split socket */
 	if (__test_bit(GTP_FL_CTL_BIT, &s_egress->flags)) {
 		if (__test_bit(GTP_FL_GTPC_INGRESS_BIT, &s->flags))
-			fd = ctx->gtpc_egress.fd;
+			fd = ctx->gtpc_egress.s.fd;
 		else if (__test_bit(GTP_FL_GTPC_EGRESS_BIT, &s->flags))
-			fd = ctx->gtpc.fd;
+			fd = ctx->gtpc.s.fd;
 	}
 
 	/* Set destination address */
 	gtp_proxy_fwd_addr_get(teid, addr_from, &addr_to);
-	gtp_server_send(s, TEID_IS_DUMMY(teid) ? s->fd : fd, s->pbuff
-			 , TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
+	inet_server_snd(srv, TEID_IS_DUMMY(teid) ? srv->fd : fd, srv->pbuff,
+			TEID_IS_DUMMY(teid) ? (struct sockaddr_in *) addr_from : &addr_to);
 	gtpc_proxy_handle_post(s, teid);
 
 	return 0;
@@ -132,10 +133,10 @@ gtp_proxy_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 /*
  *	GTP Proxy init
  */
-pfx_vlan_t *
+struct pfx_vlan *
 pfx_vlan_alloc(void)
 {
-	pfx_vlan_t *new;
+	struct pfx_vlan *new;
 
 	PMALLOC(new);
 	if (!new)
@@ -145,14 +146,14 @@ pfx_vlan_alloc(void)
 }
 
 int
-pfx_vlan_add(gtp_iptnl_t *tnl, pfx_vlan_t *pfx)
+pfx_vlan_add(struct gtp_iptnl *tnl, struct pfx_vlan *pfx)
 {
 	list_add_tail(&pfx->next, &tnl->decap_pfx_vlan);
 	return 0;
 }
 
 int
-pfx_vlan_free(pfx_vlan_t *pfx)
+pfx_vlan_free(struct pfx_vlan *pfx)
 {
 	list_head_del(&pfx->next);
 	FREE(pfx);
@@ -160,9 +161,9 @@ pfx_vlan_free(pfx_vlan_t *pfx)
 }
 
 static int
-pfx_vlan_destroy(list_head_t *l)
+pfx_vlan_destroy(struct list_head *l)
 {
-	pfx_vlan_t *p, *_p;
+	struct pfx_vlan *p, *_p;
 
 	list_for_each_entry_safe(p, _p, l, next)
 		pfx_vlan_free(p);
@@ -170,10 +171,10 @@ pfx_vlan_destroy(list_head_t *l)
 	return 0;
 }
 
-gtp_proxy_t *
+struct gtp_proxy *
 gtp_proxy_get(const char *name)
 {
-	gtp_proxy_t *ctx;
+	struct gtp_proxy *ctx;
 	size_t len = strlen(name);
 
 	list_for_each_entry(ctx, &daemon_data->gtp_proxy_ctx, next) {
@@ -184,10 +185,10 @@ gtp_proxy_get(const char *name)
 	return NULL;
 }
 
-gtp_proxy_t *
+struct gtp_proxy *
 gtp_proxy_init(const char *name)
 {
-	gtp_proxy_t *new;
+	struct gtp_proxy *new;
 
 	PMALLOC(new);
 	if (!new) {
@@ -209,7 +210,7 @@ gtp_proxy_init(const char *name)
 }
 
 int
-gtp_proxy_ctx_server_destroy(gtp_proxy_t *ctx)
+gtp_proxy_ctx_server_destroy(struct gtp_proxy *ctx)
 {
 	gtp_server_destroy(&ctx->gtpc);
 	gtp_server_destroy(&ctx->gtpc_egress);
@@ -219,7 +220,7 @@ gtp_proxy_ctx_server_destroy(gtp_proxy_t *ctx)
 }
 
 int
-gtp_proxy_ctx_destroy(gtp_proxy_t *ctx)
+gtp_proxy_ctx_destroy(struct gtp_proxy *ctx)
 {
 	pfx_vlan_destroy(&ctx->iptnl.decap_pfx_vlan);
 	gtp_htab_destroy(&ctx->gtpc_teid_tab);
@@ -233,7 +234,7 @@ gtp_proxy_ctx_destroy(gtp_proxy_t *ctx)
 int
 gtp_proxy_server_destroy(void)
 {
-	gtp_proxy_t *c;
+	struct gtp_proxy *c;
 
 	list_for_each_entry(c, &daemon_data->gtp_proxy_ctx, next)
 		gtp_proxy_ctx_server_destroy(c);
@@ -244,7 +245,7 @@ gtp_proxy_server_destroy(void)
 int
 gtp_proxy_destroy(void)
 {
-	gtp_proxy_t *c, *_c;
+	struct gtp_proxy *c, *_c;
 
 	list_for_each_entry_safe(c, _c, &daemon_data->gtp_proxy_ctx, next) {
 		gtp_proxy_ctx_destroy(c);

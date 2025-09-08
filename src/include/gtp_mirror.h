@@ -30,42 +30,42 @@ enum gtp_mirror_flags {
 };
 
 /* mirror structure */
-typedef struct _gtp_mirror_rule {
+struct gtp_mirror_rule {
 	struct sockaddr_storage	addr;
 	uint8_t			protocol;
 	int			ifindex;
 	bool			active;
 
-	list_head_t		next;
-} gtp_mirror_rule_t;
+	struct list_head	next;
+};
 
-typedef struct gtp_mirror {
+struct gtp_mirror {
 	char			name[GTP_STR_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
-	gtp_bpf_prog_t		*bpf_prog;
-	list_head_t		rules;
+	struct gtp_bpf_prog	*bpf_prog;
+	struct list_head	rules;
 
-	list_head_t		next;
+	struct list_head	next;
 
 	int			refcnt;
 	unsigned long		flags;
-} gtp_mirror_t;
+};
 
 
 /* Prototypes */
-gtp_mirror_rule_t *gtp_mirror_rule_get(gtp_mirror_t *,
-				       const struct sockaddr_storage *,
-				       uint8_t, int);
-gtp_mirror_rule_t *gtp_mirror_rule_add(gtp_mirror_t *,
-				       const struct sockaddr_storage *,
-				       uint8_t, int);
-void gtp_mirror_rule_del(gtp_mirror_rule_t *);
+struct gtp_mirror_rule *gtp_mirror_rule_get(struct gtp_mirror *,
+					    const struct sockaddr_storage *,
+					    uint8_t, int);
+struct gtp_mirror_rule *gtp_mirror_rule_add(struct gtp_mirror *,
+					    const struct sockaddr_storage *,
+					    uint8_t, int);
+void gtp_mirror_rule_del(struct gtp_mirror_rule *);
 void gtp_mirror_brd_action(int, int);
-void gtp_mirror_load_bpf(gtp_mirror_t *);
-void gtp_mirror_unload_bpf(gtp_mirror_t *);
-void gtp_mirror_foreach(int (*hdl) (gtp_mirror_t *, void *), void *);
-gtp_mirror_t *gtp_mirror_get(const char *);
-int gtp_mirror_put(gtp_mirror_t *m);
-gtp_mirror_t *gtp_mirror_alloc(const char *);
-int gtp_mirror_destroy(gtp_mirror_t *);
+void gtp_mirror_load_bpf(struct gtp_mirror *);
+void gtp_mirror_unload_bpf(struct gtp_mirror *);
+void gtp_mirror_foreach(int (*hdl) (struct gtp_mirror *, void *), void *);
+struct gtp_mirror *gtp_mirror_get(const char *);
+int gtp_mirror_put(struct gtp_mirror *m);
+struct gtp_mirror *gtp_mirror_alloc(const char *);
+int gtp_mirror_destroy(struct gtp_mirror *);
 int gtp_mirrors_destroy(void);

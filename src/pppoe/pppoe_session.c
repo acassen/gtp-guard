@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "ppp_session.h"
 #include "pppoe_session.h"
 #include "pppoe_proto.h"
@@ -36,8 +38,8 @@
  *	PPPoE Sessions tracking
  */
 static int pppoe_sessions_count = 0;
-static gtp_htab_t *pppoe_session_tab;
-static gtp_htab_t *pppoe_unique_tab;
+static struct gtp_htab *pppoe_session_tab;
+static struct gtp_htab *pppoe_unique_tab;
 
 int
 spppoe_sessions_count_read(void)
@@ -50,17 +52,17 @@ spppoe_sessions_count_read(void)
 
 /* Host-Unique related */
 static struct hlist_head *
-spppoe_unique_hashkey(gtp_htab_t *h, uint32_t id)
+spppoe_unique_hashkey(struct gtp_htab *h, uint32_t id)
 {
 	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
 }
 
-static spppoe_t *
-__spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
+static struct spppoe *
+__spppoe_get_by_unique(struct gtp_htab *h, uint32_t id)
 {
 	struct hlist_head *head = spppoe_unique_hashkey(h, id);
 	struct hlist_node *n;
-	spppoe_t *s;
+	struct spppoe *s;
 
 	hlist_for_each_entry(s, n, head, h_unique) {
 		if (s->unique == id) {
@@ -72,14 +74,14 @@ __spppoe_get_by_unique(gtp_htab_t *h, uint32_t id)
 	return NULL;
 }
 
-spppoe_t *
+struct spppoe *
 spppoe_get_by_unique(uint32_t id)
 {
 	return __spppoe_get_by_unique(pppoe_unique_tab, id);
 }
 
 static int
-__spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
+__spppoe_unique_hash(struct gtp_htab *h, struct spppoe *s, uint32_t id)
 {
 	struct hlist_head *head;
 
@@ -97,7 +99,7 @@ __spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint32_t id)
 }
 
 static int
-spppoe_unique_unhash(gtp_htab_t *h, spppoe_t *s)
+spppoe_unique_unhash(struct gtp_htab *h, struct spppoe *s)
 {
 	if (!__test_and_clear_bit(GTP_PPPOE_FL_UNIQUE_HASHED, &s->flags)) {
 		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.4x already unhashed !!!"
@@ -111,9 +113,9 @@ spppoe_unique_unhash(gtp_htab_t *h, spppoe_t *s)
 }
 
 static int
-spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed)
+spppoe_unique_hash(struct gtp_htab *h, struct spppoe *s, uint64_t imsi, unsigned int *seed)
 {
-	spppoe_t *_s;
+	struct spppoe *_s;
 	uint32_t id;
 
   shoot_again:
@@ -132,7 +134,7 @@ spppoe_unique_hash(gtp_htab_t *h, spppoe_t *s, uint64_t imsi, unsigned int *seed
 
 /* Session-ID related */
 static struct hlist_head *
-spppoe_session_hashkey(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
+spppoe_session_hashkey(struct gtp_htab *h, struct ether_addr *hw_addr, uint16_t id)
 {
 	void *pkey = (void *) hw_addr->ether_addr_octet;
 	uint32_t hbits = *(uint32_t *) pkey;
@@ -141,12 +143,12 @@ spppoe_session_hashkey(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
 	return h->htab + (jhash_3words(hbits, lbits, id, 0) & CONN_HASHTAB_MASK);
 }
 
-static spppoe_t *
-__spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
+static struct spppoe *
+__spppoe_get_by_session(struct gtp_htab *h, struct ether_addr *hw_addr, uint16_t id)
 {
 	struct hlist_head *head = spppoe_session_hashkey(h, hw_addr, id);
 	struct hlist_node *n;
-	spppoe_t *s;
+	struct spppoe *s;
 
 	hlist_for_each_entry(s, n, head, h_session) {
 		if (s->session_id == id && !memcmp(&s->hw_src, hw_addr, ETH_ALEN)) {
@@ -158,16 +160,16 @@ __spppoe_get_by_session(gtp_htab_t *h, struct ether_addr *hw_addr, uint16_t id)
 	return NULL;
 }
 
-spppoe_t *
+struct spppoe *
 spppoe_get_by_session(struct ether_addr *hw_addr, uint16_t id)
 {
 	return __spppoe_get_by_session(pppoe_session_tab, hw_addr, id);
 }
 
 int
-spppoe_session_hash(spppoe_t *s, struct ether_addr *hw_addr, uint16_t id)
+spppoe_session_hash(struct spppoe *s, struct ether_addr *hw_addr, uint16_t id)
 {
-	gtp_htab_t *h = pppoe_session_tab;
+	struct gtp_htab *h = pppoe_session_tab;
 	struct hlist_head *head;
 
 	if (__test_and_set_bit(GTP_PPPOE_FL_SESSION_HASHED, &s->flags)) {
@@ -183,7 +185,7 @@ spppoe_session_hash(spppoe_t *s, struct ether_addr *hw_addr, uint16_t id)
 }
 
 static int
-spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
+spppoe_session_unhash(struct gtp_htab *h, struct spppoe *s)
 {
 	if (!__test_and_clear_bit(GTP_PPPOE_FL_SESSION_HASHED, &s->flags)) {
 		log_message(LOG_INFO, "%s(): unique:0x%.8x for session:0x%.4x already unhashed !!!"
@@ -197,10 +199,10 @@ spppoe_session_unhash(gtp_htab_t *h, spppoe_t *s)
 }
 
 int
-spppoe_sessions_destroy(gtp_htab_t *h)
+spppoe_sessions_destroy(struct gtp_htab *h)
 {
 	struct hlist_node *n, *_n;
-	spppoe_t *s;
+	struct spppoe *s;
 	int i;
 
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
@@ -216,9 +218,9 @@ spppoe_sessions_destroy(gtp_htab_t *h)
  *	PPPoE Sessions related
  */
 static int
-spppoe_generate_id(gtp_conn_t *c)
+spppoe_generate_id(struct gtp_conn *c)
 {
-	spppoe_t *s;
+	struct spppoe *s;
 	bool inuse[GTP_PPPOE_MAX_SESSION_PER_IMSI] = { 0 };
 	int i;
 
@@ -242,9 +244,9 @@ spppoe_generate_id(gtp_conn_t *c)
 }
 
 static int
-spppoe_add(gtp_conn_t *c, spppoe_t *s)
+spppoe_add(struct gtp_conn *c, struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
+	struct pppoe *pppoe = s->pppoe;
 
 	list_add_tail(&s->next, &c->pppoe_sessions);
 	__sync_add_and_fetch(&c->pppoe_cnt, 1);
@@ -254,9 +256,9 @@ spppoe_add(gtp_conn_t *c, spppoe_t *s)
 }
 
 static int
-spppoe_del(gtp_conn_t *c, spppoe_t *s)
+spppoe_del(struct gtp_conn *c, struct spppoe *s)
 {
-	pppoe_t *pppoe = s->pppoe;
+	struct pppoe *pppoe = s->pppoe;
 
 	list_head_del(&s->next);
 	__sync_sub_and_fetch(&c->pppoe_cnt, 1);
@@ -266,7 +268,7 @@ spppoe_del(gtp_conn_t *c, spppoe_t *s)
 }
 
 void
-spppoe_free(spppoe_t *s)
+spppoe_free(struct spppoe *s)
 {
 	sppp_destroy(s->s_ppp);
 	FREE_PTR(s->ac_cookie);
@@ -275,7 +277,7 @@ spppoe_free(spppoe_t *s)
 }
 
 static int
-spppoe_release(spppoe_t *s)
+spppoe_release(struct spppoe *s)
 {
 	/* Disconnect pppoe session */
 	spppoe_disconnect(s);
@@ -288,7 +290,7 @@ spppoe_release(spppoe_t *s)
 }
 
 int
-spppoe_destroy(spppoe_t *s)
+spppoe_destroy(struct spppoe *s)
 {
 	if (!s)
 		return -1;
@@ -298,14 +300,14 @@ spppoe_destroy(spppoe_t *s)
 	return 0;
 }
 
-spppoe_t *
-spppoe_alloc(pppoe_t *pppoe, gtp_conn_t *c,
-	     void (*pp_tls)(sppp_t *), void (*pp_tlf)(sppp_t *),
-	     void (*pp_con)(sppp_t *), void (*pp_chg)(sppp_t *, int),
+struct spppoe *
+spppoe_alloc(struct pppoe *pppoe, struct gtp_conn *c,
+	     void (*pp_tls)(struct sppp *), void (*pp_tlf)(struct sppp *),
+	     void (*pp_con)(struct sppp *), void (*pp_chg)(struct sppp *, int),
 	     const uint64_t imsi, const uint64_t mei, const char *apn_str,
-	     gtp_id_ecgi_t *ecgi, gtp_ie_ambr_t *ambr)
+	     struct gtp_id_ecgi *ecgi, struct gtp_ie_ambr *ambr)
 {
-	spppoe_t *s;
+	struct spppoe *s;
 	int err, id;
 
 	if (!pppoe)
@@ -361,7 +363,7 @@ spppoe_alloc(pppoe_t *pppoe, gtp_conn_t *c,
 }
 
 int
-spppoe_close(spppoe_t *s)
+spppoe_close(struct spppoe *s)
 {
 	if (!s)
 		return -1;
@@ -371,7 +373,7 @@ spppoe_close(spppoe_t *s)
 }
 
 int
-spppoe_disconnect(spppoe_t *s)
+spppoe_disconnect(struct spppoe *s)
 {
 	if (!s)
 		return -1;

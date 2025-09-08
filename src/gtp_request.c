@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "gtp_data.h"
 #include "gtp_apn.h"
 #include "gtp_conn.h"
@@ -30,20 +32,20 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Handle request
  */
 static int
-gtp_request_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
+gtp_request_json_parse_cmd(struct inet_cnx *c, struct json_node *json)
 {
+	struct json_writer *jwriter = c->arg;
+	struct gtp_apn *apn;
+	struct gtp_conn *conn;
 	char *cmd_str = NULL, *apn_str = NULL, *imsi_str = NULL;
 	char addr_str[INET6_ADDRSTRLEN];
-	json_writer_t *jwriter = c->arg;
-	gtp_apn_t *apn;
-	gtp_conn_t *conn;
 	uint8_t imsi_swap[8];
 	uint64_t imsi;
 
@@ -107,9 +109,9 @@ gtp_request_json_parse_cmd(inet_cnx_t *c, json_node_t *json)
  *	Request listener init
  */
 int
-gtp_request_cnx_process(inet_cnx_t *c)
+gtp_request_cnx_process(struct inet_cnx *c)
 {
-	json_node_t *json;
+	struct json_node *json;
 
 	json = json_decode(c->buffer_in);
 	if (!json) {
@@ -125,17 +127,17 @@ gtp_request_cnx_process(inet_cnx_t *c)
 }
 
 int
-gtp_request_cnx_init(inet_cnx_t *c)
+gtp_request_cnx_init(struct inet_cnx *c)
 {
-	json_writer_t *jwriter = jsonw_new(c->fp);
+	struct json_writer *jwriter = jsonw_new(c->fp);
 	c->arg = jwriter;
 	return 0;
 }
 
 int
-gtp_request_cnx_destroy(inet_cnx_t *c)
+gtp_request_cnx_destroy(struct inet_cnx *c)
 {
-	json_writer_t *jwriter = c->arg;
+	struct json_writer *jwriter = c->arg;
 	jsonw_destroy(&jwriter);
 	return 0;
 }
@@ -147,15 +149,15 @@ gtp_request_cnx_destroy(inet_cnx_t *c)
 int
 gtp_request_init(void)
 {
-	inet_server_t *s = &daemon_data->request_channel;
+	struct inet_server *s = &daemon_data->request_channel;
 
 	s->cnx_init = &gtp_request_cnx_init;
 	s->cnx_destroy = &gtp_request_cnx_destroy;
 	s->cnx_rcv = &inet_http_read;
 	s->cnx_process = &gtp_request_cnx_process;
 
-	inet_server_init(s);
-	return inet_server_worker_start(s);
+	inet_server_init(s, SOCK_STREAM);
+	return inet_server_start(s, NULL);
 }
 
 int

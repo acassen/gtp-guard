@@ -25,13 +25,13 @@
 #include "pppoe_session.h"
 
 /* Prototypes */
-pkt_t *pppoe_eth_pkt_get(spppoe_t *, const struct ether_addr *, const uint16_t);
-void pppoe_dispatch_disc_pkt(pppoe_t *, pkt_t *);
-void pppoe_dispatch_session_pkt(pppoe_t *, pkt_t *);
-void pppoe_timeout(thread_t *);
-int pppoe_connect(spppoe_t *);
-int pppoe_abort_connect(spppoe_t *);
-int pppoe_disconnect(spppoe_t *);
-int pppoe_send_padi(spppoe_t *);
+struct pkt *pppoe_eth_pkt_get(struct spppoe *, const struct ether_addr *, const uint16_t);
+void pppoe_dispatch_disc_pkt(struct pppoe *, struct pkt *);
+void pppoe_dispatch_session_pkt(struct pppoe *, struct pkt *);
+void pppoe_timeout(struct thread *);
+int pppoe_connect(struct spppoe *);
+int pppoe_abort_connect(struct spppoe *);
+int pppoe_disconnect(struct spppoe *);
+int pppoe_send_padi(struct spppoe *);
 int pppoe_proto_init(void);
 int pppoe_proto_destroy(void);

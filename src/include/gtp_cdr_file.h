@@ -32,37 +32,37 @@
 #define GTP_CDR_DEFAULT_ROLLPERIOD	7200
 
 /* File data structures */
-typedef struct gtp_cdr_file_header {
+struct gtp_cdr_file_header {
 	uint32_t		flen;
 	uint32_t		hlen;
 	uint16_t		magic;
 	uint16_t		reserved;
 	uint64_t		file_creation_ts;
 	uint32_t		cdr_count;
-} __attribute__((packed)) gtp_cdr_file_header_t;
+} __attribute__((packed));
 
-typedef struct gtp_cdr_header {
+struct gtp_cdr_header {
 	uint16_t		clen;
 	uint16_t		magic;
 	uint8_t			reserved;
-} __attribute__((packed)) gtp_cdr_header_t;
+} __attribute__((packed));
 
-typedef struct gtp_cdr_file {
+struct gtp_cdr_file {
 	char			dst_path[GTP_PATH_MAX_LEN];
 	struct tm		date;
 	time_t			create_time;
 	time_t			roll_time;
 	struct gtp_cdr_spool	*spool;		/* backpointer */
 
-	map_file_t		*file;
+	struct map_file		*file;
 	uint8_t			file_seq;
-} gtp_cdr_file_t;
+};
 
 
 /* Prototypes */
-int gtp_cdr_file_header_init(gtp_cdr_file_t *);
-int gtp_cdr_file_write(gtp_cdr_file_t *, const void *, size_t);
-int gtp_cdr_file_create(gtp_cdr_file_t *);
-int gtp_cdr_file_close(gtp_cdr_file_t *);
-gtp_cdr_file_t *gtp_cdr_file_alloc(void);
-int gtp_cdr_file_destroy(gtp_cdr_file_t *f);
+int gtp_cdr_file_header_init(struct gtp_cdr_file *);
+int gtp_cdr_file_write(struct gtp_cdr_file *, const void *, size_t);
+int gtp_cdr_file_create(struct gtp_cdr_file *);
+int gtp_cdr_file_close(struct gtp_cdr_file *);
+struct gtp_cdr_file *gtp_cdr_file_alloc(void);
+int gtp_cdr_file_destroy(struct gtp_cdr_file *f);

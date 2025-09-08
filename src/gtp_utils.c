@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
 #include <ctype.h>
 
 #include "gtp_utils.h"
@@ -68,7 +69,7 @@ static const struct {
 
 
 size_t
-gtp1_get_header_len(gtp1_hdr_t *h)
+gtp1_get_header_len(struct gtp1_hdr *h)
 {
 	if ((h->flags & 0x07) == 0)
 		return GTPV1C_HEADER_LEN_SHORT;
@@ -81,7 +82,7 @@ gtp1_get_ie_offset(uint8_t type, uint8_t *buffer, uint8_t *end)
 {
 	size_t offset = 0;
 	uint8_t *cp;
-	gtp1_ie_t *ie;
+	struct gtp1_ie *ie;
 
 	for (cp = buffer; cp < end; cp += offset) {
 		if (*cp == type)
@@ -90,24 +91,24 @@ gtp1_get_ie_offset(uint8_t type, uint8_t *buffer, uint8_t *end)
 			offset = gtp1_ie_len[*cp].len + 1;
 			continue;
 		}
-		ie = (gtp1_ie_t *) cp;
-		offset = sizeof(gtp1_ie_t) + ntohs(ie->length);
+		ie = (struct gtp1_ie *) cp;
+		offset = sizeof(*ie) + ntohs(ie->length);
 	}
 
 	return NULL;
 }
 
 uint8_t *
-gtp1_get_ie(uint8_t type, pkt_buffer_t *pbuff)
+gtp1_get_ie(uint8_t type, struct pkt_buffer *pbuff)
 {
-	gtp1_hdr_t *h = (gtp1_hdr_t *) pbuff->head;
+	struct gtp1_hdr *h = (struct gtp1_hdr *) pbuff->head;
 	size_t offset = gtp1_get_header_len(h);
 
 	return gtp1_get_ie_offset(type, pbuff->head+offset, pbuff->end);
 }
 
 size_t
-gtp1_ie_add_tail(pkt_buffer_t *pbuff, uint16_t ie_length)
+gtp1_ie_add_tail(struct pkt_buffer *pbuff, uint16_t ie_length)
 {
 	if (pkt_buffer_put_zero(pbuff, ie_length) < 0)
 		return 0;
@@ -116,7 +117,7 @@ gtp1_ie_add_tail(pkt_buffer_t *pbuff, uint16_t ie_length)
 }
 
 int
-gtp1_ie_apn_extract(gtp1_ie_apn_t *apn, char *buffer, size_t size)
+gtp1_ie_apn_extract(struct gtp1_ie_apn *apn, char *buffer, size_t size)
 {
 	uint8_t *cp, *end = apn->apn+ntohs(apn->h.length);
 	size_t offset = 0;
@@ -382,10 +383,10 @@ gtp_ifid_from_ether_build(struct ether_addr *eth, struct in6_addr *ifid)
 }
 
 int
-gtp_imsi_rewrite(gtp_apn_t *apn, uint8_t *imsi)
+gtp_imsi_rewrite(struct gtp_apn *apn, uint8_t *imsi)
 {
-	list_head_t *l = &apn->imsi_match;
-	gtp_rewrite_rule_t *rule, *rule_match = NULL;
+	struct list_head *l = &apn->imsi_match;
+	struct gtp_rewrite_rule *rule, *rule_match = NULL;
 	int len;
 
 	/* FIXME: this list MUST be protected or use lock-less */
@@ -420,18 +421,18 @@ gtp_imsi_rewrite(gtp_apn_t *apn, uint8_t *imsi)
 }
 
 int
-gtp_ie_imsi_rewrite(gtp_apn_t *apn, uint8_t *buffer)
+gtp_ie_imsi_rewrite(struct gtp_apn *apn, uint8_t *buffer)
 {
-	gtp_ie_imsi_t *ie_imsi = (gtp_ie_imsi_t *) buffer;
+	struct gtp_ie_imsi *ie = (struct gtp_ie_imsi *) buffer;
 
-	return gtp_imsi_rewrite(apn, ie_imsi->imsi);
+	return gtp_imsi_rewrite(apn, ie->imsi);
 }
 
 /* APN related */
 int
 gtp_apn_extract_ni(char *apn, size_t apn_size, char *buffer, size_t size)
 {
-	char *cp, *end = apn+apn_size;
+	char *cp, *end = apn + apn_size;
 	int labels_cnt = 0;
 
 	if (!apn_size)
@@ -460,9 +461,9 @@ gtp_ie_apn_labels_cnt(const char *buffer, size_t size)
 }
 
 int
-gtp_ie_apn_extract_ni(gtp_ie_apn_t *apn, char *buffer, size_t size)
+gtp_ie_apn_extract_ni(struct gtp_ie_apn *apn, char *buffer, size_t size)
 {
-	uint8_t *cp, *end = apn->apn+ntohs(apn->h.length);
+	uint8_t *cp, *end = apn->apn + ntohs(apn->h.length);
 	int labels_cnt = 0;
 	size_t offset = 0;
 
@@ -485,9 +486,9 @@ gtp_ie_apn_extract_ni(gtp_ie_apn_t *apn, char *buffer, size_t size)
 }
 
 static int
-gtp_ie_apn_extract_labels(gtp_ie_apn_t *apn, int until_label, char *buffer, size_t size)
+gtp_ie_apn_extract_labels(struct gtp_ie_apn *apn, int until_label, char *buffer, size_t size)
 {
-	uint8_t *cp, *end = apn->apn+ntohs(apn->h.length);
+	uint8_t *cp, *end = apn->apn + ntohs(apn->h.length);
 	int labels_cnt = 0;
 	size_t offset = 0;
 
@@ -512,21 +513,21 @@ gtp_ie_apn_extract_labels(gtp_ie_apn_t *apn, int until_label, char *buffer, size
 }
 
 int
-gtp_ie_apn_extract_oi(gtp_ie_apn_t *apn, char *buffer, size_t size)
+gtp_ie_apn_extract_oi(struct gtp_ie_apn *apn, char *buffer, size_t size)
 {
 	return gtp_ie_apn_extract_labels(apn, -1, buffer, size);
 }
 
 int
-gtp_ie_apn_extract_plmn(gtp_ie_apn_t *apn, char *buffer, size_t size)
+gtp_ie_apn_extract_plmn(struct gtp_ie_apn *apn, char *buffer, size_t size)
 {
 	return gtp_ie_apn_extract_labels(apn, 0, buffer, size);
 }
 
 int
-gtp_ie_apn_rewrite_oi(gtp_ie_apn_t *apn, size_t offset, char *buffer)
+gtp_ie_apn_rewrite_oi(struct gtp_ie_apn *apn, size_t offset, char *buffer)
 {
-	uint8_t *end = apn->apn+ntohs(apn->h.length);
+	uint8_t *end = apn->apn + ntohs(apn->h.length);
 	uint8_t *cp = apn->apn + offset + 1;
 	size_t offset_oi = 0;
 
@@ -539,10 +540,10 @@ gtp_ie_apn_rewrite_oi(gtp_ie_apn_t *apn, size_t offset, char *buffer)
 }
 
 int
-gtp_ie_apn_rewrite(gtp_apn_t *apn, gtp_ie_apn_t *ie_apn, size_t offset_ni)
+gtp_ie_apn_rewrite(struct gtp_apn *apn, struct gtp_ie_apn *ie_apn, size_t offset_ni)
 {
-	list_head_t *l = &apn->oi_match;
-	gtp_rewrite_rule_t *rule;
+	struct list_head *l = &apn->oi_match;
+	struct gtp_rewrite_rule *rule;
 	char apn_oi[32];
 
 	if (list_empty(l))
@@ -562,7 +563,7 @@ gtp_ie_apn_rewrite(gtp_apn_t *apn, gtp_ie_apn_t *ie_apn, size_t offset_ni)
 }
 
 int
-gtp_ie_f_teid_dump(gtp_ie_f_teid_t *ie)
+gtp_ie_f_teid_dump(struct gtp_ie_f_teid *ie)
 {
 	printf(" - F-TEID\n");
 	printf("  . TEID/GRE Key=0x%.4x\n", ntohl(ie->teid_grekey));
@@ -577,17 +578,17 @@ gtp_ie_f_teid_dump(gtp_ie_f_teid_t *ie)
 int
 gtp_dump_ie(uint8_t *buffer, size_t size)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) buffer;
+	struct gtp_hdr *h = (struct gtp_hdr *) buffer;
 	uint8_t *cp, *end = buffer + size;
 	size_t offset = gtp_msg_hlen(h);
-	gtp_ie_t *ie;
+	struct gtp_ie *ie;
 
 	printf("==> Size = %ld, offset = %ld\n", size, offset);
 
 	for (cp = buffer+offset; cp < end; cp += offset) {
-		ie = (gtp_ie_t *) cp;
+		ie = (struct gtp_ie *) cp;
 		printf(" * IE Type : %d (offset=%ld)\n", ie->type, offset);
-		offset = sizeof(gtp_ie_t) + ntohs(ie->length); 
+		offset = sizeof(struct gtp_ie) + ntohs(ie->length);
 	}
 
 	return 0;
@@ -598,22 +599,22 @@ gtp_get_ie_offset(uint8_t type, uint8_t *buffer, size_t size, size_t off)
 {
 	uint8_t *cp, *end = buffer + size;
 	size_t offset = off;
-	gtp_ie_t *ie;
+	struct gtp_ie *ie;
 
 	for (cp = buffer+offset; cp < end; cp += offset) {
-		ie = (gtp_ie_t *) cp;
+		ie = (struct gtp_ie *) cp;
 		if (ie->type == type)
 			return cp;
-		offset = sizeof(gtp_ie_t) + ntohs(ie->length); 
+		offset = sizeof(struct gtp_ie) + ntohs(ie->length);
 	}
 
 	return NULL;
 }
 
 uint8_t *
-gtp_get_ie(uint8_t type, pkt_buffer_t *pbuff)
+gtp_get_ie(uint8_t type, struct pkt_buffer *pbuff)
 {
-	gtp_hdr_t *h = (gtp_hdr_t *) pbuff->head;
+	struct gtp_hdr *h = (struct gtp_hdr *) pbuff->head;
 	size_t offset = gtp_msg_hlen(h);
 
 	return gtp_get_ie_offset(type, pbuff->head, pkt_buffer_len(pbuff), offset);
@@ -621,21 +622,22 @@ gtp_get_ie(uint8_t type, pkt_buffer_t *pbuff)
 
 int
 gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buffer_end,
-	       gtp_server_t *srv, gtp_session_t *s, int direction, void *arg,
-	       gtp_teid_t * (*hdl) (gtp_server_t *, gtp_session_t *, int, void *, uint8_t *))
+	       struct gtp_server *srv, struct gtp_session *s, int direction, void *arg,
+	       struct gtp_teid * (*hdl) (struct gtp_server *, struct gtp_session *,
+					 int, void *, uint8_t *))
 {
 	size_t offset = buffer_offset;
-	uint8_t *end = pkt_buffer_end(srv->pbuff);
+	uint8_t *end = pkt_buffer_end(srv->s.pbuff);
 	uint8_t *cp;
-	gtp_ie_t *ie;
+	struct gtp_ie *ie;
 
 	for (cp = buffer+offset; cp < buffer_end && cp < end; cp += offset) {
-		ie = (gtp_ie_t *) cp;
+		ie = (struct gtp_ie *) cp;
 		if (ie->type == type) {
 			(*hdl) (srv, s, direction, arg, cp);
 		}
 
-		offset = sizeof(gtp_ie_t) + ntohs(ie->length); 
+		offset = sizeof(struct gtp_ie) + ntohs(ie->length);
 	}
 
 	return 0;
@@ -646,10 +648,10 @@ gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buf
  *      GTP-U related
  */
 ssize_t
-gtpu_get_header_len(pkt_buffer_t *buffer)
+gtpu_get_header_len(struct pkt_buffer *buffer)
 {
+	struct gtp_hdr *gtph = (struct gtp_hdr *) buffer->head;
 	ssize_t len = GTPV1U_HEADER_LEN;
-	gtp_hdr_t *gtph = (gtp_hdr_t *) buffer->head;
 	uint8_t *ext_h = NULL;
 
 	if (pkt_buffer_len(buffer) < len)
@@ -742,7 +744,7 @@ gtp_flags2str(char *str, size_t str_len, unsigned long flags)
 /*
  *	MSG Types defs
  */
-static const gtp_msg_type_map_t gtpc_msg_type2str[1 << 8] = {
+static const struct gtp_msg_type_map gtpc_msg_type2str[1 << 8] = {
 	[GTP_ECHO_REQUEST_TYPE] = {
 		.name = "echo-request",
 		.description = "Used to check GTP control-plane connectivity between two nodes."
@@ -890,7 +892,7 @@ static const gtp_msg_type_map_t gtpc_msg_type2str[1 << 8] = {
 	/* any non listed records: 0 initialiazed */
 };
 
-static const gtp_msg_type_map_t gtpu_msg_type2str[1 << 8] = {
+static const struct gtp_msg_type_map gtpu_msg_type2str[1 << 8] = {
 	[GTPU_ECHO_REQ_TYPE] = {
 		.name = "echo-request",
 		.description = "Used to verify path connectivity in GTP-U (Echo Request)."
@@ -921,7 +923,7 @@ static const gtp_msg_type_map_t gtpu_msg_type2str[1 << 8] = {
 const char *
 gtp_msgtype2str(int type, int idx)
 {
-	const gtp_msg_type_map_t *msg_type2str = NULL;
+	const struct gtp_msg_type_map *msg_type2str = NULL;
 
 	if (type == GTP_FL_CTL_BIT)
 		msg_type2str = gtpc_msg_type2str;
@@ -940,7 +942,7 @@ gtp_msgtype2str(int type, int idx)
 /*
  *	Cause defs
  */
-static const gtp_msg_type_map_t gtpc_msg_cause2str[1 << 8] = {
+static const struct gtp_msg_type_map gtpc_msg_cause2str[1 << 8] = {
 	[GTP_CAUSE_REQUEST_ACCEPTED] = {
 		.name = "request-accepted",
 		.description = "Cause: request accepted by the receiving node."

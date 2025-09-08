@@ -12,6 +12,7 @@
 
 
 #include <unistd.h>
+#include <string.h>
 #include <assert.h>
 #include <sys/statvfs.h>
 #include <dirent.h>

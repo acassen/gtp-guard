@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <string.h>
+
 #include "gtp_apn.h"
 #include "gtp_utils.h"
 #include "gtp.h"
@@ -30,7 +32,8 @@
  *	GTPv1 utilities
  */
 static int
-gtp1_ie_uli_set(gtp1_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp1_ie_uli_set(struct gtp1_ie_uli *uli, struct gtp_plmn *p,
+		struct sockaddr_in *addr)
 {
 	uli->geographic_location_type = GTP1_ULI_GEOGRAPHIC_LOCATION_TYPE_CGI;
 	memcpy(uli->mcc_mnc, p->plmn, GTP_PLMN_MAX_LEN);
@@ -39,15 +42,16 @@ gtp1_ie_uli_set(gtp1_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
 }
 
 static int
-gtp1_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp1_ie_uli_append(struct pkt_buffer *pkt, struct gtp_plmn *p,
+		   struct sockaddr_in *addr)
 {
-	gtp1_hdr_t *gtph = (gtp1_hdr_t *) pkt->head;
+	struct gtp1_hdr *gtph = (struct gtp1_hdr *) pkt->head;
 	uint8_t *cp = pkt_buffer_end(pkt);
-	gtp1_ie_uli_t *uli;
+	struct gtp1_ie_uli *uli;
 	int delta;
 
 	/* Bounds checking */
-	delta = sizeof(gtp1_ie_uli_t);
+	delta = sizeof(struct gtp1_ie_uli);
 	if (pkt_buffer_tailroom(pkt) < delta) {
 		log_message(LOG_INFO, "%s(): Warning Bounds Check failed pkt_tailroom:%d delta:%d !!!"
 				    , __FUNCTION__
@@ -56,9 +60,9 @@ gtp1_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 	}
 
 	/* Append ULI */
-	uli = (gtp1_ie_uli_t *) cp;
+	uli = (struct gtp1_ie_uli *) cp;
 	uli->h.type = GTP1_IE_ULI_TYPE;
-	uli->h.length = htons(sizeof(gtp1_ie_uli_t) - sizeof(gtp1_ie_t));
+	uli->h.length = htons(sizeof(struct gtp1_ie_uli) - sizeof(struct gtp1_ie));
 	gtp1_ie_uli_set(uli, p, addr);
 
 	/* Update pkt */
@@ -68,13 +72,14 @@ gtp1_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 }
 
 int
-gtp1_ie_uli_update(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp1_ie_uli_update(struct pkt_buffer *pkt, struct gtp_plmn *p,
+		   struct sockaddr_in *addr)
 {
 	uint8_t *cp;
 
 	cp = gtp1_get_ie(GTP1_IE_ULI_TYPE, pkt);
 	if (cp)
-		return gtp1_ie_uli_set((gtp1_ie_uli_t *) cp, p, addr);
+		return gtp1_ie_uli_set((struct gtp1_ie_uli *) cp, p, addr);
 
 	return gtp1_ie_uli_append(pkt, p, addr);
 }
@@ -84,7 +89,7 @@ gtp1_ie_uli_update(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
  *	GTPv2 utilities
  */
 static size_t
-gtp_ie_uli_ecgi_offset(gtp_ie_uli_t *uli)
+gtp_ie_uli_ecgi_offset(struct gtp_ie_uli *uli)
 {
 	size_t offset = 0;
 
@@ -92,16 +97,16 @@ gtp_ie_uli_ecgi_offset(gtp_ie_uli_t *uli)
 	 * Grouped identities in following order according
 	 * to presence in bitfield:
 	 * CGI / SAI / RAI / TAI / ECGI / LAI / MacroeNBID / extMacroeNBID */
-	 offset += (uli->cgi) ? sizeof(gtp_id_cgi_t) : 0;
-	 offset += (uli->sai) ? sizeof(gtp_id_sai_t) : 0;
-	 offset += (uli->rai) ? sizeof(gtp_id_rai_t) : 0;
-	 offset += (uli->tai) ? sizeof(gtp_id_tai_t) : 0;
+	 offset += (uli->cgi) ? sizeof(struct gtp_id_cgi) : 0;
+	 offset += (uli->sai) ? sizeof(struct gtp_id_sai) : 0;
+	 offset += (uli->rai) ? sizeof(struct gtp_id_rai) : 0;
+	 offset += (uli->tai) ? sizeof(struct gtp_id_tai) : 0;
 
 	 return offset;
  }
 
-gtp_id_ecgi_t *
-gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *uli)
+struct gtp_id_ecgi *
+gtp_ie_uli_extract_ecgi(struct gtp_ie_uli *uli)
 {
 	size_t offset = 0;
 
@@ -110,15 +115,15 @@ gtp_ie_uli_extract_ecgi(gtp_ie_uli_t *uli)
 
 	/* overflow protection */
 	offset = gtp_ie_uli_ecgi_offset(uli);
-	if (offset + sizeof(gtp_id_ecgi_t) > ntohs(uli->h.length))
+	if (offset + sizeof(struct gtp_id_ecgi) > ntohs(uli->h.length))
 		return NULL;
 
-	offset += sizeof(gtp_ie_uli_t);
-	return (gtp_id_ecgi_t *) ((uint8_t *)uli + offset);
+	offset += sizeof(struct gtp_ie_uli);
+	return (struct gtp_id_ecgi *) ((uint8_t *)uli + offset);
 }
 
 int
-gtp_id_ecgi_str(gtp_id_ecgi_t *ecgi, char *buffer, size_t size)
+gtp_id_ecgi_str(struct gtp_id_ecgi *ecgi, char *buffer, size_t size)
 {
 	int mcc, mnc;
 
@@ -137,7 +142,8 @@ gtp_id_ecgi_str(gtp_id_ecgi_t *ecgi, char *buffer, size_t size)
 }
 
 static int
-gtp_ecgi_set(gtp_id_ecgi_t *ecgi, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp_ecgi_set(struct gtp_id_ecgi *ecgi, struct gtp_plmn *p,
+	     struct sockaddr_in *addr)
 {
 	memcpy(ecgi->mcc_mnc, p->plmn, GTP_PLMN_MAX_LEN);
 	ecgi->u.value = addr->sin_addr.s_addr;
@@ -145,10 +151,11 @@ gtp_ecgi_set(gtp_id_ecgi_t *ecgi, gtp_plmn_t *p, struct sockaddr_in *addr)
 }
 
 static int
-gtp_ie_uli_ecgi_append(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp_ie_uli_ecgi_append(struct pkt_buffer *pkt, struct gtp_ie_uli *uli,
+		       struct gtp_plmn *p, struct sockaddr_in *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) pkt->head;
-	int tail_len, delta = sizeof(gtp_id_ecgi_t);
+	struct gtp_hdr *gtph = (struct gtp_hdr *) pkt->head;
+	int tail_len, delta = sizeof(struct gtp_id_ecgi);
 	uint8_t *cp = (uint8_t *) uli;
 
 	/* Bounds checking */
@@ -160,7 +167,7 @@ gtp_ie_uli_ecgi_append(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, stru
 	}
 
 	/* expand the room */
-	cp += sizeof(gtp_ie_uli_t) + gtp_ie_uli_ecgi_offset(uli);
+	cp += sizeof(struct gtp_ie_uli) + gtp_ie_uli_ecgi_offset(uli);
 	tail_len = pkt_buffer_end(pkt) - cp;
 	memmove(cp + delta, cp, tail_len);
 	pkt_buffer_put_end(pkt, delta);
@@ -170,13 +177,14 @@ gtp_ie_uli_ecgi_append(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, stru
 	uli->h.length = htons(ntohs(uli->h.length) + delta);
 	gtph->length = htons(ntohs(gtph->length) + delta);
 
-	return gtp_ecgi_set((gtp_id_ecgi_t *) cp, p, addr);
+	return gtp_ecgi_set((struct gtp_id_ecgi *) cp, p, addr);
 }
 
 static int
-gtp_ie_uli_ecgi_update(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp_ie_uli_ecgi_update(struct pkt_buffer *pkt, struct gtp_ie_uli *uli,
+		       struct gtp_plmn *p, struct sockaddr_in *addr)
 {
-	gtp_id_ecgi_t *ecgi;
+	struct gtp_id_ecgi *ecgi;
 
 	ecgi = gtp_ie_uli_extract_ecgi(uli);
 	if (ecgi)
@@ -186,16 +194,17 @@ gtp_ie_uli_ecgi_update(pkt_buffer_t *pkt, gtp_ie_uli_t *uli, gtp_plmn_t *p, stru
 }
 
 static int
-gtp_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp_ie_uli_append(struct pkt_buffer *pkt, struct gtp_plmn *p,
+		  struct sockaddr_in *addr)
 {
-	gtp_hdr_t *gtph = (gtp_hdr_t *) pkt->head;
+	struct gtp_hdr *gtph = (struct gtp_hdr *) pkt->head;
 	uint8_t *cp = pkt_buffer_end(pkt);
-	gtp_ie_uli_t *uli;
-	gtp_id_ecgi_t *ecgi;
+	struct gtp_ie_uli *uli;
+	struct gtp_id_ecgi *ecgi;
 	int delta;
 
 	/* Bounds checking */
-	delta = sizeof(gtp_ie_uli_t) + sizeof(gtp_id_ecgi_t);
+	delta = sizeof(struct gtp_ie_uli) + sizeof(struct gtp_id_ecgi);
 	if (pkt_buffer_tailroom(pkt) < delta) {
 		log_message(LOG_INFO, "%s(): Warning Bounds Check failed pkt_tailroom:%d delta:%d !!!"
 				    , __FUNCTION__
@@ -204,12 +213,12 @@ gtp_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 	}
 
 	/* Append ULI */
-	uli = (gtp_ie_uli_t *) cp;
-	memset(uli, 0, sizeof(gtp_ie_uli_t));
+	uli = (struct gtp_ie_uli *) cp;
+	memset(uli, 0, sizeof(struct gtp_ie_uli));
 	uli->h.type = GTP_IE_ULI_TYPE;
-	uli->h.length = htons(sizeof(gtp_id_ecgi_t) + 1);
+	uli->h.length = htons(sizeof(struct gtp_id_ecgi) + 1);
 	uli->ecgi = 1;
-	ecgi =(gtp_id_ecgi_t *) (cp + sizeof(gtp_ie_uli_t));
+	ecgi =(struct gtp_id_ecgi *) (cp + sizeof(struct gtp_ie_uli));
 	gtp_ecgi_set(ecgi, p, addr);
 
 	/* Update pkt */
@@ -219,13 +228,14 @@ gtp_ie_uli_append(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
 }
 
 int
-gtp_ie_uli_update(pkt_buffer_t *pkt, gtp_plmn_t *p, struct sockaddr_in *addr)
+gtp_ie_uli_update(struct pkt_buffer *pkt, struct gtp_plmn *p,
+		  struct sockaddr_in *addr)
 {
 	uint8_t *cp;
 
 	cp = gtp_get_ie(GTP_IE_ULI_TYPE, pkt);
 	if (cp)
-		return gtp_ie_uli_ecgi_update(pkt, (gtp_ie_uli_t *) cp, p, addr);
+		return gtp_ie_uli_ecgi_update(pkt, (struct gtp_ie_uli *) cp, p, addr);
 
 	return gtp_ie_uli_append(pkt, p, addr);
 }

@@ -25,27 +25,28 @@
 
 #define GTP_ROUTER_DELAYED	2
 
-typedef struct gtp_router {
+struct gtp_router {
 	char			name[GTP_NAME_MAX_LEN];
-	gtp_bpf_prog_t		*bpf_prog;
-	gtp_server_t		gtpc;
-	gtp_server_t		gtpu;
+	struct gtp_bpf_prog	*bpf_prog;
+	struct gtp_server	gtpc;
+	struct gtp_server	gtpu;
 
 	unsigned long		flags;
 	uint32_t		refcnt;
 
-	list_head_t		next;
-} gtp_router_t;
+	struct list_head	next;
+};
 
 
 /* Prototypes */
-int gtp_router_ingress_init(gtp_server_t *);
-int gtp_router_ingress_process(gtp_server_t *, struct sockaddr_storage *);
+int gtp_router_ingress_init(struct inet_server *srv);
+int gtp_router_ingress_process(struct inet_server *srv,
+			       struct sockaddr_storage *addr_from);
 bool gtp_router_inuse(void);
-void gtp_router_foreach(int (*hdl) (gtp_router_t *, void *), void *);
-gtp_router_t *gtp_router_get(const char *);
-gtp_router_t *gtp_router_init(const char *);
-int gtp_router_ctx_destroy(gtp_router_t *);
+void gtp_router_foreach(int (*hdl) (struct gtp_router *, void *), void *arg);
+struct gtp_router *gtp_router_get(const char *name);
+struct gtp_router *gtp_router_init(const char *name);
+int gtp_router_ctx_destroy(struct gtp_router *ctx);
 int gtp_router_server_destroy(void);
 int gtp_router_destroy(void);
 int gtp_router_vty_init(void);

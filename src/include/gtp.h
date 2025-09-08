@@ -132,65 +132,65 @@ enum gtp_flags {
 /*
  *	GTPv1 IE
  */
-typedef struct gtp1_ie {
+struct gtp1_ie {
 	uint8_t		type;
 	uint16_t	length;
-} __attribute__((packed)) gtp1_ie_t;
+} __attribute__((packed));
 
 #define GTP1_IE_CAUSE_TYPE				1
-typedef struct gtp1_ie_cause {
+struct gtp1_ie_cause {
 	uint8_t		type;
 	uint8_t		value;
-} __attribute__((packed)) gtp1_ie_cause_t;
+} __attribute__((packed));
 
 #define GTP1_IE_IMSI_TYPE				2
-typedef struct gtp1_ie_imsi {
+struct gtp1_ie_imsi {
 	uint8_t		type;
 	uint8_t		imsi[8];
-} __attribute__((packed)) gtp1_ie_imsi_t;
+} __attribute__((packed));
 
 #define GTP1_IE_RAI_TYPE				3
-typedef struct gtp1_ie_rai {
+struct gtp1_ie_rai {
 	uint8_t		type;
 	uint8_t		plmn[3];
 	uint16_t	lac;
 	uint8_t		rac;
-} __attribute__((packed)) gtp1_ie_rai_t;
+} __attribute__((packed));
 
 #define GTP1_IE_RECOVERY_TYPE				14
-typedef struct gtp1_ie_recovery {
+struct gtp1_ie_recovery {
 	uint8_t		type;
 	uint8_t		recovery;
-} __attribute__((packed)) gtp1_ie_recovery_t;
+} __attribute__((packed));
 
 #define GTP1_IE_TEID_DATA_TYPE				16
 #define GTP1_IE_TEID_CONTROL_TYPE			17
-typedef struct gtp1_ie_teid {
+struct gtp1_ie_teid {
 	uint8_t		type;
 	uint32_t	id;
-} __attribute__((packed)) gtp1_ie_teid_t;
+} __attribute__((packed));
 
 #define GTP1_IE_APN_TYPE				131
-typedef struct gtp1_ie_apn {
-	gtp1_ie_t	h;
+struct gtp1_ie_apn {
+	struct gtp1_ie	h;
 	uint8_t		apn[64];
-} __attribute__((packed)) gtp1_ie_apn_t;
+} __attribute__((packed));
 
 #define GTP1_IE_GSN_ADDRESS_TYPE			133
-typedef struct gtp1_ie_gsn_address {
-	gtp1_ie_t	h;
+struct gtp1_ie_gsn_address {
+	struct gtp1_ie	h;
 	uint32_t	ipv4;
-} __attribute__((packed)) gtp1_ie_gsn_address_t;
+} __attribute__((packed));
 
 #define GTP1_IE_QOS_PROFILE_TYPE			135
-typedef struct gtp1_ie_qos_profile {
-	gtp1_ie_t	h;
+struct gtp1_ie_qos_profile {
+	struct gtp1_ie	h;
 	uint8_t		arp;
-} __attribute__((packed)) gtp1_ie_qos_profile_t;
+} __attribute__((packed));
 
 #define GTP1_IE_ULI_TYPE				152
-typedef struct gtp1_ie_uli {
-	gtp1_ie_t	h;
+struct gtp1_ie_uli {
+	struct gtp1_ie	h;
 	uint8_t		geographic_location_type;
 	uint8_t		mcc_mnc[3];
 	union {
@@ -208,7 +208,7 @@ typedef struct gtp1_ie_uli {
 		} rai;
 		uint32_t		value;
 	} u;
-} __attribute__((packed)) gtp1_ie_uli_t;
+} __attribute__((packed));
 #define GTP1_ULI_GEOGRAPHIC_LOCATION_TYPE_CGI	0
 #define GTP1_ULI_GEOGRAPHIC_LOCATION_TYPE_SAI	(1 << 0)
 #define GTP1_ULI_GEOGRAPHIC_LOCATION_TYPE_RAI	(1 << 1)
@@ -217,17 +217,17 @@ typedef struct gtp1_ie_uli {
 /*
  *	GTPv2 IE
  */
-typedef struct gtpu_ie {
+struct gtpu_ie {
 	uint8_t		type;
 	uint16_t	length;
-} __attribute__((packed)) gtpu_ie_t;
+} __attribute__((packed));
 
-typedef struct gtpu_ie_private {
+struct gtpu_ie_private {
 	uint8_t		type;
 	uint16_t	id;
-} __attribute__((packed)) gtpu_ie_private_t;
+} __attribute__((packed));
 
-typedef struct gtp_ie {
+struct gtp_ie {
 	uint8_t		type;
 	uint16_t	length;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -239,102 +239,102 @@ typedef struct gtp_ie {
 #else
 # error "Please fix <bits/endian.h>"
 #endif
-} __attribute__((packed)) gtp_ie_t;
+} __attribute__((packed));
 
 #define GTP_IE_IMSI_TYPE				1
-typedef struct gtp_ie_imsi {
-	gtp_ie_t	h;
+struct gtp_ie_imsi {
+	struct gtp_ie	h;
 	uint8_t		imsi[8];
-} __attribute__((packed)) gtp_ie_imsi_t;
+} __attribute__((packed));
 
 #define GTP_IE_CAUSE_TYPE				2
-typedef struct gtp_ie_cause {
-	gtp_ie_t	h;
+struct gtp_ie_cause {
+	struct gtp_ie	h;
 	uint8_t		value;
 	uint8_t		spare;
-} __attribute__((packed)) gtp_ie_cause_t;
+} __attribute__((packed));
 
 #define GTP_IE_RECOVERY_TYPE				3
-typedef struct gtp_ie_recovery {
-	gtp_ie_t	h;
+struct gtp_ie_recovery {
+	struct gtp_ie	h;
 	uint8_t		recovery;
-} __attribute__((packed)) gtp_ie_recovery_t;
+} __attribute__((packed));
 
 #define GTP_IE_APN_TYPE					71
-typedef struct gtp_ie_apn {
-	gtp_ie_t	h;
+struct gtp_ie_apn {
+	struct gtp_ie	h;
 	uint8_t		apn[64];
-} __attribute__((packed)) gtp_ie_apn_t;
+} __attribute__((packed));
 
 #define GTP_IE_MEI_TYPE					75
-typedef struct gtp_ie_mei {
-	gtp_ie_t	h;
+struct gtp_ie_mei {
+	struct gtp_ie	h;
 	uint8_t		mei[8];
-} __attribute__((packed)) gtp_ie_mei_t;
+} __attribute__((packed));
 
 #define GTP_IE_MSISDN_TYPE				76
-typedef struct gtp_ie_msisdn {
-	gtp_ie_t	h;
+struct gtp_ie_msisdn {
+	struct gtp_ie	h;
 	uint8_t		msisdn[6];
-} __attribute__((packed)) gtp_ie_msisdn_t;
+} __attribute__((packed));
 
 #define GTP_IE_INDICATION_TYPE				77
-typedef struct gtp_ie_indication {
-	gtp_ie_t	h;
+struct gtp_ie_indication {
+	struct gtp_ie	h;
 	uint32_t	bits;
-} __attribute__((packed)) gtp_ie_indication_t;
+} __attribute__((packed));
 
 #define GTP_IE_PCO_TYPE					78
-typedef struct gtp_ie_pco {
-	gtp_ie_t	h;
+struct gtp_ie_pco {
+	struct gtp_ie	h;
 	uint8_t		ext;
-} __attribute__((packed)) gtp_ie_pco_t;
+} __attribute__((packed));
 
 /* PPP Protocol or Container ID */
 #define GTP_PCO_PID_IPCP	0x8021
 #define GTP_PCO_PID_DNS		0x000d
 #define GTP_PCO_PID_SBCM	0x0005
 #define GTP_PCO_PID_MTU		0x0010
-typedef struct gtp_pco_pid {
+struct gtp_pco_pid {
 	uint16_t	type;
 	uint8_t		length;
-} __attribute__((packed)) gtp_pco_pid_t;
+} __attribute__((packed));
 
 #define PPP_CONF_NAK		0x03
-typedef struct gtp_pco_pid_ipcp {
-	gtp_pco_pid_t	h;
+struct gtp_pco_pid_ipcp {
+	struct gtp_pco_pid h;
 	uint8_t		code;
 	uint8_t		id;
 	uint16_t	length;
-} __attribute__((packed)) gtp_pco_pid_ipcp_t;
+} __attribute__((packed));
 
 #define PPP_IPCP_PRIMARY_NS		0x81
 #define PPP_IPCP_SECONDARY_NS		0x83
-typedef struct gtp_ppp_ipcp_option_ip4 {
+struct gtp_ppp_ipcp_option_ip4 {
 	uint8_t		type;
 	uint8_t		length;
 	uint32_t	addr;
-} __attribute__((packed)) gtp_ppp_ipcp_option_ip4_t;
+} __attribute__((packed));
 
-typedef struct gtp_pco_pid_dns {
-	gtp_pco_pid_t	h;
+struct gtp_pco_pid_dns {
+	struct gtp_pco_pid h;
 	uint32_t	addr;
-} __attribute__((packed)) gtp_pco_pid_dns_t;
+} __attribute__((packed));
 
-typedef struct gtp_pco_pid_mtu {
-	gtp_pco_pid_t	h;
+struct gtp_pco_pid_mtu {
+	struct gtp_pco_pid h;
 	uint16_t	mtu;
-} __attribute__((packed)) gtp_pco_pid_mtu_t;
+} __attribute__((packed));
 
-typedef struct gtp_pco_pid_sbcm {
-	gtp_pco_pid_t	h;
+struct gtp_pco_pid_sbcm {
+	struct gtp_pco_pid h;
 	uint8_t		sbcm;
-} __attribute__((packed)) gtp_pco_pid_sbcm_t;
+} __attribute__((packed));
 
 
 #define GTP_IE_F_TEID_TYPE				87
-typedef struct gtp_ie_f_teid {
-	gtp_ie_t			h;
+struct gtp_ie_f_teid {
+	struct gtp_ie			h;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 			uint8_t		interface_type:6;
 			uint8_t		v6:1;
@@ -351,46 +351,46 @@ typedef struct gtp_ie_f_teid {
 		uint32_t		ipv4;
 		uint32_t		ipv6[4];
 	};
-} __attribute__((packed)) gtp_ie_f_teid_t;
+} __attribute__((packed));
 #define GTP_TEID_INTERFACE_TYPE_SGW_GTPU	5
 #define GTP_TEID_INTERFACE_TYPE_SGW_GTPC	7
 
 #define GTP_IE_AMBR_TYPE				72
-typedef struct gtp_ie_ambr {
-	gtp_ie_t	h;
+struct gtp_ie_ambr {
+	struct gtp_ie	h;
 	uint32_t	uplink;
 	uint32_t	downlink;
-} __attribute__((packed)) gtp_ie_ambr_t;
+} __attribute__((packed));
 
 #define GTP_IE_EPS_BEARER_ID_TYPE			73
-typedef struct gtp_ie_eps_bearer_id {
-	gtp_ie_t	h;
+struct gtp_ie_eps_bearer_id {
+	struct gtp_ie	h;
 	uint8_t		id;
-} __attribute__((packed)) gtp_ie_eps_bearer_id_t;
+} __attribute__((packed));
 
 #define GTP_IE_PAA_TYPE					79
-typedef struct gtp_ie_paa {
-	gtp_ie_t	h;
+struct gtp_ie_paa {
+	struct gtp_ie	h;
 	uint8_t		type;
 	uint32_t	addr;
-} __attribute__((packed)) gtp_ie_paa_t;
+} __attribute__((packed));
 #define GTP_PAA_IPV4_TYPE	1
 
 #define GTP_IE_RAT_TYPE_TYPE				82
-typedef struct gtp_ie_rat_type {
-	gtp_ie_t	h;
+struct gtp_ie_rat_type {
+	struct gtp_ie	h;
 	uint8_t		mcc_mnc[3];
-} __attribute__((packed)) gtp_ie_rat_type_t;
+} __attribute__((packed));
 
 #define GTP_IE_SERVING_NETWORK_TYPE			83
-typedef struct gtp_ie_serving_network {
-	gtp_ie_t	h;
+struct gtp_ie_serving_network {
+	struct gtp_ie	h;
 	uint8_t		mcc_mnc[3];
-} __attribute__((packed)) gtp_ie_serving_network_t;
+} __attribute__((packed));
 
 #define GTP_IE_ULI_TYPE					86
-typedef struct gtp_ie_uli {
-	gtp_ie_t	h;
+struct gtp_ie_uli {
+	struct gtp_ie	h;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	uint8_t		cgi:1;
 	uint8_t		sai:1;
@@ -415,33 +415,33 @@ typedef struct gtp_ie_uli {
 	/* Grouped identities in following order according
 	 * to presence in previous bitfield:
 	 * CGI / SAI / RAI / TAI / ECGI / LAI / MacroeNBID / extMacroeNBID */
-} __attribute__((packed)) gtp_ie_uli_t;
+} __attribute__((packed));
 
-typedef struct gtp_id_cgi {
+struct gtp_id_cgi {
 	uint8_t		mcc_mnc[3];
 	uint16_t	lac;
 	uint16_t	ci;
-} __attribute__((packed)) gtp_id_cgi_t;
+} __attribute__((packed));
 
-typedef struct gtp_id_sai {
+struct gtp_id_sai {
 	uint8_t		mcc_mnc[3];
 	uint16_t	lac;
 	uint16_t	sac;
-} __attribute__((packed)) gtp_id_sai_t;
+} __attribute__((packed));
 
-typedef struct gtp_id_rai {
+struct gtp_id_rai {
 	uint8_t		mcc_mnc[3];
 	uint16_t	lac;
 	uint8_t		rac;
 	uint8_t		spare;
-} __attribute__((packed)) gtp_id_rai_t;
+} __attribute__((packed));
 
-typedef struct gtp_id_tai {
+struct gtp_id_tai {
 	uint8_t		mcc_mnc[3];
 	uint16_t	tac;
-} __attribute__((packed)) gtp_id_tai_t;
+} __attribute__((packed));
 
-typedef struct gtp_ecgi {
+struct gtp_ecgi {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	uint32_t	cellid:8;
 	uint32_t	enbid:20;
@@ -453,50 +453,50 @@ typedef struct gtp_ecgi {
 #else
 # error "Please fix <bits/endian.h>"
 #endif
-} __attribute__((packed)) gtp_ecgi_t;
+} __attribute__((packed));
 
-typedef struct gtp_id_ecgi {
+struct gtp_id_ecgi {
 	uint8_t			mcc_mnc[3];
 	union {
-		gtp_ecgi_t	ecgi;
+		struct gtp_ecgi	ecgi;
 		uint32_t	value;
 	} u;
-} __attribute__((packed)) gtp_id_ecgi_t;
+} __attribute__((packed));
 
-typedef struct gtp_id_lai {
+struct gtp_id_lai {
 	uint8_t		mcc_mnc[3];
 	uint16_t	lac;
-} __attribute__((packed)) gtp_id_lai_t;
+} __attribute__((packed));
 
 #define GTP_IE_BEARER_CONTEXT_TYPE			93
-typedef struct gtp_ie_bearer_context {
-	gtp_ie_t	h;
+struct gtp_ie_bearer_context {
+	struct gtp_ie	h;
 	/* Grouped IE here */
-} __attribute__((packed)) gtp_ie_bearer_context_t;
+} __attribute__((packed));
 
 #define GTP_IE_CHARGING_ID_TYPE				94
-typedef struct gtp_ie_charging_id {
-	gtp_ie_t	h;
+struct gtp_ie_charging_id {
+	struct gtp_ie	h;
 	uint32_t	id;
-} __attribute__((packed)) gtp_ie_charging_id_t;
+} __attribute__((packed));
 
 #define GTP_IE_PDN_TYPE					99
-typedef struct gtp_ie_pdn_type {
-	gtp_ie_t	h;
+struct gtp_ie_pdn_type {
+	struct gtp_ie	h;
 	uint8_t		pdn_type;
-} __attribute__((packed)) gtp_ie_pdn_type_t;
+} __attribute__((packed));
 
 #define GTP_IE_APN_RESTRICTION_TYPE			127
-typedef struct gtp_ie_apn_restriction {
-	gtp_ie_t	h;
+struct gtp_ie_apn_restriction {
+	struct gtp_ie	h;
 	uint8_t		value;
-} __attribute__((packed)) gtp_ie_apn_restriction_t;
+} __attribute__((packed));
 
 
 /*
  *	GTP Protocol headers
  */
-typedef struct gtp_hdr {
+struct gtp_hdr {
 	union {
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -526,10 +526,10 @@ typedef struct gtp_hdr {
 		uint32_t		sqn_only;
 
 	};
-} __attribute__((packed)) gtp_hdr_t;
+} __attribute__((packed));
 
 
-typedef struct gtp1_hdr {
+struct gtp1_hdr {
 	union {
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -564,4 +564,4 @@ typedef struct gtp1_hdr {
 		};
 		uint32_t		teid_only;
 	};
-} __attribute__((packed)) gtp1_hdr_t;
+} __attribute__((packed));

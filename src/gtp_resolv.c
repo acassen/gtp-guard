@@ -34,27 +34,27 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Service selection related
  */
 static int
-gtp_service_cmp(list_head_t *a, list_head_t *b)
+gtp_service_cmp(struct list_head *a, struct list_head *b)
 {
-	gtp_service_t *sa, *sb;
+	struct gtp_service *sa, *sb;
 
-	sa = container_of(a, gtp_service_t, next);
-	sb = container_of(b, gtp_service_t, next);
+	sa = container_of(a, struct gtp_service, next);
+	sb = container_of(b, struct gtp_service, next);
 
 	return sa->prio - sb->prio;
 }
 
-gtp_service_t *
-gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
+struct gtp_service *
+gtp_service_alloc(struct gtp_apn *apn, const char *str, int prio)
 {
-	gtp_service_t *new;
+	struct gtp_service *new;
 
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->next);
@@ -72,9 +72,9 @@ gtp_service_alloc(gtp_apn_t *apn, const char *str, int prio)
 }
 
 int
-gtp_service_destroy(gtp_apn_t *apn)
+gtp_service_destroy(struct gtp_apn *apn)
 {
-	gtp_service_t *s, *_s;
+	struct gtp_service *s, *_s;
 
 	pthread_mutex_lock(&apn->mutex);
 	list_for_each_entry_safe(s, _s, &apn->service_selection, next) {
@@ -150,7 +150,7 @@ ns_log_error(const char *dn, int error)
 }
 
 static int
-ns_bind_connect(gtp_apn_t *apn, int type)
+ns_bind_connect(struct gtp_apn *apn, int type)
 {
 	struct sockaddr_storage *addr = &apn->nameserver_bind;
 	socklen_t addrlen;
@@ -208,9 +208,9 @@ ns_bind_connect(gtp_apn_t *apn, int type)
 }
 
 static int
-ns_ctx_init(gtp_resolv_ctx_t *ctx)
+ns_ctx_init(struct gtp_resolv_ctx *ctx)
 {
-	gtp_apn_t *apn = ctx->apn;
+	struct gtp_apn *apn = ctx->apn;
 	struct sockaddr_storage *addr;
 	int fd;
 
@@ -238,7 +238,7 @@ ns_ctx_init(gtp_resolv_ctx_t *ctx)
 
 
 static int
-ns_res_nquery_retry(gtp_resolv_ctx_t *ctx, int class, int type)
+ns_res_nquery_retry(struct gtp_resolv_ctx *ctx, int class, int type)
 {
 	int retry_count = 0;
 	int ret;
@@ -258,7 +258,7 @@ retry:
 }
 
 static int
-gtp_pgw_set(gtp_pgw_t *pgw, const u_char *rdata, size_t rdlen)
+gtp_pgw_set(struct gtp_pgw *pgw, const u_char *rdata, size_t rdlen)
 {
 	struct sockaddr_in *addr4 = (struct sockaddr_in *) &pgw->addr;
 	pgw->addr.ss_family = AF_INET;
@@ -267,7 +267,7 @@ gtp_pgw_set(gtp_pgw_t *pgw, const u_char *rdata, size_t rdlen)
 }
 
 static int
-gtp_resolv_srv_a(gtp_resolv_ctx_t *ctx, gtp_pgw_t *pgw)
+gtp_resolv_srv_a(struct gtp_resolv_ctx *ctx, struct gtp_pgw *pgw)
 {
 	int ret, i, err;
 
@@ -297,9 +297,9 @@ gtp_resolv_srv_a(gtp_resolv_ctx_t *ctx, gtp_pgw_t *pgw)
 }
 
 static int
-gtp_resolv_pgw_srv(gtp_resolv_ctx_t *ctx, gtp_naptr_t *naptr)
+gtp_resolv_pgw_srv(struct gtp_resolv_ctx *ctx, struct gtp_naptr *naptr)
 {
-	gtp_pgw_t *pgw;
+	struct gtp_pgw *pgw;
 
 	list_for_each_entry(pgw, &naptr->pgw, next) {
 		gtp_resolv_srv_a(ctx, pgw);
@@ -309,20 +309,20 @@ gtp_resolv_pgw_srv(gtp_resolv_ctx_t *ctx, gtp_naptr_t *naptr)
 }
 
 static int
-gtp_pgw_cmp(list_head_t *a, list_head_t *b)
+gtp_pgw_cmp(struct list_head *a, struct list_head *b)
 {
-	gtp_pgw_t *pa, *pb;
+	struct gtp_pgw *pa, *pb;
 
-	pa = container_of(a, gtp_pgw_t, next);
-	pb = container_of(b, gtp_pgw_t, next);
+	pa = container_of(a, struct gtp_pgw, next);
+	pb = container_of(b, struct gtp_pgw, next);
 
 	return pa->priority - pb->priority;
 }
 
 static int
-gtp_pgw_append(gtp_naptr_t *naptr, char *name, size_t len)
+gtp_pgw_append(struct gtp_naptr *naptr, char *name, size_t len)
 {
-	gtp_pgw_t *new;
+	struct gtp_pgw *new;
 	struct sockaddr_in *addr4;
 
 	PMALLOC(new);
@@ -342,9 +342,9 @@ gtp_pgw_append(gtp_naptr_t *naptr, char *name, size_t len)
 }
 
 static int
-gtp_pgw_alloc(gtp_naptr_t *naptr, const u_char *rdata, size_t rdlen)
+gtp_pgw_alloc(struct gtp_naptr *naptr, const u_char *rdata, size_t rdlen)
 {
-	gtp_pgw_t *new;
+	struct gtp_pgw *new;
 	const u_char *edata = rdata + rdlen;
 	struct sockaddr_in *addr4;
 	uint16_t port;
@@ -369,7 +369,7 @@ gtp_pgw_alloc(gtp_naptr_t *naptr, const u_char *rdata, size_t rdlen)
 }
 
 static int
-gtp_resolv_naptr_srv(gtp_resolv_ctx_t *ctx, gtp_naptr_t *naptr)
+gtp_resolv_naptr_srv(struct gtp_resolv_ctx *ctx, struct gtp_naptr *naptr)
 {
 	int ret, i, err;
 
@@ -399,9 +399,9 @@ gtp_resolv_naptr_srv(gtp_resolv_ctx_t *ctx, gtp_naptr_t *naptr)
 }
 
 int
-gtp_resolv_pgw(gtp_resolv_ctx_t *ctx, list_head_t *l)
+gtp_resolv_pgw(struct gtp_resolv_ctx *ctx, struct list_head *l)
 {
-	gtp_naptr_t *naptr;
+	struct gtp_naptr *naptr;
 	int ret;
 
 	list_for_each_entry(naptr, l, next) {
@@ -428,9 +428,9 @@ gtp_resolv_pgw(gtp_resolv_ctx_t *ctx, list_head_t *l)
 }
 
 static int
-gtp_naptr_alloc(list_head_t *l, const u_char *rdata, size_t rdlen)
+gtp_naptr_alloc(struct list_head *l, const u_char *rdata, size_t rdlen)
 {
-	gtp_naptr_t *new;
+	struct gtp_naptr *new;
 	const u_char *edata = rdata + rdlen;
 	int16_t len = 0;
 
@@ -471,13 +471,13 @@ gtp_naptr_alloc(list_head_t *l, const u_char *rdata, size_t rdlen)
 	if (len < 0)
 		goto end;
 
-  end:
+end:
 	list_add_tail(&new->next, l);
 	return 0;
 }
 
 int
-gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l, const char *format, ...)
+gtp_resolv_naptr(struct gtp_resolv_ctx *ctx, struct list_head *l, const char *format, ...)
 {
 	va_list args;
 	int ret, i, err;
@@ -511,10 +511,10 @@ gtp_resolv_naptr(gtp_resolv_ctx_t *ctx, list_head_t *l, const char *format, ...)
 }
 
 
-gtp_resolv_ctx_t *
-gtp_resolv_ctx_alloc(gtp_apn_t *apn)
+struct gtp_resolv_ctx *
+gtp_resolv_ctx_alloc(struct gtp_apn *apn)
 {
-	gtp_resolv_ctx_t *ctx;
+	struct gtp_resolv_ctx *ctx;
 	struct sockaddr_storage *addr;
 
 	PMALLOC(ctx);
@@ -542,7 +542,7 @@ gtp_resolv_ctx_alloc(gtp_apn_t *apn)
 }
 
 int
-gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *ctx)
+gtp_resolv_ctx_destroy(struct gtp_resolv_ctx *ctx)
 {
 	res_nclose(&ctx->ns_rs);
 	FREE(ctx);
@@ -553,9 +553,9 @@ gtp_resolv_ctx_destroy(gtp_resolv_ctx_t *ctx)
  *	Resolver helpers
  */
 static int
-gtp_pgw_destroy(list_head_t *l)
+gtp_pgw_destroy(struct list_head *l)
 {
-	gtp_pgw_t *pgw, *pgw_tmp;
+	struct gtp_pgw *pgw, *pgw_tmp;
 
 	list_for_each_entry_safe(pgw, pgw_tmp, l, next) {
 		list_head_del(&pgw->next);
@@ -566,9 +566,9 @@ gtp_pgw_destroy(list_head_t *l)
 }
 
 static int
-gtp_pgw_show(vty_t *vty, list_head_t *l)
+gtp_pgw_show(struct vty *vty, struct list_head *l)
 {
-	gtp_pgw_t *pgw;
+	struct gtp_pgw *pgw;
 
 	list_for_each_entry(pgw, l, next) {
 		vty_out(vty, "  %s\t\t[%s]:%d\tPrio:%d Weight:%d%s"
@@ -584,9 +584,9 @@ gtp_pgw_show(vty_t *vty, list_head_t *l)
 }
 
 static int
-gtp_pgw_dump(list_head_t *l)
+gtp_pgw_dump(struct list_head *l)
 {
-	gtp_pgw_t *pgw;
+	struct gtp_pgw *pgw;
 
 	list_for_each_entry(pgw, l, next) {
 		printf(" %s\t\t[%s]:%d\tPrio:%d Weight:%d\n",
@@ -601,10 +601,10 @@ gtp_pgw_dump(list_head_t *l)
 }
 
 int
-gtp_naptr_show(vty_t *vty, gtp_apn_t *apn)
+gtp_naptr_show(struct vty *vty, struct gtp_apn *apn)
 {
-	list_head_t *l = &apn->naptr;
-	gtp_naptr_t *naptr;
+	struct list_head *l = &apn->naptr;
+	struct gtp_naptr *naptr;
 
 	vty_out(vty, "Access-Point-Name %s%s", apn->name, VTY_NEWLINE);
 	pthread_mutex_lock(&apn->mutex);
@@ -623,9 +623,9 @@ gtp_naptr_show(vty_t *vty, gtp_apn_t *apn)
 }
 
 int
-gtp_naptr_dump(list_head_t *l)
+gtp_naptr_dump(struct list_head *l)
 {
-	gtp_naptr_t *naptr;
+	struct gtp_naptr *naptr;
 
 	list_for_each_entry(naptr, l, next) {
 		printf("%s\t(%s, %s, Order:%d, Pref:%d)\n",
@@ -640,9 +640,9 @@ gtp_naptr_dump(list_head_t *l)
 }
 
 int
-gtp_naptr_destroy(list_head_t *l)
+gtp_naptr_destroy(struct list_head *l)
 {
-	gtp_naptr_t *naptr, *naptr_tmp;
+	struct gtp_naptr *naptr, *naptr_tmp;
 
 	list_for_each_entry_safe(naptr, naptr_tmp, l, next) {
 		gtp_pgw_destroy(&naptr->pgw);
@@ -653,16 +653,16 @@ gtp_naptr_destroy(list_head_t *l)
 	return 0;
 }
 
-gtp_naptr_t *
-__gtp_naptr_get(gtp_apn_t *apn, const char *name)
+struct gtp_naptr *
+__gtp_naptr_get(struct gtp_apn *apn, const char *name)
 {
-	gtp_naptr_t *naptr;
+	struct gtp_naptr *naptr;
 
 	if (!apn || list_empty(&apn->naptr))
 		return NULL;
 
 	if (!name)
-		return list_first_entry(&apn->naptr, gtp_naptr_t, next);
+		return list_first_entry(&apn->naptr, struct gtp_naptr, next);
 
 	list_for_each_entry(naptr, &apn->naptr, next) {
 		if (strstr(naptr->service, name))
@@ -672,10 +672,10 @@ __gtp_naptr_get(gtp_apn_t *apn, const char *name)
 	return NULL;
 }
 
-gtp_naptr_t *
-gtp_naptr_get(gtp_apn_t *apn, const char *name)
+struct gtp_naptr *
+gtp_naptr_get(struct gtp_apn *apn, const char *name)
 {
-	gtp_naptr_t *naptr = NULL;
+	struct gtp_naptr *naptr = NULL;
 
 	pthread_mutex_lock(&apn->mutex);
 	naptr = __gtp_naptr_get(apn, name);

@@ -20,48 +20,27 @@
  */
 #pragma once
 
-#include "pkt_buffer.h"
+#include "inet_server.h"
 #include "gtp_metrics.h"
-#include "thread.h"
-
-#define DEFAULT_SOCKBUF	(64 * 1024)
 
 /* GTP Server context */
-typedef struct gtp_server {
-	struct sockaddr_storage	addr;
-	int			fd;
-	pkt_buffer_t		*pbuff;
-	unsigned int		seed;
-	void			*ctx;		/* backpointer */
-
-	/* I/O MUX */
-	thread_t		*r_thread;
-	thread_t		*w_thread;
-
-	/* Local method */
-	int (*init) (struct gtp_server *);
-	int (*process) (struct gtp_server *, struct sockaddr_storage *);
+struct gtp_server {
+	struct inet_server	s;
+	void			*ctx;	/* context back-pointer */
 
 	/* metrics */
-	uint64_t		rx_pkts;
-	uint64_t		rx_errors;
-	uint64_t		tx_pkts;
-	uint64_t		tx_errors;
-	gtp_metrics_pkt_t	rx_metrics;
-	gtp_metrics_pkt_t	tx_metrics;
-	gtp_metrics_cause_t	cause_rx_metrics;
-	gtp_metrics_cause_t	cause_tx_metrics;
-	gtp_metrics_msg_t	msg_metrics;
+	struct gtp_metrics_pkt	rx_metrics;
+	struct gtp_metrics_pkt	tx_metrics;
+	struct gtp_metrics_cause cause_rx_metrics;
+	struct gtp_metrics_cause cause_tx_metrics;
+	struct gtp_metrics_msg	msg_metrics;
 
 	unsigned long		flags;
-} gtp_server_t;
+};
 
 
 /* Prototypes */
-ssize_t gtp_server_send(gtp_server_t *, int, pkt_buffer_t *, struct sockaddr_in *);
-int gtp_server_start(gtp_server_t *);
-int gtp_server_foreach_worker(gtp_server_t *, int (*hdl) (gtp_server_t *, void *), void *);
-int gtp_server_init(gtp_server_t *, void *
-				  , int (*init) (gtp_server_t *)
-				  , int (*process) (gtp_server_t *, struct sockaddr_storage *));
-int gtp_server_destroy(gtp_server_t *);
+int gtp_server_init(struct gtp_server *s, void *ctx,
+		    int (*init) (struct inet_server *),
+		    int (*process) (struct inet_server *, struct sockaddr_storage *));
+int gtp_server_destroy(struct gtp_server *s);

@@ -25,7 +25,7 @@ static const uint8_t maskbit[] = {0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xfe
  *	If n includes p prefix then return 1 else return 0.
  */
 int
-prefix_match(const prefix_t *n, const prefix_t *p)
+prefix_match(const struct prefix *n, const struct prefix *p)
 {
 	int offset;
 	int shift;
@@ -61,7 +61,7 @@ prefix_match(const prefix_t *n, const prefix_t *p)
  *	Copy prefix from src to dest.
  */
 int
-prefix_copy(prefix_t *dst, const prefix_t *src)
+prefix_copy(struct prefix *dst, const struct prefix *src)
 {
 	dst->family = src->family;
 	dst->prefixlen = src->prefixlen;
@@ -82,7 +82,7 @@ prefix_copy(prefix_t *dst, const prefix_t *src)
  *	Convert a string to a prefix
  */
 int
-str2prefix_ipv4(const char *str, prefix_ipv4_t *p)
+str2prefix_ipv4(const char *str, struct prefix_ipv4 *p)
 {
 	int ret, plen;
 	char *pnt, *cp;
@@ -122,7 +122,7 @@ str2prefix_ipv4(const char *str, prefix_ipv4_t *p)
 }
 
 int
-str2prefix_ipv6(const char *str, prefix_ipv6_t *p)
+str2prefix_ipv6(const char *str, struct prefix_ipv6 *p)
 {
 	int ret, plen;
 	char *pnt, *cp;
@@ -155,26 +155,26 @@ str2prefix_ipv6(const char *str, prefix_ipv6_t *p)
 }
 
 int
-str2prefix(const char *str, prefix_t *p)
+str2prefix(const char *str, struct prefix *p)
 {
 	int err;
 
 	/* First we try to convert string to struct prefix_ipv4. */
-	err = str2prefix_ipv4(str, (prefix_ipv4_t *) p);
+	err = str2prefix_ipv4(str, (struct prefix_ipv4 *) p);
 	if (!err)
 		return 0;
 
 	/* Next we try to convert string to struct prefix_ipv6. */
-	return str2prefix_ipv6(str, (prefix_ipv6_t *) p);
+	return str2prefix_ipv6(str, (struct prefix_ipv6 *) p);
 }
 
 /*
  *	Convert bytes to prefix
  */
 int
-ip2prefix_ipv4(const uint32_t addr, prefix_t *p)
+ip2prefix_ipv4(const uint32_t addr, struct prefix *p)
 {
-	prefix_ipv4_t *prefix_ipv4 = (prefix_ipv4_t *) p;
+	struct prefix_ipv4 *prefix_ipv4 = (struct prefix_ipv4 *) p;
 
 	prefix_ipv4->family = AF_INET;
 	prefix_ipv4->prefixlen = IPV4_MAX_BITLEN;
@@ -187,21 +187,21 @@ ip2prefix_ipv4(const uint32_t addr, prefix_t *p)
 /*
  *	Prefix alloc
  */
-prefix_t *
+struct prefix *
 prefix_alloc(void)
 {
-	prefix_t *p = (prefix_t *) MALLOC(sizeof(prefix_t));
+	struct prefix *p = (struct prefix *) MALLOC(sizeof(*p));
 	return p;
 }
 
 void
-prefix_free(prefix_t *p)
+prefix_free(struct prefix *p)
 {
 	FREE(p);
 }
 
 void
-prefix_dump(prefix_t *p)
+prefix_dump(struct prefix *p)
 {
 	printf("prefix : %u.%u.%u.%u/%d\n"
 	       , NIPQUAD(p->u.prefix4.s_addr)

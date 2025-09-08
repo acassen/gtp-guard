@@ -30,10 +30,10 @@
  *	Metrics
  */
 static int
-gtp_router_server_rx_dump(gtp_router_t *r, void *arg)
+gtp_router_server_rx_dump(struct gtp_router *r, void *arg)
 {
-	gtp_server_t *srv = &r->gtpc;
-	gtp_router_t *ctx = srv->ctx;
+	struct gtp_server *srv = &r->gtpc;
+	struct gtp_router *ctx = srv->ctx;
 	const char *var = "gtpguard_gtpc_in_packet_total";
 	FILE *fp = arg;
 	int i, type = -1;
@@ -45,7 +45,7 @@ gtp_router_server_rx_dump(gtp_router_t *r, void *arg)
 		type = GTP_FL_UPF_BIT;
 
 	fprintf(fp, "%s{interface=\"%s\"} %ld\n"
-		  , var, ctx->name, srv->rx_pkts);
+		  , var, ctx->name, srv->s.rx_pkts);
 
 	for (i = 0; i < GTP_METRIC_MAX_MSG; i++) {
 		if (srv->msg_metrics.rx[i].count)
@@ -69,10 +69,10 @@ gtp_router_server_rx_dump(gtp_router_t *r, void *arg)
 }
 
 static int
-gtp_router_server_tx_dump(gtp_router_t *r, void *arg)
+gtp_router_server_tx_dump(struct gtp_router *r, void *arg)
 {
-	gtp_server_t *srv = &r->gtpc;
-	gtp_router_t *ctx = srv->ctx;
+	struct gtp_server *srv = &r->gtpc;
+	struct gtp_router *ctx = srv->ctx;
 	const char *var = "gtpguard_gtpc_out_packet_total";
 	FILE *fp = arg;
 	int i, type = -1;
@@ -84,7 +84,7 @@ gtp_router_server_tx_dump(gtp_router_t *r, void *arg)
 		type = GTP_FL_UPF_BIT;
 
 	fprintf(fp, "%s{interface=\"%s\"} %ld\n"
-		  , var, ctx->name, srv->tx_pkts);
+		  , var, ctx->name, srv->s.tx_pkts);
 
 	for (i = 0; i < GTP_METRIC_MAX_MSG; i++) {
 		if (srv->msg_metrics.tx[i].count)

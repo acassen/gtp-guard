@@ -27,6 +27,8 @@
 #include "bitops.h"
 #include "timer.h"
 #include "timer_thread.h"
+#include "timer_thread.h"
+#include "rbtree_api.h"
 
 /* time_now holds current time */
 timeval_t time_now;

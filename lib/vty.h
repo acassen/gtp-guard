@@ -14,36 +14,36 @@
 #define VTY_MAXHIST 20
 #define TELNET_NAWS_SB_LEN 5
 
-typedef enum _event {
+enum vty_event {
 	VTY_SERV,
 	VTY_READ,
 	VTY_WRITE,
 	VTY_TIMEOUT_RESET
-} event_t;
+};
 
-typedef enum _vty_type {
+enum vty_type {
 	VTY_TERM,
 	VTY_FILE,
 	VTY_SHELL,
 	VTY_SHELL_SERV
-} vty_type_t;
+};
 
-typedef enum _vty_status {
+enum vty_status {
 	VTY_NORMAL,
 	VTY_CLOSE,
 	VTY_MORE,
 	VTY_MORELINE,
 	VTY_HOLD
-} vty_status_t;
+};
 
 
 /* VTY struct. */
-typedef struct vty {
+struct vty {
 	int			fd;				/* File descripter of this vty. */
-	vty_type_t		type;				/* Is this vty connect to file or not */
+	enum vty_type		type;				/* Is this vty connect to file or not */
 	int			node;				/* Node status of this vty */
 	int			fail;				/* Failure count */
-	buffer_t		*obuf;				/* Output buffer */
+	struct buffer		*obuf;				/* Output buffer */
 	char			*buf;				/* Command input buffer */
 	int			cp;				/* Command cursor point */
 	int			length;				/* Command length */
@@ -56,7 +56,7 @@ typedef struct vty {
 								 * as key chain and key.
 								 */
 	unsigned char		escape;				/* For escape character. */
-	vty_status_t		status;				/* Current vty status. */
+	enum vty_status		status;				/* Current vty status. */
 	unsigned char		iac;				/* IAC handling: was the last character received
 								 * the IAC (interpret-as-command) escape character
 								 * (and therefore the next character will be the
@@ -77,13 +77,13 @@ typedef struct vty {
 	int			lines;				/* Configure lines */
 	int			monitor;			/* Terminal monitor */
 	int			config;				/* In configure mode */
-	thread_master_t		*master;			/* Master thread */
-	thread_t		*t_read;			/* Read thread */
-	thread_t		*t_write;			/* Write thread */
+	struct thread_master	*master;			/* Master thread */
+	struct thread		*t_read;			/* Read thread */
+	struct thread		*t_write;			/* Write thread */
 	unsigned long		v_timeout;			/* Timeout seconds */
-	thread_t		*t_timeout;			/* Timeout thread */
+	struct thread		*t_timeout;			/* Timeout thread */
 	struct sockaddr_storage	address;			/* What address is this vty comming from. */
-} vty_t;
+};
 
 /* Small macro to determine newline is newline only or linefeed needed. */
 #define VTY_NEWLINE	((vty->type == VTY_TERM) ? "\r\n" : "\n")
@@ -156,19 +156,19 @@ do {									\
 /* Prototypes. */
 void vty_init(void);
 void vty_terminate(void);
-int vty_listen(thread_master_t *m, struct sockaddr_storage *addr);
+int vty_listen(struct thread_master *m, struct sockaddr_storage *addr);
 void vty_reset(void);
-vty_t *vty_new(void);
-int vty_out(vty_t *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
-ssize_t vty_send_out(vty_t *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
-void vty_prompt_hold(vty_t *vty);
-void vty_prompt_restore(vty_t *vty);
+struct vty *vty_new(void);
+int vty_out(struct vty *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+ssize_t vty_send_out(struct vty *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+void vty_prompt_hold(struct vty *vty);
+void vty_prompt_restore(struct vty *vty);
 int vty_read_config(char *config_file, char *config_default_dir);
-void vty_time_print(vty_t *vty, int cr);
-void vty_close(vty_t *vty);
+void vty_time_print(struct vty *vty, int cr);
+void vty_close(struct vty *vty);
 char *vty_get_cwd(void);
-int vty_config_lock(vty_t *vty);
-int vty_config_unlock(vty_t *vty);
-int vty_shell(vty_t *vty);
-int vty_shell_serv(vty_t *vty);
-void vty_hello(vty_t *vty);
+int vty_config_lock(struct vty *vty);
+int vty_config_unlock(struct vty *vty);
+int vty_shell(struct vty *vty);
+int vty_shell_serv(struct vty *vty);
+void vty_hello(struct vty *vty);

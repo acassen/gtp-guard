@@ -50,9 +50,9 @@ struct gtp_teid_rule {
 } __attribute__ ((__aligned__(8)));
 
 /* Prototypes */
-int gtp_bpf_fwd_teid_action(int, gtp_teid_t *);
-int gtp_bpf_fwd_teid_vty(vty_t *, gtp_teid_t *);
-int gtp_bpf_fwd_vty(gtp_bpf_prog_t *, void *);
-int gtp_bpf_fwd_teid_bytes(gtp_teid_t *, uint64_t *);
-int gtp_bpf_fwd_iptnl_action(int, gtp_iptnl_t *, gtp_bpf_prog_t *);
-int gtp_bpf_fwd_iptnl_vty(gtp_bpf_prog_t *, void *);
+int gtp_bpf_fwd_teid_action(int, struct gtp_teid *);
+int gtp_bpf_fwd_teid_vty(struct vty *, struct gtp_teid *);
+int gtp_bpf_fwd_vty(struct gtp_bpf_prog *, void *);
+int gtp_bpf_fwd_teid_bytes(struct gtp_teid *, uint64_t *);
+int gtp_bpf_fwd_iptnl_action(int, struct gtp_iptnl *, struct gtp_bpf_prog *);
+int gtp_bpf_fwd_iptnl_vty(struct gtp_bpf_prog *, void *);

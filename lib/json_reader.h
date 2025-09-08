@@ -23,43 +23,43 @@
 
 #include <stdbool.h>
 
-typedef enum {
+enum json_tag {
         JSON_NULL = 0,
         JSON_BOOL,
         JSON_STRING,
         JSON_NUMBER,
         JSON_ARRAY,
         JSON_OBJECT,
-} json_tag_t;
+};
 
-typedef struct _json_node {
-	struct _json_node	*parent, *prev, *next;
+struct json_node {
+	struct json_node	*parent, *prev, *next;
 	char			*key;
-	json_tag_t		tag;
+	enum json_tag		tag;
 	union {
 		bool		bool_value;	/* JSON_BOOL */
 		char		*str_value;	/* JSON_STRING */
 		double		number_value;	/* JSON_NUMBER */
 		struct {			/* JSON_ARRAY|JSON_OBJECT */
-			struct	_json_node *head, *tail;
+			struct	json_node *head, *tail;
 		} child;
 	};
-} json_node_t;
+};
 
 
 /* Walk the line */
-json_node_t *json_find_member_boolvalue(json_node_t *node, const char *name,
-					bool *value);
-json_node_t *json_find_member_strvalue(json_node_t *node, const char *name,
-				       char **value);
-json_node_t *json_find_member_numbervalue(json_node_t *node, const char *name,
-					  double *value);
-json_node_t *json_find_member_doublevalue(json_node_t *node, const char *name,
-					  double *value);
-json_node_t *json_find_member_intvalue(json_node_t *node, const char *name,
-				       int *value);
-json_node_t *json_find_member(json_node_t *node, const char *name);
-json_node_t *json_first_child(const json_node_t *);
+struct json_node *json_find_member_boolvalue(struct json_node *node, const char *name,
+					     bool *value);
+struct json_node *json_find_member_strvalue(struct json_node *node, const char *name,
+					    char **value);
+struct json_node *json_find_member_numbervalue(struct json_node *node, const char *name,
+					       double *value);
+struct json_node *json_find_member_doublevalue(struct json_node *node, const char *name,
+					       double *value);
+struct json_node *json_find_member_intvalue(struct json_node *node, const char *name,
+					    int *value);
+struct json_node *json_find_member(struct json_node *node, const char *name);
+struct json_node *json_first_child(const struct json_node *);
 #define json_for_each_node(pos, head)		\
 	for (pos = json_first_child(head);	\
 		pos != NULL;			\
@@ -72,6 +72,6 @@ json_node_t *json_first_child(const json_node_t *);
 
 
 /* Prototypes */
-json_node_t *json_decode(const char *str);
-void json_dump(json_node_t *node);
-void json_destroy(json_node_t *node);
+struct json_node *json_decode(const char *str);
+void json_dump(struct json_node *node);
+void json_destroy(struct json_node *node);

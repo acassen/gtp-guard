@@ -18,42 +18,34 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
+#pragma once
 
-#include "gtp_htab.h"
-#include "memory.h"
-#include "list_head.h"
-
+#include <stdint.h>
+#include "rbtree_types.h"
+#include "pfcp.h"
+#include "pkt_buffer.h"
 
 /*
- *	HTAB handling
+ *	PFCP Message indexation
  */
-void
-gtp_htab_init(struct gtp_htab *h, size_t size)
-{
-	h->htab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) * size);
-}
+struct pfcp_msg_ie {
+	struct pfcp_ie		*h;
+	void const		*data;
 
-struct gtp_htab *
-gtp_htab_alloc(size_t size)
-{
-	struct gtp_htab *new;
+	struct rb_node		n;
+};
 
-	PMALLOC(new);
-	if (!new)
-		return NULL;
-	gtp_htab_init(new, size);
+struct pfcp_msg {
+	struct pfcp_hdr		*h;
 
-	return new;
-}
+	struct rb_root_cached	ie;
+};
 
-void
-gtp_htab_destroy(struct gtp_htab *h)
-{
-	FREE(h->htab);
-}
 
-void
-gtp_htab_free(struct gtp_htab *h)
-{
-	FREE(h);
-}
+/* Prototypes */
+size_t pfcp_msg_hlen(struct pfcp_hdr *h);
+void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
+struct pfcp_msg_ie *pfcp_msg_ie_get(struct pfcp_msg *msg, uint16_t type);
+struct pfcp_msg *pfcp_msg_alloc(const struct pkt_buffer *pbuff);
+void pfcp_msg_destroy(struct pfcp_msg *msg);
+void pfcp_msg_dump(const char *prefix, struct pfcp_msg *msg);

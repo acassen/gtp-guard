@@ -30,32 +30,32 @@
 #define METRIC_BYTE		1
 
 /* types */
-typedef struct gtp_metric {
+struct gtp_metric {
 	uint32_t		count;
 	uint32_t		unsupported;
-} gtp_metric_t;
+};
 
-typedef struct gtp_metrics_msg {
-	gtp_metric_t		rx[GTP_METRIC_MAX_MSG];
-	gtp_metric_t		tx[GTP_METRIC_MAX_MSG];
-} gtp_metrics_msg_t;
+struct gtp_metrics_msg {
+	struct gtp_metric	rx[GTP_METRIC_MAX_MSG];
+	struct gtp_metric	tx[GTP_METRIC_MAX_MSG];
+};
 
-typedef struct gtp_metrics_cause {
+struct gtp_metrics_cause {
 	uint32_t		cause[GTP_METRIC_MAX_MSG];
-} gtp_metrics_cause_t;
+};
 
-typedef struct gtp_metrics_pkt {
+struct gtp_metrics_pkt {
 	uint64_t		count;
 	uint64_t		bytes;
-} gtp_metrics_pkt_t;
+};
 
 
 /* Prototypes */
-int gtp_metrics_rx(gtp_metrics_msg_t *, uint8_t);
-int gtp_metrics_rx_notsup(gtp_metrics_msg_t *, uint8_t);
-int gtp_metrics_tx(gtp_metrics_msg_t *, uint8_t);
-int gtp_metrics_tx_notsup(gtp_metrics_msg_t *, uint8_t);
-int gtp_metrics_pkt_update(gtp_metrics_pkt_t *, ssize_t);
-int gtp_metrics_cause_update(gtp_metrics_cause_t *, pkt_buffer_t *);
+int gtp_metrics_rx(struct gtp_metrics_msg *, uint8_t);
+int gtp_metrics_rx_notsup(struct gtp_metrics_msg *, uint8_t);
+int gtp_metrics_tx(struct gtp_metrics_msg *, uint8_t);
+int gtp_metrics_tx_notsup(struct gtp_metrics_msg *, uint8_t);
+int gtp_metrics_pkt_update(struct gtp_metrics_pkt *, ssize_t);
+int gtp_metrics_cause_update(struct gtp_metrics_cause *, struct pkt_buffer *);
 int gtp_metrics_init(void);
 int gtp_metrics_destroy(void);

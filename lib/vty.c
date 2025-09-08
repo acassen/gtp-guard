@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <termios.h>
@@ -24,23 +25,23 @@
 #include "logger.h"
 
 
-static void vty_event(thread_master_t *, event_t, int, void *);
-static void vty_timeout(thread_t *);
+static void vty_event(struct thread_master *, enum vty_event, int, void *);
+static void vty_timeout(struct thread *);
 
 /* Extern host structure from command.c */
-extern host_t host;
+extern struct host host;
 
 /* Extern master thread structure */
-extern thread_master_t *master;
+extern struct thread_master *master;
 
 /* Vector which store each vty structure. */
-static vector_t *vtyvec;
+static struct vector *vtyvec;
 
 /* Vty timeout value. */
 static unsigned long vty_timeout_val = VTY_TIMEOUT_DEFAULT;
 
 /* VTY server thread. */
-vector_t *Vvty_serv_thread;
+struct vector *Vvty_serv_thread;
 
 /* Current directory. */
 char *vty_cwd = NULL;
@@ -57,7 +58,7 @@ static int no_password_check = 0;
 
 /* VTY standard output function. */
 int
-vty_out(vty_t *vty, const char *fmt, ...)
+vty_out(struct vty *vty, const char *fmt, ...)
 {
 	va_list args;
 	int len = 0;
@@ -131,7 +132,7 @@ vty_out(vty_t *vty, const char *fmt, ...)
 }
 
 ssize_t
-vty_send_out(vty_t *vty, const char *fmt, ...)
+vty_send_out(struct vty *vty, const char *fmt, ...)
 {
 	va_list args;
 	int len = 0;
@@ -147,7 +148,7 @@ vty_send_out(vty_t *vty, const char *fmt, ...)
 
 /* Output current time to vty. */
 void
-vty_time_print(vty_t *vty, int cr)
+vty_time_print(struct vty *vty, int cr)
 {
 	struct tm tmp;
 	time_t current_time;
@@ -165,7 +166,7 @@ vty_time_print(vty_t *vty, int cr)
 
 /* Say hello to vty interface. */
 void
-vty_hello(vty_t *vty)
+vty_hello(struct vty *vty)
 {
 	if (host.motdfile) {
 		FILE *f;
@@ -191,7 +192,7 @@ vty_hello(vty_t *vty)
 
 /* Put out prompt and wait input from user. */
 static void
-vty_prompt(vty_t *vty)
+vty_prompt(struct vty *vty)
 {
 	struct utsname names;
 	const char *hostname = NULL;
@@ -208,13 +209,13 @@ vty_prompt(vty_t *vty)
 }
 
 void
-vty_prompt_hold(vty_t *vty)
+vty_prompt_hold(struct vty *vty)
 {
 	vty->status = VTY_HOLD;
 }
 
 void
-vty_prompt_restore(vty_t *vty)
+vty_prompt_restore(struct vty *vty)
 {
 	struct utsname names;
 	const char *hostname = NULL;
@@ -231,7 +232,7 @@ vty_prompt_restore(vty_t *vty)
 
 /* Send WILL TELOPT_ECHO to remote server. */
 static void
-vty_will_echo(vty_t *vty)
+vty_will_echo(struct vty *vty)
 {
 	unsigned char cmd[] = { IAC, WILL, TELOPT_ECHO, '\0' };
 	vty_out(vty, "%s", cmd);
@@ -239,7 +240,7 @@ vty_will_echo(vty_t *vty)
 
 /* Make suppress Go-Ahead telnet option. */
 static void
-vty_will_suppress_go_ahead(vty_t *vty)
+vty_will_suppress_go_ahead(struct vty *vty)
 {
 	unsigned char cmd[] = { IAC, WILL, TELOPT_SGA, '\0' };
 	vty_out(vty, "%s", cmd);
@@ -247,7 +248,7 @@ vty_will_suppress_go_ahead(vty_t *vty)
 
 /* Make don't use linemode over telnet. */
 static void
-vty_dont_linemode(vty_t *vty)
+vty_dont_linemode(struct vty *vty)
 {
 	unsigned char cmd[] = { IAC, DONT, TELOPT_LINEMODE, '\0' };
 	vty_out(vty, "%s", cmd);
@@ -255,17 +256,17 @@ vty_dont_linemode(vty_t *vty)
 
 /* Use window size. */
 static void
-vty_do_window_size(vty_t *vty)
+vty_do_window_size(struct vty *vty)
 {
 	unsigned char cmd[] = { IAC, DO, TELOPT_NAWS, '\0' };
 	vty_out(vty, "%s", cmd);
 }
 
 /* Allocate new vty struct. */
-vty_t *
+struct vty *
 vty_new(void)
 {
-	vty_t *new = (vty_t *) MALLOC(sizeof(vty_t));
+	struct vty *new = (struct vty *) MALLOC(sizeof(*new));
 
 	new->obuf = buffer_new(0);	/* Use default buffer size. */
 	new->buf = (char *) MALLOC(VTY_BUFSIZ);
@@ -276,10 +277,10 @@ vty_new(void)
 
 /* Authentication of vty */
 static void
-vty_auth(vty_t *vty, char *buf)
+vty_auth(struct vty *vty, char *buf)
 {
 	char *passwd = NULL;
-	node_type_t next_node = 0;
+	enum node_type next_node = 0;
 	int fail;
 	char *crypt(const char *, const char *);
 
@@ -333,10 +334,10 @@ vty_auth(vty_t *vty, char *buf)
 
 /* Command execution over the vty interface. */
 static int
-vty_command(vty_t *vty, char *buf)
+vty_command(struct vty *vty, char *buf)
 {
 	int ret;
-	vector_t *vline;
+	struct vector *vline;
 
 	/* Split readline string up into the vector */
 	vline = cmd_make_strvec(buf);
@@ -374,7 +375,7 @@ static const char telnet_space_char = ' ';
 
 /* Basic function to write buffer to vty. */
 static void
-vty_write(vty_t *vty, const char *buf, size_t nbytes)
+vty_write(struct vty *vty, const char *buf, size_t nbytes)
 {
 	if ((vty->node == AUTH_NODE) || (vty->node == AUTH_ENABLE_NODE))
 		return;
@@ -385,7 +386,7 @@ vty_write(vty_t *vty, const char *buf, size_t nbytes)
 
 /* Ensure length of input buffer.  Is buffer is short, double it. */
 static void
-vty_ensure(vty_t *vty, int length)
+vty_ensure(struct vty *vty, int length)
 {
 	if (vty->max <= length) {
 		vty->max *= 2;
@@ -395,7 +396,7 @@ vty_ensure(vty_t *vty, int length)
 
 /* Basic function to insert character into vty. */
 static void
-vty_self_insert(vty_t *vty, char c)
+vty_self_insert(struct vty *vty, char c)
 {
 	int i, length;
 
@@ -414,7 +415,7 @@ vty_self_insert(vty_t *vty, char c)
 
 /* Self insert character 'c' in overwrite mode. */
 static void
-vty_self_insert_overwrite(vty_t *vty, char c)
+vty_self_insert_overwrite(struct vty *vty, char c)
 {
 	vty_ensure(vty, vty->length + 1);
 	vty->buf[vty->cp++] = c;
@@ -430,7 +431,7 @@ vty_self_insert_overwrite(vty_t *vty, char c)
 
 /* Insert a word into vty interface with overwrite mode. */
 static void
-vty_insert_word_overwrite(vty_t *vty, char *str)
+vty_insert_word_overwrite(struct vty *vty, char *str)
 {
 	int len = strlen (str);
 	vty_write(vty, str, len);
@@ -441,7 +442,7 @@ vty_insert_word_overwrite(vty_t *vty, char *str)
 
 /* Forward character. */
 static void
-vty_forward_char(vty_t *vty)
+vty_forward_char(struct vty *vty)
 {
 	if (vty->cp < vty->length) {
 		vty_write(vty, &vty->buf[vty->cp], 1);
@@ -451,7 +452,7 @@ vty_forward_char(vty_t *vty)
 
 /* Backward character. */
 static void
-vty_backward_char(vty_t *vty)
+vty_backward_char(struct vty *vty)
 {
 	if (vty->cp > 0) {
 		vty->cp--;
@@ -461,7 +462,7 @@ vty_backward_char(vty_t *vty)
 
 /* Move to the beginning of the line. */
 static void
-vty_beginning_of_line(vty_t *vty)
+vty_beginning_of_line(struct vty *vty)
 {
 	while (vty->cp) {
 		vty_backward_char(vty);
@@ -470,19 +471,19 @@ vty_beginning_of_line(vty_t *vty)
 
 /* Move to the end of the line. */
 static void
-vty_end_of_line(vty_t *vty)
+vty_end_of_line(struct vty *vty)
 {
 	while (vty->cp < vty->length)
 		vty_forward_char (vty);
 }
 
-static void vty_kill_line_from_beginning(vty_t *);
-static void vty_redraw_line(vty_t *);
+static void vty_kill_line_from_beginning(struct vty *);
+static void vty_redraw_line(struct vty *);
 
 /* Print command line history.  This function is called from
  * vty_next_line and vty_previous_line. */
 static void
-vty_history_print(vty_t *vty)
+vty_history_print(struct vty *vty)
 {
 	int length;
 
@@ -499,7 +500,7 @@ vty_history_print(vty_t *vty)
 
 /* Show next command line history. */
 static void
-vty_next_line(vty_t *vty)
+vty_next_line(struct vty *vty)
 {
 	int try_index;
 
@@ -526,7 +527,7 @@ vty_next_line(vty_t *vty)
 
 /* Show previous command line history. */
 static void
-vty_previous_line(vty_t *vty)
+vty_previous_line(struct vty *vty)
 {
 	int try_index;
 
@@ -548,7 +549,7 @@ vty_previous_line(vty_t *vty)
 
 /* This function redraw all of the command line character. */
 void
-vty_redraw_line(vty_t *vty)
+vty_redraw_line(struct vty *vty)
 {
 	vty_write(vty, vty->buf, vty->length);
 	vty->cp = vty->length;
@@ -556,7 +557,7 @@ vty_redraw_line(vty_t *vty)
 
 /* Forward word. */
 static void
-vty_forward_word(vty_t *vty)
+vty_forward_word(struct vty *vty)
 {
 	while (vty->cp != vty->length && vty->buf[vty->cp] != ' ')
 		vty_forward_char(vty);
@@ -567,7 +568,7 @@ vty_forward_word(vty_t *vty)
 
 /* Backward word without skipping training space. */
 static void
-vty_backward_pure_word(vty_t *vty)
+vty_backward_pure_word(struct vty *vty)
 {
 	while (vty->cp > 0 && vty->buf[vty->cp - 1] != ' ')
 		vty_backward_char(vty);
@@ -575,7 +576,7 @@ vty_backward_pure_word(vty_t *vty)
 
 /* Backward word. */
 static void
-vty_backward_word(vty_t *vty)
+vty_backward_word(struct vty *vty)
 {
 	while (vty->cp > 0 && vty->buf[vty->cp - 1] == ' ')
 		vty_backward_char(vty);
@@ -587,7 +588,7 @@ vty_backward_word(vty_t *vty)
 /* When '^D' is typed at the beginning of the line we move to the down
  * level. */
 static void
-vty_down_level(vty_t *vty)
+vty_down_level(struct vty *vty)
 {
 	vty_out(vty, "%s", VTY_NEWLINE);
 		(*config_exit_cmd.func) (NULL, vty, 0, NULL);
@@ -597,7 +598,7 @@ vty_down_level(vty_t *vty)
 
 /* When '^Z' is received from vty, move down to the enable mode. */
 static void
-vty_end_config(vty_t *vty)
+vty_end_config(struct vty *vty)
 {
 	vty_out(vty, "%s", VTY_NEWLINE);
 
@@ -618,7 +619,7 @@ vty_end_config(vty_t *vty)
 
 /* Delete a charcter at the current point. */
 static void
-vty_delete_char(vty_t *vty)
+vty_delete_char(struct vty *vty)
 {
 	int i, size;
 
@@ -648,7 +649,7 @@ vty_delete_char(vty_t *vty)
 
 /* Delete a character before the point. */
 static void
-vty_delete_backward_char(vty_t *vty)
+vty_delete_backward_char(struct vty *vty)
 {
 	if (vty->cp == 0)
 		return;
@@ -659,7 +660,7 @@ vty_delete_backward_char(vty_t *vty)
 
 /* Kill rest of line from current point. */
 static void
-vty_kill_line(vty_t *vty)
+vty_kill_line(struct vty *vty)
 {
 	int i, size;
 
@@ -679,7 +680,7 @@ vty_kill_line(vty_t *vty)
 
 /* Kill line from the beginning. */
 static void
-vty_kill_line_from_beginning(vty_t *vty)
+vty_kill_line_from_beginning(struct vty *vty)
 {
 	vty_beginning_of_line (vty);
 	vty_kill_line (vty);
@@ -687,7 +688,7 @@ vty_kill_line_from_beginning(vty_t *vty)
 
 /* Delete a word before the point. */
 static void
-vty_forward_kill_word(vty_t *vty)
+vty_forward_kill_word(struct vty *vty)
 {
 	while (vty->cp != vty->length && vty->buf[vty->cp] == ' ')
 		vty_delete_char(vty);
@@ -697,7 +698,7 @@ vty_forward_kill_word(vty_t *vty)
 
 /* Delete a word before the point. */
 static void
-vty_backward_kill_word(vty_t *vty)
+vty_backward_kill_word(struct vty *vty)
 {
 	while (vty->cp > 0 && vty->buf[vty->cp - 1] == ' ')
 		vty_delete_backward_char(vty);
@@ -707,7 +708,7 @@ vty_backward_kill_word(vty_t *vty)
 
 /* Transpose chars before or at the point. */
 static void
-vty_transpose_chars(vty_t *vty)
+vty_transpose_chars(struct vty *vty)
 {
 	char c1, c2;
 
@@ -737,11 +738,11 @@ vty_transpose_chars(vty_t *vty)
 
 /* Do completion at vty interface. */
 static void
-vty_complete_command(vty_t *vty)
+vty_complete_command(struct vty *vty)
 {
 	int i, ret;
 	char **matched = NULL;
-	vector_t *vline;
+	struct vector *vline;
 
 	if (vty->node == AUTH_NODE || vty->node == AUTH_ENABLE_NODE)
 		return;
@@ -811,7 +812,7 @@ vty_complete_command(vty_t *vty)
 }
 
 static void
-vty_describe_fold(vty_t *vty, int cmd_width, unsigned int desc_width, desc_t *desc)
+vty_describe_fold(struct vty *vty, int cmd_width, unsigned int desc_width, struct desc *desc)
 {
 	char *buf;
 	const char *cmd, *p;
@@ -848,12 +849,12 @@ vty_describe_fold(vty_t *vty, int cmd_width, unsigned int desc_width, desc_t *de
 
 /* Describe matched command function. */
 static void
-vty_describe_command(vty_t *vty)
+vty_describe_command(struct vty *vty)
 {
 	int ret;
-	vector_t *vline, *describe;
+	struct vector *vline, *describe;
 	unsigned int i, width, desc_width;
-	desc_t *desc, *desc_cr = NULL;
+	struct desc *desc, *desc_cr = NULL;
 
 	vline = cmd_make_strvec(vty->buf);
 
@@ -953,14 +954,14 @@ out:
 }
 
 static void
-vty_clear_buf(vty_t *vty)
+vty_clear_buf(struct vty *vty)
 {
 	memset(vty->buf, 0, vty->max);
 }
 
 /* ^C stop current input and do not add command line to the history. */
 static void
-vty_stop_input(vty_t *vty)
+vty_stop_input(struct vty *vty)
 {
 	vty->cp = vty->length = 0;
 	vty_clear_buf(vty);
@@ -988,7 +989,7 @@ vty_stop_input(vty_t *vty)
 
 /* Add current command line to the history buffer. */
 static void
-vty_hist_add(vty_t *vty)
+vty_hist_add(struct vty *vty)
 {
 	int index;
 
@@ -1019,7 +1020,7 @@ vty_hist_add(vty_t *vty)
 
 /* Get telnet window size. */
 static int
-vty_telnet_option(vty_t *vty, unsigned char *buf, int nbytes)
+vty_telnet_option(struct vty *vty, unsigned char *buf, int nbytes)
 {
 	switch (buf[0]) {
 	case SB:
@@ -1066,7 +1067,7 @@ vty_telnet_option(vty_t *vty, unsigned char *buf, int nbytes)
 
 /* Execute current command line. */
 static int
-vty_execute(vty_t *vty)
+vty_execute(struct vty *vty)
 {
 	int ret;
 
@@ -1102,7 +1103,7 @@ vty_execute(vty_t *vty)
 
 /* Escape character command map. */
 static void
-vty_escape_map(unsigned char c, vty_t *vty)
+vty_escape_map(unsigned char c, struct vty *vty)
 {
 	switch (c) {
 	case ('A'):
@@ -1127,7 +1128,7 @@ vty_escape_map(unsigned char c, vty_t *vty)
 
 /* Quit print out to the buffer. */
 static void
-vty_buffer_reset(vty_t *vty)
+vty_buffer_reset(struct vty *vty)
 {
 	buffer_reset(vty->obuf);
 	vty_prompt(vty);
@@ -1136,13 +1137,13 @@ vty_buffer_reset(vty_t *vty)
 
 /* Read data via vty socket. */
 static void
-vty_read(thread_t *t)
+vty_read(struct thread *t)
 {
 	int i, nbytes;
 	unsigned char buf[VTY_READ_BUFSIZ];
 
 	int vty_sock = THREAD_FD(t);
-	vty_t *vty = THREAD_ARG(t);
+	struct vty *vty = THREAD_ARG(t);
 	vty->t_read = NULL;
 
 	/* Handle Read Timeout */
@@ -1336,12 +1337,12 @@ vty_read(thread_t *t)
 
 /* Flush buffer to the vty. */
 static void
-vty_flush(thread_t *t)
+vty_flush(struct thread *t)
 {
 	int erase;
-	buffer_status_t flushrc;
+	enum buffer_status flushrc;
 	int vty_sock = THREAD_FD(t);
-	vty_t *vty = THREAD_ARG(t);
+	struct vty *vty = THREAD_ARG(t);
 
 	vty->t_write = NULL;
 
@@ -1407,10 +1408,10 @@ vty_flush(thread_t *t)
 }
 
 /* Create new vty structure. */
-static vty_t *
-vty_create(thread_master_t *m, int vty_sock, struct sockaddr_storage *addr)
+static struct vty *
+vty_create(struct thread_master *m, int vty_sock, struct sockaddr_storage *addr)
 {
-	vty_t *vty;
+	struct vty *vty;
 
 	/* Allocate new vty structure and set up default values. */
 	vty = vty_new();
@@ -1474,7 +1475,7 @@ vty_create(thread_master_t *m, int vty_sock, struct sockaddr_storage *addr)
 
 /* Accept connection from the network. */
 static void
-vty_accept(thread_t *t)
+vty_accept(struct thread *t)
 {
 	struct sockaddr_storage sock;
 	socklen_t len;
@@ -1515,7 +1516,7 @@ vty_accept(thread_t *t)
 
 /* Start listner thread */
 int
-vty_listen(thread_master_t *m, struct sockaddr_storage *addr)
+vty_listen(struct thread_master *m, struct sockaddr_storage *addr)
 {
 	int accept_sock, ret, on = 1;
 	socklen_t len;
@@ -1579,7 +1580,7 @@ vty_listen(thread_master_t *m, struct sockaddr_storage *addr)
  * now been freed).  This is safest from top-level functions (called
  * directly by the thread dispatcher). */
 void
-vty_close(vty_t *vty)
+vty_close(struct vty *vty)
 {
 	int i;
 
@@ -1620,9 +1621,9 @@ vty_close(vty_t *vty)
 
 /* When time out occur output message then close connection. */
 static void
-vty_timeout(thread_t *t)
+vty_timeout(struct thread *t)
 {
-	vty_t *vty;
+	struct vty *vty;
 
 	vty = THREAD_ARG(t);
 	vty->t_timeout = NULL;
@@ -1642,7 +1643,7 @@ static int
 vty_read_file(FILE *confp)
 {
 	int ret;
-	vty_t *vty;
+	struct vty *vty;
 
 	vty = vty_new();
 	vty->fd = 0;			/* stdout */
@@ -1804,7 +1805,7 @@ vty_read_config(char *config_file, char *config_default_dir)
 }
 
 int
-vty_config_lock(vty_t *vty)
+vty_config_lock(struct vty *vty)
 {
 	if (vty_config == 0) {
 		vty->config = 1;
@@ -1815,7 +1816,7 @@ vty_config_lock(vty_t *vty)
 }
 
 int
-vty_config_unlock(vty_t *vty)
+vty_config_unlock(struct vty *vty)
 {
 	if (vty_config == 1 && vty->config == 1) {
 		vty->config = 0;
@@ -1827,10 +1828,10 @@ vty_config_unlock(vty_t *vty)
 
 /* Master of the threads. */
 static void
-vty_event(thread_master_t *m, event_t event, int sock, void *arg)
+vty_event(struct thread_master *m, enum vty_event event, int sock, void *arg)
 {
-	thread_t *vty_serv_thread;
-	vty_t *vty;
+	struct thread *vty_serv_thread;
+	struct vty *vty;
 
 	switch (event) {
 	case VTY_SERV:
@@ -1840,20 +1841,20 @@ vty_event(thread_master_t *m, event_t event, int sock, void *arg)
 		break;
 
 	case VTY_READ:
-		vty = (vty_t *) arg;
+		vty = (struct vty *) arg;
 		vty->t_read = thread_add_read(m, vty_read, vty, sock, VTY_IO_TIMEOUT, 0);
 
 		break;
 
 	case VTY_WRITE:
-		vty = (vty_t *) arg;
+		vty = (struct vty *) arg;
 		if (!vty->t_write)
 			vty->t_write = thread_add_write(m, vty_flush, vty, sock,
 							VTY_IO_TIMEOUT, 0);
 		break;
 
 	case VTY_TIMEOUT_RESET:
-		vty = (vty_t *) arg;
+		vty = (struct vty *) arg;
 		if (vty->t_timeout) {
 			thread_del(vty->t_timeout);
 			vty->t_timeout = NULL;
@@ -1874,7 +1875,7 @@ DEFUN(config_who,
 {
 	char ipaddr[INET6_ADDRSTRLEN];
 	unsigned int i;
-	vty_t *v;
+	struct vty *v;
 
 	for (i = 0; i < vector_active(vtyvec); i++) {
 		if ((v = vector_slot(vtyvec, i)) != NULL) {
@@ -1900,7 +1901,7 @@ DEFUN(line_vty,
 
 /* Set time out value. */
 static int
-exec_timeout(vty_t *vty, const char *min_str, const char *sec_str)
+exec_timeout(struct vty *vty, const char *min_str, const char *sec_str)
 {
 	unsigned long timeout = 0;
 
@@ -2019,7 +2020,7 @@ DEFUN(no_vty_line_listen,
 {
 	struct sockaddr_storage *vty_listen_addr;
 	struct sockaddr_storage addr;
-	thread_t *vty_serv_thread;
+	struct thread *vty_serv_thread;
 	uint16_t port = 0;
 	int ret, i;
 
@@ -2131,10 +2132,10 @@ DEFUN(show_history,
 
 /* Display current configuration. */
 static int
-vty_config_write(vty_t *vty)
+vty_config_write(struct vty *vty)
 {
 	struct sockaddr_storage *addr;
-	thread_t *vty_serv_thread;
+	struct thread *vty_serv_thread;
 	int i;
 
 	vty_out(vty, "line vty%s", VTY_NEWLINE);
@@ -2165,8 +2166,8 @@ vty_config_write(vty_t *vty)
 	return CMD_SUCCESS;
 }
 
-static int vty_config_write(vty_t *vty);
-cmd_node_t vty_node = {
+static int vty_config_write(struct vty *vty);
+struct cmd_node vty_node = {
 	.node = VTY_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(config-line)# ",
@@ -2178,8 +2179,8 @@ void
 vty_reset(void)
 {
 	unsigned int i;
-	vty_t *vty;
-	thread_t *vty_serv_thread;
+	struct vty *vty;
+	struct thread *vty_serv_thread;
 	struct sockaddr_storage *addr;
 
 	for (i = 0; i < vector_active(vtyvec); i++) {
@@ -2236,13 +2237,13 @@ vty_get_cwd(void)
 }
 
 int
-vty_shell(vty_t *vty)
+vty_shell(struct vty *vty)
 {
 	return vty->type == VTY_SHELL ? 1 : 0;
 }
 
 int
-vty_shell_serv(vty_t *vty)
+vty_shell_serv(struct vty *vty)
 {
 	return vty->type == VTY_SHELL_SERV ? 1 : 0;
 }

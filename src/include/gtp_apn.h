@@ -55,48 +55,48 @@ enum gtp_pco_flags {
 };
 
 /* Protocol Configuration Option */
-typedef struct gtp_ns {
+struct gtp_ns {
 	struct sockaddr_storage	addr;
 
-	list_head_t		next;
-} gtp_ns_t;
+	struct list_head	next;
+};
 
-typedef struct gtp_pco {
-	list_head_t		ns;
+struct gtp_pco {
+	struct list_head	ns;
 	struct sockaddr_storage	ipcp_primary_ns;
 	struct sockaddr_storage	ipcp_secondary_ns;
 	uint16_t		link_mtu;
 	uint8_t			selected_bearer_control_mode;
 
 	unsigned long		flags;
-} gtp_pco_t;
+};
 
-typedef struct gtp_ip_pool {
+struct gtp_ip_pool {
 	uint32_t		network;
 	uint32_t		netmask;
 	bool			*lease;
 	int			next_lease_idx;
-} gtp_ip_pool_t;
+};
 
 /* Rewriting rule */
-typedef struct gtp_rewrite_rule {
+struct gtp_rewrite_rule {
 	char			match[GTP_MATCH_MAX_LEN];
 	size_t			match_len;
 	char			rewrite[GTP_MATCH_MAX_LEN];
 	size_t			rewrite_len;
 
-	list_head_t		next;
-} gtp_rewrite_rule_t;
+	struct list_head	next;
+};
 
 /* HPLMN */
-typedef struct gtp_plmn {
+struct gtp_plmn {
 	uint8_t			plmn[GTP_PLMN_MAX_LEN];
 
-	list_head_t		next;
-} gtp_plmn_t;
+	struct list_head	next;
+};
 
 /* Access-Point-Name */
-typedef struct gtp_apn {
+struct gtp_apn {
 	char			name[GTP_APN_MAX_LEN];
 	char			realm[GTP_REALM_LEN];
 	struct sockaddr_storage	nameserver;
@@ -108,18 +108,18 @@ typedef struct gtp_apn {
 	uint8_t			eps_bearer_id;
 	uint8_t			restriction;
 	unsigned long		indication_flags;
-	gtp_pco_t		*pco;
-	gtp_ip_pool_t		*ip_pool;
-	ip_vrf_t		*vrf;
-	gtp_plmn_t		egci_plmn;
-	gtp_cdr_spool_t		*cdr_spool;
+	struct gtp_pco		*pco;
+	struct gtp_ip_pool	*ip_pool;
+	struct ip_vrf		*vrf;
+	struct gtp_plmn		egci_plmn;
+	struct gtp_cdr_spool	*cdr_spool;
 	int			session_count;
 
-	list_head_t		naptr;
-	list_head_t		service_selection;
-	list_head_t		imsi_match;
-	list_head_t		oi_match;
-	list_head_t		hplmn;
+	struct list_head	naptr;
+	struct list_head	service_selection;
+	struct list_head	imsi_match;
+	struct list_head	oi_match;
+	struct list_head	hplmn;
 	pthread_mutex_t		mutex;
 
 	pthread_t		cache_task;
@@ -127,28 +127,28 @@ typedef struct gtp_apn {
 	pthread_mutex_t		cache_mutex;
 	time_t			last_update;
 
-	list_head_t		next;
+	struct list_head	next;
 
 	unsigned long		flags;
-} gtp_apn_t;
+};
 
 
 /* Prototypes */
-void gtp_apn_foreach(int (*hdl) (gtp_apn_t *, void *), void *);
-gtp_rewrite_rule_t *gtp_rewrite_rule_alloc(gtp_apn_t *, list_head_t *);
-int apn_resolv_cache_realloc(gtp_apn_t *);
+void gtp_apn_foreach(int (*hdl) (struct gtp_apn *, void *), void *);
+struct gtp_rewrite_rule *gtp_rewrite_rule_alloc(struct gtp_apn *, struct list_head *);
+int apn_resolv_cache_realloc(struct gtp_apn *);
 void *apn_resolv_cache_task(void *);
-int apn_resolv_cache_signal(gtp_apn_t *);
-gtp_ip_pool_t *gtp_ip_pool_alloc(uint32_t, uint32_t);
-void gtp_ip_pool_destroy(gtp_ip_pool_t *);
-uint32_t gtp_ip_pool_get(gtp_apn_t *);
-int gtp_ip_pool_put(gtp_apn_t *, uint32_t);
-gtp_plmn_t *gtp_apn_hplmn_alloc(gtp_apn_t *, uint8_t *);
-void gtp_apn_hplmn_del(gtp_apn_t *, gtp_plmn_t *);
-void gtp_apn_hplmn_destroy(gtp_apn_t *);
-gtp_plmn_t *gtp_apn_hplmn_get(gtp_apn_t *, uint8_t *);
-gtp_apn_t *gtp_apn_alloc(const char *);
-gtp_pco_t *gtp_apn_pco(gtp_apn_t *);
+int apn_resolv_cache_signal(struct gtp_apn *);
+struct gtp_ip_pool *gtp_ip_pool_alloc(uint32_t, uint32_t);
+void gtp_ip_pool_destroy(struct gtp_ip_pool *);
+uint32_t gtp_ip_pool_get(struct gtp_apn *);
+int gtp_ip_pool_put(struct gtp_apn *, uint32_t);
+struct gtp_plmn *gtp_apn_hplmn_alloc(struct gtp_apn *, uint8_t *);
+void gtp_apn_hplmn_del(struct gtp_apn *, struct gtp_plmn *);
+void gtp_apn_hplmn_destroy(struct gtp_apn *);
+struct gtp_plmn *gtp_apn_hplmn_get(struct gtp_apn *, uint8_t *);
+struct gtp_apn *gtp_apn_alloc(const char *);
+struct gtp_pco *gtp_apn_pco(struct gtp_apn *);
 int gtp_apn_destroy(void);
-gtp_apn_t *gtp_apn_get(const char *);
-int gtp_apn_cdr_commit(gtp_apn_t *, gtp_cdr_t *);
+struct gtp_apn *gtp_apn_get(const char *);
+int gtp_apn_cdr_commit(struct gtp_apn *, struct gtp_cdr *);

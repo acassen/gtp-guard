@@ -50,14 +50,14 @@ enum ppp_metric {
 	PPP_METRIC_MAX,
 };
 
-typedef struct pppoe_metrics {
+struct pppoe_metrics {
 	uint64_t	m[METRICS_DIR_MAX][PPPOE_METRIC_MAX];
-} pppoe_metrics_t;
+};
 
-typedef struct ppp_metrics {
+struct ppp_metrics {
 	uint64_t	dropped[METRICS_DIR_MAX];
 	uint64_t	lcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
 	uint64_t	pap[METRICS_DIR_MAX][PPP_METRIC_MAX];
 	uint64_t	ipcp[METRICS_DIR_MAX][PPP_METRIC_MAX];
 	uint64_t	ipv6cp[METRICS_DIR_MAX][PPP_METRIC_MAX];
-} ppp_metrics_t;
+};

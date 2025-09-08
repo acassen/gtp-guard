@@ -49,7 +49,7 @@ void signal_ignore(int signo);
 int signal_handler_init(void);
 void signal_handler_destroy(void);
 void signal_handler_script(void);
-void add_signal_read_thread(thread_master_t *m);
+void add_signal_read_thread(struct thread_master *m);
 void cancel_signal_read_thread(void);
 void set_sigxcpu_handler(void);
 void signal_noignore_sigchld(void);

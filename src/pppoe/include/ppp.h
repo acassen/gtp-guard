@@ -113,22 +113,22 @@ enum ipv6cp_opts {
 
 #define PKTHDRLEN	2
 
-typedef struct ppp_hdr {
+struct ppp_hdr {
 	uint8_t		address;
 	uint8_t		control;
 	uint16_t	protocol;
-} __attribute__((packed)) ppp_hdr_t;
-#define PPP_HEADER_LEN		sizeof(ppp_hdr_t)
+} __attribute__((packed));
+#define PPP_HEADER_LEN		sizeof(struct ppp_hdr)
 
-typedef struct lcp_hdr {
+struct lcp_hdr {
 	uint8_t		type;
 	uint8_t		ident;
 	uint16_t	len;
-} __attribute__((packed)) lcp_hdr_t;
-#define LCP_HEADER_LEN		sizeof(lcp_hdr_t)
+} __attribute__((packed));
+#define LCP_HEADER_LEN		sizeof(struct lcp_hdr)
 
 
 /* Prototypes */
-int ppp_set_default(pppoe_t *);
+int ppp_set_default(struct pppoe *);
 int ppp_init(void);
 int ppp_destroy(void);

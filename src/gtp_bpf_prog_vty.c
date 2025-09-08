@@ -28,16 +28,16 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	VTY helpers
  */
 static int
-gtp_bpf_prog_show(gtp_bpf_prog_t *p, void *arg)
+gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 {
-	vty_t *vty = arg;
+	struct vty *vty = arg;
 
 	vty_out(vty, "gtp-program '%s' [%s] %s %s%s"
 		   , p->name, p->path
@@ -57,7 +57,7 @@ DEFUN(bpf_prog,
       "Configure BPF Program data\n"
       "Program name\n")
 {
-	gtp_bpf_prog_t *new;
+	struct gtp_bpf_prog *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -91,7 +91,7 @@ DEFUN(no_bpf_prog,
       "Configure BPF Program data\n"
       "Program name\n")
 {
-	gtp_bpf_prog_t *p;
+	struct gtp_bpf_prog *p;
 	int err;
 
 	if (argc < 1) {
@@ -122,7 +122,7 @@ DEFUN(bpf_prog_desciption,
       "Set BPF Program description\n"
       "description\n")
 {
-	gtp_bpf_prog_t *p = vty->index;
+	struct gtp_bpf_prog *p = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -139,7 +139,7 @@ DEFUN(bpf_prog_path,
       "Set BPF Program path\n"
       "path\n")
 {
-	gtp_bpf_prog_t *p = vty->index;
+	struct gtp_bpf_prog *p = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -156,7 +156,7 @@ DEFUN(bpf_prog_progname,
       "Set BPF Program name\n"
       "name\n")
 {
-	gtp_bpf_prog_t *p = vty->index;
+	struct gtp_bpf_prog *p = vty->index;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -172,7 +172,7 @@ DEFUN(bpf_prog_shutdown,
       "shutdown",
       "Unload BPF program\n")
 {
-	gtp_bpf_prog_t *p = vty->index;
+	struct gtp_bpf_prog *p = vty->index;
 
 	if (__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags)) {
 		vty_out(vty, "%% bpf-program:'%s' is already shutdown%s"
@@ -191,7 +191,7 @@ DEFUN(bpf_prog_no_shutdown,
       "no shutdown",
       "Open and load BPF program\n")
 {
-	gtp_bpf_prog_t *p = vty->index;
+	struct gtp_bpf_prog *p = vty->index;
 	int err;
 
 	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags)) {
@@ -234,7 +234,7 @@ DEFUN(show_bpf_prog,
       SHOW_STR
       "BPF Progam\n")
 {
-	gtp_bpf_prog_t *p = NULL;
+	struct gtp_bpf_prog *p = NULL;
 
 	if (!argc) {
 		gtp_bpf_prog_foreach_prog(gtp_bpf_prog_show, vty, BPF_PROG_MODE_MAX);
@@ -256,10 +256,10 @@ DEFUN(show_bpf_prog,
 
 /* Configuration writer */
 static int
-bpf_prog_config_write(vty_t *vty)
+bpf_prog_config_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->bpf_progs;
-	gtp_bpf_prog_t *p;
+	struct list_head *l = &daemon_data->bpf_progs;
+	struct gtp_bpf_prog *p;
 
 	list_for_each_entry(p, l, next) {
 		vty_out(vty, "bpf-program %s%s", p->name, VTY_NEWLINE);
@@ -302,14 +302,14 @@ cmd_ext_bpf_prog_install(void)
 	return 0;
 }
 
-cmd_node_t bpf_prog_node = {
+struct cmd_node bpf_prog_node = {
 	.node = BPF_PROG_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(bpf-program)# ",
 	.config_write = bpf_prog_config_write,
 };
 
-static cmd_ext_t cmd_ext_bpf_prog = {
+static struct cmd_ext cmd_ext_bpf_prog = {
 	.node = &bpf_prog_node,
 	.install = cmd_ext_bpf_prog_install,
 };

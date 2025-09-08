@@ -30,7 +30,7 @@
 #include "cgn.h"
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -54,7 +54,7 @@ cgn_bpf_loaded(gtp_bpf_prog_t *p, struct bpf_object *obj)
 	return 0;
 }
 
-static gtp_bpf_prog_tpl_t gtp_bpf_tpl_cgn = {
+static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.mode = BPF_PROG_MODE_CGN,
 	.description = "cgn",
 	.opened = cgn_bpf_opened,

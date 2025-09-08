@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <errno.h>
@@ -26,26 +26,28 @@
 #include "gtp_router.h"
 #include "gtp_router_hdl.h"
 #include "bitops.h"
+#include "inet_server.h"
 #include "memory.h"
 #include "utils.h"
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
  *	Helpers
  */
 int
-gtp_router_ingress_init(gtp_server_t *s)
+gtp_router_ingress_init(struct inet_server *srv)
 {
 	return 0;
 }
 
 int
-gtp_router_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
+gtp_router_ingress_process(struct inet_server *srv, struct sockaddr_storage *addr_from)
 {
+	struct gtp_server *s = srv->ctx;
 	int ret;
 
 	ret = __test_bit(GTP_FL_UPF_BIT, &s->flags) ? gtpu_router_handle(s, addr_from) :
@@ -54,7 +56,8 @@ gtp_router_ingress_process(gtp_server_t *s, struct sockaddr_storage *addr_from)
 		return -1;
 
 	if (ret != GTP_ROUTER_DELAYED)
-		gtp_server_send(s, s->fd, s->pbuff, (struct sockaddr_in *) addr_from);
+		inet_server_snd(srv, srv->fd, srv->pbuff,
+				(struct sockaddr_in *) addr_from);
 	return 0;
 }
 
@@ -69,19 +72,19 @@ gtp_router_inuse(void)
 }
 
 void
-gtp_router_foreach(int (*hdl) (gtp_router_t *, void *), void *arg)
+gtp_router_foreach(int (*hdl) (struct gtp_router *, void *), void *arg)
 {
-	list_head_t *l = &daemon_data->gtp_router_ctx;
-	gtp_router_t *ctx;
+	struct list_head *l = &daemon_data->gtp_router_ctx;
+	struct gtp_router *ctx;
 
 	list_for_each_entry(ctx, l, next)
 		(*(hdl)) (ctx, arg);
 }
 
-gtp_router_t *
+struct gtp_router *
 gtp_router_get(const char *name)
 {
-	gtp_router_t *ctx;
+	struct gtp_router *ctx;
 	size_t len = strlen(name);
 
 	list_for_each_entry(ctx, &daemon_data->gtp_router_ctx, next) {
@@ -92,10 +95,10 @@ gtp_router_get(const char *name)
 	return NULL;
 }
 
-gtp_router_t *
+struct gtp_router *
 gtp_router_init(const char *name)
 {
-	gtp_router_t *new;
+	struct gtp_router *new;
 
 	PMALLOC(new);
 	if (!new) {
@@ -111,7 +114,7 @@ gtp_router_init(const char *name)
 }
 
 int
-gtp_router_ctx_server_destroy(gtp_router_t *ctx)
+gtp_router_ctx_server_destroy(struct gtp_router *ctx)
 {
 	gtp_server_destroy(&ctx->gtpc);
 	gtp_server_destroy(&ctx->gtpu);
@@ -119,7 +122,7 @@ gtp_router_ctx_server_destroy(gtp_router_t *ctx)
 }
 
 int
-gtp_router_ctx_destroy(gtp_router_t *ctx)
+gtp_router_ctx_destroy(struct gtp_router *ctx)
 {
 	list_head_del(&ctx->next);
 	return 0;
@@ -128,7 +131,7 @@ gtp_router_ctx_destroy(gtp_router_t *ctx)
 int
 gtp_router_server_destroy(void)
 {
-	gtp_router_t *c;
+	struct gtp_router *c;
 
 	list_for_each_entry(c, &daemon_data->gtp_router_ctx, next)
 		gtp_router_ctx_server_destroy(c);
@@ -139,7 +142,7 @@ gtp_router_server_destroy(void)
 int
 gtp_router_destroy(void)
 {
-	gtp_router_t *c, *_c;
+	struct gtp_router *c, *_c;
 
 	list_for_each_entry_safe(c, _c, &daemon_data->gtp_router_ctx, next) {
 		list_head_del(&c->next);

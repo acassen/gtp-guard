@@ -35,7 +35,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -56,13 +56,13 @@ gtp_bpf_ppp_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_bpf_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
+gtp_bpf_ppp_rule_set(struct gtp_rt_rule *r, struct gtp_teid *t, struct spppoe *spppoe)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
-	gtp_session_t *s = t->session;
-	gtp_router_t *rtr = s->srv->ctx;
-	gtp_server_t *srv = &rtr->gtpu;
-	ip_vrf_t *vrf = s->apn->vrf;
+	struct gtp_session *s = t->session;
+	struct gtp_router *rtr = s->srv->ctx;
+	struct gtp_server *srv = &rtr->gtpu;
+	struct ip_vrf *vrf = s->apn->vrf;
 	__u16 vlan_id = 0;
 	__u8 flags = 0;
 	int i;
@@ -86,7 +86,7 @@ gtp_bpf_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 
 		/* TEID related */
 		r[i].teid = t->id;
-		r[i].saddr = inet_sockaddrip4(&srv->addr);
+		r[i].saddr = inet_sockaddrip4(&srv->s.addr);
 		r[i].daddr = t->ipv4;
 		r[i].vlan_id = vlan_id;
 		r[i].ifindex = spppoe->pppoe->ifindex;
@@ -99,7 +99,7 @@ gtp_bpf_ppp_rule_set(struct gtp_rt_rule *r, gtp_teid_t *t, spppoe_t *spppoe)
 }
 
 static int
-gtp_bpf_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
+gtp_bpf_ppp_key_set(struct gtp_teid *t, struct ppp_key *ppp_k, struct spppoe *spppoe)
 {
 	/* Set PPP routing key */
 	memcpy(ppp_k->hw, &spppoe->hw_src, ETH_ALEN);
@@ -108,15 +108,15 @@ gtp_bpf_ppp_key_set(gtp_teid_t *t, struct ppp_key *ppp_k, spppoe_t *spppoe)
 }
 
 static int
-gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
+gtp_bpf_ppp_map_action(struct bpf_map *map, int action, struct gtp_teid *t)
 {
-	gtp_session_t *s = t->session;
-	spppoe_t *spppoe = s->s_pppoe;
+	struct gtp_session *s = t->session;
+	struct spppoe *spppoe = s->s_pppoe;
 	struct gtp_rt_rule *new = NULL;
-	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int err = 0;
 	struct ip_rt_key rt_k;
 	struct ppp_key ppp_k;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	int err = 0;
 	size_t sz;
 
 	if (__test_bit(GTP_TEID_FL_EGRESS, &t->flags))
@@ -164,21 +164,21 @@ gtp_bpf_ppp_map_action(struct bpf_map *map, int action, gtp_teid_t *t)
 			    , (action) ? "deleting" : "adding"
 			    , (__test_bit(GTP_TEID_FL_EGRESS, &t->flags)) ? "egress" : "ingress"
 			    , ntohl(t->id), NIPQUAD(t->ipv4));
-  end:
+end:
 	if (new)
 		free(new);
 	return err;
 }
 
 static int
-gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
+gtp_bpf_teid_vty(struct bpf_map *map, struct vty *vty, struct gtp_teid *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key rt_k = { 0 };
 	struct ppp_key ppp_k = { 0 }, next_ppp_k = { 0 };
 	struct gtp_rt_rule *r;
-	gtp_session_t *s;
-	spppoe_t *spppoe;
+	struct gtp_session *s;
+	struct spppoe *spppoe;
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err = 0, i;
 	uint64_t packets, bytes;
@@ -248,20 +248,20 @@ gtp_bpf_teid_vty(struct bpf_map *map, vty_t *vty, gtp_teid_t *t)
 			   , packets, bytes
 			   , VTY_NEWLINE);
 	}
-  end:
+end:
 	free(r);
 	return 0;
 }
 
 static int
-gtp_bpf_teid_bytes(struct bpf_map *map, gtp_teid_t *t, uint64_t *bytes)
+gtp_bpf_teid_bytes(struct bpf_map *map, struct gtp_teid *t, uint64_t *bytes)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct ip_rt_key rt_k = { 0 };
 	struct ppp_key ppp_k = { 0 };
 	struct gtp_rt_rule *r;
-	gtp_session_t *s = t->session;
-	spppoe_t *spppoe = s->s_pppoe;
+	struct gtp_session *s = t->session;
+	struct spppoe *spppoe = s->s_pppoe;
 	int err, i;
 	size_t sz;
 
@@ -287,13 +287,13 @@ gtp_bpf_teid_bytes(struct bpf_map *map, gtp_teid_t *t, uint64_t *bytes)
 	for (i = 0; i < nr_cpus; i++)
 		*bytes += r[i].bytes;
 
-  end:
+end:
 	free(r);
 	return 0;
 }
 
 int
-gtp_bpf_ppp_action(int action, gtp_teid_t *t,
+gtp_bpf_ppp_action(int action, struct gtp_teid *t,
 		   struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
 	/* If daemon is currently stopping, we simply skip action on ruleset.
@@ -309,7 +309,7 @@ gtp_bpf_ppp_action(int action, gtp_teid_t *t,
 }
 
 int
-gtp_bpf_ppp_teid_vty(vty_t *vty, gtp_teid_t *t,
+gtp_bpf_ppp_teid_vty(struct vty *vty, struct gtp_teid *t,
 		     struct bpf_map *map_ingress, struct bpf_map *map_egress)
 {
 	int err = 0;
@@ -327,7 +327,7 @@ gtp_bpf_ppp_teid_vty(vty_t *vty, gtp_teid_t *t,
 }
 
 int
-gtp_bpf_ppp_teid_bytes(gtp_teid_t *t,
+gtp_bpf_ppp_teid_bytes(struct gtp_teid *t,
 		       struct bpf_map *map_ingress, struct bpf_map *map_egress,
 		       uint64_t *bytes)
 {

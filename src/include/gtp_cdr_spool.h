@@ -47,10 +47,10 @@ typedef struct gtp_cdr_spool {
 	uid_t			user;
 	gid_t			group;
 
-	gtp_cdr_file_t		*cdr_file;
+	struct gtp_cdr_file	*cdr_file;
 	size_t			cdr_file_size;
 
-	list_head_t		q;
+	struct list_head	q;
 	uint8_t			q_buf[GTP_BUFFER_SIZE];
 	int			q_len;
 	int			q_max_size;
@@ -63,7 +63,7 @@ typedef struct gtp_cdr_spool {
 	uint64_t		cdr_count;
 	uint64_t		cdr_bytes;
 
-	list_head_t		next;
+	struct list_head	next;
 
 	int			refcnt;
 	unsigned long		flags;
@@ -71,10 +71,10 @@ typedef struct gtp_cdr_spool {
 
 
 /* Prototypes */
-int gtp_cdr_spool_q_add(gtp_cdr_spool_t *, gtp_cdr_t *);
+int gtp_cdr_spool_q_add(struct gtp_cdr_spool *, struct gtp_cdr *);
 gtp_cdr_spool_t *gtp_cdr_spool_get(const char *);
-int gtp_cdr_spool_put(gtp_cdr_spool_t *);
-int gtp_cdr_spool_start(gtp_cdr_spool_t *);
-int gtp_cdr_spool_stop(gtp_cdr_spool_t *);
-gtp_cdr_spool_t *gtp_cdr_spool_alloc(const char *);
-int gtp_cdr_spool_destroy(gtp_cdr_spool_t *);
+int gtp_cdr_spool_put(struct gtp_cdr_spool *);
+int gtp_cdr_spool_start(struct gtp_cdr_spool *);
+int gtp_cdr_spool_stop(struct gtp_cdr_spool *);
+struct gtp_cdr_spool *gtp_cdr_spool_alloc(const char *);
+int gtp_cdr_spool_destroy(struct gtp_cdr_spool *);

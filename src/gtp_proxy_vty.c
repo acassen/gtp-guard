@@ -33,8 +33,8 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
-extern thread_master_t *master;
+extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
@@ -46,7 +46,7 @@ DEFUN(gtp_proxy,
       "Configure GTP proxying context\n"
       "Context Name")
 {
-	gtp_proxy_t *new;
+	struct gtp_proxy *new;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -73,7 +73,7 @@ DEFUN(no_gtp_proxy,
       "Configure GTP proxying context\n"
       "Context Name")
 {
-	gtp_proxy_t *ctx;
+	struct gtp_proxy *ctx;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -100,8 +100,8 @@ DEFUN(gtp_proxy_bpf_program,
       "Use BPF Program\n"
       "BPF Program name")
 {
-        gtp_proxy_t *ctx = vty->index;
-	gtp_bpf_prog_t *p;
+        struct gtp_proxy *ctx = vty->index;
+	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -124,7 +124,7 @@ DEFUN(gtp_proxy_direct_tx,
       "direct-tx",
       "xmit packet to the same interface it was received on\n")
 {
-        gtp_proxy_t *ctx = vty->index;
+        struct gtp_proxy *ctx = vty->index;
 
 	__set_bit(GTP_FL_DIRECT_TX_BIT, &ctx->flags);
 	return CMD_SUCCESS;
@@ -136,7 +136,7 @@ DEFUN(gtp_proxy_session_expiration_timeout_delete,
       "Force session expiration if delete response is timeout\n"
       "number of seconds\n")
 {
-        gtp_proxy_t *ctx = vty->index;
+        struct gtp_proxy *ctx = vty->index;
 	int timeout;
 
 	if (argc < 1) {
@@ -160,9 +160,9 @@ DEFUN(gtpc_proxy_tunnel_endpoint,
       "listening UDP Port (default = 2123)\n"
       "Number\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-        gtp_server_t *srv = &ctx->gtpc;
-	struct sockaddr_storage *addr = &srv->addr;
+        struct gtp_proxy *ctx = vty->index;
+        struct gtp_server *srv = &ctx->gtpc;
+	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
 	if (argc < 1) {
@@ -206,9 +206,9 @@ DEFUN(gtpc_proxy_egress_tunnel_endpoint,
       "listening UDP Port (default = 2123)\n"
       "Number\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-        gtp_server_t *srv = &ctx->gtpc_egress;
-	struct sockaddr_storage *addr = &srv->addr;
+        struct gtp_proxy *ctx = vty->index;
+        struct gtp_server *srv = &ctx->gtpc_egress;
+	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2123, err = 0;
 
         if (argc < 1) {
@@ -252,9 +252,9 @@ DEFUN(gtpu_proxy_tunnel_endpoint,
       "listening UDP Port (default = 2152)\n"
       "Number\n")
 {
-	gtp_proxy_t *ctx = vty->index;
-	gtp_server_t *srv = &ctx->gtpu;
-	struct sockaddr_storage *addr = &srv->addr;
+	struct gtp_proxy *ctx = vty->index;
+	struct gtp_server *srv = &ctx->gtpu;
+	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2152, err = 0;
 
 	if (argc < 1) {
@@ -298,9 +298,9 @@ DEFUN(gtpu_proxy_egress_tunnel_endpoint,
       "listening UDP Port (default = 2152)\n"
       "Number\n")
 {
-	gtp_proxy_t *ctx = vty->index;
-	gtp_server_t *srv = &ctx->gtpu_egress;
-	struct sockaddr_storage *addr = &srv->addr;
+	struct gtp_proxy *ctx = vty->index;
+	struct gtp_server *srv = &ctx->gtpu_egress;
+	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = 2152, err = 0;
 
 	/* TODO: split Ingress / Egress at GTP-U and GTP-C */
@@ -345,7 +345,7 @@ DEFUN(gtpc_force_pgw_selection,
       "IPv4 Address\n"
       "IPv6 Address\n")
 {
-        gtp_proxy_t *ctx = vty->index;
+        struct gtp_proxy *ctx = vty->index;
 	struct sockaddr_storage *addr = &ctx->pgw_addr;
 	int ret;
 
@@ -381,8 +381,8 @@ DEFUN(gtpu_ipip,
       "Vlan ID\n"
       "Number\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
+        struct gtp_proxy *ctx = vty->index;
+	struct gtp_iptnl *t = &ctx->iptnl;
 	uint32_t saddr, laddr, raddr;
 	int ret = 0, vlan = 0;
 
@@ -426,7 +426,7 @@ DEFUN(gtpu_ipip,
 	ret = gtp_bpf_fwd_iptnl_action(RULE_ADD, &ctx->iptnl, ctx->bpf_prog);
 	if (ret < 0) {
 		vty_out(vty, "%% Unable to create XDP IPIP-Tunnel%s", VTY_NEWLINE);
-		memset(t, 0, sizeof(gtp_iptnl_t));
+		memset(t, 0, sizeof(struct gtp_iptnl));
 		return CMD_WARNING;
 	}
 
@@ -449,8 +449,8 @@ DEFUN(gtpu_ipip_dead_peer_detection,
       "Payload attached to DPD GTP packet\n"
       "Number\n")
 {
-	gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
+	struct gtp_proxy *ctx = vty->index;
+	struct gtp_iptnl *t = &ctx->iptnl;
 	int credit, ifindex, plen, err;
 	uint32_t saddr;
 
@@ -520,8 +520,8 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent ingress encapsulation mode\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
+        struct gtp_proxy *ctx = vty->index;
+	struct gtp_iptnl *t = &ctx->iptnl;
 	int ret;
 
 	if (!ctx->bpf_prog) {
@@ -550,8 +550,8 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Transparent egress encapsulation mode\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
+        struct gtp_proxy *ctx = vty->index;
+	struct gtp_iptnl *t = &ctx->iptnl;
 	int ret;
 
 	if (!ctx->bpf_prog) {
@@ -580,8 +580,8 @@ DEFUN(gtpu_ipip_decap_untag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U Untag VLAN header during decap\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
+        struct gtp_proxy *ctx = vty->index;
+	struct gtp_iptnl *t = &ctx->iptnl;
 	int ret;
 
 	if (!ctx->bpf_prog) {
@@ -610,8 +610,8 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
       "GTP Userplane IPIP tunnel\n"
       "GTP-U tag VLAN header during decap\n")
 {
-        gtp_proxy_t *ctx = vty->index;
-	gtp_iptnl_t *t = &ctx->iptnl;
+        struct gtp_proxy *ctx = vty->index;
+	struct gtp_iptnl *t = &ctx->iptnl;
 	int err, vlan;
 
 	if (!ctx->bpf_prog) {
@@ -667,12 +667,12 @@ DEFUN(show_bpf_forwarding_iptnl,
 
 /* Configuration writer */
 static int
-gtp_config_write(vty_t *vty)
+gtp_config_write(struct vty *vty)
 {
-	list_head_t *l = &daemon_data->gtp_proxy_ctx;
+	struct list_head *l = &daemon_data->gtp_proxy_ctx;
+	struct gtp_server *srv;
+	struct gtp_proxy *ctx;
 	char ifname[IF_NAMESIZE];
-	gtp_server_t *srv;
-	gtp_proxy_t *ctx;
 
 	list_for_each_entry(ctx, l, next) {
 		vty_out(vty, "gtp-proxy %s%s", ctx->name, VTY_NEWLINE);
@@ -688,29 +688,29 @@ gtp_config_write(vty_t *vty)
 		srv = &ctx->gtpc;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpc_egress;
 		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
 			vty_out(vty, " gtpc-egress-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpu;
 		if (__test_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags)) {
 			vty_out(vty, " gtpu-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
 		srv = &ctx->gtpu_egress;
 		if (__test_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags)) {
 			vty_out(vty, " gtpu-egress-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->addr)
-				   , ntohs(inet_sockaddrport(&srv->addr))
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
 		if (__test_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags))
@@ -783,14 +783,14 @@ cmd_ext_gtp_proxy_install(void)
 	return 0;
 }
 
-cmd_node_t gtp_proxy_node = {
+struct cmd_node gtp_proxy_node = {
 	.node = GTP_PROXY_NODE,
 	.parent_node = CONFIG_NODE,
 	.prompt = "%s(gtp-proxy)# ",
 	.config_write = gtp_config_write,
 };
 
-static cmd_ext_t cmd_ext_gtp_proxy = {
+static struct cmd_ext cmd_ext_gtp_proxy = {
 	.node = &gtp_proxy_node,
 	.install = cmd_ext_gtp_proxy_install,
 };

@@ -32,7 +32,7 @@
 
 
 /* Extern data */
-extern data_t *daemon_data;
+extern struct data *daemon_data;
 
 
 /*
@@ -53,7 +53,7 @@ gtp_bpf_iptnl_rule_alloc(size_t *sz)
 }
 
 static void
-gtp_bpf_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
+gtp_bpf_iptnl_rule_set(struct gtp_iptnl_rule *r, struct gtp_iptnl *t)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	int i;
@@ -69,7 +69,7 @@ gtp_bpf_iptnl_rule_set(struct gtp_iptnl_rule *r, gtp_iptnl_t *t)
 }
 
 int
-gtp_bpf_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
+gtp_bpf_iptnl_action(int action, struct gtp_iptnl *t, struct bpf_map *map)
 {
 	struct gtp_iptnl_rule *new = NULL;
 	int ret = 0, err = 0;
@@ -146,7 +146,7 @@ gtp_bpf_iptnl_action(int action, gtp_iptnl_t *t, struct bpf_map *map)
 }
 
 int
-gtp_bpf_iptnl_vty(vty_t *vty, struct bpf_map *map)
+gtp_bpf_iptnl_vty(struct vty *vty, struct bpf_map *map)
 {
 	__be32 key = 0, next_key = 0;
 	struct gtp_iptnl_rule *r;

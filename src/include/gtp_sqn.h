@@ -25,9 +25,9 @@
 #include "gtp_htab.h"
 
 /* Prototypes */
-gtp_teid_t *gtp_vsqn_get(gtp_htab_t *, uint32_t);
-int gtp_vsqn_unhash(gtp_htab_t *, gtp_teid_t *);
-int gtp_vsqn_alloc(gtp_server_t *, gtp_teid_t *, bool);
-int gtp_sqn_update(gtp_server_t *, gtp_teid_t *);
-int gtp_sqn_masq(gtp_server_t *, gtp_teid_t *);
-int gtp_sqn_restore(gtp_server_t *, gtp_teid_t *);
+struct gtp_teid *gtp_vsqn_get(struct gtp_htab *, uint32_t);
+int gtp_vsqn_unhash(struct gtp_htab *, struct gtp_teid *);
+int gtp_vsqn_alloc(struct gtp_server *, struct gtp_teid *, bool);
+int gtp_sqn_update(struct gtp_server *, struct gtp_teid *);
+int gtp_sqn_masq(struct gtp_server *, struct gtp_teid *);
+int gtp_sqn_restore(struct gtp_server *, struct gtp_teid *);

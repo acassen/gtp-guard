@@ -61,5 +61,5 @@ enum gtp_cdr_asn1_encode_method {
 };
 
 /* Prototypes */
-extern int gtp_cdr_asn1_pgw_record_encode(gtp_cdr_t *, uint8_t *, size_t);
-extern int gtp_cdr_asn1_ctx_set(gtp_cdr_ctx_t *, uint32_t, uint8_t *, size_t);
+int gtp_cdr_asn1_pgw_record_encode(struct gtp_cdr *, uint8_t *, size_t);
+int gtp_cdr_asn1_ctx_set(struct gtp_cdr_ctx *, uint32_t, uint8_t *, size_t);

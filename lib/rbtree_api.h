@@ -23,11 +23,6 @@
 
 #include "rbtree.h"
 
-typedef struct rb_node rb_node_t;
-typedef struct rb_root rb_root_t;
-typedef struct rb_root_cached rb_root_cached_t;
-
-
 /**
  * rb_for_each_entry -  Iterate over rbtree of given type
  * @pos:		the type * to use as a loop cursor.
@@ -86,7 +81,7 @@ static __always_inline void
 rb_move_cached(struct rb_node *node, struct rb_root_cached *tree,
 	       bool (*less)(struct rb_node *, const struct rb_node *))
 {
-	rb_node_t *prev_node, *next_node;
+	struct rb_node *prev_node, *next_node;
 
 	prev_node = rb_prev(node);
 	next_node = rb_next(node);
