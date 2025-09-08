@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <unistd.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <linux/if_packet.h>
