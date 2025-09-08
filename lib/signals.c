@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/signalfd.h>
