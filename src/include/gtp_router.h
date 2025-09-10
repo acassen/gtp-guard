@@ -49,4 +49,3 @@ struct gtp_router *gtp_router_init(const char *name);
 int gtp_router_ctx_destroy(struct gtp_router *ctx);
 int gtp_router_server_destroy(void);
 int gtp_router_destroy(void);
-int gtp_router_vty_init(void);

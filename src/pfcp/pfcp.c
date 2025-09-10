@@ -28,7 +28,6 @@
 int
 pfcp_init(void)
 {
-	pfcp_router_init();
 	return 0;
 }
 

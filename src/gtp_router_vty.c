@@ -79,7 +79,7 @@ DEFUN(no_gtp_router,
 		return CMD_WARNING;
 	}
 
-	/* Already existing ? */
+
 	ctx = gtp_router_get(argv[0]);
 	if (!ctx) {
 		vty_out(vty, "%% unknown gtp-router %s%s", argv[0], VTY_NEWLINE);

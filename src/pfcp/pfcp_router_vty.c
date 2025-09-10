@@ -19,14 +19,21 @@
  */
 
 #include <string.h>
+#include <assert.h>
 
+#include "gtp_bpf_prog.h"
 #include "gtp_data.h"
+#include "inet_server.h"
 #include "pfcp_router.h"
+#include "pfcp.h"
+#include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
+#include "memory.h"
 
 /* Extern data */
 extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
@@ -38,16 +45,24 @@ DEFUN(pfcp_router,
       "Configure PFCP Router Instance\n"
       "PFCP Instance Name")
 {
-	struct pfcp_router *c;
+	struct pfcp_router *new;
 
-	c = pfcp_router_get_by_name(argv[0]);
-	if (c == NULL) {
-		c = pfcp_router_alloc(argv[0]);
-		__set_bit(PFCP_ROUTER_FL_SHUTDOWN_BIT, &c->flags);
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
 	}
-	vty->node = PFCP_ROUTER_NODE;
-	vty->index = c;
 
+	/* Already existing ? */
+	new = pfcp_router_get(argv[0]);
+	new = (new) ? : pfcp_router_init(argv[0]);
+	if (!new) {
+		vty_out(vty, "%% Error allocating pfcp-router:%s !!!%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vty->node = PFCP_ROUTER_NODE;
+	vty->index = new;
 	return CMD_SUCCESS;
 }
 
@@ -59,14 +74,20 @@ DEFUN(no_pfcp_router,
 {
 	struct pfcp_router *c;
 
-	/* Already existing ? */
-	c = pfcp_router_get_by_name(argv[0]);
-	if (c == NULL) {
-		vty_out(vty, "%% unknown pfcp-router instance '%s'",
-			argv[0]);
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	pfcp_router_release(c);
+
+	/* Already existing ? */
+	c = pfcp_router_get(argv[0]);
+	if (!c) {
+		vty_out(vty, "%% unknown gtp-router %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	pfcp_router_ctx_destroy(c);
+	FREE(c);
 
 	return CMD_SUCCESS;
 }
@@ -84,6 +105,78 @@ DEFUN(pfcp_router_desciption,
 	return CMD_SUCCESS;
 }
 
+DEFUN(pfcp_router_bpf_prog,
+      pfcp_router_bpf_prog_cmd,
+      "bpf-program WORD",
+      "Use BPF Program\n"
+      "BPF Program name")
+{
+        struct pfcp_router *c = vty->index;
+	struct gtp_bpf_prog *p;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% unknown bpf-program '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	c->bpf_prog = p;
+	return CMD_SUCCESS;
+}
+
+DEFUN(pfcp_listen,
+      pfcp_listen_cmd,
+      "listen (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "PFCP Session channel endpoint\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 8805)\n"
+      "Number\n")
+{
+	struct pfcp_router *c = vty->index;
+	struct pfcp_server *srv = &c->s;
+	struct sockaddr_storage *addr = &srv->s.addr;
+	int port = PFCP_PORT, err = 0;
+
+        if (argc < 1) {
+                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
+        if (__test_bit(PFCP_ROUTER_FL_LISTEN_BIT, &c->flags)) {
+                vty_out(vty, "%% PFCP listener already configured!%s"
+			   , VTY_NEWLINE);
+                return CMD_WARNING;
+        }
+
+        if (argc == 2)
+                VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+
+	err = inet_stosockaddr(argv[0], port, addr);
+	if (err) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
+		memset(addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+
+	err = pfcp_server_init(srv, c, pfcp_router_ingress_init,
+			       pfcp_router_ingress_process);
+	if (err) {
+		vty_out(vty, "%% Error initializing PFCP Listener on [%s]:%d%s"
+			   , argv[0], port, VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__set_bit(PFCP_ROUTER_FL_LISTEN_BIT, &c->flags);
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	Show commands
@@ -92,12 +185,14 @@ static int
 pfcp_vty(struct vty *vty, struct pfcp_router *c)
 {
 	char buf[4096];
+	size_t nbytes;
 
 	vty_out(vty, " pfcp-router(%s): '%s'\n",
 		c->name, c->description);
 
-	pfcp_router_dump(c, buf, sizeof (buf));
-	vty_out(vty, "%s", buf);
+	nbytes = pfcp_router_dump(c, buf, sizeof (buf));
+	if (nbytes)
+		vty_out(vty, "%s", buf);
 
 	return 0;
 }
@@ -144,8 +239,6 @@ config_pfcp_router_write(struct vty *vty)
 		vty_out(vty, "pfcp-router %s\n", c->name);
 		if (c->description[0])
 			vty_out(vty, " description %s\n", c->description);
-  		vty_out(vty, " %sshutdown\n"
-	    		   , __test_bit(PFCP_ROUTER_FL_SHUTDOWN_BIT, &c->flags) ? "" : "no ");
 		vty_out(vty, "!\n");
 	}
 

@@ -654,6 +654,8 @@ inet_server_destroy(struct inet_server *s)
 
 	switch (s->type) {
 	case SOCK_DGRAM:
+		thread_del(s->r_thread);
+		thread_del(s->w_thread);
 		close(s->fd);
 		pkt_buffer_free(s->pbuff);
 		break;

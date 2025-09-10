@@ -16,40 +16,38 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com> 
+ * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
-
 #pragma once
 
-#include "pfcp_server.h"
-#include "gtp_bpf_prog.h"
+#include <stdint.h>
+#include <sys/types.h>
 
-#define PFCP_ROUTER_DELAYED	2
+/* defines */
+#define PFCP_METRIC_MAX_MSG	(1 << 8)
+#define METRIC_PACKET		0
+#define METRIC_BYTE		1
 
-enum pfcp_flags {
-	PFCP_ROUTER_FL_LISTEN_BIT,
+/* types */
+struct pfcp_metric {
+	uint32_t		count;
+	uint32_t		unsupported;
 };
 
-struct pfcp_router {
-	char			name[GTP_NAME_MAX_LEN];
-	char			description[GTP_STR_MAX_LEN];
-	struct gtp_bpf_prog	*bpf_prog;
-	struct pfcp_server	s;
-
-	unsigned long		flags;
-
-	struct list_head	next;
+struct pfcp_metrics_msg {
+	struct pfcp_metric	rx[PFCP_METRIC_MAX_MSG];
+	struct pfcp_metric	tx[PFCP_METRIC_MAX_MSG];
 };
+
+struct pfcp_metrics_pkt {
+	uint64_t		count;
+	uint64_t		bytes;
+};
+
 
 /* Prototypes */
-int pfcp_router_ingress_init(struct inet_server *srv);
-int pfcp_router_ingress_process(struct inet_server *srv,
-			        struct sockaddr_storage *addr_from);
-size_t pfcp_router_dump(struct pfcp_router *ctx, char *buffer, size_t bsize);
-bool pfcp_router_inuse(void);
-void pfcp_router_foreach(int (*hdl) (struct pfcp_router *, void *), void *arg);
-struct pfcp_router *pfcp_router_get(const char *name);
-struct pfcp_router *pfcp_router_init(const char *name);
-int pfcp_router_ctx_destroy(struct pfcp_router *ctx);
-int pfcp_router_server_destroy(void);
-int pfcp_router_destroy(void);
+int pfcp_metrics_rx(struct pfcp_metrics_msg *, uint8_t);
+int pfcp_metrics_rx_notsup(struct pfcp_metrics_msg *, uint8_t);
+int pfcp_metrics_tx(struct pfcp_metrics_msg *, uint8_t);
+int pfcp_metrics_tx_notsup(struct pfcp_metrics_msg *, uint8_t);
+int pfcp_metrics_pkt_update(struct pfcp_metrics_pkt *, ssize_t);

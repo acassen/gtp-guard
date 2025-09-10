@@ -18,14 +18,9 @@
  *
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
+#pragma once
 
-#include "pfcp_proto.h"
+#include "inet_server.h"
 
-
-int
-pfcp_proto_handle(struct inet_server *s, struct sockaddr_storage *addr)
-{
-
-
-	return 0;
-}
+/* Prototypes */
+int pfcp_proto_handle(struct inet_server *s, struct sockaddr_storage *addr);

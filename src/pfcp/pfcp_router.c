@@ -21,77 +21,140 @@
 
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "gtp_data.h"
 #include "pfcp_router.h"
+#include "pfcp_server.h"
+#include "pfcp_proto.h"
+#include "utils.h"
 #include "memory.h"
 
 
 /* Extern data */
 extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 /*
- *	PFCP utilities
+ *	Helpers
  */
 int
-pfcp_router_dump(struct pfcp_router *c, char *buffer, size_t bsize)
+pfcp_router_ingress_init(struct inet_server *s)
 {
 	return 0;
 }
 
-struct pfcp_router *
-pfcp_router_get_by_name(const char *name)
+int
+pfcp_router_ingress_process(struct inet_server *srv, struct sockaddr_storage *addr_from)
+{
+	int ret;
+
+	ret = pfcp_proto_handle(srv, addr_from);
+	if (ret < 0)
+		return -1;
+
+	if (ret != PFCP_ROUTER_DELAYED)
+		inet_server_snd(srv, srv->fd, srv->pbuff,
+				(struct sockaddr_in *) addr_from);
+
+	return 0;
+}
+
+
+
+/*
+ *	PFCP Router utilities
+ */
+size_t
+pfcp_router_dump(struct pfcp_router *ctx, char *buffer, size_t bsize)
+{
+	memset(buffer, 0, bsize);
+
+	return 0;
+}
+
+bool
+pfcp_router_inuse(void)
+{
+	return !list_empty(&daemon_data->pfcp_router_ctx);
+}
+
+void
+pfcp_router_foreach(int (*hdl) (struct pfcp_router *, void *), void *arg)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
-	struct pfcp_router *c;
+	struct pfcp_router *ctx;
 
-	list_for_each_entry(c, l, next) {
-		if (!strcmp(c->name, name))
-			return c;
+	list_for_each_entry(ctx, l, next)
+		(*(hdl)) (ctx, arg);
+}
+
+struct pfcp_router *
+pfcp_router_get(const char *name)
+{
+	struct pfcp_router *ctx;
+	size_t len = strlen(name);
+
+	list_for_each_entry(ctx, &daemon_data->pfcp_router_ctx, next) {
+		if (!strncmp(ctx->name, name, len))
+			return ctx;
 	}
 
 	return NULL;
 }
 
 struct pfcp_router *
-pfcp_router_alloc(const char *name)
+pfcp_router_init(const char *name)
 {
-	struct pfcp_router *c = NULL;
+	struct pfcp_router *new;
 
-	PMALLOC(c);
-	assert(c != NULL);
-	snprintf(c->name, GTP_NAME_MAX_LEN, "%s", name);
-	list_add_tail(&c->next, &daemon_data->pfcp_router_ctx);
+	PMALLOC(new);
+	if (!new) {
+		errno = ENOMEM;
+		return NULL;
+	}
+        INIT_LIST_HEAD(&new->next);
+        bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 
-	return c;
+	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);
+
+	return new;
 }
 
-void
-pfcp_router_release(struct pfcp_router *c)
-{
-	list_del(&c->next);
-	free(c);
-}
-
-
-/*
- *	PFCP Router init/pfcp_destroy
- */
 int
-pfcp_router_init(void)
+pfcp_router_ctx_server_destroy(struct pfcp_router *ctx)
 {
+	pfcp_server_destroy(&ctx->s);
+	return 0;
+}
+
+int
+pfcp_router_ctx_destroy(struct pfcp_router *ctx)
+{
+	list_head_del(&ctx->next);
+	return 0;
+}
+
+int
+pfcp_router_server_destroy(void)
+{
+	struct pfcp_router *c;
+
+	list_for_each_entry(c, &daemon_data->pfcp_router_ctx, next)
+		pfcp_router_ctx_server_destroy(c);
+
 	return 0;
 }
 
 int
 pfcp_router_destroy(void)
 {
-	struct list_head *l = &daemon_data->pfcp_router_ctx;
 	struct pfcp_router *c, *_c;
 
-	list_for_each_entry_safe(c, _c, l, next) {
-		pfcp_router_release(c);
+	list_for_each_entry_safe(c, _c, &daemon_data->pfcp_router_ctx, next) {
+		list_head_del(&c->next);
+		FREE(c);
 	}
 
 	return 0;

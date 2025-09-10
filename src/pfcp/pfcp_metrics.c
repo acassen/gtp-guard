@@ -19,13 +19,57 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "pfcp_proto.h"
+#include "gtp_data.h"
+#include "pfcp_metrics.h"
+
+/* Extern data */
+extern struct data *daemon_data;
 
 
+/*
+ *	Utilities
+ */
 int
-pfcp_proto_handle(struct inet_server *s, struct sockaddr_storage *addr)
+pfcp_metrics_rx(struct pfcp_metrics_msg *m, uint8_t msg_type)
 {
-
-
+	m->rx[msg_type].count++;
 	return 0;
 }
+
+int
+pfcp_metrics_rx_notsup(struct pfcp_metrics_msg *m, uint8_t msg_type)
+{
+	m->rx[msg_type].unsupported++;
+	return 0;
+}
+
+int
+pfcp_metrics_tx(struct pfcp_metrics_msg *m, uint8_t msg_type)
+{
+	m->tx[msg_type].count++;
+	return 0;
+}
+
+int
+pfcp_metrics_tx_notsup(struct pfcp_metrics_msg *m, uint8_t msg_type)
+{
+	m->tx[msg_type].unsupported++;
+	return 0;
+}
+
+int
+pfcp_metrics_pkt_update(struct pfcp_metrics_pkt *m, ssize_t nbytes)
+{
+	if (nbytes <= 0)
+		return -1;
+
+	m->bytes += nbytes;
+	m->count++;
+	return 0;
+}
+
+/*
+ *	Metrics dump
+ *
+ *	TODO: Integrate into main GTP Metrics stuff
+ */
