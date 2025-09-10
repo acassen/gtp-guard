@@ -169,8 +169,8 @@ gtp_interface_destroy(struct gtp_interface *iface)
 	struct gtp_interface *if_child;
 
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
-		if (if_child->parent == iface)
-			if_child->parent = NULL;
+		if (if_child->link_iface == iface)
+			if_child->link_iface = NULL;
 	}
 	if (iface->bpf_prog)
 		gtp_bpf_prog_detach(iface->bpf_prog, iface);

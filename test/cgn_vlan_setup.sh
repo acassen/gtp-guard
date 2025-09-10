@@ -117,7 +117,6 @@ interface priv
 
 interface priv.20
  description priv_itf
- parent priv
  ip table 1310
  carrier-grade-nat cgn-ng-1 side network-in
  no shutdown
@@ -128,7 +127,6 @@ interface pub
 
 interface pub.10
  description pub_itf
- parent pub
  ip table 1320
  carrier-grade-nat cgn-ng-1 side network-out
  no shutdown

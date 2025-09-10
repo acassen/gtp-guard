@@ -63,9 +63,9 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	if (iface->table_id)
 		vty_out(vty, " table-id:%d%s"
 			   , iface->table_id, VTY_NEWLINE);
-	if (iface->parent)
-		vty_out(vty, " parent:%s%s"
-			   , iface->parent->ifname, VTY_NEWLINE);
+	if (iface->link_iface)
+		vty_out(vty, " link_iface:%s%s"
+			   , iface->link_iface->ifname, VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
 			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
@@ -217,23 +217,6 @@ DEFUN(interface_table_id,
 	struct gtp_interface *iface = vty->index;
 
 	VTY_GET_INTEGER_RANGE("IP table-id", iface->table_id, argv[0], 0, 32767);
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(interface_parent,
-      interface_parent_cmd,
-      "parent PARENTITF",
-      "Set parent interface\n"
-      "Parent interface name\n")
-{
-	struct gtp_interface *iface = vty->index;
-
-	iface->parent = gtp_interface_get(argv[0]);
-	if (!iface->parent) {
-		vty_out(vty, "%% cannot find interface:'%s'%s", argv[0], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	return CMD_SUCCESS;
 }
@@ -481,8 +464,6 @@ interface_config_write(struct vty *vty)
 #endif
 		if (iface->table_id)
 			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);
-		if (iface->parent)
-			vty_out(vty, " parent %s%s", iface->parent->ifname, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
 			vty_out(vty, " metrics gtp%s", VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
@@ -516,7 +497,6 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
 	install_element(INTERFACE_NODE, &interface_table_id_cmd);
-	install_element(INTERFACE_NODE, &interface_parent_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_pppoe_cmd);

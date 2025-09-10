@@ -589,7 +589,8 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 	struct ifinfomsg *ifi = NLMSG_DATA(h);
 	struct rtattr *tb[IFLA_MAX + 1];
 	bool create = arg == (void*)1;
-	struct gtp_interface *iface;
+	struct gtp_interface *iface, *link_iface;
+	int link_ifindex;
 	int len = h->nlmsg_len;
 	int err = 0;
 
@@ -624,6 +625,17 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 			}
 			gtp_interface_destroy(iface);
 			return err;
+		}
+
+		/* IFLA_LINK point to physical interface (real device), in the same netns.
+		 * used to point vlan devices to their physical devices */
+		if (tb[IFLA_LINK] != NULL &&
+		    tb[IFLA_LINK_NETNSID] == NULL &&
+		    RTA_PAYLOAD(tb[IFLA_LINK]) == sizeof (uint32_t)) {
+			link_ifindex = *(uint32_t *)RTA_DATA(tb[IFLA_LINK]);
+			link_iface = gtp_interface_get_by_ifindex(link_ifindex);
+			if (link_iface != NULL)
+				iface->link_iface = link_iface;
 		}
 
 		netlink_if_link_info(tb[IFLA_LINKINFO], iface);

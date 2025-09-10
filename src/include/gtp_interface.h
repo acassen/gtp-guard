@@ -56,9 +56,10 @@ struct gtp_interface {
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
 
-	struct list_head	next;
+	/* if it's a virtual device, then point to real device, else NULL */
+	struct gtp_interface	*link_iface;
 
-	struct gtp_interface	*parent;
+	struct list_head	next;
 
 	int			refcnt;
 	unsigned long		flags;

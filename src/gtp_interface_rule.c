@@ -56,11 +56,10 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 	struct if_rule ar = {};
 	int ret;
 
-	/* if program is not loaded on this interface, and this interface has
-	 * a parent, then use parent ifindex/bpf map, and everything else from
-	 * child (vlan/tunnel info) */
-	if (from->bpf_prog == NULL && from->parent)
-		iface = from->parent;
+	/* if program is not loaded on this interface, and this interface is virtual
+	 * (and has pointer to real device), then use real device ifindex/bpf map */
+	if (from->bpf_prog == NULL && from->link_iface)
+		iface = from->link_iface;
 
 	r = iface->bpf_itf;
 	if (!r)
@@ -75,8 +74,8 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 
 	/* when output interface is a sub-interface, we force output
 	 * ifindex to it (otherwise bpf_fib_lookup will send from it) */
-	if (to->parent)
-		ar.ifindex = to->parent->ifindex;
+	if (to->link_iface)
+		ar.ifindex = to->link_iface->ifindex;
 
 	printf("add acl if:%d vlan:%d ip-table:%d gre:%d sizeof:%ld\n",
 	       k.ifindex, k.vlan_id, ar.table,
@@ -96,8 +95,8 @@ gtp_interface_rule_del(struct gtp_interface *from)
 	struct gtp_interface *iface = from;
 	struct if_rule_key k = {};
 
-	if (from->bpf_prog == NULL && from->parent)
-		iface = from->parent;
+	if (from->bpf_prog == NULL && from->link_iface)
+		iface = from->link_iface;
 
 	r = iface->bpf_itf;
 	if (!r)
