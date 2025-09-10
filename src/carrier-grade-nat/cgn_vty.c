@@ -249,7 +249,7 @@ DEFUN(cgn_interface,
       "Network's operator side (private,local,inside)\n"
       "Internet side (public,remote,outside)\n")
 {
-	gtp_interface_t *iface = vty->index;
+	struct gtp_interface *iface = vty->index;
 	struct cgn_ctx *c;
 
 	c = cgn_ctx_get_by_name(argv[0]);

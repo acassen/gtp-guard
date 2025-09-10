@@ -26,8 +26,8 @@
 #include "gtp_stddef.h"
 #include "list_head.h"
 
-typedef struct gtp_bpf_prog gtp_bpf_prog_t;
-typedef struct gtp_interface gtp_interface_t;
+struct gtp_bpf_prog;
+struct gtp_interface;
 
 /* default protocol timeout values */
 #define CGN_PROTO_TIMEOUT_TCP_EST	600
@@ -59,9 +59,9 @@ struct cgn_ctx
 	struct list_head	next;
 
 	/* links to bpf-prog and interfaces */
-	gtp_bpf_prog_t		*prg;
-	gtp_interface_t		*priv;
-	gtp_interface_t		*pub;
+	struct gtp_bpf_prog	*prg;
+	struct gtp_interface	*priv;
+	struct gtp_interface	*pub;
 
 	/* bpf maps */
 	struct bpf_map		*v4_blocks;
@@ -91,7 +91,7 @@ struct cgn_ctx
 /* cgn.c */
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
 int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
-int cgn_ctx_attach_interface(struct cgn_ctx *c, gtp_interface_t *iface,
+int cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
 			     bool from_priv);
 struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
 void cgn_ctx_release(struct cgn_ctx *c);

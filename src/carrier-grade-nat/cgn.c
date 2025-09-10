@@ -140,10 +140,10 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 }
 
 int
-cgn_ctx_attach_interface(struct cgn_ctx *c, gtp_interface_t *iface, bool from_priv)
+cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface, bool from_priv)
 {
-	gtp_interface_t **cifin = from_priv ? &c->priv : &c->pub;
-	gtp_interface_t **cifout = from_priv ? &c->pub : &c->priv;
+	struct gtp_interface **cifin = from_priv ? &c->priv : &c->pub;
+	struct gtp_interface **cifout = from_priv ? &c->pub : &c->priv;
 
 	if (*cifin != NULL) {
 		log_message(LOG_INFO, "{cgn:%s} cannot bind to iface '%s', "
@@ -182,7 +182,7 @@ struct cgn_ctx *
 cgn_ctx_alloc(const char *name)
 {
 	struct cgn_ctx *c = NULL;
-	gtp_bpf_prog_t *p;
+	struct gtp_bpf_prog *p;
 
 	/* cgn configure a bpf-program. it must exists */
 	p = gtp_bpf_prog_get(name);
