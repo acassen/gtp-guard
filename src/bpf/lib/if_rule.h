@@ -43,8 +43,8 @@ _acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
 	if (d->r == NULL)
 		return XDP_PASS;
 
-	bpf_printk("got the rule ! table:%d vlan:%d action:%d",
-		   d->r->table, d->r->vlan_id, d->r->action);
+	bpf_printk("got the rule ! table:%d vlan:%d action:%d iface:%d",
+		   d->r->table, d->r->vlan_id, d->r->action, d->r->ifindex);
 
 	return d->r->action;
 }
@@ -176,9 +176,9 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		bpf_printk("fib_lookup failed: %d", ret);
 		return XDP_ABORTED;
 	}
-	bpf_printk("bpf_fib_lookup: dst:%x if:%d->%d(=>%d) "
+	bpf_printk("bpf_fib_lookup(%d): dst:%x if:%d->%d(=>%d) "
 		   "from %x nh %x mac_src:%02x mac_dst:%02x",
-		   d->dst_addr, ctx->ingress_ifindex, fibp.ifindex,
+		   ret, d->dst_addr, ctx->ingress_ifindex, fibp.ifindex,
 		   d->r->ifindex ?: fibp.ifindex,
 		   fibp.ipv4_src, fibp.ipv4_dst, fibp.smac[5], fibp.dmac[5]);
 	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
