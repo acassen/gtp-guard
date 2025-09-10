@@ -70,7 +70,7 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 	k.vlan_id = from->vlan_id;
 
 	ar.action = action;
-	ar.table = from->ip_table;
+	ar.table = from->table_id;
 	ar.vlan_id = to->vlan_id;
 
 	/* when output interface is a sub-interface, we force output

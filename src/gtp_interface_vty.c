@@ -60,9 +60,9 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	if (iface->vlan_id)
 		vty_out(vty, " vlan-id:%d%s"
 			   , iface->vlan_id, VTY_NEWLINE);
-	if (iface->ip_table)
-		vty_out(vty, " ip-table:%d%s"
-			   , iface->ip_table, VTY_NEWLINE);
+	if (iface->table_id)
+		vty_out(vty, " table-id:%d%s"
+			   , iface->table_id, VTY_NEWLINE);
 	if (iface->parent)
 		vty_out(vty, " parent:%s%s"
 			   , iface->parent->ifname, VTY_NEWLINE);
@@ -206,16 +206,17 @@ DEFUN(interface_direct_tx_gw,
 	return CMD_SUCCESS;
 }
 
-DEFUN(interface_ip_table,
-      interface_ip_table_cmd,
-      "ip table <0-32767>",
+DEFUN(interface_table_id,
+      interface_table_id_cmd,
+      "ip route table-id <0-32767>",
       "IP Interface\n"
-      "Set ip table used for fib_lookup (0 for main table)\n"
-      "IP table\n")
+      "Route definition\n"
+      "Set IP table used for fib_lookup (0 for main table)\n"
+      "IP table-id\n")
 {
 	struct gtp_interface *iface = vty->index;
 
-	VTY_GET_INTEGER_RANGE("IP table", iface->ip_table, argv[0], 0, 32767);
+	VTY_GET_INTEGER_RANGE("IP table-id", iface->table_id, argv[0], 0, 32767);
 
 	return CMD_SUCCESS;
 }
@@ -478,8 +479,8 @@ interface_config_write(struct vty *vty)
 				   , iface->cgn_name
 				   , VTY_NEWLINE);
 #endif
-		if (iface->ip_table)
-			vty_out(vty, " ip table %d%s", iface->ip_table, VTY_NEWLINE);
+		if (iface->table_id)
+			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);
 		if (iface->parent)
 			vty_out(vty, " parent %s%s", iface->parent->ifname, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
@@ -514,7 +515,7 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &interface_description_cmd);
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
-	install_element(INTERFACE_NODE, &interface_ip_table_cmd);
+	install_element(INTERFACE_NODE, &interface_table_id_cmd);
 	install_element(INTERFACE_NODE, &interface_parent_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_gtp_cmd);
