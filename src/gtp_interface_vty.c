@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <net/if.h>
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
@@ -64,8 +65,12 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 		vty_out(vty, " table-id:%d%s"
 			   , iface->table_id, VTY_NEWLINE);
 	if (iface->link_iface)
-		vty_out(vty, " link_iface:%s%s"
+		vty_out(vty, " link-iface:%s%s"
 			   , iface->link_iface->ifname, VTY_NEWLINE);
+	if (addr_len(&iface->tunnel_remote))
+		vty_out(vty, " tunnel-remote:%s%s"
+			   , addr_stringify(&iface->tunnel_remote
+			   , addr_str, sizeof (addr_str)), VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
 			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)

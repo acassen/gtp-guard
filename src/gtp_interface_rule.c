@@ -67,6 +67,13 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 
 	k.ifindex = iface->ifindex;
 	k.vlan_id = from->vlan_id;
+	switch (from->tunnel_mode) {
+	case 1:
+		k.gre_remote = addr_toip4(&from->tunnel_remote);
+		break;
+	default:
+		break;
+	}
 
 	ar.action = action;
 	ar.table = from->table_id;
@@ -77,7 +84,7 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 	if (to->link_iface)
 		ar.ifindex = to->link_iface->ifindex;
 
-	printf("add acl if:%d vlan:%d ip-table:%d gre:%d sizeof:%ld\n",
+	printf("add acl if:%d vlan:%d ip-table:%d gre:%x sizeof:%ld\n",
 	       k.ifindex, k.vlan_id, ar.table,
 	       k.gre_remote, sizeof (k));
 

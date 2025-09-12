@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
+#include <linux/if_tunnel.h>
 
 #include "gtp_data.h"
 #include "gtp_netlink.h"
@@ -543,11 +544,13 @@ netlink_if_request(struct nl_handle *nl, unsigned char family, uint16_t type, in
 	return 0;
 }
 
+/*
+ * fill gtp_interface data from kernel for vlan or gre devices
+ */
 static int
 netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 {
-	struct rtattr *linkinfo[IFLA_INFO_MAX+1];
-	struct rtattr *attr[IFLA_VLAN_MAX+1], **data = NULL;
+	struct rtattr *linkinfo[IFLA_INFO_MAX + 1];
 	struct rtattr *linkdata;
 	const char *kind;
 
@@ -558,28 +561,49 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 			     , RTA_DATA(tb), RTA_PAYLOAD(tb)
 			     , NLA_F_NESTED);
 
-	if (!linkinfo[IFLA_INFO_KIND])
+	if (!linkinfo[IFLA_INFO_KIND] || !linkinfo[IFLA_INFO_DATA])
 		return -1;
 
 	kind = (const char *)RTA_DATA(linkinfo[IFLA_INFO_KIND]);
-
-	/* Only take care of vlan interface type */
-	if (strncmp(kind, "vlan", 4))
-		return -1;
-
 	linkdata = linkinfo[IFLA_INFO_DATA];
-	if (!linkdata)
-		return -1;
 
-	parse_rtattr(attr, IFLA_VLAN_MAX
-			 , RTA_DATA(linkdata), RTA_PAYLOAD(linkdata)
-			 , NLA_F_NESTED);
-	data = attr;
+	if (!strcmp(kind, "vlan")) {
+		struct rtattr *attr[IFLA_VLAN_MAX + 1];
 
-	if (!data[IFLA_VLAN_ID])
-		return -1;
+		parse_rtattr(attr, IFLA_VLAN_MAX, RTA_DATA(linkdata),
+			     RTA_PAYLOAD(linkdata), NLA_F_NESTED);
 
-	iface->vlan_id = *(__u16 *)RTA_DATA(data[IFLA_VLAN_ID]);
+		if (!attr[IFLA_VLAN_ID])
+			return -1;
+
+		iface->vlan_id = *(__u16 *)RTA_DATA(attr[IFLA_VLAN_ID]);
+
+	} else if (!strcmp(kind, "gre")) {
+		struct rtattr *attr[IFLA_GRE_MAX + 1];
+		struct gtp_interface *link_iface;
+		int link_ifindex;
+
+		parse_rtattr(attr, IFLA_GRE_MAX, RTA_DATA(linkdata),
+			     RTA_PAYLOAD(linkdata), NLA_F_NESTED);
+
+		if (!attr[IFLA_GRE_REMOTE] ||
+		    RTA_PAYLOAD(attr[IFLA_GRE_REMOTE]) != 4)
+			return -1;
+
+		iface->tunnel_mode = 1;
+
+		/* "ip tunnel .... dev xxx" specified, attach to this device */
+		if (attr[IFLA_GRE_LINK]) {
+			link_ifindex = *(uint32_t *)RTA_DATA(attr[IFLA_GRE_LINK]);
+			link_iface = gtp_interface_get_by_ifindex(link_ifindex);
+			if (link_iface != NULL)
+				iface->link_iface = link_iface;
+		}
+
+		addr_fromip4(&iface->tunnel_remote,
+			     *(uint32_t *)RTA_DATA(attr[IFLA_GRE_REMOTE]));
+	}
+
 	return 0;
 }
 
@@ -615,9 +639,9 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 		if (!iface)
 			return -1;
 
+		/* get mac address (if it's a device) */
 		err = netlink_if_get_ll_addr(iface, tb);
-		if (err || !iface->hw_addr_len) {
-			/* ignore interface if it does not have a valid ethernet address */
+		if (err) {
 			if (err) {
 				log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
 						    , __FUNCTION__
@@ -627,7 +651,7 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 			return err;
 		}
 
-		/* IFLA_LINK point to physical interface (real device), in the same netns.
+		/* IFLA_LINK point to physical interface (real device) in the same netns.
 		 * used to point vlan devices to their physical devices */
 		if (tb[IFLA_LINK] != NULL &&
 		    tb[IFLA_LINK_NETNSID] == NULL &&

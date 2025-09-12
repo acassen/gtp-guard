@@ -20,10 +20,14 @@
  */
 #pragma once
 
+#ifndef IF_NAMESIZE
+# define IF_NAMESIZE 16
+#endif
+
 #include <stdint.h>
-#include <net/if.h>
 #include <netinet/if_ether.h>
 #include "inet_utils.h"
+#include "addr.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface_rule.h"
 
@@ -56,8 +60,12 @@ struct gtp_interface {
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
 
-	/* if it's a virtual device, then point to real device, else NULL */
+	/* point to real device if it's a virtual device */
 	struct gtp_interface	*link_iface;
+
+	/* tunnel info */
+	int			tunnel_mode; /* 0:none, 1:gre, 2:ipip */
+	union addr		tunnel_remote;
 
 	struct list_head	next;
 

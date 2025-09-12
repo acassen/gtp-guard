@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <net/if.h>
+
 #include "gtp_data.h"
 #include "gtp_bpf.h"
 #include "gtp_bpf_rt.h"

@@ -107,16 +107,20 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			return XDP_DROP;
 
 		/* may be a gre tunnel */
-		if (ip4h->version == 0x45 &&
+		if (ip4h->version == 4 &&
+		    ip4h->ihl == 5 &&
 		    ip4h->protocol == IPPROTO_GRE) {
 			struct gre_hdr *gre = (struct gre_hdr *)(ip4h + 1);
-
 			if ((void *)(gre + 1) > data_end)
 				return 1;
 			if (GRE_VERSION(gre) == GRE_VERSION_1701 && gre->flags == 0) {
 				/* is a basic gre tunnel */
-				d->payload = gre + 1;
 				d->k.gre_remote = ip4h->saddr;
+
+				ip4h = (struct iphdr *)(gre + 1);
+				if ((void *)(ip4h + 1) > data_end)
+					return XDP_DROP;
+				d->payload = ip4h;
 				switch (gre->proto) {
 				case __constant_htons(ETH_P_IP):
 					return _acl_ipv4(&d->k, d);
@@ -125,6 +129,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 				}
 			}
 		}
+
 		/* handle this ipv4 payload */
 		d->payload = payload;
 		return _acl_ipv4(&d->k, d);
@@ -191,9 +196,9 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		adjust_sz += sizeof (struct vlan_hdr);
 	}
 	if (!d->k.gre_remote && d->r->gre_remote) {
-		adjust_sz -= sizeof (struct gre_hdr) + sizeof (struct iphdr *);
+		adjust_sz -= sizeof (struct gre_hdr) + sizeof (struct iphdr);
 	} else if (d->k.gre_remote && !d->r->gre_remote) {
-		adjust_sz += sizeof (struct gre_hdr) + sizeof (struct iphdr *);
+		adjust_sz += sizeof (struct gre_hdr) + sizeof (struct iphdr);
 	}
 
 	/* and adjust it */
