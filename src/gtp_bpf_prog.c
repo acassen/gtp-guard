@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <unistd.h>
+#include <sys/inotify.h>
 #include <errno.h>
 #include <btf.h>
 #include <linux/if_link.h>
@@ -37,6 +39,12 @@
 
 /* Extern data */
 extern struct data *daemon_data;
+extern struct thread_master *master;
+
+/* Local data */
+static struct thread *inotify_th;
+
+static void gtp_bpf_prog_watch(struct gtp_bpf_prog *p);
 
 
 /*
@@ -212,12 +220,12 @@ gtp_bpf_prog_obj_update_var(struct bpf_object *obj, const struct gtp_bpf_prog_va
 }
 
 static int
-gtp_bpf_prog_obj_get_mode_list(struct bpf_object *obj, char **tpl_names)
+gtp_bpf_prog_obj_get_mode_list(struct bpf_object *obj, char **out_buf, char **tpl_names)
 {
 	struct btf *btf;
 	const struct btf_type *sec;
 	struct btf_var_secinfo *secinfo;
-	char buf[GTP_STR_MAX_LEN];
+	char *buf;
 	void *data;
 	int i, argc;
 
@@ -230,11 +238,14 @@ gtp_bpf_prog_obj_get_mode_list(struct bpf_object *obj, char **tpl_names)
 	for (i = 0; i < btf_vlen(sec); i++) {
 		const struct btf_type *t = btf__type_by_id(btf, secinfo[i].type);
 		const char *name = btf__name_by_offset(btf, t->name_off);
-		if (!strcmp(name, "_mode")) {
-			memcpy(buf, data + secinfo[i].offset, secinfo[i].size);
-			buf[secinfo[i].size - 1] = 0;
-			split_line(buf, &argc, tpl_names, ",; ", BPF_PROG_TPL_MAX);
-			return argc ?: -1;
+		if (!strcmp(name, "_mode") && secinfo[i].size > 0) {
+			buf = MALLOC(secinfo[i].size);
+			memcpy(buf, data + secinfo[i].offset, secinfo[i].size - 1);
+			split_line(buf, &argc, tpl_names, ",;", BPF_PROG_TPL_MAX);
+			if (argc)
+				return argc;
+			free(buf);
+			return -1;
 		}
 	}
 
@@ -255,16 +266,18 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	const struct gtp_bpf_prog_tpl *tpl;
-	char *argv[BPF_PROG_TPL_MAX];
-	int i, n;
+	char *argv[BPF_PROG_TPL_MAX], *buf;
+	bool mode_changed = false;
+	int i = 0, n, ret = -1;
 
-	/* Already opened */
-	if (p->bpf_obj)
+	if (p->load.obj)
 		return 0;
+	if (__test_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags))
+		return -1;
 
 	/* Open eBPF file */
-	p->bpf_obj = bpf_object__open(p->path);
-	if (!p->bpf_obj) {
+	p->load.obj = bpf_object__open(p->path);
+	if (!p->load.obj) {
 		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "eBPF: error opening bpf file err:%d (%s)"
 				    , errno, errmsg);
@@ -272,39 +285,64 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	}
 
 	/* Get template mode(s), from const char *_mode */
-	n = gtp_bpf_prog_obj_get_mode_list(p->bpf_obj, argv);
-	if (n < 0) {
-		gtp_bpf_prog_unload(p);
-		return -1;
+	n = gtp_bpf_prog_obj_get_mode_list(p->load.obj, &buf, argv);
+	if (n < 0)
+		goto err;
+
+	/* A program is running. Check that template list didn't changed */
+	if (p->run.obj != NULL) {
+		mode_changed = n != p->tpl_n;
+		for (i = 0; i < n && !mode_changed; i++)
+			mode_changed = gtp_bpf_prog_tpl_get(argv[i]) != p->tpl[i];
+		if (mode_changed) {
+			log_message(LOG_INFO, "%s(): bpf program mode list changed, "
+				    "please restart program manually", __FUNCTION__);
+			ret = 1;
+			goto err;
+		}
+		free(buf);
+		return 0;
 	}
+
+	/* Load template data */
 	for (i = 0; i < n; i++) {
 		tpl = gtp_bpf_prog_tpl_get(argv[i]);
 		if (tpl == NULL) {
-			log_message(LOG_INFO, "%s(): bpf program refers to "
-				    "mode '%s', which is unknown",
-				    __FUNCTION__, argv[i]);
-			gtp_bpf_prog_unload(p);
-			return -1;
+			log_message(LOG_INFO, "%s: bpf program refers to "
+				    "unknown mode '%s'",
+				    p->path, argv[i]);
+			goto err;
 		}
 		if (tpl->udata_alloc_size)
 			p->tpl_data[i] = MALLOC(tpl->udata_alloc_size);
 		p->tpl[i] = tpl;
-		p->tpl_n = i;
 	}
 	p->tpl_n = n;
-
+	free(buf);
 	return 0;
+
+ err:
+	n = i;
+	for (i = 0; p->run.obj == NULL && i < n; i++)
+		if (p->tpl[i]->udata_alloc_size)
+			free(p->tpl_data[i]);
+	bpf_object__close(p->load.obj);
+	p->load.obj = NULL;
+	free(buf);
+	__set_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags);
+	return ret;
 }
 
+
 static inline int
-gtp_bpf_assign_program(struct gtp_bpf_prog *p, struct bpf_program *prg,
-		       const char *force_type, const char *path)
+_assign_program(struct gtp_bpf_prog *p, struct bpf_program *prg,
+		const char *force_type, const char *prgname)
 {
 	enum bpf_attach_type atype;
 
 	if (prg == NULL) {
 		log_message(LOG_INFO, "eBPF'%s': %s program '%s' not found",
-			    p->path, force_type, path);
+			    p->path, force_type, prgname);
 		return -1;
 	}
 
@@ -313,12 +351,12 @@ gtp_bpf_assign_program(struct gtp_bpf_prog *p, struct bpf_program *prg,
 	case BPF_CGROUP_INET_INGRESS:
 		if (*force_type && strcmp(force_type, "tc")) {
 			log_message(LOG_INFO, "eBPF'%s': wrong program '%s' type', "
-				    "has:%s expect:tc", p->path, p->tc.progname,
+				    "has:%s expect:tc", p->path, p->tc_progname,
 				    libbpf_bpf_attach_type_str(atype));
 			return -1;
 		}
-		if (p->tc.bpf_prg == NULL) {
-			p->tc.bpf_prg = prg;
+		if (p->load.tc == NULL) {
+			p->load.tc = prg;
 			log_message(LOG_DEBUG, "%s: tc program %s loaded, %d instructions",
 				    p->path, bpf_program__name(prg),
 				    bpf_program__insn_cnt(prg));
@@ -328,12 +366,12 @@ gtp_bpf_assign_program(struct gtp_bpf_prog *p, struct bpf_program *prg,
 	case BPF_XDP:
 		if (*force_type && strcmp(force_type, "xdp")) {
 			log_message(LOG_INFO, "eBPF'%s': wrong program '%s' type, "
-				    "has:%s expect:xdp", p->path, p->xdp.progname,
+				    "has:%s expect:xdp", p->path, p->xdp_progname,
 				    libbpf_bpf_attach_type_str(atype));
 			return -1;
 		}
-		if (p->xdp.bpf_prg == NULL) {
-			p->xdp.bpf_prg = prg;
+		if (p->load.xdp == NULL) {
+			p->load.xdp = prg;
 			log_message(LOG_DEBUG, "%s: xdp program %s loaded, %d instructions",
 				    p->path, bpf_program__name(prg),
 				    bpf_program__insn_cnt(prg));
@@ -350,32 +388,30 @@ gtp_bpf_assign_program(struct gtp_bpf_prog *p, struct bpf_program *prg,
 	}
 }
 
-int
-gtp_bpf_prog_load(struct gtp_bpf_prog *p)
+static int
+gtp_bpf_prog_load(struct gtp_bpf_prog *p, bool reloading)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	struct bpf_program *bpf_prg;
 	int i, err;
 
-	/* Already loaded */
-	if (p->tc.bpf_prg || p->xdp.bpf_prg)
+	if (!!reloading ^ !!(p->run.tc || p->run.xdp))
 		return 0;
-
-	/* Already attempted */
-	if (__test_bit(GTP_BPF_PROG_FL_ERR_BIT, &p->flags))
+	if (__test_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags))
 		return -1;
 
 	/* Open bpf file (if not done yet) */
-	if (gtp_bpf_prog_open(p) < 0)
+	if (gtp_bpf_prog_open(p))
 		return -1;
 
-	for (i = 0; i < p->tpl_n; i++) {
-		if (p->tpl[i]->opened != NULL && p->tpl[i]->opened(p, p->tpl_data[i]))
-			goto err;
+	if (!reloading) {
+		for (i = 0; i < p->tpl_n; i++)
+			if (p->tpl[i]->opened != NULL && p->tpl[i]->opened(p, p->tpl_data[i]))
+				goto err;
 	}
 
 	/* Finally load it (kernel runs verifier) */
-	err = bpf_object__load(p->bpf_obj);
+	err = bpf_object__load(p->load.obj);
 	if (err) {
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 		log_message(LOG_INFO, "eBPF: error loading bpf_object err:%d (%s)"
@@ -383,37 +419,50 @@ gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 		goto err;
 	}
 
-	for (i = 0; i < p->tpl_n; i++) {
-		if (p->tpl[i]->loaded != NULL && p->tpl[i]->loaded(p, p->tpl_data[i]))
-			goto err;
+	if (!reloading) {
+		for (i = 0; i < p->tpl_n; i++) {
+			if (p->tpl[i]->loaded != NULL && p->tpl[i]->loaded(p, p->tpl_data[i]))
+				goto err;
+		}
 	}
 
 	/* Explicit program lookup */
-	if (p->xdp.progname[0]) {
-		bpf_prg = bpf_object__find_program_by_name(p->bpf_obj, p->xdp.progname);
-		if (gtp_bpf_assign_program(p, bpf_prg, "xdp", p->xdp.progname) < 0)
+	if (p->xdp_progname[0]) {
+		bpf_prg = bpf_object__find_program_by_name(p->load.obj, p->xdp_progname);
+		if (_assign_program(p, bpf_prg, "xdp", p->xdp_progname) < 0)
 			goto err;
 	}
-	if (p->tc.progname[0]) {
-		bpf_prg = bpf_object__find_program_by_name(p->bpf_obj, p->tc.progname);
-		if (gtp_bpf_assign_program(p, bpf_prg, "tc", p->tc.progname) < 0)
+	if (p->tc_progname[0]) {
+		bpf_prg = bpf_object__find_program_by_name(p->load.obj, p->tc_progname);
+		if (_assign_program(p, bpf_prg, "tc", p->tc_progname) < 0)
 			goto err;
 	}
 
 	/* If progname is not specified, use first program the object contains */
-	bpf_object__for_each_program(bpf_prg, p->bpf_obj) {
-		gtp_bpf_assign_program(p, bpf_prg, "", NULL);
+	bpf_object__for_each_program(bpf_prg, p->load.obj) {
+		_assign_program(p, bpf_prg, "", NULL);
 	}
 
-	/* Must have at least one program */
-	if (!p->tc.bpf_prg && !p->xdp.bpf_prg)
+	/* Must have at least one loaded program */
+	if (!p->load.tc && !p->load.xdp)
 		goto err;
+
+	if (!reloading) {
+		p->run = p->load;
+		memset(&p->load, 0x00, sizeof (p->load));
+		gtp_bpf_prog_watch(p);
+	}
 
 	return 0;
 
  err:
-	gtp_bpf_prog_unload(p);
-	__set_bit(GTP_BPF_PROG_FL_ERR_BIT, &p->flags);
+	if (!reloading)
+		gtp_bpf_prog_unload(p);
+	bpf_object__close(p->load.obj);
+	p->load.obj = NULL;
+	p->load.xdp = NULL;
+	p->load.tc = NULL;
+	__set_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags);
 	return -1;
 }
 
@@ -424,54 +473,53 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int i;
 
-	/* Before attaching program to interface (program may not yet be loaded) */
+	if (gtp_bpf_prog_load(p, false) < 0)
+		return -1;
+
+	/* Before attaching program to interface */
 	for (i = 0; i < p->tpl_n; i++)
 		if (p->tpl[i]->iface_bind != NULL &&
 		    p->tpl[i]->iface_bind(p, p->tpl_data[i], iface))
 			return -1;
 
-	/* Load program, if not already */
-	if (gtp_bpf_prog_load(p) < 0)
-		return -1;
-
 	/* Attach XDP */
-	if (p->xdp.bpf_prg != NULL) {
-		iface->bpf_xdp_lnk = bpf_program__attach_xdp(p->xdp.bpf_prg, ifindex);
+	if (p->run.xdp != NULL) {
+		iface->bpf_xdp_lnk = bpf_program__attach_xdp(p->run.xdp, ifindex);
 		if (!iface->bpf_xdp_lnk) {
 			libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 			log_message(LOG_INFO,
 				    "%s(): XDP: error attaching program:%s "
 				    "to ifindex:%d err:%d (%s)"
 				    , __FUNCTION__
-				    , bpf_program__name(p->xdp.bpf_prg)
+				    , bpf_program__name(p->run.xdp)
 				    , ifindex
 				    , errno, errmsg);
-			return -1;
+			goto err;
 		}
 	}
 
 	/* Attach TCX */
-	if (p->tc.bpf_prg != NULL) {
+	if (p->run.tc != NULL) {
 		DECLARE_LIBBPF_OPTS(bpf_tcx_opts, opts);
-		iface->bpf_tc_lnk = bpf_program__attach_tcx(p->tc.bpf_prg, ifindex, &opts);
+		iface->bpf_tc_lnk = bpf_program__attach_tcx(p->run.tc, ifindex, &opts);
 		if (!iface->bpf_tc_lnk) {
 			libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
 			log_message(LOG_INFO,
 				    "%s(): TCX: error attaching program:%s "
 				    "to ifindex:%d err:%d (%s)"
 				    , __FUNCTION__
-				    , bpf_program__name(p->tc.bpf_prg)
+				    , bpf_program__name(p->run.tc)
 				    , ifindex
 				    , errno, errmsg);
-			if (iface->bpf_xdp_lnk != NULL) {
-				bpf_link__detach(iface->bpf_xdp_lnk);
-				iface->bpf_xdp_lnk = NULL;
-			}
-			return -1;
+			goto err;
 		}
 	}
 
 	return 0;
+
+ err:
+	gtp_bpf_prog_detach(p, iface);
+	return -1;
 }
 
 void
@@ -503,11 +551,14 @@ gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 		if (p->tpl[i]->udata_alloc_size)
 			free(p->tpl_data[i]);
 	}
-	p->tc.bpf_prg = NULL;
-	p->xdp.bpf_prg = NULL;
-	if (p->bpf_obj != NULL)
-		bpf_object__close(p->bpf_obj);
-	p->bpf_obj = NULL;
+	p->run.tc = NULL;
+	p->run.xdp = NULL;
+	if (p->run.obj != NULL)
+		bpf_object__close(p->run.obj);
+	p->run.obj = NULL;
+	if (p->load.obj != NULL)
+		bpf_object__close(p->load.obj);
+	p->load.obj = NULL;
 	p->tpl_n = 0;
 }
 
@@ -535,6 +586,124 @@ gtp_bpf_prog_tpl_data_set(struct gtp_bpf_prog *p, const char *tpl_name, void *ud
 	return -1;
 }
 
+static void
+gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
+{
+	struct gtp_interface *iface;
+	struct bpf_map *map, *omap;
+	int ret;
+
+	__clear_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags);
+
+	/* open new bpf file */
+	if (gtp_bpf_prog_open(p))
+		return;
+
+	/* not loaded */
+	if (p->run.obj == NULL)
+		return;
+
+	/* assign bpf_map from old program, if there are the same */
+	bpf_object__for_each_map(map, p->load.obj) {
+		omap = bpf_object__find_map_by_name(p->run.obj, bpf_map__name(map));
+		if (!omap) {
+			log_message(LOG_INFO, "%s: map not found on running program",
+				    bpf_map__name(map));
+			goto skip;
+		}
+		if (bpf_map__type(map) != bpf_map__type(omap)) {
+			log_message(LOG_INFO, "%s: map caracteristics are different",
+				    bpf_map__name(map));
+			goto skip;
+		}
+
+		bpf_map__reuse_fd(map, bpf_map__fd(omap));
+	}
+
+	if (gtp_bpf_prog_load(p, true))
+		return;
+
+	/* reattach program on running interfaces */
+	list_for_each_entry(iface, &daemon_data->interfaces, next) {
+		if (iface->bpf_prog != p)
+			continue;
+
+		if (iface->bpf_xdp_lnk && p->load.xdp) {
+			ret = bpf_link__update_program(iface->bpf_xdp_lnk, p->load.xdp);
+			if (ret)
+				log_message(LOG_INFO, "%s: update_program: %m", p->name);
+		}
+		if (iface->bpf_tc_lnk && p->load.tc) {
+			ret = bpf_link__update_program(iface->bpf_tc_lnk, p->load.tc);
+			if (ret)
+				log_message(LOG_INFO, "%s: update_program: %m", p->name);
+		}
+	}
+
+	p->run = p->load;
+	memset(&p->load, 0x00, sizeof (p->load));
+
+	return;
+ skip:
+	bpf_object__close(p->load.obj);
+	p->load.obj = NULL;
+}
+
+
+static void
+gtp_bpf_prog_inotify_thread(struct thread *t)
+{
+	struct inotify_event *event;
+	struct gtp_bpf_prog *p;
+	ssize_t i = 0, len;
+	char buf[8000];
+
+	len = read(t->u.f.fd, buf, sizeof (buf));
+	if (len <= 0) {
+		log_message(LOG_ERR, "inotify/read: %m");
+		thread_del(t);
+		return;
+	}
+
+	while (i < len) {
+		event = (struct inotify_event *)(buf + i);
+		i += sizeof (*event) + event->len;
+
+		bool found = false;
+		list_for_each_entry(p, &daemon_data->bpf_progs, next) {
+			if (event->wd == p->watch_id) {
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			continue;
+
+		if (event->mask & IN_DELETE_SELF) {
+			log_message(LOG_INFO, "%s: bpf file is deleted", p->path);
+
+		} else {
+			log_message(LOG_INFO, "%s: bpf file modified, reload", p->path);
+			gtp_bpf_prog_soft_reload(p);
+		}
+	}
+
+	inotify_th = thread_add_read(master, gtp_bpf_prog_inotify_thread,
+				     NULL, t->u.f.fd, TIMER_NEVER, 0);
+}
+
+/* watch bpf file with inotify (optional, not a fatal error if failing) */
+static void
+gtp_bpf_prog_watch(struct gtp_bpf_prog *p)
+{
+	if (inotify_th == NULL)
+		return;
+
+	p->watch_id = inotify_add_watch(inotify_th->u.f.fd, p->path,
+					IN_CLOSE_WRITE | IN_DELETE_SELF);
+	if (p->watch_id < 0)
+		log_message(LOG_ERR, "%s: %m", p->path);
+}
 
 /*
  *	BPF progs related
@@ -589,6 +758,23 @@ gtp_bpf_prog_alloc(const char *name)
 	list_add_tail(&new->next, &daemon_data->bpf_progs);
 
 	return new;
+}
+
+int
+gtp_bpf_progs_init(void)
+{
+	int ifd;
+
+	ifd = inotify_init();
+	if (ifd < 0) {
+		log_message(LOG_ERR, "inotify_init: %m");
+		return -1;
+	}
+
+	inotify_th = thread_add_read(master, gtp_bpf_prog_inotify_thread,
+				     NULL, ifd, TIMER_NEVER, 0);
+
+	return 0;
 }
 
 int

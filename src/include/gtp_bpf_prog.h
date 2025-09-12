@@ -59,29 +59,30 @@ struct gtp_bpf_prog_tpl {
 /* Flags */
 enum gtp_bpf_prog_flags {
 	GTP_BPF_PROG_FL_SHUTDOWN_BIT,
-	GTP_BPF_PROG_FL_ERR_BIT,
+	GTP_BPF_PROG_FL_LOAD_ERR_BIT,
 };
 
-/* BPF prog structure */
-struct gtp_bpf_prog_type {
-	char			progname[GTP_STR_MAX_LEN];
-	struct bpf_program	*bpf_prg;
+struct gtp_bpf_prog_obj {
+	struct bpf_object	*obj;
+	struct bpf_program	*tc;
+	struct bpf_program	*xdp;
 };
 
 struct gtp_bpf_prog {
 	char			name[GTP_STR_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	char			path[GTP_PATH_MAX_LEN];
-	struct bpf_object	*bpf_obj;
-	struct gtp_bpf_prog_type tc;
-	struct gtp_bpf_prog_type xdp;
-
+	char			tc_progname[GTP_STR_MAX_LEN];
+	char			xdp_progname[GTP_STR_MAX_LEN];
 	const struct gtp_bpf_prog_tpl *tpl[BPF_PROG_TPL_MAX];
 	void			*tpl_data[BPF_PROG_TPL_MAX];
 	int			tpl_n;
+	struct gtp_bpf_prog_obj	run;	/* bpf running */
+	struct gtp_bpf_prog_obj	load;	/* bpf being loaded */
 
 	struct list_head	next;
 
+	int			watch_id;
 	int			refcnt;
 	unsigned long		flags;
 };
@@ -93,7 +94,6 @@ int gtp_bpf_prog_obj_update_var(struct bpf_object *,
 int gtp_bpf_prog_attach(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_detach(struct gtp_bpf_prog *, struct gtp_interface *);
 int gtp_bpf_prog_open(struct gtp_bpf_prog *);
-int gtp_bpf_prog_load(struct gtp_bpf_prog *);
 void gtp_bpf_prog_unload(struct gtp_bpf_prog *);
 int gtp_bpf_prog_destroy(struct gtp_bpf_prog *);
 int gtp_bpf_prog_tpl_data_set(struct gtp_bpf_prog *, const char *, void *);
@@ -102,6 +102,7 @@ void gtp_bpf_prog_foreach_prog(int (*hdl) (struct gtp_bpf_prog *, void *),
 struct gtp_bpf_prog *gtp_bpf_prog_get(const char *);
 int gtp_bpf_prog_put(struct gtp_bpf_prog *);
 struct gtp_bpf_prog *gtp_bpf_prog_alloc(const char *);
+int gtp_bpf_progs_init(void);
 int gtp_bpf_progs_destroy(void);
 void gtp_bpf_prog_tpl_register(struct gtp_bpf_prog_tpl *);
 const struct gtp_bpf_prog_tpl *gtp_bpf_prog_tpl_get(const char *);

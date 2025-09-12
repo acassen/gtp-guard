@@ -68,7 +68,7 @@ cgn_bpf_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *if
 static int
 cgn_bpf_opened(struct gtp_bpf_prog *p, void *udata)
 {
-	struct bpf_object *obj = p->bpf_obj;
+	struct bpf_object *obj = p->load.obj;
 	struct cgn_ctx *c = udata;
 	struct bpf_map *m;
 	uint64_t icmp_to;

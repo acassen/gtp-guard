@@ -169,9 +169,9 @@ DEFUN(bpf_prog_progname,
 	struct gtp_bpf_prog *p = vty->index;
 
 	if (!strcmp(argv[0], "xdp"))
-		bsd_strlcpy(p->xdp.progname, argv[0], GTP_STR_MAX_LEN - 1);
+		bsd_strlcpy(p->xdp_progname, argv[0], GTP_STR_MAX_LEN - 1);
 	else
-		bsd_strlcpy(p->tc.progname, argv[0], GTP_STR_MAX_LEN - 1);
+		bsd_strlcpy(p->tc_progname, argv[0], GTP_STR_MAX_LEN - 1);
 	return CMD_SUCCESS;
 }
 
@@ -260,10 +260,10 @@ bpf_prog_config_write(struct vty *vty)
 		if (p->description[0])
 			vty_out(vty, " description %s%s", p->description, VTY_NEWLINE);
 		vty_out(vty, " path %s%s", p->path, VTY_NEWLINE);
-		if (p->xdp.progname[0])
-			vty_out(vty, " prog-name xdp %s%s", p->xdp.progname, VTY_NEWLINE);
-		if (p->tc.progname[0])
-			vty_out(vty, " prog-name tc %s%s", p->tc.progname, VTY_NEWLINE);
+		if (p->xdp_progname[0])
+			vty_out(vty, " prog-name xdp %s%s", p->xdp_progname, VTY_NEWLINE);
+		if (p->tc_progname[0])
+			vty_out(vty, " prog-name tc %s%s", p->tc_progname, VTY_NEWLINE);
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "" : "no "
 			   , VTY_NEWLINE);

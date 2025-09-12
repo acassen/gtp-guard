@@ -64,15 +64,15 @@ gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata)
 	struct gtp_bpf_fwd *pf = udata;
 
 	/* MAP ref for faster access */
-	pf->teid_xlat = gtp_bpf_load_map(p->bpf_obj, "teid_xlat");
+	pf->teid_xlat = gtp_bpf_load_map(p->load.obj, "teid_xlat");
 	if (!pf->teid_xlat)
 		return -1;
 
-	pf->iptnl_info = gtp_bpf_load_map(p->bpf_obj, "iptnl_info");
+	pf->iptnl_info = gtp_bpf_load_map(p->load.obj, "iptnl_info");
 	if (!pf->iptnl_info)
 		return -1;
 
-	pf->if_llattr = gtp_bpf_load_map(p->bpf_obj, "if_llattr");
+	pf->if_llattr = gtp_bpf_load_map(p->load.obj, "if_llattr");
 	if (!pf->if_llattr)
 		return -1;
 

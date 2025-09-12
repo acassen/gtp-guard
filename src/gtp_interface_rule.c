@@ -125,7 +125,7 @@ gtp_ifrule_opened(struct gtp_bpf_prog *p, void *udata)
 {
 	struct gtp_bpf_interface_rule *r = udata;
 
-	r->acl = bpf_object__find_map_by_name(p->bpf_obj, "if_rule");
+	r->acl = bpf_object__find_map_by_name(p->load.obj, "if_rule");
 	if (r->acl == NULL)
 		return -1;
 
