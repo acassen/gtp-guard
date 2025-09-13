@@ -1314,7 +1314,7 @@ gtpc_change_notification_request_hdl(struct gtp_server *srv, struct sockaddr_sto
  */
 static const struct {
 	int (*hdl) (struct gtp_server *, struct sockaddr_storage *);
-} gtpc_msg_hdl[0xff + 1] = {
+} gtpc_msg_hdl[1 << 8] = {
 	[GTP_ECHO_REQUEST_TYPE]			= { gtpc_echo_request_hdl },
 	[GTP_CREATE_SESSION_REQUEST_TYPE]	= { gtpc_create_session_request_hdl },
 	[GTP_DELETE_SESSION_REQUEST_TYPE]	= { gtpc_delete_session_request_hdl },

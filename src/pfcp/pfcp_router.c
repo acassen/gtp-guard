@@ -26,7 +26,7 @@
 #include "gtp_data.h"
 #include "pfcp_router.h"
 #include "pfcp_server.h"
-#include "pfcp_proto.h"
+#include "pfcp_router_hdl.h"
 #include "utils.h"
 #include "memory.h"
 
@@ -48,9 +48,10 @@ pfcp_router_ingress_init(struct inet_server *s)
 int
 pfcp_router_ingress_process(struct inet_server *srv, struct sockaddr_storage *addr_from)
 {
+	struct pfcp_server *s = srv->ctx;
 	int ret;
 
-	ret = pfcp_proto_handle(srv, addr_from);
+	ret = pfcp_router_handle(s, addr_from);
 	if (ret < 0)
 		return -1;
 

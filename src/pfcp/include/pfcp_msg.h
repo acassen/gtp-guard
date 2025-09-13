@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 #include "rbtree_types.h"
-#include "pfcp.h"
+#include "pfcp_ie.h"
 #include "pkt_buffer.h"
 
 /*

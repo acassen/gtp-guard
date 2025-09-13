@@ -30,6 +30,7 @@
 #include "command.h"
 #include "bitops.h"
 #include "memory.h"
+#include "logger.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -173,6 +174,9 @@ DEFUN(pfcp_listen,
 		return CMD_WARNING;
 	}
 
+	log_message(LOG_INFO, "PFCP start listening on [%s]:%d"
+			    , inet_sockaddrtos(addr)
+			    , ntohs(inet_sockaddrport(addr)));
 	__set_bit(PFCP_ROUTER_FL_LISTEN_BIT, &c->flags);
 	return CMD_SUCCESS;
 }
@@ -234,11 +238,22 @@ config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
 	struct pfcp_router *c;
+	struct pfcp_server *srv;
 
 	list_for_each_entry(c, l, next) {
-		vty_out(vty, "pfcp-router %s\n", c->name);
+		vty_out(vty, "pfcp-router %s%s", c->name, VTY_NEWLINE);
 		if (c->description[0])
-			vty_out(vty, " description %s\n", c->description);
+			vty_out(vty, " description %s%s"
+				   , c->description, VTY_NEWLINE);
+		if (c->bpf_prog)
+			vty_out(vty, " bpf-program %s%s"
+				   , c->bpf_prog->name, VTY_NEWLINE);
+		srv = &c->s;
+		if (srv->s.addr.ss_family)
+			vty_out(vty, " listen %s port %d%s"
+				   , inet_sockaddrtos(&srv->s.addr)
+				   , ntohs(inet_sockaddrport(&srv->s.addr))
+				   , VTY_NEWLINE);
 		vty_out(vty, "!\n");
 	}
 
@@ -258,6 +273,8 @@ cmd_ext_pfcp_router_install(void)
 
 	install_default(PFCP_ROUTER_NODE);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_description_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_router_bpf_prog_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_router_cmd);

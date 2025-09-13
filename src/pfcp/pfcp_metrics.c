@@ -71,5 +71,5 @@ pfcp_metrics_pkt_update(struct pfcp_metrics_pkt *m, ssize_t nbytes)
 /*
  *	Metrics dump
  *
- *	TODO: Integrate into main GTP Metrics stuff
+ * TODO: Integrate into main GTP Metrics stuff
  */

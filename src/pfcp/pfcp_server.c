@@ -62,8 +62,8 @@ pfcp_server_rcv(struct inet_server *srv, ssize_t nbytes)
  */
 int
 pfcp_server_init(struct pfcp_server *s, void *ctx,
-		int (*init) (struct inet_server *),
-		int (*process) (struct inet_server *, struct sockaddr_storage *))
+		 int (*init) (struct inet_server *),
+		 int (*process) (struct inet_server *, struct sockaddr_storage *))
 {
 	struct inet_server *srv = &s->s;
 	struct sockaddr_storage *addr = &srv->addr;
