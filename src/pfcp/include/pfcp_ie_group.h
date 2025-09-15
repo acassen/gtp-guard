@@ -116,3 +116,16 @@ struct pfcp_ie_peer_up_restart_report {
 	/* Mandatory IEs */
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 };
+
+/*
+ *	PFCP Session Set Modification Grouped IEs
+ */
+struct pfcp_ie_session_change_info {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_pgwc_ip_address;
+	/* Conditional IEs */
+	struct pfcp_ie_fq_csid *pgwc_smf_fq_csid;
+	struct pfcp_ie_group_id *groupe_id;
+	struct pfcp_ie_cp_ip_address *cp_ip_address;
+};
