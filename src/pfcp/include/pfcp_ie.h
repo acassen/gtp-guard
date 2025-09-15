@@ -31,6 +31,7 @@
 
 /* PFCP IE Types */
 enum pfcp_ie_type {
+	/* Elementary IEs */
 	PFCP_IE_CAUSE				= 19,
 	PFCP_IE_SOURCE_INTERFACE		= 20,
 	PFCP_IE_F_TEID				= 21,
@@ -237,7 +238,11 @@ enum pfcp_ie_type {
 	PFCP_IE_PFCPSDRSP_FLAGS			= 318,
 	PFCP_IE_QER_INDICATIONS			= 319,
 	PFCP_IE_VENDOR_SPECIFIC_NODE_REPORT_TYPE = 320,
-	PFCP_IE_CONFIGURED_TIME_DOMAIN		= 321
+	PFCP_IE_CONFIGURED_TIME_DOMAIN		= 321,
+
+	/* Grouped IEs */
+	PFCP_IE_SESSION_RETENTION_INFORMATION	= 183,
+	PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION	= 233,
 };
 
 /* Common IE header */
@@ -283,11 +288,11 @@ struct pfcp_ie_f_teid {
 	};
 	uint32_t teid;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 	uint8_t choose_id;
@@ -857,13 +862,13 @@ struct pfcp_ie_f_seid {
 		uint8_t flags;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint8_t v4:1;
 			uint8_t v6:1;
+			uint8_t v4:1;
 			uint8_t spare:6;
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:6;
-			uint8_t v6:1;
 			uint8_t v4:1;
+			uint8_t v6:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
@@ -871,11 +876,11 @@ struct pfcp_ie_f_seid {
 	};
 	uint64_t seid;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 } __attribute__((packed));
@@ -1030,17 +1035,26 @@ struct pfcp_ie_measurement_period {
 /* Fully qualified PDN Connection Set Identifier IE */
 struct pfcp_ie_fq_csid {
 	struct pfcp_ie h;
-	uint8_t number_of_csids;
 	union {
+		uint8_t node_id_type;
 		struct {
-			uint8_t node_id_type;
-			union {
-				struct in_addr ipv4;
-				struct in6_addr ipv6;
-			} node_address;
-		} node_id;
-		uint8_t *fqcsid;
-	} fq_csid;
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+			uint8_t num_csid:4;
+			uint8_t ntype:4;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+			uint8_t ntype:4;
+			uint8_t num_csid:4;
+#else
+#error "Please fix <asm/byteorder.h>"
+#endif
+		};
+	};
+	union {
+		struct in_addr ipv4_address;
+		struct in6_addr ipv6_address;
+		uint32_t mcc_mnc_encoded;
+	} node_address;
+	uint16_t csid[];
 } __attribute__((packed));
 
 /* Volume Measurement IE */
@@ -1187,8 +1201,8 @@ struct pfcp_ie_outer_header_creation {
 	uint16_t description;
 	uint32_t teid;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 	} ip_address;
 	uint16_t port_number;
 	uint32_t c_tag;
@@ -1328,11 +1342,11 @@ struct pfcp_ie_ue_ip_address {
 		};
 	};
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 	uint8_t ipv6_prefix_delegation_bits;
@@ -1663,11 +1677,11 @@ struct pfcp_ie_user_plane_ip_resource_information {
 		};
 	};
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 	uint8_t network_instance[];
@@ -2151,13 +2165,39 @@ struct pfcp_ie_priority {
 /* UE IP Address Pool Identity IE */
 struct pfcp_ie_ue_ip_address_pool_identity {
 	struct pfcp_ie h;
-	uint8_t ue_ip_address_pool_identity[];
+	uint8_t pool_identity_length;
+	uint8_t pool_identity[];
 } __attribute__((packed));
 
 /* Alternative SMF IP Address IE */
 struct pfcp_ie_alternative_smf_ip_address {
 	struct pfcp_ie h;
-	uint8_t ip_address[];
+	union {
+		uint8_t flags;
+		struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+			uint8_t v6:1;
+			uint8_t v4:1;
+			uint8_t pfe:1;
+			uint8_t spare:5;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+			uint8_t spare:5;
+			uint8_t pfe:1;
+			uint8_t v4:1;
+			uint8_t v6:1;
+#else
+#error "Please fix <asm/byteorder.h>"
+#endif
+		};
+	};
+	union {
+		struct in_addr v4;
+		struct in6_addr v6;
+		struct {
+			struct in_addr v4;
+			struct in6_addr v6;
+		} both;
+	} ip_address;
 } __attribute__((packed));
 
 /* Packet Replication and Detection Carry-On Information IE */
@@ -2217,7 +2257,30 @@ struct pfcp_ie_pfcpasrsp_flags {
 /* CP PFCP Entity IP Address IE */
 struct pfcp_ie_cp_pfcp_entity_ip_address {
 	struct pfcp_ie h;
-	uint8_t ip_address[];
+	union {
+		uint8_t flags;
+		struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+			uint8_t v6:1;
+			uint8_t v4:1;
+			uint8_t spare:6;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+			uint8_t spare:6;
+			uint8_t v4:1;
+			uint8_t v6:1;
+#else
+#error "Please fix <asm/byteorder.h>"
+#endif
+		};
+	};
+	union {
+		struct in_addr v4;
+		struct in6_addr v6;
+		struct {
+			struct in_addr v4;
+			struct in6_addr v6;
+		} both;
+	} ip_address;
 } __attribute__((packed));
 
 /* PFCP Session Establishment Request Flags IE */
@@ -2271,23 +2334,32 @@ struct pfcp_ie_ip_multicast_address {
 /* Source IP Address IE */
 struct pfcp_ie_source_ip_address {
 	struct pfcp_ie h;
+	union {
+		uint8_t flags;
+		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	uint8_t spare:5;
-	uint8_t mpl:1;
-	uint8_t v4:1;
-	uint8_t v6:1;
+			uint8_t v6:1;
+			uint8_t v4:1;
+			uint8_t mpl:1;
+			uint8_t spare:5;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-	uint8_t v6:1;
-	uint8_t v4:1;
-	uint8_t mpl:1;
-	uint8_t spare:5;
+			uint8_t spare:5;
+			uint8_t mpl:1;
+			uint8_t v4:1;
+			uint8_t v6:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
-	union {
-		struct in_addr ipv4_address;
-		struct in6_addr ipv6_address;
+		};
 	};
+	union {
+		struct in_addr v4;
+		struct in6_addr v6;
+		struct {
+			struct in_addr v4;
+			struct in6_addr v6;
+		} both;
+	} ip_address;
 	uint8_t mask_prefix_length;
 } __attribute__((packed));
 
@@ -2512,11 +2584,11 @@ struct pfcp_ie_mptcp_address_information {
 	};
 	uint16_t mptcp_address_id;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 } __attribute__((packed));
@@ -2545,19 +2617,19 @@ struct pfcp_ie_ue_link_specific_ip_address {
 		};
 	};
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 	union {
-		struct in_addr nw_ipv4;
-		struct in6_addr nw_ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr nw_ipv4;
-			struct in6_addr nw_ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} nw_ip_address;
 } __attribute__((packed));
@@ -2584,14 +2656,23 @@ struct pfcp_ie_pmf_address_information {
 		};
 	};
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
-	uint8_t mac_address[6];
+	union {
+		uint16_t std_access;
+		uint16_t non_std_access;
+		struct {
+			uint16_t std_access;
+			uint16_t non_std_access;
+		} both;
+	} port;
+	uint8_t mac_address_std[6];
+	uint8_t mac_address_non_std[6];
 } __attribute__((packed));
 
 /* ATSSS-LL Information IE */
@@ -2955,7 +3036,30 @@ struct pfcp_ie_bridge_management_information_container {
 /* Number of UE IP Addresses IE */
 struct pfcp_ie_number_of_ue_ip_addresses {
 	struct pfcp_ie h;
-	uint32_t number_of_ue_ip_addresses_value;
+	union {
+		uint8_t flags;
+		struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+			uint8_t v4:1;
+			uint8_t v6:1;
+			uint8_t spare:6;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+			uint8_t spare:6;
+			uint8_t v6:1;
+			uint8_t v4:1;
+#else
+#error "Please fix <asm/byteorder.h>"
+#endif
+		};
+	};
+	union {
+		uint32_t v4;
+		uint32_t v6;
+		struct {
+			uint32_t v4;
+			uint32_t v6;
+		} both;
+	} ip_addresses;
 } __attribute__((packed));
 
 /* Validity Timer IE */
@@ -3015,8 +3119,8 @@ struct pfcp_ie_called_number {
 struct pfcp_ie_dns_server_address {
 	struct pfcp_ie h;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 	} ip_address;
 } __attribute__((packed));
 
@@ -3024,8 +3128,8 @@ struct pfcp_ie_dns_server_address {
 struct pfcp_ie_nbns_server_address {
 	struct pfcp_ie h;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 	} ip_address;
 } __attribute__((packed));
 
@@ -3074,24 +3178,24 @@ struct pfcp_ie_cp_ip_address {
 		uint8_t flags;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint8_t v4:1;
 			uint8_t v6:1;
+			uint8_t v4:1;
 			uint8_t spare:6;
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:6;
-			uint8_t v6:1;
 			uint8_t v4:1;
+			uint8_t v6:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 } __attribute__((packed));
@@ -3106,11 +3210,17 @@ struct pfcp_ie_ip_address_and_port_number_replacement {
 			uint8_t v4:1;
 			uint8_t v6:1;
 			uint8_t dpn:1;
+			uint8_t sipv4:1;
+			uint8_t sipv6:1;
 			uint8_t spn:1;
-			uint8_t spare:4;
+			uint8_t umn6rs:1;
+			uint8_t spare:1;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			uint8_t spare:4;
+			uint8_t spare:1;
+			uint8_t umn6rs:1;
 			uint8_t spn:1;
+			uint8_t sipv6:1;
+			uint8_t sipv4:1;
 			uint8_t dpn:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
@@ -3126,9 +3236,17 @@ struct pfcp_ie_ip_address_and_port_number_replacement {
 			struct in_addr ipv4;
 			struct in6_addr ipv6;
 		} both;
-	} ip_address;
-	uint16_t destination_port_number;
-	uint16_t source_port_number;
+	} dst_ip_address;
+	uint16_t dst_port_number;
+	union {
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
+		struct {
+			struct in_addr ipv4;
+			struct in6_addr ipv6;
+		} both;
+	} src_ip_address;
+	uint16_t src_port_number;
 } __attribute__((packed));
 
 /* DNS Query Filter IE */
@@ -3181,27 +3299,27 @@ struct pfcp_ie_local_ingress_tunnel {
 		uint8_t flags;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint8_t ch:1;
 			uint8_t v4:1;
 			uint8_t v6:1;
+			uint8_t ch:1;
 			uint8_t spare:5;
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:5;
+			uint8_t ch:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-			uint8_t ch:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
-	uint32_t teid;
+	uint16_t port;
 	union {
-		struct in_addr ipv4;
-		struct in6_addr ipv6;
+		struct in_addr v4;
+		struct in6_addr v6;
 		struct {
-			struct in_addr ipv4;
-			struct in6_addr ipv6;
+			struct in_addr v4;
+			struct in6_addr v6;
 		} both;
 	} ip_address;
 } __attribute__((packed));
