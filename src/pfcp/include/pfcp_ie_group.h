@@ -95,3 +95,24 @@ struct pfcp_ie_ue_ip_address_usage_information {
 	struct pfcp_ie_ue_ip_address_pool_identity *ue_ip_address_pool_identity;
 	struct pfcp_ie_s_nssai *s_nssai;
 };
+
+/*
+ *	PFCP Node Report Grouped IEs
+ */
+struct pfcp_ie_user_plane_path_failure_report {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
+};
+
+struct pfcp_ie_user_plane_path_recovery_report {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
+};
+
+struct pfcp_ie_peer_up_restart_report {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
+};

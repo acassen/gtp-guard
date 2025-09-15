@@ -163,6 +163,27 @@ struct pfcp_association_release_response {
 	struct pfcp_ie_cause *cause;
 };
 
+/* PFCP Node Report */
+struct pfcp_node_report_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_node_report_type *node_report_type;
+	/* Grouped IEs */
+	struct pfcp_ie_user_plane_path_failure_report *user_plane_path_failure_report;
+	struct pfcp_ie_user_plane_path_recovery_report *user_plane_path_recovery_report;
+	struct pfcp_ie_peer_up_restart_report *peer_up_restart_report;
+};
+
+struct pfcp_node_report_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+};
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
