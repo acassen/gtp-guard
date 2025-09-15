@@ -42,9 +42,45 @@ struct pfcp_msg {
 };
 
 
+
+
 /*
  *	PFCP Messages structures
  */
+
+/* PFCP Heartbeat */
+struct pfcp_heartbeat_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
+	/* Optional IEs */
+	struct pfcp_ie_source_ip_address *source_ip_address;
+};
+
+struct pfcp_heartbeat_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
+};
+
+/* PFCP PFD Management */
+struct pfcp_pfd_management_request {
+	struct pfcp_hdr *h;
+	/* Optional IEs */
+	struct pfcp_ie_node_id *node_id;
+	/* Grouped IEs */
+	struct pfcp_ie_application_id_pfds *application_id_pfds;
+};
+
+struct pfcp_pfd_management_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+	struct pfcp_ie_node_id *node_id;
+};
+
 /* PFCP Association Setup */
 struct pfcp_association_setup_request {
 	struct pfcp_hdr *h;

@@ -24,6 +24,23 @@
 
 
 /*
+ *	PFCP PFD Management Grouped IEs
+ */
+struct pfcp_ie_pfd_context {
+	struct pfcp_ie *h;
+	/* Optional IEs */
+	struct pfcp_ie_pfd_contents *pfd_contents;
+
+struct pfcp_ie_application_id_pfds {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_application_id *application_id;
+	/* Optional IEs */
+	struct pfcp_ie_pfd_context *pfd_context;
+};
+
+
+/*
  *	PFCP Association Setup Grouped IEs
  */
 struct pfcp_ie_session_retention_information {
