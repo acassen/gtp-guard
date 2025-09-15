@@ -42,6 +42,47 @@ struct pfcp_msg {
 };
 
 
+/*
+ *	PFCP Messages structures
+ */
+/* PFCP Association Setup */
+struct pfcp_association_setup_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
+	/* Optional IEs */
+	struct pfcp_ie_up_function_features *up_function_features;
+	struct pfcp_ie_cp_function_features *cp_function_features;
+	struct pfcp_ie_user_plane_ip_resource_information *user_plane_ip_resource_info;
+	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_ip_address;
+	struct pfcp_ie_smf_set_id *smf_set_id;
+	struct pfcp_ie_pfcpasreq_flags *pfcpasreq_flags;
+	/* Grouped IEs */
+	struct pfcp_ie_session_retention_information *session_retention_info;
+	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
+};
+
+struct pfcp_association_setup_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_cause *cause;
+	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
+	/* Optional IEs */
+	struct pfcp_ie_up_function_features *up_function_features;
+	struct pfcp_ie_cp_function_features *cp_function_features;
+	struct pfcp_ie_user_plane_ip_resource_information *user_plane_ip_resource_info;
+	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_ip_address;
+	struct pfcp_ie_smf_set_id *smf_set_id;
+	struct pfcp_ie_pfcpasrsp_flags *pfcpasrsp_flags;
+	struct pfcp_ie_nf_instance_id *upf_instance_id;
+	/* Grouped IEs */
+	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
+};
+
+
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
@@ -49,3 +90,5 @@ struct pfcp_msg_ie *pfcp_msg_ie_get(struct pfcp_msg *msg, uint16_t type);
 struct pfcp_msg *pfcp_msg_alloc(const struct pkt_buffer *pbuff);
 void pfcp_msg_destroy(struct pfcp_msg *msg);
 void pfcp_msg_dump(const char *prefix, struct pfcp_msg *msg);
+int pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg);
+

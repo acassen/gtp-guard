@@ -21,8 +21,11 @@
 
 #include "pfcp.h"
 #include "pfcp_router_hdl.h"
+#include "pfcp_msg.h"
+#include "pfcp_utils.h"
 #include "pkt_buffer.h"
 #include "utils.h"
+#include "logger.h"
 
 
 /*
@@ -31,13 +34,27 @@
 static int
 pfcp_heartbeat_request(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
-	return 0;
+	return -1;
 }
 
 static int
 pfcp_assoc_setup_request(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
-	return 0;
+	struct pfcp_association_setup_request req;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) srv->s.pbuff;
+	int err;
+
+	err = pfcp_msg_parse(srv->s.pbuff, &req);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while parsing [%] Request"
+				    , __FUNCTION__
+				    , pfcp_msgtype2str(pfcph->type));
+		return -1;
+	}
+
+
+
+	return -1;
 }
 
 
@@ -74,7 +91,7 @@ pfcp_router_handle(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 
 	printf("---[ incoming packet ]---\n");
-	dump_buffer("PFCP", (char *) pbuff->head, pkt_buffer_size(pbuff));
+	dump_buffer("PFCP ", (char *) pbuff->head, pkt_buffer_len(pbuff));
 
 	if (*(pfcp_msg_hdl[pfcph->type].hdl)) {
 		pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
@@ -83,5 +100,5 @@ pfcp_router_handle(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	}
 
 	pfcp_metrics_rx_notsup(&srv->msg_metrics, pfcph->type);
-	return 0;
+	return -1;
 }

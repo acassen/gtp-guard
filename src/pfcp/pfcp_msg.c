@@ -38,7 +38,6 @@
  * protocol msg handling. So o(log n) sounds better here even
  * if it comes with a little memory overhead to do so.
  */
-
 size_t
 pfcp_msg_hlen(struct pfcp_hdr *h)
 {
