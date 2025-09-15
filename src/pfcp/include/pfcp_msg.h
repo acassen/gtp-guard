@@ -117,6 +117,37 @@ struct pfcp_association_setup_response {
 	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
 };
 
+/* PFCP Association Update */
+struct pfcp_association_update_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	/* Optional IEs */
+	struct pfcp_ie_up_function_features *up_function_features;
+	struct pfcp_ie_cp_function_features *cp_function_features;
+	struct pfcp_ie_pfcp_association_release_request *association_release_request;
+	struct pfcp_ie_graceful_release_period *graceful_release_period;
+	struct pfcp_ie_pfcpaureq_flags *pfcpaureq_flags;
+	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_ip_address;
+	struct pfcp_ie_smf_set_id *smf_set_id;
+	struct pfcp_ie_clock_drift_control_information *clock_drift_control_information;
+	/* Grouped IEs */
+	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_information;
+	struct pfcp_ie_gtp_u_path_qos_control_information *gtp_u_path_qos_control_information;
+	struct pfcp_ie_ue_ip_address_usage_information *ue_ip_address_usage_information;
+};
+
+struct pfcp_association_update_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_up_function_features *up_function_features;
+	struct pfcp_ie_cp_function_features *cp_function_features;
+	/* Grouped IEs */
+	struct pfcp_ie_ue_ip_address_usage_information *ue_ip_address_usage_information;
+};
 
 
 /* Prototypes */
