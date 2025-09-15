@@ -149,6 +149,19 @@ struct pfcp_association_update_response {
 	struct pfcp_ie_ue_ip_address_usage_information *ue_ip_address_usage_information;
 };
 
+/* PFCP Association Release */
+struct pfcp_association_release_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+};
+
+struct pfcp_association_release_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_cause *cause;
+};
 
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
