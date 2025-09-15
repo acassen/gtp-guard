@@ -184,6 +184,30 @@ struct pfcp_node_report_response {
 	struct pfcp_ie_offending *offending_ie;
 };
 
+/* PFCP Session Set Deletion */
+struct pfcp_session_set_deletion_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	/* Optional IEs */
+	struct pfcp_ie_fq_csid *sgw_c_fq_csid;
+	struct pfcp_ie_fq_csid *pgw_c_fq_csid;
+	struct pfcp_ie_fq_csid *sgw_u_fq_csid;
+	struct pfcp_ie_fq_csid *pgw_u_fq_csid;
+	struct pfcp_ie_fq_csid *twan_fq_csid;
+	struct pfcp_ie_fq_csid *epdg_fq_csid;
+	struct pfcp_ie_fq_csid *mme_fq_csid;
+};
+
+struct pfcp_session_set_deletion_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+};
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
