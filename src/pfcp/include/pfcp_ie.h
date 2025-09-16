@@ -235,19 +235,51 @@ enum pfcp_ie_type {
 	PFCP_IE_REPORTING_FLAGS			= 298,
 	PFCP_IE_PREDEFINED_RULES_NAME		= 299,
 	PFCP_IE_LOCAL_INGRESS_TUNNEL		= 308,
+	PFCP_IE_AREA_SESSION_ID			= 314,
 	PFCP_IE_PFCPSDRSP_FLAGS			= 318,
 	PFCP_IE_QER_INDICATIONS			= 319,
 	PFCP_IE_VENDOR_SPECIFIC_NODE_REPORT_TYPE = 320,
 	PFCP_IE_CONFIGURED_TIME_DOMAIN		= 321,
 
 	/* Grouped IEs */
+	PFCP_IE_CREATE_PDR			= 1,
+	PFCP_IE_PDR				= 2,
+	PFCP_IE_CREATE_FAR			= 3,
+	PFCP_IE_FORWARDING_PARAMETERS		= 4,
+	PFCP_IE_DUPLICATING_PARAMETERS		= 5,
+	PFCP_IE_CREATE_URR			= 6,
+	PFCP_IE_CREATE_QER			= 7,
+	PFCP_IE_CREATED_PDR			= 8,
+	PFCP_IE_UPDATE_PDR			= 9,
+	PFCP_IE_UPDATE_FAR			= 10,
+	PFCP_IE_8UPDATE_FORWARDING_PARAMETERS_TYPE = 11,
+	PFCP_IE_UPDATE_BAR_PFCP_SESSION_REPORT_RESPONSE = 12,
+	PFCP_IE_UPDATE_URR			= 13,
+	PFCP_IE_UPDATE_QER			= 14,
+	PFCP_IE_REMOVE_PDR			= 15,
+	PFCP_IE_REMOVE_FAR			= 16,
+	PFCP_IE_REMOVE_URR			= 17,
+	PFCP_IE_REMOVE_QER			= 18,
+	PFCP_IE_LOAD_CONTROL_INFORMATION	= 51,
+	PFCP_IE_OVERLOAD_CONTROL_INFORMATION	= 54,
 	PFCP_IE_APPLICATION_ID_PFDS		= 58,
 	PFCP_IE_PFD_CONTEXT			= 59,
 	PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT	= 102,
+	PFCP_IE_AGGREGATED_URRS			= 118,
+	PFCP_IE_CREATE_TRAFFIC_ENDPOINT		= 127,
+	PFCP_IE_CREATED_TRAFFIC_ENDPOINT	= 128,
+	PFCP_IE_ETHERNET_PACKET_FILTER		= 132,
+	PFCP_IE_ADDITIONAL_MONITORING_TIME	= 147,
+	PFCP_IE_CREATE_MAR			= 165,
 	PFCP_IE_SESSION_RETENTION_INFORMATION	= 183,
 	PFCP_IE_USER_PLANE_PATH_RECOVERY_REPORT	= 187,
+	PFCP_IE_REMOVE_SRR			= 211,
+	PFCP_IE_CREATE_SRR			= 212,
+	PFCP_IE_UPDATE_SRR			= 213,
+	PFCP_IE_REDUNDANT_TRANSMISSION_DETECTION_PARAMETERS = 255,
 	PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION	= 233,
 	PFCP_IE_UE_IP_ADDRESS_USAGE_INFORMATION	= 267,
+	PFCP_IE_PARTIAL_FAILURE_INFORMATION	= 272,
 	PFCP_IE_SESSION_CHANGE_INFO		= 290,
 	PFCP_IE_PEER_UP_RESTART_REPORT		= 315,
 };
@@ -2099,6 +2131,20 @@ struct pfcp_ie_apn_dnn {
 	uint8_t apn_dnn[];
 } __attribute__((packed));
 
+/* 3GPP Interface Type IE */
+struct pfcp_ie_3gpp_interface_type {
+	struct pfcp_ie h;
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	uint8_t value:6;
+	uint8_t spare:2;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+	uint8_t spare:2;
+	uint8_t value:6;
+#else
+#error "Please fix <asm/byteorder.h>"
+#endif
+} __attribute__((packed));
+
 /* PFCP Session Retention Request Flags IE */
 struct pfcp_ie_pfcpsrreq_flags {
 	struct pfcp_ie h;
@@ -3330,6 +3376,12 @@ struct pfcp_ie_local_ingress_tunnel {
 		} both;
 	} ip_address;
 } __attribute__((packed));
+
+/* PFCP Area Session ID IE */
+struct pfcp_ie_area_session_id {
+	struct pfcp_ie h;
+	uint16_t id;
+};
 
 /* PFCP Session Deletion Response Flags IE */
 struct pfcp_ie_pfcpsdrsp_flags {

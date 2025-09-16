@@ -40,6 +40,7 @@ struct pfcp_ie_application_id_pfds {
 	struct pfcp_ie_pfd_context *pfd_context;
 };
 
+
 /*
  *	PFCP Association Setup Grouped IEs
  */
@@ -55,6 +56,7 @@ struct pfcp_ie_ue_ip_address_pool_information {
 	struct pfcp_ie_s_nssai *s_nssai;
 	struct pfcp_ie_ip_version *ip_version;
 };
+
 
 /*
  *	PFCP Association Update Grouped IEs
@@ -96,6 +98,7 @@ struct pfcp_ie_ue_ip_address_usage_information {
 	struct pfcp_ie_s_nssai *s_nssai;
 };
 
+
 /*
  *	PFCP Node Report Grouped IEs
  */
@@ -117,6 +120,7 @@ struct pfcp_ie_peer_up_restart_report {
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 };
 
+
 /*
  *	PFCP Session Set Modification Grouped IEs
  */
@@ -128,4 +132,294 @@ struct pfcp_ie_session_change_info {
 	struct pfcp_ie_fq_csid *pgwc_smf_fq_csid;
 	struct pfcp_ie_group_id *groupe_id;
 	struct pfcp_ie_cp_ip_address *cp_ip_address;
+};
+
+
+/*
+ *	PFCP Session Establishment Request Grouped IEs
+ */
+
+/* Redundant Transmission Detection Parameters IE */
+struct pfcp_ie_redundant_transmission_detection_parameters {
+	struct pfcp_ie *h;
+	/* Optional IEs */
+	struct pfcp_ie_f_teid *f_teid;
+	struct pfcp_ie_network_instance *network_instance;
+};
+
+/* Ethernet Packet Filter Grouped IE */
+struct pfcp_ie_ethernet_packet_filter {
+	struct pfcp_ie *h;
+	/* Optional IEs */
+	struct pfcp_ie_ethernet_filter_id *ethernet_filter_id;
+	struct pfcp_ie_ethernet_filter_properties *ethernet_filter_properties;
+	struct pfcp_ie_mac_address *mac_address;
+	struct pfcp_ie_ethertype *ethertype;
+	struct pfcp_ie_c_tag *c_tag;
+	struct pfcp_ie_s_tag *s_tag;
+	struct pfcp_ie_sdf_filter *sdf_filter;
+};
+
+/* PDI (Packet Detection Information) Grouped IE */
+struct pfcp_ie_pdi {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_source_interface *source_interface;
+	/* Optional IEs */
+	struct pfcp_ie_f_teid *local_f_teid;
+	struct pfcp_ie_local_ingress_tunnel *local_ingress_tunnel;
+	struct pfcp_ie_network_instance *network_instance;
+	struct pfcp_ie_redundant_transmission_detection_parameters *redundant_transmission_detection_parameters;
+	struct pfcp_ie_ue_ip_address *ue_ip_address;
+	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
+	struct pfcp_ie_sdf_filter *sdf_filter;
+	struct pfcp_ie_application_id *application_id;
+	struct pfcp_ie_ethernet_pdu_session_information *ethernet_pdu_session_information;
+	struct pfcp_ie_ethernet_packet_filter *ethernet_packet_filter;
+	struct pfcp_ie_qfi *qfi;
+	struct pfcp_ie_framed_route *framed_route;
+	struct pfcp_ie_framed_routing *framed_routing;
+	struct pfcp_ie_framed_ipv6_route *framed_ipv6_route;
+	struct pfcp_ie_3gpp_interface_type *source_interface_type;
+	struct pfcp_ie_area_session_id *area_session_id;
+};
+
+/* Create PDR (Packet Detection Rule) Grouped IE */
+struct pfcp_ie_create_pdr {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_pdr_id *pdr_id;
+	struct pfcp_ie_precedence *precedence;
+	struct pfcp_ie_pdi *pdi;
+	/* Optional IEs */
+	struct pfcp_ie_outer_header_removal *outer_header_removal;
+	struct pfcp_ie_far_id *far_id;
+	struct pfcp_ie_urr_id *urr_id;
+	struct pfcp_ie_qer_id *qer_id;
+	struct pfcp_ie_mar_id *mar_id;
+	struct pfcp_ie_activate_predefined_rules *activate_predefined_rules;
+	struct pfcp_ie_activation_time *activation_time;
+	struct pfcp_ie_deactivation_time *deactivation_time;
+	struct pfcp_ie_ue_ip_address_pool_identity *ue_ip_address_pool_identity;
+	struct pfcp_ie_rat_type *rat_type;
+};
+
+/* Create FAR (Forwarding Action Rule) Grouped IE */
+struct pfcp_ie_forwarding_parameters {
+	struct pfcp_ie *h;
+	/* Optional IEs */
+	struct pfcp_ie_destination_interface *destination_interface;
+	struct pfcp_ie_network_instance *network_instance;
+	struct pfcp_ie_redirect_information *redirect_information;
+	struct pfcp_ie_outer_header_creation *outer_header_creation;
+	struct pfcp_ie_transport_level_marking *transport_level_marking;
+	struct pfcp_ie_forwarding_policy *forwarding_policy;
+	struct pfcp_ie_header_enrichment *header_enrichment;
+	struct pfcp_ie_traffic_endpoint_id *linked_traffic_endpoint_id;
+	struct pfcp_ie_proxying *proxying;
+	struct pfcp_ie_3gpp_interface_type *destination_interface_type;
+	struct pfcp_ie_data_network_access_identifier *data_network_access_identifier;
+	struct pfcp_ie_ip_address_and_port_number_replacement *ip_address_and_port_number_replacement;
+};
+struct pfcp_ie_duplicating_parameters {
+	struct pfcp_ie *h;
+	/* Optional IEs */
+	struct pfcp_ie_destination_interface *destination_interface;
+	struct pfcp_ie_outer_header_creation *outer_header_creation;
+	struct pfcp_ie_transport_level_marking *transport_level_marking;
+	struct pfcp_ie_forwarding_policy *forwarding_policy;
+};
+struct pfcp_ie_create_far {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_far_id *far_id;
+	struct pfcp_ie_apply_action *apply_action;
+	/* Optional IEs */
+	struct pfcp_ie_forwarding_parameters *forwarding_parameters;
+	struct pfcp_ie_duplicating_parameters *duplicating_parameters;
+	struct pfcp_ie_bar_id *bar_id;
+};
+
+/* Create URR (Usage Reporting Rule) Grouped IE */
+struct pfcp_ie_aggregated_urrs {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_aggregated_urr_id *aggregated_urr_id;
+	/* Optional IEs */
+	struct pfcp_ie_multiplier *multiplier;
+};
+struct pfcp_ie_additional_monitoring_time {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_monitoring_time *monitoring_time;
+	/* Optional IEs */
+	struct pfcp_ie_subsequent_volume_threshold *subsequent_volume_threshold;
+	struct pfcp_ie_subsequent_time_threshold *subsequent_time_threshold;
+	struct pfcp_ie_subsequent_volume_quota *subsequent_volume_quota;
+	struct pfcp_ie_subsequent_time_quota *subsequent_time_quota;
+	struct pfcp_ie_subsequent_event_threshold *subsequent_event_threshold;
+	struct pfcp_ie_subsequent_event_quota *subsequent_event_quota;
+	struct pfcp_ie_event_threshold *event_threshold;
+	struct pfcp_ie_event_quota *event_quota;
+};
+struct pfcp_ie_create_urr {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_urr_id *urr_id;
+	struct pfcp_ie_measurement_method *measurement_method;
+	struct pfcp_ie_reporting_triggers *reporting_triggers;
+	/* Optional IEs */
+	struct pfcp_ie_measurement_period *measurement_period;
+	struct pfcp_ie_volume_threshold *volume_threshold;
+	struct pfcp_ie_volume_quota *volume_quota;
+	struct pfcp_ie_event_threshold *event_threshold;
+	struct pfcp_ie_event_quota *event_quota;
+	struct pfcp_ie_time_threshold *time_threshold;
+	struct pfcp_ie_time_quota *time_quota;
+	struct pfcp_ie_quota_holding_time *quota_holding_time;
+	struct pfcp_ie_dropped_dl_traffic_threshold *dropped_dl_traffic_threshold;
+	struct pfcp_ie_quota_validity_time *quota_validity_time;
+	struct pfcp_ie_monitoring_time *monitoring_time;
+	struct pfcp_ie_subsequent_volume_threshold *subsequent_volume_threshold;
+	struct pfcp_ie_subsequent_time_threshold *subsequent_time_threshold;
+	struct pfcp_ie_subsequent_volume_quota *subsequent_volume_quota;
+	struct pfcp_ie_subsequent_time_quota *subsequent_time_quota;
+	struct pfcp_ie_subsequent_event_threshold *subsequent_event_threshold;
+	struct pfcp_ie_subsequent_event_quota *subsequent_event_quota;
+	struct pfcp_ie_inactivity_detection_time *inactivity_detection_time;
+	struct pfcp_ie_linked_urr_id *linked_urr_id;
+	struct pfcp_ie_measurement_information *measurement_information;
+	struct pfcp_ie_time_quota_mechanism *time_quota_mechanism;
+	struct pfcp_ie_aggregated_urrs *aggregated_urrs;
+	struct pfcp_ie_far_id *far_id_for_quota_action;
+	struct pfcp_ie_ethernet_inactivity_timer *ethernet_inactivity_timer;
+	struct pfcp_ie_additional_monitoring_time *additional_monitoring_time;
+	struct pfcp_ie_number_of_reports *number_of_reports;
+};
+
+/* Create QER (QoS Enhancement Rule) Grouped IE */
+struct pfcp_ie_create_qer {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_qer_id *qer_id;
+	struct pfcp_ie_qer_correlation_id *qer_correlation_id;
+	struct pfcp_ie_gate_status *gate_status;
+	/* Optional IEs */
+	struct pfcp_ie_mbr *maximum_bitrate;
+	struct pfcp_ie_gbr *guaranteed_bitrate;
+	struct pfcp_ie_packet_rate *packet_rate;
+	struct pfcp_ie_packet_rate_status *packet_rate_status;
+	struct pfcp_ie_dl_flow_level_marking *dl_flow_level_marking;
+	struct pfcp_ie_qfi *qos_flow_identifier;
+	struct pfcp_ie_rqi *reflective_qos;
+	struct pfcp_ie_paging_policy_indicator *paging_policy_indicator;
+	struct pfcp_ie_averaging_window *averaging_window;
+	struct pfcp_ie_qer_control_indications *qer_control_indications;
+	struct pfcp_ie_qer_indications *qer_indications;
+};
+
+/* Create BAR (Buffering Action Rule) Grouped IE */
+struct pfcp_ie_create_bar {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_bar_id *bar_id;
+	/* Optional IEs */
+	struct pfcp_ie_downlink_data_notification_delay *downlink_data_notification_delay;
+	struct pfcp_ie_suggested_buffering_packets_count *suggested_buffering_packets_count;
+	struct pfcp_ie_mt_edt_control_information *mt_edt_control_information;
+	struct pfcp_ie_dl_buffering_duration *dl_buffering_duration;
+	struct pfcp_ie_dl_buffering_suggested_packet_count *dl_buffering_suggested_packet_count;
+};
+
+/* Create Traffic Endpoint Grouped IE */
+struct pfcp_ie_create_traffic_endpoint {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
+	/* Optional IEs */
+	struct pfcp_ie_f_teid *local_f_teid;
+	struct pfcp_ie_network_instance *network_instance;
+	struct pfcp_ie_redundant_transmission_detection_parameters *redundant_transmission_detection_parameters;
+	struct pfcp_ie_ue_ip_address *ue_ip_address;
+	struct pfcp_ie_ethernet_pdu_session_information *ethernet_pdu_session_information;
+	struct pfcp_ie_framed_route *framed_route;
+	struct pfcp_ie_framed_routing *framed_routing;
+	struct pfcp_ie_framed_ipv6_route *framed_ipv6_route;
+	struct pfcp_ie_qfi *qfi;
+	struct pfcp_ie_3gpp_interface_type *source_interface_type;
+	struct pfcp_ie_local_ingress_tunnel *local_ingress_tunnel;
+	struct pfcp_ie_area_session_id *area_session_id;
+	struct pfcp_ie_rat_type *rat_type;
+};
+
+/* Create MAR (Multicast Access Rule) Grouped IE */
+struct pfcp_ie_create_mar {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_mar_id *mar_id;
+	struct pfcp_ie_steering_functionality *steering_functionality;
+	struct pfcp_ie_steering_mode *steering_mode;
+	/* FIXME: ...Just Basic support for now...*/
+};
+
+/* Create SRR (Session Report Rule) Grouped IE */
+struct pfcp_ie_create_srr {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_srr_id *srr_id;
+	/* FIXME: ...Just Basic support for now...*/
+};
+
+
+/*
+ *	PFCP Session Establishment Response Grouped IEs
+ */
+
+/* Created PDR Grouped IE */
+struct pfcp_ie_created_pdr {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_pdr_id *pdr_id;
+	/* Optional IEs */
+	struct pfcp_ie_f_teid *local_f_teid;
+	struct pfcp_ie_ue_ip_address *ue_ip_address;
+};
+
+/* Load Control Information Grouped IE */
+struct pfcp_ie_load_control_information {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_sequence_number *load_control_sequence_number;
+	struct pfcp_ie_metric *load_metric;
+};
+
+/* Overload Control Information Grouped IE */
+struct pfcp_ie_overload_control_information {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_sequence_number *overload_control_sequence_number;
+	struct pfcp_ie_metric *overload_reduction_metric;
+	struct pfcp_ie_timer *period_of_validity;
+	/* Optional IEs */
+	struct pfcp_ie_oci_flags *overload_control_information_flags;
+};
+
+/* Created Traffic Endpoint Grouped IE */
+struct pfcp_ie_created_traffic_endpoint {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
+	struct pfcp_ie_local_ingress_tunnel *local_ingress_tunnel;
+	/* Optional IEs */
+	struct pfcp_ie_f_teid *local_f_teid;
+	struct pfcp_ie_ue_ip_address *ue_ip_address;
+};
+
+/* Partial Failure Grouped IE */
+struct pfcp_ie_partial_failure_information {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_failed_rule_id *failed_rule_id;
+	struct pfcp_ie_cause *cause;
+	struct pfcp_ie_offending_ie_information *offending_ie_information;
 };

@@ -226,6 +226,55 @@ struct pfcp_session_set_modification_response {
 	struct pfcp_ie_offending *offending_ie;
 };
 
+/* PFCP Session Establishment */
+struct pfcp_session_establishment_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_f_seid *cp_f_seid;
+	/* Optional IEs */
+	struct pfcp_ie_pdn_type *pdn_type;
+	struct pfcp_ie_user_plane_inactivity_timer *user_plane_inactivity_timer;
+	struct pfcp_ie_user_id *user_id;
+	struct pfcp_ie_trace_information *trace_information;
+	struct pfcp_ie_apn_dnn *apn_dnn;
+	struct pfcp_ie_fq_csid *sgw_c_fq_csid;
+	struct pfcp_ie_fq_csid *mme_fq_csid;
+	struct pfcp_ie_fq_csid *pgwc_smf_fq_csid;
+	struct pfcp_ie_fq_csid *epdg_fq_csid;
+	struct pfcp_ie_fq_csid *twan_fq_csid;
+	struct pfcp_ie_pfcpsereq_flags *pfcpsereq_flags;
+	struct pfcp_ie_create_bridge_router_info *create_bridge_router_info;
+	struct pfcp_ie_rat_type *rat_type;
+	struct pfcp_ie_group_id *group_id;
+	/* Grouped IEs */
+	struct pfcp_ie_create_pdr *create_pdr;
+	struct pfcp_ie_create_far *create_far;
+	struct pfcp_ie_create_urr *create_urr;
+	struct pfcp_ie_create_qer *create_qer;
+	struct pfcp_ie_create_bar *create_bar;
+	struct pfcp_ie_create_traffic_endpoint *create_traffic_endpoint;
+	struct pfcp_ie_create_mar *create_mar;
+	struct pfcp_ie_create_srr *create_srr;
+};
+
+struct pfcp_session_establishment_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+	struct pfcp_ie_f_seid *up_f_seid;
+	struct pfcp_ie_load_control_information *load_control_information;
+	struct pfcp_ie_overload_control_information *overload_control_information;
+	struct pfcp_ie_fq_csid *sgw_u_fq_csid;
+	struct pfcp_ie_fq_csid *pgw_u_fq_csid;
+	struct pfcp_ie_failed_rule_id *failed_rule_id;
+	struct pfcp_ie_created_traffic_endpoint *created_traffic_endpoint;
+	struct pfcp_ie_partial_failure_information *partial_failure_information;
+};
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
