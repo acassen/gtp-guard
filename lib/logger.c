@@ -36,27 +36,24 @@ enable_console_log(void)
 }
 
 void
-log_message(const int priority, const char *fmt, ...)
+log_message_va(const int priority, const char *fmt, va_list args)
 {
-	va_list args;
 	char buf[512];
 	int n;
 
-	va_start(args, fmt);
-	n = vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
-
 	if (log_console) {
+		va_list args_cp;
 		char *p = NULL;
+
+		va_copy(args_cp, args);
+		n = vsnprintf(buf, sizeof (buf), fmt, args);
 
 		/* output was truncated, we want full output on stderr */
 		if (n >= sizeof (buf)) {
 			p = malloc(n + 2);
 			if (!p)
 				return;
-			va_start(args, fmt);
-			n = vsnprintf(p, n + 1, fmt, args);
-			va_end(args);
+			n = vsnprintf(p, n + 1, fmt, args_cp);
 		} else {
 			p = buf;
 		}
@@ -67,8 +64,19 @@ log_message(const int priority, const char *fmt, ...)
 		if (p != buf)
 			free(p);
 	} else {
+		vsnprintf(buf, sizeof (buf), fmt, args);
 		syslog(priority, "%s", buf);
 	}
+}
+
+void
+log_message(const int priority, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	log_message_va(priority, fmt, args);
+	va_end(args);
 }
 
 void
@@ -81,7 +89,7 @@ conf_write(FILE *fp, const char *fmt, ...)
 		vfprintf(fp, fmt, args);
 		fprintf(fp, "\n");
 	} else
-		log_message(LOG_INFO, fmt, args);
+		log_message_va(LOG_INFO, fmt, args);
 
 	va_end(args);
 }
