@@ -254,7 +254,7 @@ enum pfcp_ie_type {
 	PFCP_IE_UPDATE_PDR			= 9,
 	PFCP_IE_UPDATE_FAR			= 10,
 	PFCP_IE_8UPDATE_FORWARDING_PARAMETERS_TYPE = 11,
-	PFCP_IE_UPDATE_BAR			= 12,
+	PFCP_IE_UPDATE_BAR_REPORT		= 12,
 	PFCP_IE_UPDATE_URR			= 13,
 	PFCP_IE_UPDATE_QER			= 14,
 	PFCP_IE_REMOVE_PDR			= 15,
@@ -265,7 +265,13 @@ enum pfcp_ie_type {
 	PFCP_IE_OVERLOAD_CONTROL_INFORMATION	= 54,
 	PFCP_IE_APPLICATION_ID_PFDS		= 58,
 	PFCP_IE_PFD_CONTEXT			= 59,
+	PFCP_IE_QUERY_URR			= 77,
 	PFCP_IE_USAGE_REPORT			= 78,
+	PFCP_IE_DOWNLINK_DATA_REPORT		= 83,
+	PFCP_IE_CREATE_BAR			= 85,
+	PFCP_IE_UPDATE_BAR			= 86,
+	PFCP_IE_REMOVE_BAR			= 87,
+	PFCP_IE_ERROR_INDICATION_REPORT		= 99,
 	PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT	= 102,
 	PFCP_IE_UPDATE_DUPLICATION_PARAMETERS	= 105,
 	PFCP_IE_AGGREGATED_URRS			= 118,
@@ -281,11 +287,15 @@ enum pfcp_ie_type {
 	PFCP_IE_UPDATE_MAR			= 169,
 	PFCP_IE_SESSION_RETENTION_INFORMATION	= 183,
 	PFCP_IE_USER_PLANE_PATH_RECOVERY_REPORT	= 187,
+	PFCP_IE_CLOCK_DRIFT_CONTROL_INFORMATION	= 203,
 	PFCP_IE_REMOVE_SRR			= 211,
 	PFCP_IE_CREATE_SRR			= 212,
 	PFCP_IE_UPDATE_SRR			= 213,
+	PFCP_IE_SESSION_REPORT			= 214,
 	PFCP_IE_REDUNDANT_TRANSMISSION_DETECTION_PARAMETERS = 255,
 	PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION	= 233,
+	PFCP_IE_GTP_U_PATH_QOS_CONTROL_INFORMATION = 238,
+	PFCP_IE_PACKET_RATE_STATUS_REPORT	= 252,
 	PFCP_IE_UE_IP_ADDRESS_USAGE_INFORMATION	= 267,
 	PFCP_IE_PARTIAL_FAILURE_INFORMATION	= 272,
 	PFCP_IE_SESSION_CHANGE_INFO		= 290,
@@ -301,13 +311,13 @@ struct pfcp_ie {
 /* Cause IE */
 struct pfcp_ie_cause {
 	struct pfcp_ie h;
-	uint8_t cause_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Source Interface IE */
 struct pfcp_ie_source_interface {
 	struct pfcp_ie h;
-	uint8_t interface_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* F-TEID IE */
@@ -425,7 +435,7 @@ struct pfcp_ie_qer_correlation_id {
 /* Precedence IE */
 struct pfcp_ie_precedence {
 	struct pfcp_ie h;
-	uint32_t precedence_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Transport Level Marking IE */
@@ -622,7 +632,7 @@ struct pfcp_ie_forwarding_policy {
 /* Destination Interface IE */
 struct pfcp_ie_destination_interface {
 	struct pfcp_ie h;
-	uint8_t interface_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* UP Function Features IE */
@@ -832,7 +842,7 @@ struct pfcp_ie_dl_buffering_duration {
 /* DL Buffering Suggested Packet Count IE */
 struct pfcp_ie_dl_buffering_suggested_packet_count {
 	struct pfcp_ie h;
-	uint8_t packet_count_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* PFCPSMReq-Flags IE */
@@ -956,7 +966,7 @@ struct pfcp_ie_node_id {
 		struct in_addr ipv4;
 		struct in6_addr ipv6;
 		uint8_t *fqdn;
-	} node_id_value;
+	} value;
 } __attribute__((packed));
 
 /* PFD Contents IE */
@@ -1142,7 +1152,7 @@ struct pfcp_ie_volume_measurement {
 /* Duration Measurement IE */
 struct pfcp_ie_duration_measurement {
 	struct pfcp_ie h;
-	uint32_t duration_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Time of First Packet IE */
@@ -1160,7 +1170,7 @@ struct pfcp_ie_time_of_last_packet {
 /* Quota Holding Time IE */
 struct pfcp_ie_quota_holding_time {
 	struct pfcp_ie h;
-	uint32_t quota_holding_time_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Dropped DL Traffic Threshold IE */
@@ -1215,7 +1225,7 @@ struct pfcp_ie_volume_quota {
 /* Time Quota IE */
 struct pfcp_ie_time_quota {
 	struct pfcp_ie h;
-	uint32_t time_quota_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Start Time IE */
@@ -1239,7 +1249,7 @@ struct pfcp_ie_urr_id {
 /* Linked URR ID IE */
 struct pfcp_ie_linked_urr_id {
 	struct pfcp_ie h;
-	uint32_t linked_urr_id_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Outer Header Creation IE */
@@ -1675,7 +1685,7 @@ struct pfcp_ie_failed_rule_id {
 #endif
 		};
 	};
-	uint32_t rule_id_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Time Quota Mechanism IE */
@@ -1750,7 +1760,7 @@ struct pfcp_ie_multiplier {
 /* Aggregated URR ID IE */
 struct pfcp_ie_aggregated_urr_id {
 	struct pfcp_ie h;
-	uint32_t aggregated_urr_id_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Subsequent Volume Quota IE */
@@ -1782,7 +1792,7 @@ struct pfcp_ie_subsequent_volume_quota {
 /* Subsequent Time Quota IE */
 struct pfcp_ie_subsequent_time_quota {
 	struct pfcp_ie h;
-	uint32_t time_quota_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* RQI IE */
@@ -1808,7 +1818,7 @@ struct pfcp_ie_rqi {
 struct pfcp_ie_qfi {
 	struct pfcp_ie h;
 	union {
-		uint8_t qfi_value;
+		uint8_t value;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 			uint8_t qfi:6;
@@ -1826,7 +1836,7 @@ struct pfcp_ie_qfi {
 /* Query URR Reference IE */
 struct pfcp_ie_query_urr_reference {
 	struct pfcp_ie h;
-	uint32_t query_urr_reference_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Additional Usage Reports Information IE */
@@ -1851,7 +1861,7 @@ struct pfcp_ie_additional_usage_reports_information {
 /* Traffic Endpoint ID IE */
 struct pfcp_ie_traffic_endpoint_id {
 	struct pfcp_ie h;
-	uint8_t traffic_endpoint_id_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* MAC Address IE */
@@ -1965,7 +1975,7 @@ struct pfcp_ie_proxying {
 /* Ethernet Filter ID IE */
 struct pfcp_ie_ethernet_filter_id {
 	struct pfcp_ie h;
-	uint32_t ethernet_filter_id_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Ethernet Filter Properties IE */
@@ -1990,7 +2000,7 @@ struct pfcp_ie_ethernet_filter_properties {
 /* Suggested Buffering Packets Count IE */
 struct pfcp_ie_suggested_buffering_packets_count {
 	struct pfcp_ie h;
-	uint8_t packet_count_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* User ID IE */
@@ -2022,7 +2032,7 @@ struct pfcp_ie_user_id {
 #endif
 		};
 	};
-	uint8_t user_id_value[];
+	uint8_t value[];
 } __attribute__((packed));
 
 /* Ethernet PDU Session Information IE */
@@ -2067,25 +2077,25 @@ struct pfcp_ie_ethernet_inactivity_timer {
 /* Event Quota IE */
 struct pfcp_ie_event_quota {
 	struct pfcp_ie h;
-	uint32_t event_quota_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Event Threshold IE */
 struct pfcp_ie_event_threshold {
 	struct pfcp_ie h;
-	uint32_t event_threshold_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Subsequent Event Quota IE */
 struct pfcp_ie_subsequent_event_quota {
 	struct pfcp_ie h;
-	uint32_t subsequent_event_quota_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Subsequent Event Threshold IE */
 struct pfcp_ie_subsequent_event_threshold {
 	struct pfcp_ie h;
-	uint32_t subsequent_event_threshold_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Trace Information IE */
@@ -2106,7 +2116,7 @@ struct pfcp_ie_framed_route {
 /* Framed Routing IE */
 struct pfcp_ie_framed_routing {
 	struct pfcp_ie h;
-	uint32_t framed_routing_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Framed IPv6 Route IE */
@@ -2124,13 +2134,13 @@ struct pfcp_ie_time_stamp {
 /* Averaging Window IE */
 struct pfcp_ie_averaging_window {
 	struct pfcp_ie h;
-	uint32_t averaging_window_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* PPI IE */
 struct pfcp_ie_ppi {
 	struct pfcp_ie h;
-	uint8_t ppi_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* APN/DNN IE */
@@ -2196,31 +2206,31 @@ struct pfcp_ie_deactivation_time {
 /* MAR ID IE */
 struct pfcp_ie_mar_id {
 	struct pfcp_ie h;
-	uint16_t mar_id_value;
+	uint16_t value;
 } __attribute__((packed));
 
 /* Steering Functionality IE */
 struct pfcp_ie_steering_functionality {
 	struct pfcp_ie h;
-	uint8_t steering_functionality_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Steering Mode IE */
 struct pfcp_ie_steering_mode {
 	struct pfcp_ie h;
-	uint8_t steering_mode_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Weight IE */
 struct pfcp_ie_weight {
 	struct pfcp_ie h;
-	uint8_t weight_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Priority IE */
 struct pfcp_ie_priority {
 	struct pfcp_ie h;
-	uint8_t priority_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* UE IP Address Pool Identity IE */
@@ -2292,13 +2302,13 @@ struct pfcp_ie_smf_set_id {
 /* Quota Validity Time IE */
 struct pfcp_ie_quota_validity_time {
 	struct pfcp_ie h;
-	uint32_t quota_validity_time_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Number of Reports IE */
 struct pfcp_ie_number_of_reports {
 	struct pfcp_ie h;
-	uint16_t number_of_reports_value;
+	uint16_t value;
 } __attribute__((packed));
 
 /* PFCP Association Setup Response Flags IE */
@@ -2469,13 +2479,13 @@ struct pfcp_ie_create_bridge_router_info {
 /* DS-TT Port Number IE */
 struct pfcp_ie_ds_tt_port_number {
 	struct pfcp_ie h;
-	uint32_t ds_tt_port_number_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* NW-TT Port Number IE */
 struct pfcp_ie_nw_tt_port_number {
 	struct pfcp_ie h;
-	uint32_t nw_tt_port_number_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* 5GS User Plane Node IE */
@@ -2520,37 +2530,37 @@ struct pfcp_ie_requested_clock_drift_information {
 /* Time Domain Number IE */
 struct pfcp_ie_time_domain_number {
 	struct pfcp_ie h;
-	uint8_t time_domain_number_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Time Offset Threshold IE */
 struct pfcp_ie_time_offset_threshold {
 	struct pfcp_ie h;
-	uint64_t time_offset_threshold_value;
+	uint64_t value;
 } __attribute__((packed));
 
 /* Cumulative Rate Ratio Threshold IE */
 struct pfcp_ie_cumulative_rate_ratio_threshold {
 	struct pfcp_ie h;
-	uint32_t cumulative_rate_ratio_threshold_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Time Offset Measurement IE */
 struct pfcp_ie_time_offset_measurement {
 	struct pfcp_ie h;
-	int64_t time_offset_measurement_value;
+	int64_t value;
 } __attribute__((packed));
 
 /* Cumulative Rate Ratio Measurement IE */
 struct pfcp_ie_cumulative_rate_ratio_measurement {
 	struct pfcp_ie h;
-	uint32_t cumulative_rate_ratio_measurement_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* SRR ID IE */
 struct pfcp_ie_srr_id {
 	struct pfcp_ie h;
-	uint8_t srr_id_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Requested Access Availability Information IE */
@@ -2954,7 +2964,7 @@ struct pfcp_ie_mt_edt_control_information {
 /* DL Data Packets Size IE */
 struct pfcp_ie_dl_data_packets_size {
 	struct pfcp_ie h;
-	uint16_t dl_data_packets_size_value;
+	uint16_t value;
 } __attribute__((packed));
 
 /* QER Control Indications IE */
@@ -3126,7 +3136,7 @@ struct pfcp_ie_number_of_ue_ip_addresses {
 /* Validity Timer IE */
 struct pfcp_ie_validity_timer {
 	struct pfcp_ie h;
-	uint16_t validity_timer_value;
+	uint16_t value;
 } __attribute__((packed));
 
 /* Offending IE Information IE */
@@ -3138,7 +3148,7 @@ struct pfcp_ie_offending_ie_information {
 /* RAT Type IE */
 struct pfcp_ie_rat_type {
 	struct pfcp_ie h;
-	uint8_t rat_type_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Tunnel Preference IE */
@@ -3197,7 +3207,7 @@ struct pfcp_ie_nbns_server_address {
 /* Maximum Receive Unit IE */
 struct pfcp_ie_maximum_receive_unit {
 	struct pfcp_ie h;
-	uint16_t mru_value;
+	uint16_t value;
 } __attribute__((packed));
 
 /* Thresholds IE */
@@ -3223,7 +3233,7 @@ struct pfcp_ie_thresholds {
 /* Steering Mode Indicator IE */
 struct pfcp_ie_steering_mode_indicator {
 	struct pfcp_ie h;
-	uint8_t steering_mode_indicator_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* Group ID IE */
@@ -3325,7 +3335,7 @@ struct pfcp_ie_event_notification_uri {
 /* Notification Correlation ID IE */
 struct pfcp_ie_notification_correlation_id {
 	struct pfcp_ie h;
-	uint32_t notification_correlation_id_value;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Reporting Flags IE */
@@ -3435,13 +3445,13 @@ struct pfcp_ie_qer_indications {
 struct pfcp_ie_vendor_specific_node_report_type {
 	struct pfcp_ie h;
 	uint32_t enterprise_id;
-	uint8_t vendor_specific_node_report_type_value[];
+	uint8_t value[];
 } __attribute__((packed));
 
 /* Configured Time Domain IE */
 struct pfcp_ie_configured_time_domain {
 	struct pfcp_ie h;
-	uint8_t time_domain_number_value;
+	uint8_t value;
 } __attribute__((packed));
 
 /* TL-Container IE */

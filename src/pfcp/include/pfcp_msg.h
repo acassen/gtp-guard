@@ -130,7 +130,6 @@ struct pfcp_association_update_request {
 	struct pfcp_ie_pfcpaureq_flags *pfcpaureq_flags;
 	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_ip_address;
 	struct pfcp_ie_smf_set_id *smf_set_id;
-	struct pfcp_ie_clock_drift_control_information *clock_drift_control_information;
 	/* Grouped IEs */
 	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_information;
 	struct pfcp_ie_gtp_u_path_qos_control_information *gtp_u_path_qos_control_information;
@@ -312,7 +311,6 @@ struct pfcp_session_modification_request {
 	struct pfcp_ie_update_mar *update_mar;
 	struct pfcp_ie_create_mar *create_mar;
 	struct pfcp_ie_node_id *node_id;
-	struct pfcp_ie_tsc_management_information *tsc_management_information;
 	struct pfcp_ie_remove_srr *remove_srr;
 	struct pfcp_ie_create_srr *create_srr;
 	struct pfcp_ie_update_srr *update_srr;
@@ -374,7 +372,6 @@ struct pfcp_session_report_request {
 	struct pfcp_ie_pfcpsrreq_flags *pfcpsrreq_flags;
 	struct pfcp_ie_f_seid *old_cp_f_seid;
 	struct pfcp_ie_packet_rate_status_report *packet_rate_status_report;
-	struct pfcp_ie_tsc_management_information_srr *tsc_management_information_srr;
 	struct pfcp_ie_session_report *session_report;
 };
 
