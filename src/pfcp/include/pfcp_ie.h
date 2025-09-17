@@ -240,6 +240,7 @@ enum pfcp_ie_type {
 	PFCP_IE_QER_INDICATIONS			= 319,
 	PFCP_IE_VENDOR_SPECIFIC_NODE_REPORT_TYPE = 320,
 	PFCP_IE_CONFIGURED_TIME_DOMAIN		= 321,
+	PFCP_IE_TL_CONTAINER			= 336,
 
 	/* Grouped IEs */
 	PFCP_IE_CREATE_PDR			= 1,
@@ -3441,4 +3442,10 @@ struct pfcp_ie_vendor_specific_node_report_type {
 struct pfcp_ie_configured_time_domain {
 	struct pfcp_ie h;
 	uint8_t time_domain_number_value;
+} __attribute__((packed));
+
+/* TL-Container IE */
+struct pfcp_ie_tl_container {
+	struct pfcp_ie h;
+	uint8_t info[];
 } __attribute__((packed));

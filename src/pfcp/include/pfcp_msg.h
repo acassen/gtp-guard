@@ -336,6 +336,29 @@ struct pfcp_session_modification_response {
 	struct pfcp_ie_updated_pdr *updated_pdr;
 };
 
+/* PFCP Session Deletion */
+struct pfcp_session_deletion_request {
+	struct pfcp_hdr *h;
+	/* Conditional IEs */
+	struct pfcp_ie_tl_container *tl_container;
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_f_seid *cp_f_seid;
+};
+
+struct pfcp_session_deletion_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+	struct pfcp_ie_load_control_information *load_control_information;
+	struct pfcp_ie_overload_control_information *overload_control_information;
+	struct pfcp_ie_usage_report *usage_report_sdr;
+	struct pfcp_ie_additional_usage_reports_information *additional_usage_reports_information;
+	struct pfcp_ie_pfcpsereq_flags *pfcpsereq_flags;
+	struct pfcp_ie_tl_container *tl_container;
+};
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
