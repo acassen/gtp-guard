@@ -529,6 +529,48 @@ struct pfcp_ie_update_duplicating_parameters {
 	struct pfcp_ie_forwarding_policy *forwarding_policy;
 };
 
+
+/*
+ *	PFCP Session Report Request Grouped IEs
+ */
+
+/* Downlink Data Report Grouped IE */
+struct pfcp_ie_downlink_data_report {
+	struct pfcp_ie *h;
+	/* Optional IEs */
+	struct pfcp_ie_pdr_id *pdr_id;
+	struct pfcp_ie_downlink_data_service_information *downlink_data_service_information;
+};
+
+/* Error Indication Report Grouped IE */
+struct pfcp_ie_error_indication_report {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_f_teid *remote_f_teid;
+	/* Optional IEs */
+	struct pfcp_ie_pdr_id *pdr_id;
+};
+
+/* Packet Rate Status Report Grouped IE */
+struct pfcp_ie_packet_rate_status_report {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_qer_id *qer_id;
+	struct pfcp_ie_packet_rate_status *packet_rate_status;
+	/* Optional IEs */
+	struct pfcp_ie_rate_control_status_per_qos_flow *rate_control_status_per_qos_flow;
+};
+
+/* Session Report Grouped IE */
+struct pfcp_ie_session_report {
+	struct pfcp_ie *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_srr_id *srr_id;
+	struct pfcp_ie_access_availability_report *access_availability_report;
+	/* Optional IEs */
+	struct pfcp_ie_qos_monitoring_report *qos_monitoring_report;
+};
+
 /* Update FAR Grouped IE */
 struct pfcp_ie_update_far {
 	struct pfcp_ie *h;

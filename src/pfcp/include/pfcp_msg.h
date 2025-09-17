@@ -359,6 +359,41 @@ struct pfcp_session_deletion_response {
 	struct pfcp_ie_tl_container *tl_container;
 };
 
+/* PFCP Session Report */
+struct pfcp_session_report_request {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_report_type *report_type;
+	/* Optional IEs */
+	struct pfcp_ie_downlink_data_report *downlink_data_report;
+	struct pfcp_ie_usage_report *usage_report;
+	struct pfcp_ie_error_indication_report *error_indication_report;
+	struct pfcp_ie_load_control_information *load_control_information;
+	struct pfcp_ie_overload_control_information *overload_control_information;
+	struct pfcp_ie_additional_usage_reports_information *additional_usage_reports_information;
+	struct pfcp_ie_pfcpsrreq_flags *pfcpsrreq_flags;
+	struct pfcp_ie_f_seid *old_cp_f_seid;
+	struct pfcp_ie_packet_rate_status_report *packet_rate_status_report;
+	struct pfcp_ie_tsc_management_information_srr *tsc_management_information_srr;
+	struct pfcp_ie_session_report *session_report;
+};
+
+struct pfcp_session_report_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+	struct pfcp_ie_update_bar *update_bar;
+	struct pfcp_ie_pfcpsrrsp_flags *pfcpsrrsp_flags;
+	struct pfcp_ie_f_seid *cp_f_seid;
+	struct pfcp_ie_f_teid *n4_u_f_teid;
+	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_ip_address;
+	struct pfcp_ie_fq_csid *pgwc_smf_fq_csid;
+	struct pfcp_ie_group_id *group_id;
+	struct pfcp_ie_node_id *node_id;
+};
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
