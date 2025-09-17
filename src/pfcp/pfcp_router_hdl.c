@@ -41,14 +41,13 @@ static int
 pfcp_assoc_setup_request(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pfcp_association_setup_request req;
-	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) srv->s.pbuff;
 	int err;
 
 	err = pfcp_msg_parse(srv->s.pbuff, &req);
 	if (err) {
-		log_message(LOG_INFO, "%s(): Error while parsing [%] Request"
+		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
 				    , __FUNCTION__
-				    , pfcp_msgtype2str(pfcph->type));
+				    , pfcp_msgtype2str(req.h->type));
 		return -1;
 	}
 

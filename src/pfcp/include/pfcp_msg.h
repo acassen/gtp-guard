@@ -275,6 +275,67 @@ struct pfcp_session_establishment_response {
 	struct pfcp_ie_partial_failure_information *partial_failure_information;
 };
 
+/* PFCP Session Modification */
+struct pfcp_session_modification_request {
+	struct pfcp_hdr *h;
+	/* Optional IEs */
+	struct pfcp_ie_f_seid *cp_f_seid;
+	struct pfcp_ie_remove_pdr *remove_pdr;
+	struct pfcp_ie_remove_far *remove_far;
+	struct pfcp_ie_remove_urr *remove_urr;
+	struct pfcp_ie_remove_qer *remove_qer;
+	struct pfcp_ie_remove_bar *remove_bar;
+	struct pfcp_ie_remove_traffic_endpoint *remove_traffic_endpoint;
+	struct pfcp_ie_create_pdr *create_pdr;
+	struct pfcp_ie_create_far *create_far;
+	struct pfcp_ie_create_urr *create_urr;
+	struct pfcp_ie_create_qer *create_qer;
+	struct pfcp_ie_create_bar *create_bar;
+	struct pfcp_ie_create_traffic_endpoint *create_traffic_endpoint;
+	struct pfcp_ie_update_pdr *update_pdr;
+	struct pfcp_ie_update_far *update_far;
+	struct pfcp_ie_update_urr *update_urr;
+	struct pfcp_ie_update_qer *update_qer;
+	struct pfcp_ie_update_bar *update_bar;
+	struct pfcp_ie_update_traffic_endpoint *update_traffic_endpoint;
+	struct pfcp_ie_pfcpsmreq_flags *pfcpsmreq_flags;
+	struct pfcp_ie_query_urr *query_urr;
+	struct pfcp_ie_fq_csid *pgw_c_fq_csid;
+	struct pfcp_ie_fq_csid *sgw_c_fq_csid;
+	struct pfcp_ie_fq_csid *mme_fq_csid;
+	struct pfcp_ie_fq_csid *epdg_fq_csid;
+	struct pfcp_ie_fq_csid *twan_fq_csid;
+	struct pfcp_ie_user_plane_inactivity_timer *user_plane_inactivity_timer;
+	struct pfcp_ie_query_urr_reference *query_urr_reference;
+	struct pfcp_ie_trace_information *trace_information;
+	struct pfcp_ie_remove_mar *remove_mar;
+	struct pfcp_ie_update_mar *update_mar;
+	struct pfcp_ie_create_mar *create_mar;
+	struct pfcp_ie_node_id *node_id;
+	struct pfcp_ie_tsc_management_information *tsc_management_information;
+	struct pfcp_ie_remove_srr *remove_srr;
+	struct pfcp_ie_create_srr *create_srr;
+	struct pfcp_ie_update_srr *update_srr;
+	struct pfcp_ie_rat_type *rat_type;
+	struct pfcp_ie_group_id *group_id;
+};
+
+struct pfcp_session_modification_response {
+	struct pfcp_hdr *h;
+	/* Mandatory IEs */
+	struct pfcp_ie_cause *cause;
+	/* Optional IEs */
+	struct pfcp_ie_offending *offending_ie;
+	struct pfcp_ie_created_pdr *created_pdr;
+	struct pfcp_ie_load_control_information *load_control_information;
+	struct pfcp_ie_overload_control_information *overload_control_information;
+	struct pfcp_ie_usage_report *usage_report_smr;
+	struct pfcp_ie_failed_rule_id *failed_rule_id;
+	struct pfcp_ie_additional_usage_reports_information *additional_usage_reports_information;
+	struct pfcp_ie_created_traffic_endpoint *created_traffic_endpoint;
+	struct pfcp_ie_updated_pdr *updated_pdr;
+};
+
 /* Prototypes */
 size_t pfcp_msg_hlen(struct pfcp_hdr *h);
 void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
