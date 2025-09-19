@@ -36,6 +36,9 @@ struct pfcp_router {
 	struct gtp_bpf_prog	*bpf_prog;
 	struct pfcp_server	s;
 
+	char			node_id[GTP_NAME_MAX_LEN];
+	time_t			recovery_ts;
+
 	unsigned long		flags;
 
 	struct list_head	next;
@@ -49,7 +52,7 @@ size_t pfcp_router_dump(struct pfcp_router *ctx, char *buffer, size_t bsize);
 bool pfcp_router_inuse(void);
 void pfcp_router_foreach(int (*hdl) (struct pfcp_router *, void *), void *arg);
 struct pfcp_router *pfcp_router_get(const char *name);
-struct pfcp_router *pfcp_router_init(const char *name);
+struct pfcp_router *pfcp_router_alloc(const char *name);
 int pfcp_router_ctx_destroy(struct pfcp_router *ctx);
 int pfcp_router_server_destroy(void);
 int pfcp_router_destroy(void);

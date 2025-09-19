@@ -55,7 +55,7 @@ DEFUN(pfcp_router,
 
 	/* Already existing ? */
 	new = pfcp_router_get(argv[0]);
-	new = (new) ? : pfcp_router_init(argv[0]);
+	new = (new) ? : pfcp_router_alloc(argv[0]);
 	if (!new) {
 		vty_out(vty, "%% Error allocating pfcp-router:%s !!!%s"
 			   , argv[0], VTY_NEWLINE);

@@ -21,27 +21,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "rbtree_types.h"
 #include "pfcp_ie.h"
 #include "pkt_buffer.h"
-
-/*
- *	PFCP Message indexation
- */
-struct pfcp_msg_ie {
-	struct pfcp_ie		*h;
-	void const		*data;
-
-	struct rb_node		n;
-};
-
-struct pfcp_msg {
-	struct pfcp_hdr		*h;
-
-	struct rb_root_cached	ie;
-};
-
-
 
 
 /*
@@ -392,11 +373,6 @@ struct pfcp_session_report_response {
 };
 
 /* Prototypes */
-size_t pfcp_msg_hlen(struct pfcp_hdr *h);
-void pfcp_msg_ie_dump(const char *prefix, const struct pfcp_msg_ie *msg_ie);
-struct pfcp_msg_ie *pfcp_msg_ie_get(struct pfcp_msg *msg, uint16_t type);
-struct pfcp_msg *pfcp_msg_alloc(const struct pkt_buffer *pbuff);
-void pfcp_msg_destroy(struct pfcp_msg *msg);
-void pfcp_msg_dump(const char *prefix, struct pfcp_msg *msg);
+int pfcp_msg_hlen(struct pkt_buffer *pbuff);
+int pfcp_msg_reset_hlen(struct pkt_buffer *pbuff);
 int pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg);
-

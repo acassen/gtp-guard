@@ -24,6 +24,8 @@
 #include <netinet/in.h>
 #include <endian.h>
 
+#include "pkt_buffer.h"
+
 /*
  * PFCP (Packet Forwarding Control Protocol) Information Elements
  * Based on 3GPP TS 29.244 8.2
@@ -3459,3 +3461,8 @@ struct pfcp_ie_tl_container {
 	struct pfcp_ie h;
 	uint8_t info[];
 } __attribute__((packed));
+
+
+/* Prototypes */
+int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
+int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, time_t ts);

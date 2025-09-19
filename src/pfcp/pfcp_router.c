@@ -106,7 +106,7 @@ pfcp_router_get(const char *name)
 }
 
 struct pfcp_router *
-pfcp_router_init(const char *name)
+pfcp_router_alloc(const char *name)
 {
 	struct pfcp_router *new;
 
@@ -115,8 +115,12 @@ pfcp_router_init(const char *name)
 		errno = ENOMEM;
 		return NULL;
 	}
-        INIT_LIST_HEAD(&new->next);
-        bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
+	INIT_LIST_HEAD(&new->next);
+	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
+
+	/* by default same as instance name */
+	bsd_strlcpy(new->node_id, name, GTP_NAME_MAX_LEN - 1);
+	new->recovery_ts = time(NULL);
 
 	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);
 
