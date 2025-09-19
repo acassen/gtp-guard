@@ -78,16 +78,16 @@ pfcp_assoc_hashkey(struct pfcp_node_id *node_id)
 
 	switch (node_id->type) {
 	case PFCP_NODE_ID_TYPE_IPV4:
-		hkey = jhash_1word(node_id->id.ipv4.s_addr, 0);
+		hkey = jhash_1word(node_id->ipv4.s_addr, 0);
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		hkey = addr_hash_in6_addr(&node_id->id.ipv6);
+		hkey = addr_hash_in6_addr(&node_id->ipv6);
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		hkey = fnv1a_hash(node_id->id.fqdn,
-		    		  strlen((char *)node_id->id.fqdn));
+		hkey = fnv1a_hash(node_id->fqdn,
+				  strlen((char *)node_id->fqdn));
 		break;
 
 	default:
@@ -105,19 +105,19 @@ pfcp_assoc_cmp(struct pfcp_node_id *a, struct pfcp_node_id *b)
 
 	switch (a->type) {
 	case PFCP_NODE_ID_TYPE_IPV4:
-		if (__addr_ip4_equal(&a->id.ipv4, &b->id.ipv4))
+		if (__addr_ip4_equal(&a->ipv4, &b->ipv4))
 			return 0;
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		if (__addr_ip6_equal(&a->id.ipv6, &b->id.ipv6))
+		if (__addr_ip6_equal(&a->ipv6, &b->ipv6))
 			return 0;
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		if (strlen((char *)a->id.fqdn) != strlen((char *)b->id.fqdn))
+		if (strlen((char *)a->fqdn) != strlen((char *)b->fqdn))
 			return -1;
-		if (!memcmp(a->id.fqdn, b->id.fqdn, strlen((char *)a->id.fqdn)))
+		if (!memcmp(a->fqdn, b->fqdn, strlen((char *)a->fqdn)))
 			return 0;
 		break;
 
@@ -216,20 +216,21 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 	PMALLOC(new);
 	assert(new != NULL);
 	new->recovery_ts = ts->recovery_time_stamp;
+	new->node_id.type = node_id->node_id_type;
 
 	switch (node_id->node_id_type) {
 	case PFCP_NODE_ID_TYPE_IPV4:
-		new->node_id.id.ipv4 = node_id->value.ipv4;
+		new->node_id.ipv4 = node_id->value.ipv4;
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		new->node_id.id.ipv6 = node_id->value.ipv6;
+		new->node_id.ipv6 = node_id->value.ipv6;
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
 		/* node_id_type count as '\0' */
-		new->node_id.id.fqdn = MALLOC(ntohs(node_id->h.length));
-		memcpy(new->node_id.id.fqdn, node_id->value.fqdn,
+		new->node_id.fqdn = MALLOC(ntohs(node_id->h.length));
+		memcpy(new->node_id.fqdn, node_id->value.fqdn,
 	 	       ntohs(node_id->h.length) - 1);
 		break;
 
@@ -264,6 +265,8 @@ pfcp_assoc_destroy(void)
 
 	for (i = 0; i < ASSOC_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry_safe(a, n, n2, &pfcp_assoc_tab[i], hlist) {
+			if (a->node_id.type == PFCP_NODE_ID_TYPE_FQDN)
+				FREE_PTR(a->node_id.fqdn);
 			FREE(a);
 		}
 	}
