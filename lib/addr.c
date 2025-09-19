@@ -493,3 +493,32 @@ addr_parse_ip(const char *paddr, union addr *a,
 
 	return 0;
 }
+
+/*
+ *	Fast hash function for IPv6 addresses (struct in6_addr)
+ *	Optimized for 128-bit IPv6 addresses using 32-bit operations
+ */
+uint32_t
+addr_hash_in6_addr(const struct in6_addr *addr)
+{
+	const uint32_t *p;
+	uint32_t hash;
+
+	if (!addr)
+		return 0;
+
+	/* Cast to 32-bit pointer for fast processing */
+	p = (const uint32_t *)&addr->s6_addr;
+
+	/* XOR all four 32-bit words of the IPv6 address */
+	hash = p[0] ^ p[1] ^ p[2] ^ p[3];
+
+	/* Apply simple mixing to improve distribution */
+	hash ^= hash >> 16;
+	hash *= 0x85ebca6b;
+	hash ^= hash >> 13;
+	hash *= 0xc2b2ae35;
+	hash ^= hash >> 16;
+
+	return hash;
+}

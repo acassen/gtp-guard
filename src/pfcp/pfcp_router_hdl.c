@@ -22,6 +22,7 @@
 #include "pfcp.h"
 #include "pfcp_router.h"
 #include "pfcp_router_hdl.h"
+#include "pfcp_assoc.h"
 #include "pfcp_msg.h"
 #include "pfcp_utils.h"
 #include "pkt_buffer.h"
@@ -41,7 +42,6 @@ pfcp_heartbeat_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	int err;
 
-	/* Parse the request */
 	err = pfcp_msg_parse(srv->s.pbuff, &req);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
@@ -68,6 +68,9 @@ pfcp_heartbeat_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 static int
 pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
+	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_router *c = srv->ctx;
+	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_association_setup_request req;
 	int err;
 
@@ -76,6 +79,20 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
 				    , __FUNCTION__
 				    , pfcp_msgtype2str(req.h->type));
+		return -1;
+	}
+
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	hdr->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
+
+	/* Append IEs */
+	err = pfcp_ie_put_node_id(pbuff, c->node_id, strlen(c->node_id));
+	err = (err) ? : pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
+	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, c->recovery_ts);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
 		return -1;
 	}
 

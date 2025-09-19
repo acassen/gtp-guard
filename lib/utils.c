@@ -384,3 +384,32 @@ open_pipe(int pipe_arr[2])
 
 	return 0;
 }
+
+/*
+ *	Fast hash function for buffer data
+ *	Based on FNV-1a hash algorithm - fast and good distribution
+ */
+uint32_t
+fnv1a_hash(const uint8_t *buffer, size_t size)
+{
+	uint32_t hash = 2166136261U; /* FNV offset basis */
+	const uint8_t *end = buffer + size;
+
+	if (!buffer || !size)
+		return 0;
+
+	/* Process 4 bytes at a time for speed */
+	while (buffer + 4 <= end) {
+		hash ^= *(const uint32_t *) buffer;
+		hash *= 16777619U; /* FNV prime */
+		buffer += 4;
+	}
+
+	/* Process remaining bytes */
+	while (buffer < end) {
+		hash ^= *buffer++;
+		hash *= 16777619U;
+	}
+
+	return hash;
+}

@@ -76,3 +76,4 @@ size_t bsd_strlcpy(char *dst, const char *src, size_t dsize);
 size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
 char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);
 int open_pipe(int pipe_arr[2]);
+uint32_t fnv1a_hash(const uint8_t *buffer, size_t size);

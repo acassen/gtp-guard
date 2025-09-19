@@ -20,7 +20,6 @@
  */
 
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
 
@@ -51,14 +50,51 @@ int
 pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, time_t ts)
 {
 	struct pfcp_ie_recovery_time_stamp *ie;
+	unsigned int length = sizeof(*ie);
 
-	if (pfcp_ie_put(pbuff, PFCP_IE_RECOVERY_TIME_STAMP, sizeof(*ie)) < 0)
+	if (pfcp_ie_put(pbuff, PFCP_IE_RECOVERY_TIME_STAMP, length) < 0)
 		return -1;
 
 	ie = (struct pfcp_ie_recovery_time_stamp *) pbuff->data;
 	ie->recovery_time_stamp = htonl((uint32_t) ts);
-	pkt_buffer_put_data(pbuff, sizeof(*ie));
-	pkt_buffer_put_end(pbuff, sizeof(*ie));
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause)
+{
+	struct pfcp_ie_cause *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_CAUSE, sizeof(*ie)) < 0)
+		return -1;
+
+	ie = (struct pfcp_ie_cause *) pbuff->data;
+	ie->value = cause;
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const char *buffer, size_t bsize)
+{
+	struct pfcp_ie_node_id *ie;
+	unsigned int length = sizeof(*ie) + bsize;
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_NODE_ID, length) < 0)
+		return -1;
+
+	ie = (struct pfcp_ie_node_id *) pbuff->data;
+	ie->node_id_type = PFCP_NODE_ID_TYPE_FQDN;
+	memcpy(ie->value.fqdn, buffer, bsize);
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
 	return 0;
 }
 

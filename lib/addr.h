@@ -40,6 +40,7 @@ int addr_parse_ip(const char *paddr, union addr *a, uint32_t *out_netmask,
 		  uint64_t *out_count, bool first_ip);
 int addr_parse_iface(const char *iface_name, union addr *a);
 int addr_get_ifindex(const union addr *a);
+uint32_t addr_hash_in6_addr(const struct in6_addr *addr);
 
 
 static inline void

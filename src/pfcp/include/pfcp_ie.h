@@ -3466,3 +3466,6 @@ struct pfcp_ie_tl_container {
 /* Prototypes */
 int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
 int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, time_t ts);
+int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
+int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
+int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const char *buffer, size_t bsize);

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 /* Global helpers */
 typedef uint32_t ub4;
