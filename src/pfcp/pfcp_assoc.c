@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <arpa/inet.h>
 
 #include "pfcp_assoc.h"
 #include "gtp_stddef.h"
@@ -214,19 +215,19 @@ pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
 	char addr_str[INET6_ADDRSTRLEN];
 	struct tm *t = &c->creation_time;
 	int k = 0;
-	char *b;
+	const char *b;
 
 	switch (c->node_id.type) {
 	case PFCP_NODE_ID_TYPE_IPV4:
-		snprintf(addr_str, INET6_ADDRSTRLEN, "%u.%u.%u.%u",
-			 NIPQUAD(c->node_id.ipv4.s_addr));
+		b = inet_ntop(AF_INET, &c->node_id.ipv4,
+			      addr_str, INET6_ADDRSTRLEN);
 		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
-			       addr_str);
+			       (b) ? : "!!!invalid_ipv4!!!");
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		b = addr_stringify_in6_addr(&c->node_id.ipv6, addr_str,
-					    INET6_ADDRSTRLEN);
+		b = inet_ntop(AF_INET, &c->node_id.ipv6,
+			      addr_str, INET6_ADDRSTRLEN);
 		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
 			       (b) ? : "!!!invalid_ipv6!!!");
 		break;
