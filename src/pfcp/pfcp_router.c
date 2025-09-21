@@ -70,9 +70,12 @@ pfcp_router_ingress_process(struct inet_server *srv, struct sockaddr_storage *ad
 size_t
 pfcp_router_dump(struct pfcp_router *ctx, char *buffer, size_t bsize)
 {
-	memset(buffer, 0, bsize);
+	int k = 0;
 
-	return 0;
+	k += scnprintf(buffer + k, bsize - k, "pfcp-router(%s): '%s'\n",
+		       ctx->name, ctx->description);
+
+	return k;
 }
 
 bool

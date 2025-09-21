@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <netinet/in.h>
+#include "gtp_stddef.h"
 #include "pfcp_ie.h"
 #include "list_head.h"
 #include "vty.h"
@@ -42,17 +43,17 @@ struct pfcp_node_id {
 	union {
 		struct in_addr ipv4;
 		struct in6_addr ipv6;
-		uint8_t *fqdn;
+		uint8_t fqdn[GTP_NAME_MAX_LEN];
 	};
 };
 
 struct pfcp_assoc {
 	struct pfcp_node_id	node_id;
-
+	struct tm		creation_time;
 	time_t			recovery_ts;
 
 	/* hash stuff */
-        struct hlist_node       hlist;
+	struct hlist_node       hlist;
 
 	unsigned long		flags;
 	int			refcnt;
@@ -61,14 +62,14 @@ struct pfcp_assoc {
 
 /* Prototypes */
 int pfcp_assoc_count_read(void);
-int pfcp_assoc_get(struct pfcp_assoc *);
-int pfcp_assoc_put(struct pfcp_assoc *);
+int pfcp_assoc_get(struct pfcp_assoc *c);
+int pfcp_assoc_put(struct pfcp_assoc *c);
 struct pfcp_assoc *pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 				    struct pfcp_ie_recovery_time_stamp *ts);
-struct pfcp_assoc *pfcp_assoc_get_by_imsi(uint64_t);
-int pfcp_assoc_hash(struct pfcp_assoc *);
-int pfcp_assoc_unhash(struct pfcp_assoc *);
-int pfcp_assoc_vty(struct vty *vty, int (*vty_assoc) (struct vty *, struct pfcp_assoc *),
-		   struct pfcp_node_id *node_id);
+struct pfcp_assoc *pfcp_assoc_get_by_node_id(struct pfcp_node_id *node_id);
+struct pfcp_assoc *pfcp_assoc_get_by_ie(struct pfcp_ie_node_id *ie);
+int pfcp_assoc_hash(struct pfcp_assoc *c);
+int pfcp_assoc_unhash(struct pfcp_assoc *c);
+int pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id);
 int pfcp_assoc_init(void);
 int pfcp_assoc_destroy(void);

@@ -24,6 +24,7 @@
 #include <arpa/inet.h>
 
 #include "tools.h"
+#include "utils.h"
 #include "list_head.h"
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"

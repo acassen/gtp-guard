@@ -72,6 +72,8 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 	struct pfcp_router *c = srv->ctx;
 	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_association_setup_request req;
+	struct pfcp_assoc *assoc;
+	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 	int err;
 
 	err = pfcp_msg_parse(srv->s.pbuff, &req);
@@ -79,16 +81,33 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
 				    , __FUNCTION__
 				    , pfcp_msgtype2str(req.h->type));
-		return -1;
+		cause = PFCP_CAUSE_REQUEST_REJECTED;
+		goto end;
 	}
 
+	/* 3GPP.TS.29.244 6.2.6.2.2 : Already exist ? */
+	assoc = pfcp_assoc_get_by_ie(req.node_id);
+	if (assoc) {
+		if (!req.session_retention_info) {
+			/* TODO: release all related Sessions */
+		}
+
+		assoc->recovery_ts = req.recovery_time_stamp->ts;
+	} else {
+		assoc = pfcp_assoc_alloc(req.node_id, req.recovery_time_stamp);
+		if (!assoc) {
+			cause = PFCP_CAUSE_REQUEST_REJECTED;
+		}
+	}
+
+end:
 	/* Recycle header and reset length */
 	pfcp_msg_reset_hlen(pbuff);
 	hdr->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
 
 	/* Append IEs */
 	err = pfcp_ie_put_node_id(pbuff, c->node_id, strlen(c->node_id));
-	err = (err) ? : pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
+	err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
 	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, c->recovery_ts);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
@@ -96,9 +115,7 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 		return -1;
 	}
 
-
-
-	return -1;
+	return 0;
 }
 
 

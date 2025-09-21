@@ -39,12 +39,6 @@
 #define err(Mod, Fmt, ...)	log_message(LOG_ERR, Fmt, ## __VA_ARGS__)
 
 
-/* dunno why it's not in libc. */
-int scnprintf(char *buf, size_t size, const char *format, ...)
-	__attribute__ ((format (printf, 3, 4)));
-int vscnprintf(char *buf, size_t size, const char *format, va_list args);
-
-
 /* always useful */
 #ifndef min
 # define min(A, B) ((A) > (B) ? (B) : (A))

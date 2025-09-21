@@ -25,6 +25,7 @@
 #include "gtp_data.h"
 #include "inet_server.h"
 #include "pfcp_router.h"
+#include "pfcp_assoc.h"
 #include "pfcp.h"
 #include "inet_utils.h"
 #include "command.h"
@@ -186,15 +187,12 @@ DEFUN(pfcp_listen,
  *	Show commands
  */
 static int
-pfcp_vty(struct vty *vty, struct pfcp_router *c)
+pfcp_router_vty(struct vty *vty, struct pfcp_router *c)
 {
 	char buf[4096];
 	size_t nbytes;
 
-	vty_out(vty, " pfcp-router(%s): '%s'\n",
-		c->name, c->description);
-
-	nbytes = pfcp_router_dump(c, buf, sizeof (buf));
+	nbytes = pfcp_router_dump(c, buf, sizeof(buf));
 	if (nbytes)
 		vty_out(vty, "%s", buf);
 
@@ -223,8 +221,33 @@ DEFUN(show_pfcp_router,
 		if (name != NULL && strncmp(c->name, name, GTP_NAME_MAX_LEN))
 			continue;
 
-		pfcp_vty(vty, c);
+		pfcp_router_vty(vty, c);
 	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_pfcp_assoc,
+      show_pfcp_assoc_cmd,
+      "show pfcp association [STRING]",
+      SHOW_STR
+      "PFCP Association\n"
+      "NodeID")
+{
+//	const char *name = NULL;
+
+	if (list_empty(&daemon_data->pfcp_router_ctx)) {
+		vty_out(vty, "%% No pfcp-router instance configured...");
+		return CMD_SUCCESS;
+	}
+
+	/* TODO: support selective assoc dump */
+#if 0
+	if (argc == 1)
+		name = argv[0];
+#endif
+
+	pfcp_assoc_vty(vty, NULL);
 
 	return CMD_SUCCESS;
 }
@@ -277,7 +300,9 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
 
 	/* Install show commands. */
+	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);
 	install_element(VIEW_NODE, &show_pfcp_router_cmd);
+	install_element(ENABLE_NODE, &show_pfcp_assoc_cmd);
 	install_element(ENABLE_NODE, &show_pfcp_router_cmd);
 
 	return 0;
@@ -286,7 +311,7 @@ cmd_ext_pfcp_router_install(void)
 struct cmd_node pfcp_router_node = {
 	.node = PFCP_ROUTER_NODE,
 	.parent_node = CONFIG_NODE,
-	.prompt ="%s(pfcp)# ",
+	.prompt ="%s(pfcp-router)# ",
 	.config_write = config_pfcp_router_write,
 };
 

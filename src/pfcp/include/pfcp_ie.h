@@ -1449,7 +1449,7 @@ struct pfcp_ie_outer_header_removal {
 /* Recovery Time Stamp IE */
 struct pfcp_ie_recovery_time_stamp {
 	struct pfcp_ie h;
-	uint32_t recovery_time_stamp;
+	uint32_t ts;
 } __attribute__((packed));
 
 /* DL Flow Level Marking IE */

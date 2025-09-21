@@ -56,7 +56,7 @@ pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, time_t ts)
 		return -1;
 
 	ie = (struct pfcp_ie_recovery_time_stamp *) pbuff->data;
-	ie->recovery_time_stamp = htonl((uint32_t) ts);
+	ie->ts = htonl((uint32_t) ts);
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);

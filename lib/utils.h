@@ -22,6 +22,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 /* Evaluates to -1, 0 or 1 as appropriate.
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
@@ -77,3 +78,6 @@ size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
 char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);
 int open_pipe(int pipe_arr[2]);
 uint32_t fnv1a_hash(const uint8_t *buffer, size_t size);
+int scnprintf(char *buf, size_t size, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+int vscnprintf(char *buf, size_t size, const char *format, va_list args);

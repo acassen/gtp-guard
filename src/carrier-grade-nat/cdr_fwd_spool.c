@@ -21,6 +21,7 @@
 #include <inttypes.h>
 
 #include "tools.h"
+#include "utils.h"
 #include "disk.h"
 #include "cdr_fwd-priv.h"
 

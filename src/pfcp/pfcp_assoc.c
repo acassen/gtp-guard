@@ -19,19 +19,23 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdio.h>
 #include <assert.h>
 
 #include "pfcp_assoc.h"
+#include "gtp_stddef.h"
 #include "jhash.h"
 #include "bitops.h"
 #include "addr.h"
 #include "utils.h"
 #include "memory.h"
+#include "timer.h"
+#include "inet_utils.h"
 #include "pfcp_ie.h"
 
 
 /* Local data */
-struct hlist_head *pfcp_assoc_tab;
+static struct hlist_head *pfcp_assoc_tab;
 
 
 /*
@@ -145,6 +149,36 @@ pfcp_assoc_get_by_node_id(struct pfcp_node_id *node_id)
 	return NULL;
 }
 
+struct pfcp_assoc *
+pfcp_assoc_get_by_ie(struct pfcp_ie_node_id *ie)
+{
+	struct pfcp_node_id n;
+
+	if (!ie)
+		return NULL;
+
+	n.type = ie->node_id_type;
+	switch (ie->node_id_type) {
+	case PFCP_NODE_ID_TYPE_IPV4:
+		n.ipv4 = ie->value.ipv4;
+		break;
+
+	case PFCP_NODE_ID_TYPE_IPV6:
+		n.ipv4 = ie->value.ipv4;
+		break;
+
+	case PFCP_NODE_ID_TYPE_FQDN:
+		memcpy2str((char *)n.fqdn, GTP_NAME_MAX_LEN,
+			   ie->value.fqdn, ntohs(ie->h.length) - 1);
+		break;
+
+	default:
+		return NULL;
+	};
+
+	return pfcp_assoc_get_by_node_id(&n);
+}
+
 int
 pfcp_assoc_hash(struct pfcp_assoc *c)
 {
@@ -174,12 +208,53 @@ pfcp_assoc_unhash(struct pfcp_assoc *c)
 	return 0;
 }
 
+static int
+pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
+{
+	char addr_str[INET6_ADDRSTRLEN];
+	struct tm *t = &c->creation_time;
+	int k = 0;
+	char *b;
+
+	switch (c->node_id.type) {
+	case PFCP_NODE_ID_TYPE_IPV4:
+		snprintf(addr_str, INET6_ADDRSTRLEN, "%u.%u.%u.%u",
+			 NIPQUAD(c->node_id.ipv4.s_addr));
+		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
+			       addr_str);
+		break;
+
+	case PFCP_NODE_ID_TYPE_IPV6:
+		b = addr_stringify_in6_addr(&c->node_id.ipv6, addr_str,
+					    INET6_ADDRSTRLEN);
+		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
+			       (b) ? : "!!!invalid_ipv6!!!");
+		break;
+
+	case PFCP_NODE_ID_TYPE_FQDN:
+		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
+			       c->node_id.fqdn);
+		break;
+
+	default:
+		return -1;
+	}
+
+	k += scnprintf(buf + k, bsize - k, " recovery_ts:0x%.4x"
+					   " creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d\n",
+		       ntohl(c->recovery_ts),
+		       t->tm_mday, t->tm_mon+1, t->tm_year+1900,
+		       t->tm_hour, t->tm_min, t->tm_sec);
+	return k;
+}
+
+
 int
-pfcp_assoc_vty(struct vty *vty, int (*vty_assoc) (struct vty *, struct pfcp_assoc *),
-	       struct pfcp_node_id *node_id)
+pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id)
 {
 	struct hlist_node *n;
 	struct pfcp_assoc *a;
+	char buf[4096];
 	int i;
 
 	if (node_id) {
@@ -187,7 +262,8 @@ pfcp_assoc_vty(struct vty *vty, int (*vty_assoc) (struct vty *, struct pfcp_asso
 		if (!a)
 			return -1;
 
-		(*vty_assoc) (vty, a);
+		pfcp_assoc_dump(a, buf, sizeof(buf));
+		vty_out(vty, "%s", buf);
 		pfcp_assoc_put(a);
 		return 0;
 	}
@@ -196,7 +272,8 @@ pfcp_assoc_vty(struct vty *vty, int (*vty_assoc) (struct vty *, struct pfcp_asso
 	for (i = 0; i < ASSOC_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry(a, n, &pfcp_assoc_tab[i], hlist) {
 			pfcp_assoc_get(a);
-			(*vty_assoc) (vty, a);
+			pfcp_assoc_dump(a, buf, sizeof(buf));
+			vty_out(vty, "%s", buf);
 			pfcp_assoc_put(a);
 		}
 	}
@@ -215,7 +292,8 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 
 	PMALLOC(new);
 	assert(new != NULL);
-	new->recovery_ts = ts->recovery_time_stamp;
+	time_now_to_calendar(&new->creation_time);
+	new->recovery_ts = ts->ts;
 	new->node_id.type = node_id->node_id_type;
 
 	switch (node_id->node_id_type) {
@@ -228,10 +306,8 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		/* node_id_type count as '\0' */
-		new->node_id.fqdn = MALLOC(ntohs(node_id->h.length));
-		memcpy(new->node_id.fqdn, node_id->value.fqdn,
-	 	       ntohs(node_id->h.length) - 1);
+		memcpy2str((char *)new->node_id.fqdn, GTP_NAME_MAX_LEN,
+			   node_id->value.fqdn, ntohs(node_id->h.length) - 1);
 		break;
 
 	default:
@@ -265,8 +341,6 @@ pfcp_assoc_destroy(void)
 
 	for (i = 0; i < ASSOC_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry_safe(a, n, n2, &pfcp_assoc_tab[i], hlist) {
-			if (a->node_id.type == PFCP_NODE_ID_TYPE_FQDN)
-				FREE_PTR(a->node_id.fqdn);
 			FREE(a);
 		}
 	}
