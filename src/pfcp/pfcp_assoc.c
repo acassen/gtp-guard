@@ -31,7 +31,6 @@
 #include "utils.h"
 #include "memory.h"
 #include "timer.h"
-#include "inet_utils.h"
 #include "pfcp_ie.h"
 
 
@@ -209,38 +208,37 @@ pfcp_assoc_unhash(struct pfcp_assoc *c)
 	return 0;
 }
 
+const char *
+pfcp_assoc_stringify(struct pfcp_assoc *c, char *buf, size_t bsize)
+{
+	const char *b;
+
+	switch (c->node_id.type) {
+	case PFCP_NODE_ID_TYPE_IPV4:
+		b = inet_ntop(AF_INET, &c->node_id.ipv4, buf, bsize);
+		return (b) ? : "!!!invalid_ipv4!!!";
+
+	case PFCP_NODE_ID_TYPE_IPV6:
+		b = inet_ntop(AF_INET, &c->node_id.ipv6, buf, bsize);
+		return (b) ? : "!!!invalid_ipv6!!!";
+
+	case PFCP_NODE_ID_TYPE_FQDN:
+		bsd_strlcpy(buf, (const char *) c->node_id.fqdn, bsize);
+		return buf;
+	}
+
+	return "!!!invalid node_id!!!";
+}
+
 static int
 pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
 {
 	char addr_str[INET6_ADDRSTRLEN];
 	struct tm *t = &c->creation_time;
 	int k = 0;
-	const char *b;
 
-	switch (c->node_id.type) {
-	case PFCP_NODE_ID_TYPE_IPV4:
-		b = inet_ntop(AF_INET, &c->node_id.ipv4,
-			      addr_str, INET6_ADDRSTRLEN);
-		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
-			       (b) ? : "!!!invalid_ipv4!!!");
-		break;
-
-	case PFCP_NODE_ID_TYPE_IPV6:
-		b = inet_ntop(AF_INET, &c->node_id.ipv6,
-			      addr_str, INET6_ADDRSTRLEN);
-		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
-			       (b) ? : "!!!invalid_ipv6!!!");
-		break;
-
-	case PFCP_NODE_ID_TYPE_FQDN:
-		k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
-			       c->node_id.fqdn);
-		break;
-
-	default:
-		return -1;
-	}
-
+	k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
+		       pfcp_assoc_stringify(c, addr_str, INET6_ADDRSTRLEN));
 	k += scnprintf(buf + k, bsize - k, " recovery_ts:0x%.4x"
 					   " creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d\n",
 		       ntohl(c->recovery_ts),
