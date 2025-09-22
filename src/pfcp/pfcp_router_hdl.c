@@ -66,6 +66,39 @@ pfcp_heartbeat_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 }
 
 static int
+pfcp_pfd_management_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
+{
+	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_router *c = srv->ctx;
+	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
+	struct pfcp_pfd_management_request req;
+	int err;
+
+	err = pfcp_msg_parse(srv->s.pbuff, &req);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
+				    , __FUNCTION__
+				    , pfcp_msgtype2str(req.h->type));
+		return -1;
+	}
+
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	hdr->type = PFCP_PFD_MANAGEMENT_RESPONSE;
+
+	/* Append IEs */
+	err = pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
+	err = (err) ? : pfcp_ie_put_node_id(pbuff, c->node_id, strlen(c->node_id));
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	return -1;
+}
+
+static int
 pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
@@ -130,7 +163,7 @@ static const struct {
 } pfcp_msg_hdl[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_response },
-	[PFCP_PFD_MANAGEMENT_REQUEST]		= { NULL },
+	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_response },
 	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { pfcp_assoc_setup_response },
 	[PFCP_ASSOCIATION_UPDATE_REQUEST]	= { NULL },
 	[PFCP_ASSOCIATION_RELEASE_REQUEST]	= { NULL },

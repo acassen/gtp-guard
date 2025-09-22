@@ -219,7 +219,7 @@ pfcp_assoc_stringify(struct pfcp_assoc *c, char *buf, size_t bsize)
 		return (b) ? : "!!!invalid_ipv4!!!";
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		b = inet_ntop(AF_INET, &c->node_id.ipv6, buf, bsize);
+		b = inet_ntop(AF_INET6, &c->node_id.ipv6, buf, bsize);
 		return (b) ? : "!!!invalid_ipv6!!!";
 
 	case PFCP_NODE_ID_TYPE_FQDN:
