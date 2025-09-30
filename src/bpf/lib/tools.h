@@ -18,8 +18,7 @@
 /* always_inline is a wish: compiler may not follow it */
 #undef __always_inline
 #define __always_inline		inline __attribute__((always_inline))
-
-
+#define __no_inline		__attribute__((noinline))
 
 /*********************************/
 /* l2 stuff */

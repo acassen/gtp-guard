@@ -120,7 +120,6 @@ struct cgn_packet
 	__u8		from_priv;
 	__u8		racy;
 	__u8		_pad;
-	void		*data_end;
-	struct icmphdr	*icmp_err;
 	__u32		tcp_flags;
+	__u16		icmp_err_off;
 };
