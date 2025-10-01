@@ -187,15 +187,21 @@ cgn_ctx_alloc(const char *name)
 	/* cgn configure a bpf-program. it must exists */
 	p = gtp_bpf_prog_get(name);
 	if (p == NULL) {
-		errno = ENODEV;
-		return NULL;
+		p = gtp_bpf_prog_alloc(name);
+		if (p == NULL)
+			return NULL;
 	}
 
 	c = calloc(1, sizeof (*c));
 	if (c == NULL)
 		return NULL;
 
-	assert(gtp_bpf_prog_tpl_data_set(p, "cgn", c) == 0);
+	/* attach to bpf-prog */
+	if (gtp_bpf_prog_tpl_data_set(p, "cgn", c)) {
+		free(c);
+		return NULL;
+	}
+
 	c->prg = p;
 	c->port_start = 1500;
 	c->port_end = 65535;

@@ -82,9 +82,6 @@ struct cgn_ctx
 	struct port_timeout_config timeout_by_port[0x10000];
 	uint16_t		timeout_icmp;
 
-	/* internal */
-	int			block_msize;
-
 	/* metrics */
 };
 

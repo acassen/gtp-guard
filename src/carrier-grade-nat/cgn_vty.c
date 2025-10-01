@@ -61,9 +61,8 @@ DEFUN(cgn,
 	if (c == NULL) {
 		c = cgn_ctx_alloc(argv[0]);
 		if (c == NULL) {
-			if (errno == ENODEV)
-				vty_out(vty, "%% bpf-program '%s' must be configured "
-					"before carrier-grade-nat\n", argv[0]);
+			log_message(LOG_WARNING, "cannot create carrier-grade-nat"
+				    "bloc %s", argv[0]);
 			return CMD_WARNING;
 		}
 	}
@@ -156,7 +155,7 @@ DEFUN(cgn_block_conf_pool,
 	block_size = atoi(argv[2]);
 
 	if (!block_size || port_end <= port_start ||
-	    block_size < port_end - port_start) {
+	    block_size > port_end - port_start) {
 		vty_out(vty, "%% carrier-grade-nat:'%s' invalid "
 			"block_size/port_start/port_end config\n",
 			c->name);
@@ -178,14 +177,6 @@ DEFUN(cgn_protocol_conf_pool,
       "Configure protocol timeout\n")
 {
 	struct cgn_ctx *c = vty->index;
-
-#if 0
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running", c->name);
-		return CMD_WARNING;
-	}
-#endif
 
 	if (!strcmp(argv[0], "icmp"))
 		c->timeout_icmp = max(atoi(argv[1]), 20);

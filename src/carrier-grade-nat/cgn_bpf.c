@@ -30,6 +30,7 @@
 #include <net/if.h>
 #include <linux/if_ether.h>
 #include <libbpf.h>
+#include <btf.h>
 
 /* local includes */
 #include "tools.h"
@@ -52,6 +53,134 @@
  *	BPF stuff
  */
 
+/*
+ * Modify map 'value' size. This allow something like, in bpf:
+ *
+ * struct {
+ * 	__uint(type, BPF_MAP_TYPE_ARRAY);
+ * 	__type(key, __u32);
+ *	__type(value, __u32[]);
+ * } map_name SEC(".maps");
+ *
+ * OR
+ *
+ * struct mydata {
+ *   __u32  somefields;
+ *   __u32  last_member_array[];
+ * }
+ *
+ * struct {
+ * 	__uint(type, BPF_MAP_TYPE_HASH);
+ * 	__type(key, __u32);
+ *	__type(value, struct mydata);
+ * } map_name SEC(".maps");
+ *
+ * Compile program as this, and then set array size dynamically (from config)
+ * when loading program, using this function.
+ *
+ * It modifies map attribute _and_ BTF associated to this map, to keep
+ * libbpf/verifier happy.
+ */
+static int
+_dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
+		uint32_t new_array_size)
+{
+	const struct btf_type *t, *st_t, *ptr_t;
+	struct btf_member *mb;
+	struct btf_array *a;
+	struct btf *btf;
+	int vlen, svlen, id, i;
+	size_t new_size;
+
+	/* dig into btf */
+	btf = bpf_object__btf(obj);
+	if (btf == NULL)
+		return -1;
+
+	/* btf info for map (VAR -> STRUCT <map_name>) */
+	id = btf__find_by_name(btf, bpf_map__name(m));
+	if (id < 0)
+		return -1;
+	t = btf__type_by_id(btf, id);
+	if (t == NULL || !btf_is_var(t))
+		return -1;
+	st_t = btf__type_by_id(btf, t->type);
+	if (st_t == NULL || !btf_is_struct(st_t))
+		return -1;
+
+	/* find 'value' struct member in map. fields are listed in
+	 * libbpf.c:parse_btf_map_def() */
+	vlen = btf_vlen(st_t);
+	mb = btf_members(st_t);
+	for (i = 0; i < vlen; i++, mb++) {
+		const char *name = btf__name_by_offset(btf, mb->name_off);
+		if (!name || strcmp(name, "value"))
+			continue;
+
+		/* 'value' is PTR -> {STRUCT|ARRAY} */
+		ptr_t = btf__type_by_id(btf, mb->type);
+		if (!btf_is_ptr(ptr_t) ||
+		    !(t = btf__type_by_id(btf, ptr_t->type)))
+			continue;
+
+		switch (btf_kind(t)) {
+		case BTF_KIND_STRUCT:
+			st_t = t;
+
+			/* last member should contains the array to resize */
+			svlen = btf_vlen(st_t);
+			mb = btf_members(st_t);
+			if (!svlen ||
+			    !(t = btf__type_by_id(btf, mb[svlen - 1].type)) ||
+			    !btf_is_array(t))
+				return -1;
+
+			a = btf_array(t);
+			if (a->nelems == new_array_size) {
+				printf("ARRAY IN STRUCT IS ALREADY SIZE %d, do nothing\n",
+				       a->nelems);
+				return 0;
+			}
+			new_size = st_t->size
+				- a->nelems * btf__resolve_size(btf, a->type)
+				+ new_array_size * btf__resolve_size(btf, a->type);
+
+			/* update array and struct size */
+			a->nelems = new_array_size;
+			((struct btf_type *)st_t)->size = new_size;
+			break;
+
+		case BTF_KIND_ARRAY:
+			a = btf_array(t);
+			if (a->nelems == new_array_size) {
+				printf("ARRAY IS ALREADY SIZE %d, do nothing\n",
+				       a->nelems);
+				return 0;
+			}
+			new_size = new_array_size * btf__resolve_size(btf, a->type);
+			a->nelems = new_array_size;
+			break;
+
+		default:
+			log_message(LOG_DEBUG, "%s: kind %d not handled as map value",
+				    bpf_map__name(m), btf_kind(t));
+			return -1;
+		}
+		break;
+	}
+	if (i == vlen)
+		return -1;
+
+	/* the easiest part: modify map value size */
+	if (bpf_map__set_value_size(m, new_size) != 0) {
+		log_message(LOG_DEBUG, "set %s.value_size failed: %m",
+			    bpf_map__name(m));
+		return -1;
+	}
+	return 0;
+}
+
+
 
 static int
 cgn_bpf_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
@@ -64,12 +193,11 @@ cgn_bpf_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *if
 {
 }
 
-
 static int
-cgn_bpf_opened(struct gtp_bpf_prog *p, void *udata)
+cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 {
 	struct bpf_object *obj = p->load.obj;
-	struct cgn_ctx *c = udata;
+	const struct cgn_ctx *c = udata;
 	struct bpf_map *m;
 	uint64_t icmp_to;
 
@@ -79,9 +207,9 @@ cgn_bpf_opened(struct gtp_bpf_prog *p, void *udata)
 		return -1;
 	}
 
+	/* set consts */
 	icmp_to = c->timeout_icmp * NSEC_PER_SEC;
 	uint32_t bl_flow_max = c->flow_per_user / c->block_per_user;
-
 	struct gtp_bpf_prog_var consts_var[] = {
 		{ .name = "ipbl_n", .value = &c->cgn_addr_n,
 		  .size = sizeof (c->cgn_addr_n) },
@@ -99,57 +227,57 @@ cgn_bpf_opened(struct gtp_bpf_prog *p, void *udata)
 	};
 	gtp_bpf_prog_obj_update_var(obj, consts_var);
 
-	/* 'allocate' bpf maps */
+	/* resize bpf maps */
 	m = bpf_object__find_map_by_name(obj, "v4_blocks");
-	if ((c->v4_blocks = m) == NULL)
+	if (m == NULL)
 		return -1;
 	if (bpf_map__set_max_entries(m, c->cgn_addr_n) != 0) {
 		log_message(LOG_INFO, "set v4_blocks.max_entries failed");
-		return 0;
+		return -1;
 	}
-	c->block_msize = sizeof (struct cgn_v4_ipblock) +
-		sizeof (struct cgn_v4_block) * c->block_count;
-	if (bpf_map__set_value_size(m, c->block_msize) != 0) {
-		log_message(LOG_INFO, "set v4_blocks.value_size = %d failed",
-			    c->block_msize);
-		return 0;
-	}
+	if (_dyn_map_resize(obj, m, c->block_count) < 0)
+		return -1;
 
 	m = bpf_object__find_map_by_name(obj, "v4_free_blocks");
-	if ((c->v4_free_blocks = m) == NULL)
+	if (m == NULL)
 		return -1;
 	if (bpf_map__set_max_entries(m, c->block_count + 1) != 0) {
 		log_message(LOG_INFO, "set free_blocks_cnt.max_entries failed");
-		return 0;
-	}
-	if (bpf_map__set_value_size(m, (c->cgn_addr_n + 3) * sizeof (int)) != 0) {
-		log_message(LOG_INFO, "set free_blocks_cnt.value_size failed");
-		return 0;
-	}
-
-	m = bpf_object__find_map_by_name(obj, "users");
-	if ((c->users = m) == NULL)
 		return -1;
-	m = bpf_object__find_map_by_name(obj, "flow_port_timeouts");
-	if ((c->flow_port_timeouts = m) == NULL)
+	}
+	if (_dyn_map_resize(obj, m, c->cgn_addr_n + 3) < 0)
 		return -1;
 
 	return 0;
 }
 
+
 static int
 cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 {
+	struct bpf_object *obj = p->load.obj;
 	struct cgn_ctx *c = udata;
 	struct cgn_v4_ipblock *ipbl;
 	struct bpf_map *m;
 	const size_t fmsize = (c->cgn_addr_n + 3) * sizeof (int);
+	const int block_msize = sizeof (struct cgn_v4_ipblock) +
+		sizeof (struct cgn_v4_block) * c->block_count;
 	uint32_t i, l, k;
-	uint8_t d[c->block_msize];
+	uint8_t d[block_msize];
 	void *free_area;
 	int *free_cnt;
 
 	printf("%s\n", __func__);
+
+	/* index bpf maps */
+	c->v4_blocks = bpf_object__find_map_by_name(obj, "v4_blocks");
+	c->v4_free_blocks = bpf_object__find_map_by_name(obj, "v4_free_blocks");
+	c->users = bpf_object__find_map_by_name(obj, "users");
+	c->flow_port_timeouts = bpf_object__find_map_by_name(obj, "flow_port_timeouts");
+
+	if (!c->v4_blocks || !c->v4_free_blocks ||
+	    !c->users || !c->flow_port_timeouts)
+		return 1;
 
 	/* prepare memory to be copied to maps */
 	free_cnt = free_area = malloc(fmsize);
@@ -157,7 +285,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 
 	/* fill blocks */
 	for (i = 0; i < c->cgn_addr_n; i++) {
-		memset(d, 0, c->block_msize);
+		memset(d, 0, block_msize);
 		ipbl = (struct cgn_v4_ipblock *)d;
 		ipbl->ipbl_idx = i;
 		ipbl->fr_idx = i;
@@ -172,7 +300,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 		free_cnt[2 + i] = i;
 
 		bpf_map__update_elem(m, &i, sizeof (i),
-				     d, c->block_msize, 0);
+				     d, block_msize, 0);
 	}
 	free_cnt[0] = 0;
 	free_cnt[1] = c->cgn_addr_n;
@@ -209,7 +337,7 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.description = "carrier-grade-nat",
 	.iface_bind = cgn_bpf_bind_itf,
 	.iface_unbind = cgn_bpf_unbind_itf,
-	.opened = cgn_bpf_opened,
+	.prepare = cgn_bpf_prepare,
 	.loaded = cgn_bpf_loaded,
 };
 
