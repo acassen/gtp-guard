@@ -180,7 +180,11 @@ DEFUN(interface_bpf_prog,
 		return CMD_WARNING;
 	}
 
-	iface->bpf_prog = p;
+	if (!iface->bpf_prog) {
+		iface->bpf_prog = p;
+		list_add(&iface->bpf_prog_list, &p->iface_bind_list);
+	}
+
 	return CMD_SUCCESS;
 }
 
@@ -351,9 +355,7 @@ DEFUN(interface_shutdown,
 		return CMD_WARNING;
 	}
 
-	if (iface->bpf_prog)
-		gtp_bpf_prog_detach(iface->bpf_prog, iface);
-
+	gtp_interface_stop(iface);
 	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
 	return CMD_SUCCESS;
 }
@@ -364,8 +366,6 @@ DEFUN(interface_no_shutdown,
       "Activate interface\n")
 {
 	struct gtp_interface *iface = vty->index;
-	struct gtp_bpf_prog *p = iface->bpf_prog;
-	int err = 0;
 
 	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
 		vty_out(vty, "%% interface:'%s' is already running%s"
@@ -374,39 +374,8 @@ DEFUN(interface_no_shutdown,
 		return CMD_WARNING;
 	}
 
-	if (!p)
-		goto end;
-
-	err = gtp_bpf_prog_attach(p, iface);
-	if (err) {
-		vty_out(vty, "%% error attaching bpf-program to interface:'%s'%s"
-			   , iface->ifname, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	vty_out(vty, "Success attaching bpf-program:'%s' to interface:'%s'%s"
-		   , p->name, iface->ifname, VTY_NEWLINE);
-	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
-			    , p->name, iface->ifname);
-
-	/* Metrics init */
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p,
-							iface->ifindex, IF_METRICS_GTP);
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p,
-							iface->ifindex, IF_METRICS_PPPOE);
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p,
-							iface->ifindex, IF_METRICS_IPIP);
-	if (err) {
-		vty_out(vty, "%% !!!Warning!!! error initializing metrics for interface:'%s'%s"
-			   , iface->ifname
-			   , VTY_NEWLINE);
-	}
-
-  end:
 	__clear_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
+	gtp_interface_start(iface);
 	return CMD_SUCCESS;
 }
 

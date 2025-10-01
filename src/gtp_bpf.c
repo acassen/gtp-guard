@@ -119,7 +119,7 @@ gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list a
 	if (level == LIBBPF_DEBUG && !(debug & 16))
 		return 0;
 
-	log_message(LOG_INFO, format, args);
+	log_message_va(LOG_INFO, format, args);
 	return 0;
 }
 

@@ -142,6 +142,62 @@ gtp_interface_put(struct gtp_interface *iface)
 	return 0;
 }
 
+int
+gtp_interface_start(struct gtp_interface *iface)
+{
+	struct gtp_bpf_prog *p = iface->bpf_prog;
+	int err;
+
+	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ||
+	    __test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
+		return 0;
+
+	if (!p) {
+		__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
+		return 0;
+	}
+
+	/* Attach */
+	if (gtp_bpf_prog_attach(p, iface) < 0)
+		return -1;
+
+	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
+			    , p->name, iface->ifname);
+
+	/* Metrics init */
+	err = 0;
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
+		err = (err) ? : gtp_bpf_rt_metrics_init(p,
+							iface->ifindex, IF_METRICS_GTP);
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
+		err = (err) ? : gtp_bpf_rt_metrics_init(p,
+							iface->ifindex, IF_METRICS_PPPOE);
+	if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
+		err = (err) ? : gtp_bpf_rt_metrics_init(p,
+							iface->ifindex, IF_METRICS_IPIP);
+	if (err) {
+		log_message(LOG_WARNING, "error initializing metrics for interface:'%s'"
+			               , iface->ifname);
+	}
+
+	__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
+	return 0;
+}
+
+void
+gtp_interface_stop(struct gtp_interface *iface)
+{
+	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ||
+	    !__test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
+		return;
+
+	__clear_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
+
+	if (iface->bpf_prog)
+		gtp_bpf_prog_detach(iface->bpf_prog, iface);
+}
+
+
 struct gtp_interface *
 gtp_interface_alloc(const char *name, int ifindex)
 {
@@ -172,8 +228,10 @@ gtp_interface_destroy(struct gtp_interface *iface)
 		if (if_child->link_iface == iface)
 			if_child->link_iface = NULL;
 	}
-	if (iface->bpf_prog)
+	if (iface->bpf_prog) {
 		gtp_bpf_prog_detach(iface->bpf_prog, iface);
+		list_del(&iface->bpf_prog_list);
+	}
 	FREE_PTR(iface->link_metrics);
 	list_head_del(&iface->next);
 	FREE(iface);

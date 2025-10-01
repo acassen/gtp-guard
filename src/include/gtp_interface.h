@@ -39,6 +39,7 @@ enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_LINK_BIT,
 	GTP_INTERFACE_FL_DIRECT_TX_GW_BIT,
 	GTP_INTERFACE_FL_SHUTDOWN_BIT,
+	GTP_INTERFACE_FL_RUNNING_BIT,
 };
 
 /* Interface structure */
@@ -52,10 +53,13 @@ struct gtp_interface {
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
+
+	/* bpf-prog */
 	struct gtp_bpf_prog	*bpf_prog;
+	struct list_head	bpf_prog_list;
 	struct bpf_link		*bpf_xdp_lnk;
 	struct bpf_link		*bpf_tc_lnk;
-	struct gtp_bpf_interface_rule *bpf_itf;
+	struct gtp_bpf_interface_rule *rules;
 
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
@@ -89,6 +93,8 @@ void gtp_interface_update_direct_tx_lladdr(struct ip_address *, const uint8_t *)
 struct gtp_interface *gtp_interface_get(const char *);
 struct gtp_interface *gtp_interface_get_by_ifindex(int);
 int gtp_interface_put(struct gtp_interface *);
+int gtp_interface_start(struct gtp_interface *iface);
+void gtp_interface_stop(struct gtp_interface *iface);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
 void gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);

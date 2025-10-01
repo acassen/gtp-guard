@@ -105,14 +105,14 @@ cgn_bpf_opened(struct gtp_bpf_prog *p, void *udata)
 		return -1;
 	if (bpf_map__set_max_entries(m, c->cgn_addr_n) != 0) {
 		log_message(LOG_INFO, "set v4_blocks.max_entries failed");
-		return -1;
+		return 0;
 	}
 	c->block_msize = sizeof (struct cgn_v4_ipblock) +
 		sizeof (struct cgn_v4_block) * c->block_count;
 	if (bpf_map__set_value_size(m, c->block_msize) != 0) {
 		log_message(LOG_INFO, "set v4_blocks.value_size = %d failed",
 			    c->block_msize);
-		return -1;
+		return 0;
 	}
 
 	m = bpf_object__find_map_by_name(obj, "v4_free_blocks");
@@ -120,11 +120,11 @@ cgn_bpf_opened(struct gtp_bpf_prog *p, void *udata)
 		return -1;
 	if (bpf_map__set_max_entries(m, c->block_count + 1) != 0) {
 		log_message(LOG_INFO, "set free_blocks_cnt.max_entries failed");
-		return -1;
+		return 0;
 	}
 	if (bpf_map__set_value_size(m, (c->cgn_addr_n + 3) * sizeof (int)) != 0) {
 		log_message(LOG_INFO, "set free_blocks_cnt.value_size failed");
-		return -1;
+		return 0;
 	}
 
 	m = bpf_object__find_map_by_name(obj, "users");
