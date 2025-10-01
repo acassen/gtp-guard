@@ -7,6 +7,7 @@ bpf_sources = files(
   'gtp_route.c',
   'gtp_mirror.c',
   'cgn.c',
+  'test_cgn.c',
 )
 
 clang_bpf_flags = [
@@ -34,7 +35,7 @@ foreach bsrc : bpf_sources
 			  depfile : name + '.d',
 			  build_by_default: true,
 			  command : [clang, '-c', '-g', '-O2', '-emit-llvm',
-				     '-target', 'bpf',
+				     '-target', 'bpf', '-mcpu=v3',
 				     clang_bpf_flags,
 				     '-MD', '-MF', '@DEPFILE@',
 				     '-o', '@OUTPUT@', '@INPUT@'
