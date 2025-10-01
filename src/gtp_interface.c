@@ -177,7 +177,7 @@ gtp_interface_start(struct gtp_interface *iface)
 							iface->ifindex, IF_METRICS_IPIP);
 	if (err) {
 		log_message(LOG_WARNING, "error initializing metrics for interface:'%s'"
-			               , iface->ifname);
+				       , iface->ifname);
 	}
 
 	__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
@@ -216,6 +216,8 @@ gtp_interface_alloc(const char *name, int ifindex)
 	list_add_tail(&new->next, &daemon_data->interfaces);
 	__sync_add_and_fetch(&new->refcnt, 1);
 
+	log_message(LOG_INFO, "adding interface '%s'", name);
+
 	return new;
 }
 
@@ -223,6 +225,8 @@ void
 gtp_interface_destroy(struct gtp_interface *iface)
 {
 	struct gtp_interface *if_child;
+
+	log_message(LOG_INFO, "deleting interface '%s'", iface->ifname);
 
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->link_iface == iface)

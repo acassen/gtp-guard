@@ -481,8 +481,6 @@ netlink_if_link_del(struct nlmsghdr *h)
 	if (!iface)
 		return 0;
 
-	log_message(LOG_INFO, "Netlink: deleting interface '%s'", iface->ifname);
-
 	gtp_interface_put(iface);
 	gtp_interface_destroy(iface);
 
@@ -719,10 +717,6 @@ netlink_if_init(void)
 		log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
 		return -1;
 	}
-
-	err = gtp_netlink_if_lookup(0);
-	if (err)
-		return -1;
 
 	thread_add_event(master, netlink_if_stats_update, NULL, 0);
 
