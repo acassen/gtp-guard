@@ -172,8 +172,8 @@ mpkt_dump(struct mpkt *mp, int count)
 	for (i = 0; i < count; i++) {
 		printf("-=[ pkt #%d (%d) ]=-\n",
 			i, pkt_buffer_len(mp->pkt[i]->pbuff));
-		dump_buffer(" ", (char *) mp->pkt[i]->pbuff->head
-			       , pkt_buffer_len(mp->pkt[i]->pbuff));
+		hexdump(" ", mp->pkt[i]->pbuff->head
+			   , pkt_buffer_len(mp->pkt[i]->pbuff));
 	}
 
 	return 0;

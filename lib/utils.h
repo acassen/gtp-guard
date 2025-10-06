@@ -23,6 +23,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 /* Evaluates to -1, 0 or 1 as appropriate.
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
@@ -60,8 +61,13 @@
 extern unsigned long debug;
 
 /* Prototypes defs */
-void dump_buffer(const char *prefix, char *buf, int count);
-void buffer_to_c_array(const char *name, char *buffer, size_t blen);
+int scnprintf(char *buf, size_t size, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+int vscnprintf(char *buf, size_t size, const char *format, va_list args);
+size_t hexdump(const char *prefix, const unsigned char *buffer, size_t size);
+ssize_t hexdump_format(const char *prefix, unsigned char *dst, size_t dsize,
+		       const unsigned char *src, size_t ssize);
+void buffer_to_c_array(const char *name, const unsigned char *buffer, size_t blen);
 char *get_local_name(void);
 int string_equal(const char *str1, const char *str2);
 char hextochar(char c);
@@ -78,6 +84,3 @@ size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
 char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);
 int open_pipe(int pipe_arr[2]);
 uint32_t fnv1a_hash(const uint8_t *buffer, size_t size);
-int scnprintf(char *buf, size_t size, const char *format, ...)
-	__attribute__ ((format (printf, 3, 4)));
-int vscnprintf(char *buf, size_t size, const char *format, va_list args);

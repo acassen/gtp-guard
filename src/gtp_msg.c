@@ -89,7 +89,7 @@ void
 gtp_msg_ie_dump(const char *prefix, const struct gtp_msg_ie *msg_ie)
 {
 	printf("%sIE Type : %d\n", prefix, msg_ie->h->type);
-	dump_buffer(prefix, (char *) msg_ie->data, ntohs(msg_ie->h->length));
+	hexdump(prefix, msg_ie->data, ntohs(msg_ie->h->length));
 }
 
 

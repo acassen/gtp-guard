@@ -208,7 +208,7 @@ gtp_pcap_process(const char *path)
 
 		if (verbose) {
 			printf("  ---[ GTP packet ]---\n");
-			dump_buffer("  ", (char *) pkt->head, pkt_buffer_len(pkt));
+			hexdump("  ", (char *) pkt->head, pkt_buffer_len(pkt));
 			gtp_msg_dump("  ", msg);
 		}
 
@@ -260,7 +260,7 @@ write_cdr(const void *buf, size_t bsize)
 			continue;
 
 		fprintf(stderr, "\n#%d buffer miss-match :\n", i);
-		dump_buffer("Error buffer ", (char *)map_file->map + offset, bsize);
+		hexdump("Error buffer ", (char *)map_file->map + offset, bsize);
 		goto end;
 	}
 	printf("Success vrfy file content integrity\n");
@@ -355,7 +355,7 @@ int main(int argc, char **argv)
 	gtp_cdr_destroy(cdr);
 
 	printf("----[ Generated CDR (%d) ]----\n", len);
-	dump_buffer("", (char *) data, len);
+	hexdump("", (char *) data, len);
 
 	/* Generate c array to be injected into third party
 	 * ASN.1 decoder to validate our ASN.1 encoder output.

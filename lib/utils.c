@@ -36,58 +36,142 @@
 /* global vars */
 unsigned long debug = 0;
 
-/* Display a buffer into a HEXA formated output */
-void
-dump_buffer(const char *prefix, char *buff, int count)
+/*
+ * like snprintf & vsnprintf, but always return number of char
+ * written, this allows usage like this:
+ *
+ * len += scnprintf(buf + len, size - len, ...)
+ */
+int
+vscnprintf(char *buf, size_t size, const char *format, va_list args)
 {
-        int i, j, c;
-        int printnext = 1;
+	int ret;
 
-        if (count % 16)
-                c = count + (16 - count % 16);
-        else
-                c = count;
+	if (!size)
+		return 0;
+	ret = vsnprintf(buf, size, format, args);
+	if ((size_t)ret > size - 1)
+		return size - 1;
+	return ret;
+}
 
-        for (i = 0; i < c; i++) {
-                if (printnext) {
-                        printnext--;
-                        printf("%s%.4x ", prefix, i & 0xffff);
-                }
-                if (i < count)
-                        printf("%3.2x", buff[i] & 0xff);
-                else
-                        printf("   ");
-                if (!((i + 1) % 8)) {
-                        if ((i + 1) % 16)
-                                printf(" -");
-                        else {
-                                printf("   ");
-                                for (j = i - 15; j <= i; j++)
-                                        if (j < count) {
-                                                if ((buff[j] & 0xff) >= 0x20
-                                                    && (buff[j] & 0xff) <= 0x7e)
-                                                        printf("%c",
-                                                               buff[j] & 0xff);
-                                                else
-                                                        printf(".");
-                                        } else
-                                                printf(" ");
-                                printf("\n");
-                                printnext = 1;
-                        }
-                }
-        }
+int
+scnprintf(char *buf, size_t size, const char *format, ...)
+{
+	va_list ap;
+	int ret;
+
+	va_start(ap, format);
+	ret = vscnprintf(buf, size, format, ap);
+	va_end(ap);
+	return ret;
+}
+
+/* Display a buffer into a HEXA formated output */
+size_t
+hexdump(const char *prefix, const unsigned char *buffer, size_t bsize)
+{
+	size_t i, j;
+
+	if (!buffer)
+		return 0;
+
+	for (i = 0; i < bsize; i += 16) {
+		/* Print offset */
+		printf("%s%08zx  ", prefix, i);
+
+		/* Print hex values */
+		for (j = 0; j < 16; j++) {
+			if (i + j < bsize)
+				printf("%02x ", buffer[i + j]);
+			else
+				printf("   ");
+
+			if (j == 7)
+				printf("- ");
+		}
+
+		/* Print ASCII representation */
+		for (j = 0; j < 16 && i + j < bsize; j++) {
+			unsigned char c = buffer[i + j];
+			printf("%c", (c >= 32 && c <= 126) ? c : '.');
+		}
+
+		printf("\n");
+	}
+
+	return bsize;
+}
+
+ssize_t
+hexdump_format(const char *prefix, unsigned char *dst, size_t dsize,
+	       const unsigned char *src, size_t ssize)
+{
+	size_t i, j, pos = 0;
+	int ret;
+
+	if (!dst || !src)
+		return -1;
+
+	for (i = 0; i < ssize; i += 16) {
+		/* Print offset */
+		ret = scnprintf((char *)dst + pos, dsize - pos, "%s%04zx  ", prefix, i);
+		if (ret < 0 || (size_t)ret >= dsize - pos)
+			return -1;
+		pos += ret;
+
+		/* Print hex values */
+		for (j = 0; j < 16; j++) {
+			if (i + j < ssize) {
+				ret = scnprintf((char *)dst + pos, dsize - pos, "%02x ", src[i + j]);
+			} else {
+				ret = scnprintf((char *)dst + pos, dsize - pos, "   ");
+			}
+			if (ret < 0 || (size_t)ret >= dsize - pos)
+				return -1;
+			pos += ret;
+
+			if (j == 7) {
+				ret = scnprintf((char *)dst + pos, dsize - pos, "- ");
+				if (ret < 0 || (size_t)ret >= dsize - pos)
+					return -1;
+				pos += ret;
+			}
+		}
+
+		ret = scnprintf((char *)dst + pos, dsize - pos, " ");
+		if (ret < 0 || (size_t)ret >= dsize - pos)
+			return -1;
+		pos += ret;
+
+		/* Print ASCII representation */
+		for (j = 0; j < 16 && i + j < ssize; j++) {
+			unsigned char c = src[i + j];
+			ret = scnprintf((char *)dst + pos, dsize - pos, "%c",
+					(c >= 32 && c <= 126) ? c : '.');
+			if (ret < 0 || (size_t)ret >= dsize - pos)
+				return -1;
+			pos += ret;
+		}
+
+		ret = scnprintf((char *)dst + pos, dsize - pos, "\n");
+		if (ret < 0 || (size_t)ret >= dsize - pos)
+			return -1;
+		pos += ret;
+	}
+
+	return pos;
 }
 
 void
-buffer_to_c_array(const char *name, char *buffer, size_t blen)
+buffer_to_c_array(const char *name, const unsigned char *buffer, size_t bsize)
 {
 	int i;
 
-	printf("const char %s[%ld] = {\n  ", name, blen);
-	for (i = 0; i < blen; i++)
+	printf("const unsigned char %s[%ld] = {\n  ", name, bsize);
+	for (i = 0; i < bsize; i++)
 		printf("0x%.2x%s%s", buffer[i] & 0xff
-				   , (i < blen - 1) ? "," : ""
+				   , (i < bsize - 1) ? "," : ""
 				   , ((i + 1) % 16) ? " " : "\n  ");
 	printf("\n};\n");
 }
@@ -413,35 +497,4 @@ fnv1a_hash(const uint8_t *buffer, size_t size)
 	}
 
 	return hash;
-}
-
-/*
- * like snprintf & vsnprintf, but always return number of char
- * written, this allows usage like this:
- *
- * len += scnprintf(buf + len, size - len, ...)
- */
-int
-vscnprintf(char *buf, size_t size, const char *format, va_list args)
-{
-	int ret;
-
-	if (!size)
-		return 0;
-	ret = vsnprintf(buf, size, format, args);
-	if ((size_t)ret > size - 1)
-		return size - 1;
-	return ret;
-}
-
-int
-scnprintf(char *buf, size_t size, const char *format, ...)
-{
-	va_list ap;
-	int ret;
-
-	va_start(ap, format);
-	ret = vscnprintf(buf, size, format, ap);
-	va_end(ap);
-	return ret;
 }

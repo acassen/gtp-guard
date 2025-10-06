@@ -748,7 +748,7 @@ pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg)
 	const uint8_t *cp;
 	size_t offset;
 
-	if (!pbuff || pkt_buffer_len(pbuff) < sizeof(*pfcph) || !arg)
+	if (!pbuff || !arg)
 		return -1;
 
 	/* Parse PFCP header */

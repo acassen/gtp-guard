@@ -83,7 +83,6 @@ xfree(void *p)
  */
 
 #ifdef _DEBUG_
-extern void dump_buffer(char *, int);
 
 typedef struct {
 	int type;
@@ -194,12 +193,11 @@ memory_free(void *buffer, char *file, const char *function, const int line)
 					     nspace(--s), i, number_alloc_list,
 					     buf, alloc_list[i].size, file,
 					     line, function);
-					dump_buffer(alloc_list[i].ptr,
-						    alloc_list[i].size +
-						     sizeof (long));
+					hexdump("", alloc_list[i].ptr
+						  , alloc_list[i].size + sizeof (long));
 					printf("%sCheck_sum\n", nspace(i));
-					dump_buffer((char *) &alloc_list[i].csum,
-						    sizeof(long));
+					hexdump("", (char *) &alloc_list[i].csum
+						  , sizeof(long));
 
 					debug |= 512;	/* Memory Error detect */
 				}

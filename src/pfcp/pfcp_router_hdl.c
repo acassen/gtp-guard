@@ -37,22 +37,22 @@ static int
 pfcp_heartbeat_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_router *c = srv->ctx;
 	struct pfcp_heartbeat_request req = {};
-	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	int err;
 
 	err = pfcp_msg_parse(srv->s.pbuff, &req);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
 				    , __FUNCTION__
-				    , pfcp_msgtype2str(req.h->type));
+				    , pfcp_msgtype2str(pfcph->type));
 		return -1;
 	}
 
 	/* Recycle header and reset length */
 	pfcp_msg_reset_hlen(pbuff);
-	hdr->type = PFCP_HEARTBEAT_RESPONSE;
+	pfcph->type = PFCP_HEARTBEAT_RESPONSE;
 
 	/* Append mandatory IE */
 	err = pfcp_ie_put_recovery_ts(pbuff, c->recovery_ts);
@@ -69,8 +69,8 @@ static int
 pfcp_pfd_management_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_router *c = srv->ctx;
-	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_pfd_management_request req = {};
 	int err;
 
@@ -78,13 +78,13 @@ pfcp_pfd_management_response(struct pfcp_server *srv, struct sockaddr_storage *a
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
 				    , __FUNCTION__
-				    , pfcp_msgtype2str(req.h->type));
+				    , pfcp_msgtype2str(pfcph->type));
 		return -1;
 	}
 
 	/* Recycle header and reset length */
 	pfcp_msg_reset_hlen(pbuff);
-	hdr->type = PFCP_PFD_MANAGEMENT_RESPONSE;
+	pfcph->type = PFCP_PFD_MANAGEMENT_RESPONSE;
 
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
@@ -102,8 +102,8 @@ static int
 pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_router *c = srv->ctx;
-	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_association_setup_request req = {};
 	struct pfcp_assoc *assoc;
 	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
@@ -113,7 +113,7 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request"
 				    , __FUNCTION__
-				    , pfcp_msgtype2str(req.h->type));
+				    , pfcp_msgtype2str(pfcph->type));
 		cause = PFCP_CAUSE_REQUEST_REJECTED;
 		goto end;
 	}
@@ -136,7 +136,7 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 end:
 	/* Recycle header and reset length */
 	pfcp_msg_reset_hlen(pbuff);
-	hdr->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
+	pfcph->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
 
 	/* Append IEs */
 	err = pfcp_ie_put_node_id(pbuff, c->node_id, strlen(c->node_id));
@@ -183,9 +183,12 @@ pfcp_router_handle(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
+	unsigned char buffer[4096];
 
-	printf("---[ incoming packet ]---\n");
-	dump_buffer("PFCP ", (char *) pbuff->head, pkt_buffer_len(pbuff));
+	//printf("---[ incoming packet ]---\n");
+	//hexdump("PFCP ", pbuff->head, pkt_buffer_len(pbuff));
+	hexdump_format(buffer, 4096, pbuff->head, pkt_buffer_len(pbuff));
+	printf("---[ Ingress ]---\n%s", buffer);
 
 	if (*(pfcp_msg_hdl[pfcph->type].hdl)) {
 		pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
