@@ -91,7 +91,7 @@ pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const char *buffer, size_t bsize)
 
 	ie = (struct pfcp_ie_node_id *) pbuff->data;
 	ie->node_id_type = PFCP_NODE_ID_TYPE_FQDN;
-	memcpy(ie->value.fqdn, buffer, bsize);
+	memcpy(ie->fqdn, buffer, bsize);
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);

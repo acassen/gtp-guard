@@ -968,7 +968,7 @@ struct pfcp_ie_node_id {
 		struct in_addr ipv4;
 		struct in6_addr ipv6;
 		uint8_t *fqdn;
-	} value;
+	};
 } __attribute__((packed));
 
 /* PFD Contents IE */

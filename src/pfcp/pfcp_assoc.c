@@ -160,16 +160,16 @@ pfcp_assoc_get_by_ie(struct pfcp_ie_node_id *ie)
 	n.type = ie->node_id_type;
 	switch (ie->node_id_type) {
 	case PFCP_NODE_ID_TYPE_IPV4:
-		n.ipv4 = ie->value.ipv4;
+		n.ipv4 = ie->ipv4;
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		n.ipv4 = ie->value.ipv4;
+		n.ipv4 = ie->ipv4;
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
 		memcpy2str((char *)n.fqdn, GTP_NAME_MAX_LEN,
-			   ie->value.fqdn, ntohs(ie->h.length) - 1);
+			   ie->fqdn, ntohs(ie->h.length) - 1);
 		break;
 
 	default:
@@ -233,12 +233,12 @@ pfcp_assoc_stringify(struct pfcp_assoc *c, char *buf, size_t bsize)
 static int
 pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
 {
-	char addr_str[INET6_ADDRSTRLEN];
+	char assoc_str[GTP_NAME_MAX_LEN];
 	struct tm *t = &c->creation_time;
 	int k = 0;
 
 	k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
-		       pfcp_assoc_stringify(c, addr_str, INET6_ADDRSTRLEN));
+		       pfcp_assoc_stringify(c, assoc_str, GTP_NAME_MAX_LEN));
 	k += scnprintf(buf + k, bsize - k, " recovery_ts:0x%.4x"
 					   " creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d\n",
 		       ntohl(c->recovery_ts),
@@ -297,16 +297,16 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 
 	switch (node_id->node_id_type) {
 	case PFCP_NODE_ID_TYPE_IPV4:
-		new->node_id.ipv4 = node_id->value.ipv4;
+		new->node_id.ipv4 = node_id->ipv4;
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		new->node_id.ipv6 = node_id->value.ipv6;
+		new->node_id.ipv6 = node_id->ipv6;
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
 		memcpy2str((char *)new->node_id.fqdn, GTP_NAME_MAX_LEN,
-			   node_id->value.fqdn, ntohs(node_id->h.length) - 1);
+			   node_id->fqdn, ntohs(node_id->h.length) - 1);
 		break;
 
 	default:

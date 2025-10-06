@@ -50,6 +50,22 @@ pfcp_msg_reset_hlen(struct pkt_buffer *pbuff)
 	return 0;
 }
 
+static int
+pfcp_add_ie_to_array(void ***array, void *ie)
+{
+	int i;
+
+	for (i = 0; i < PFCP_REQ_IE_ARRAY_SIZE; i++) {
+		if ((*array)[i])
+			continue;
+
+		(*array)[i] = ie;
+		return 0;
+	}
+
+	return -1;
+}
+
 
 /*
  * 	PFCP Heartbeat Request
@@ -387,35 +403,35 @@ pfcp_parse_session_establishment_request(const uint8_t *cp, int *mandatory, void
 		break;
 
 	case PFCP_IE_CREATE_PDR:
-		req->create_pdr = (struct pfcp_ie_create_pdr *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_pdr, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_FAR:
-		req->create_far = (struct pfcp_ie_create_far *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_far, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_URR:
-		req->create_urr = (struct pfcp_ie_create_urr *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_urr, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_QER:
-		req->create_qer = (struct pfcp_ie_create_qer *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_qer, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_BAR:
-		req->create_bar = (struct pfcp_ie_create_bar *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_bar, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
-		req->create_traffic_endpoint = (struct pfcp_ie_create_traffic_endpoint *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_traffic_endpoint, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_MAR:
-		req->create_mar = (struct pfcp_ie_create_mar *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_mar, (void *)cp);
 		break;
 
 	case PFCP_IE_CREATE_SRR:
-		req->create_srr = (struct pfcp_ie_create_srr *)cp;
+		pfcp_add_ie_to_array((void ***)&req->create_srr, (void *)cp);
 		break;
 
 	default:
@@ -679,51 +695,39 @@ pfcp_parse_session_report_request(const uint8_t *cp, int *mandatory, void *arg)
  */
 static const struct {
 	int mandatory_ie;
-	size_t arg_size;
 	void (*parse) (const uint8_t *, int *, void *);
 } pfcp_msg_decoder[1 << 8] = {
 	[PFCP_HEARTBEAT_REQUEST]		= { 1,
-						    sizeof(struct pfcp_heartbeat_request),
 						    pfcp_parse_heartbeat_request
 						  },
 	[PFCP_PFD_MANAGEMENT_REQUEST]		= { 0,
-						    sizeof(struct pfcp_pfd_management_request),
 						    pfcp_parse_pfd_management_request
 						  },
 	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { 3,
-						    sizeof(struct pfcp_association_setup_request),
 						    pfcp_parse_association_setup_request
 						  },
 	[PFCP_ASSOCIATION_UPDATE_REQUEST]	= { 1,
-						    sizeof(struct pfcp_association_update_request),
 						    pfcp_parse_association_update_request
 						  },
 	[PFCP_ASSOCIATION_RELEASE_REQUEST]	= { 1,
-						    sizeof(struct pfcp_association_release_request),
 						    pfcp_parse_association_release_request
 						  },
 	[PFCP_NODE_REPORT_REQUEST]		= { 3,
-						    sizeof(struct pfcp_node_report_request),
 						    pfcp_parse_node_report_request
 						  },
 	[PFCP_SESSION_SET_DELETION_REQUEST]	= { 1,
-						    sizeof(struct pfcp_session_set_deletion_request),
 						    pfcp_parse_session_set_deletion_request
 						  },
 	[PFCP_SESSION_ESTABLISHMENT_REQUEST]	= { 3,
-						    sizeof(struct pfcp_session_establishment_request),
 						    pfcp_parse_session_establishment_request
 						  },
 	[PFCP_SESSION_MODIFICATION_REQUEST]	= { 0,
-						    sizeof(struct pfcp_session_modification_request),
 						    pfcp_parse_session_modification_request
 						  },
 	[PFCP_SESSION_DELETION_REQUEST]		= { 0,
-						    sizeof(struct pfcp_session_deletion_request),
 						    pfcp_parse_session_deletion_request
 						  },
 	[PFCP_SESSION_REPORT_REQUEST]		= { 1,
-						    sizeof(struct pfcp_session_report_request),
 						    pfcp_parse_session_report_request
 						  },
 };
@@ -754,9 +758,6 @@ pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg)
 
 	if (!*(pfcp_msg_decoder[pfcph->type].parse))
 		return -1;
-
-	/* Initialize all pointers to NULL */
-	memset(arg, 0, pfcp_msg_decoder[pfcph->type].arg_size);
 
 	/* Parse IEs */
 	for (cp = pbuff->head + offset; cp < pbuff->end; cp += offset) {

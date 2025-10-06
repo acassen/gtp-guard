@@ -38,7 +38,7 @@ pfcp_heartbeat_response(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_router *c = srv->ctx;
-	struct pfcp_heartbeat_request req;
+	struct pfcp_heartbeat_request req = {};
 	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
 	int err;
 
@@ -71,7 +71,7 @@ pfcp_pfd_management_response(struct pfcp_server *srv, struct sockaddr_storage *a
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_router *c = srv->ctx;
 	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_pfd_management_request req;
+	struct pfcp_pfd_management_request req = {};
 	int err;
 
 	err = pfcp_msg_parse(srv->s.pbuff, &req);
@@ -104,7 +104,7 @@ pfcp_assoc_setup_response(struct pfcp_server *srv, struct sockaddr_storage *addr
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_router *c = srv->ctx;
 	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_association_setup_request req;
+	struct pfcp_association_setup_request req = {};
 	struct pfcp_assoc *assoc;
 	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 	int err;
