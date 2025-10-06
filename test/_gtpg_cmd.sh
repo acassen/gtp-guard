@@ -8,6 +8,12 @@ setup_netns() {
     done
 }
 
+clean_netns() {
+    for ns in $@; do
+	[ -f /run/netns/$ns ] && ip netns del $ns
+    done
+}
+
 fail() {
 	echo "fail: $*" >&2
 	exit 1
@@ -67,6 +73,33 @@ EOF
 	cat $tmp/exp_log
     fi
     return 0
+}
+
+# start gtp-guard only if it is not running
+start_gtpguard() {
+    pidfile=${GTP_GUARD_PID_FILE:-/var/run/gtp-guard.pid}
+    echo "pidfile: $pidfile"
+    if [ -r $pidfile ]; then
+	kill -0 `head -n 1 $pidfile`
+	if [ $? -eq 0 ]; then
+	    return
+	fi
+    fi
+
+    bin/gtp-guard \
+	--dump-conf \
+	--dont-fork \
+	--log-console \
+	--log-detail \
+	-f test/conf/minimal.conf &
+    gtpguard_pid=$!
+    if [ $? -ne 0 ]; then
+	fail "failed to start gtp-guard"
+    fi
+    cat >> $tmp/cleanup.sh <<EOF
+echo "*** WAITING that gtp-guard($gtpguard_pid) stops. CTRL-C do to so...."
+wait $gtpguard_pid
+EOF
 }
 
 gtpg_conf() {

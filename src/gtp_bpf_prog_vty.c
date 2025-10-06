@@ -303,9 +303,10 @@ DEFUN(bpf_prog_no_shutdown,
 	}
 
 	__clear_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
+	if (gtp_bpf_prog_load(p) < 0)
+		return CMD_WARNING;
 	return CMD_SUCCESS;
- }
-
+}
 
 
 /* Configuration writer */

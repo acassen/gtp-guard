@@ -139,30 +139,91 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 	return k;
 }
 
-int
-cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface, bool from_priv)
+static void
+cgn_ctx_set_rules(struct cgn_ctx *c)
 {
-	struct gtp_interface **cifin = from_priv ? &c->priv : &c->pub;
-	struct gtp_interface **cifout = from_priv ? &c->pub : &c->priv;
+	/* everything configured/binded, set traffic rules */
+	if (!c->rules_set &&
+	    c->priv != NULL && c->bind_priv &&
+	    c->pub != NULL && c->bind_pub) {
+		gtp_interface_rule_add(c->priv, c->pub, 10, 100);
+		gtp_interface_rule_add(c->pub, c->priv, 11, 500);
+		c->rules_set = true;
+		return;
+	}
 
-	if (*cifin != NULL) {
-		log_message(LOG_INFO, "{cgn:%s} cannot bind to iface '%s', "
-			    "already bound to iface '%s'",
-			    c->name, iface->ifname, (*cifin)->ifname);
+	/* something not configured/binded anymore, unset traffic rules */
+	if (c->rules_set && (!c->bind_priv || !c->bind_pub)) {
+		assert(c->priv && c->pub);
+		gtp_interface_rule_del(c->priv);
+		gtp_interface_rule_del(c->pub);
+		c->rules_set = false;
+	}
+}
+
+static void
+cgn_ctx_iface_event_cb(struct gtp_interface *iface,
+		       enum gtp_interface_event type,
+		       void *ud)
+{
+	struct cgn_ctx *c = ud;
+
+	switch (type) {
+	case GTP_INTERFACE_EV_PRG_BIND:
+		if (iface == c->priv)
+			c->bind_priv = true;
+		if (iface == c->pub)
+			c->bind_pub = true;
+		break;
+
+	case GTP_INTERFACE_EV_PRG_UNBIND:
+	case GTP_INTERFACE_EV_DESTROYING:
+		if (iface == c->priv)
+			c->bind_priv = false;
+		if (iface == c->pub)
+			c->bind_pub = false;
+		break;
+	}
+
+	cgn_ctx_set_rules(c);
+
+	if (type == GTP_INTERFACE_EV_DESTROYING) {
+		if (iface == c->priv)
+			c->priv = NULL;
+		if (iface == c->pub)
+			c->pub = NULL;
+	}
+}
+
+int
+cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
+			 bool is_priv)
+{
+	struct gtp_interface **piface = is_priv ? &c->priv : &c->pub;
+
+	if (*piface) {
+		errno = EEXIST;
 		return -1;
 	}
-	*cifin = iface;
+	*piface = iface;
 
-	/* 2 sides are specified, add rules */
-	if (*cifout != NULL) {
-		gtp_interface_rule_add(iface, *cifout, from_priv ? 10 : 11,
-				       from_priv ? 500 : 100);
-		gtp_interface_rule_add(*cifout, iface, from_priv ? 11 : 10,
-				       from_priv ? 100 : 500);
-	}
+	if (gtp_bpf_prog_is_attached(c->prg, iface))
+		*(is_priv ? &c->bind_priv : &c->bind_pub) = true;
+
+	gtp_interface_register_event(iface, cgn_ctx_iface_event_cb, c);
+
+	cgn_ctx_set_rules(c);
 
 	return 0;
 }
+
+void
+cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface)
+{
+	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c);
+	gtp_interface_unregister_event(iface, cgn_ctx_iface_event_cb);
+}
+
 
 struct cgn_ctx *
 cgn_ctx_get_by_name(const char *name)
@@ -184,7 +245,7 @@ cgn_ctx_alloc(const char *name)
 	struct cgn_ctx *c = NULL;
 	struct gtp_bpf_prog *p;
 
-	/* cgn configure a bpf-program. it must exists */
+	/* cgn configure a bpf-program. create it if it doesn't exist */
 	p = gtp_bpf_prog_get(name);
 	if (p == NULL) {
 		p = gtp_bpf_prog_alloc(name);

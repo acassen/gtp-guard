@@ -31,6 +31,19 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_interface_rule.h"
 
+/* Interface events */
+enum gtp_interface_event {
+	GTP_INTERFACE_EV_PRG_BIND,
+	GTP_INTERFACE_EV_PRG_UNBIND,
+	GTP_INTERFACE_EV_DESTROYING,
+};
+
+typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
+					 enum gtp_interface_event,
+					 void *user_data);
+struct gtp_interface_event_storage;
+
+
 /* Flags */
 enum gtp_interface_flags {
 	GTP_INTERFACE_FL_METRICS_GTP_BIT,
@@ -60,6 +73,11 @@ struct gtp_interface {
 	struct bpf_link		*bpf_xdp_lnk;
 	struct bpf_link		*bpf_tc_lnk;
 	struct gtp_bpf_interface_rule *rules;
+
+	/* interface events */
+	struct gtp_interface_event_storage *ev;
+	int			ev_n;
+	int			ev_msize;
 
 	/* metrics */
 	struct rtnl_link_stats64 *link_metrics;
@@ -93,8 +111,13 @@ void gtp_interface_update_direct_tx_lladdr(struct ip_address *, const uint8_t *)
 struct gtp_interface *gtp_interface_get(const char *);
 struct gtp_interface *gtp_interface_get_by_ifindex(int);
 int gtp_interface_put(struct gtp_interface *);
-int gtp_interface_start(struct gtp_interface *iface);
-void gtp_interface_stop(struct gtp_interface *iface);
+int gtp_interface_start(struct gtp_interface *);
+void gtp_interface_stop(struct gtp_interface *);
+void gtp_interface_register_event(struct gtp_interface *, gtp_interface_event_cb_t,
+				  void *);
+void gtp_interface_unregister_event(struct gtp_interface *, gtp_interface_event_cb_t);
+void gtp_interface_trigger_event(struct gtp_interface *iface,
+				 enum gtp_interface_event type);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
 void gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);

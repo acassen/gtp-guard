@@ -62,6 +62,8 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 		iface = from->link_iface;
 
 	r = iface->rules;
+	printf("%s action %d rules:%p ifindex:%d\n", __func__, action,
+	       r, iface->ifindex);
 	if (!r)
 		return;
 
@@ -78,6 +80,14 @@ gtp_interface_rule_add(struct gtp_interface *from, struct gtp_interface *to,
 	ar.action = action;
 	ar.table = from->table_id;
 	ar.vlan_id = to->vlan_id;
+
+	switch (to->tunnel_mode) {
+	case 1:
+		ar.gre_remote = addr_toip4(&to->tunnel_remote);
+		break;
+	default:
+		break;
+	}
 
 	/* when output interface is a sub-interface, we force output
 	 * ifindex to it (otherwise bpf_fib_lookup will send from it) */
@@ -102,7 +112,7 @@ gtp_interface_rule_del(struct gtp_interface *from)
 	struct gtp_interface *iface = from;
 	struct if_rule_key k = {};
 
-	if (from->bpf_prog == NULL && from->link_iface)
+	if (from->bpf_prog == NULL && from->link_iface != NULL)
 		iface = from->link_iface;
 
 	r = iface->rules;
@@ -121,7 +131,7 @@ gtp_interface_rule_del(struct gtp_interface *from)
  */
 
 static int
-gtp_ifrule_opened(struct gtp_bpf_prog *p, void *udata)
+gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata)
 {
 	struct gtp_bpf_interface_rule *r = udata;
 
@@ -148,11 +158,12 @@ gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface 
 	iface->rules = NULL;
 }
 
+
 static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 	.name = "if_rules",
 	.description = "iface-rule-dispatcher",
 	.udata_alloc_size = sizeof (struct gtp_bpf_interface_rule),
-	.loaded = gtp_ifrule_opened,
+	.loaded = gtp_ifrule_loaded,
 	.iface_bind = gtp_ifrule_bind_itf,
 	.iface_unbind = gtp_ifrule_unbind_itf,
 };

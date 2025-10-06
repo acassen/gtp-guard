@@ -46,7 +46,6 @@ struct gtp_bpf_prog_tpl {
 
 	int (*prepare)(struct gtp_bpf_prog *, void *);
 	int (*loaded)(struct gtp_bpf_prog *, void *);
-	//int (*closed)(struct gtp_bpf_prog *, void *);
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
@@ -95,7 +94,9 @@ struct gtp_bpf_prog {
 /* Prototypes */
 int gtp_bpf_prog_obj_update_var(struct bpf_object *,
  			       const struct gtp_bpf_prog_var *);
+int gtp_bpf_prog_load(struct gtp_bpf_prog *p);
 int gtp_bpf_prog_attach(struct gtp_bpf_prog *, struct gtp_interface *);
+bool gtp_bpf_prog_is_attached(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_detach(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_unload(struct gtp_bpf_prog *);
 int gtp_bpf_prog_destroy(struct gtp_bpf_prog *);

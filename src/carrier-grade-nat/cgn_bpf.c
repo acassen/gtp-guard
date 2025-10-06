@@ -181,18 +181,6 @@ _dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
 }
 
 
-
-static int
-cgn_bpf_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
-{
-	return 0;
-}
-
-static void
-cgn_bpf_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
-{
-}
-
 static int
 cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 {
@@ -201,11 +189,8 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 	struct bpf_map *m;
 	uint64_t icmp_to;
 
-	if (c == NULL) {
-		log_message(LOG_INFO, "cgn bpf program '%s' not attached to "
-			    "a cgn block", p->name);
-		return -1;
-	}
+	if (c == NULL)
+		return 1;
 
 	/* set consts */
 	icmp_to = c->timeout_icmp * NSEC_PER_SEC;
@@ -266,8 +251,6 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 	uint8_t d[block_msize];
 	void *free_area;
 	int *free_cnt;
-
-	printf("%s\n", __func__);
 
 	/* index bpf maps */
 	c->v4_blocks = bpf_object__find_map_by_name(obj, "v4_blocks");
@@ -335,8 +318,6 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.name = "cgn",
 	.description = "carrier-grade-nat",
-	.iface_bind = cgn_bpf_bind_itf,
-	.iface_unbind = cgn_bpf_unbind_itf,
 	.prepare = cgn_bpf_prepare,
 	.loaded = cgn_bpf_loaded,
 };

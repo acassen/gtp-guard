@@ -32,6 +32,12 @@
 /* Extern data */
 extern struct data *daemon_data;
 
+struct gtp_interface_event_storage
+{
+	gtp_interface_event_cb_t cb;
+	void *cb_ud;
+};
+
 
 /*
  *	Interface helpers
@@ -146,6 +152,7 @@ int
 gtp_interface_start(struct gtp_interface *iface)
 {
 	struct gtp_bpf_prog *p = iface->bpf_prog;
+	struct gtp_interface *if_child;
 	int err;
 
 	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ||
@@ -160,6 +167,14 @@ gtp_interface_start(struct gtp_interface *iface)
 	/* Attach */
 	if (gtp_bpf_prog_attach(p, iface) < 0)
 		return -1;
+
+	/* Trigger event on this iface and all sub-interfaces */
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_BIND);
+	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
+		if (if_child->link_iface == iface)
+			gtp_interface_trigger_event(if_child,
+						    GTP_INTERFACE_EV_PRG_BIND);
+	}
 
 	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
 			    , p->name, iface->ifname);
@@ -187,14 +202,71 @@ gtp_interface_start(struct gtp_interface *iface)
 void
 gtp_interface_stop(struct gtp_interface *iface)
 {
+	struct gtp_interface *if_child;
+
 	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ||
 	    !__test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
 		return;
 
 	__clear_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
 
-	if (iface->bpf_prog)
-		gtp_bpf_prog_detach(iface->bpf_prog, iface);
+	if (iface->bpf_prog == NULL)
+		return;
+
+	/* Detach program */
+	gtp_bpf_prog_detach(iface->bpf_prog, iface);
+
+	/* Trigger event on this iface and all sub-interfaces */
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_UNBIND);
+	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
+		if (if_child->link_iface == iface)
+			gtp_interface_trigger_event(if_child,
+						    GTP_INTERFACE_EV_PRG_UNBIND);
+	}
+}
+
+
+void
+gtp_interface_register_event(struct gtp_interface *iface,
+			     gtp_interface_event_cb_t cb,
+			     void *ud)
+{
+	if (iface->ev_n >= iface->ev_msize) {
+		iface->ev_msize = !iface->ev_msize ? 8 : iface->ev_msize * 2;
+		iface->ev = realloc(iface->ev, iface->ev_msize * sizeof (*iface->ev));
+		if (iface->ev == NULL)
+			return;
+	}
+	iface->ev[iface->ev_n].cb = cb;
+	iface->ev[iface->ev_n].cb_ud = ud;
+	++iface->ev_n;
+}
+
+void
+gtp_interface_unregister_event(struct gtp_interface *iface,
+			       gtp_interface_event_cb_t cb)
+{
+	int i;
+
+	for (i = 0; i < iface->ev_n; i++) {
+		if (iface->ev[i].cb == cb) {
+			if (iface->ev_n > 1)
+				iface->ev[i] = iface->ev[iface->ev_n - 1];
+			--iface->ev_n;
+			break;
+		}
+	}
+}
+
+
+void
+gtp_interface_trigger_event(struct gtp_interface *iface,
+			    enum gtp_interface_event type)
+{
+	int i;
+
+	for (i = 0; i < iface->ev_n; i++)
+		iface->ev[i].cb(iface, type, iface->ev[i].cb_ud);
 }
 
 
@@ -216,7 +288,7 @@ gtp_interface_alloc(const char *name, int ifindex)
 	list_add_tail(&new->next, &daemon_data->interfaces);
 	__sync_add_and_fetch(&new->refcnt, 1);
 
-	log_message(LOG_INFO, "adding interface '%s'", name);
+	log_message(LOG_INFO, "gtp_interface: adding '%s'", name);
 
 	return new;
 }
@@ -226,7 +298,9 @@ gtp_interface_destroy(struct gtp_interface *iface)
 {
 	struct gtp_interface *if_child;
 
-	log_message(LOG_INFO, "deleting interface '%s'", iface->ifname);
+	log_message(LOG_INFO, "gtp_interface: deleting '%s'", iface->ifname);
+
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_DESTROYING);
 
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->link_iface == iface)
@@ -238,6 +312,7 @@ gtp_interface_destroy(struct gtp_interface *iface)
 	}
 	FREE_PTR(iface->link_metrics);
 	list_head_del(&iface->next);
+	free(iface->ev);
 	FREE(iface);
 }
 
@@ -247,7 +322,9 @@ gtp_interfaces_destroy(void)
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface, *_iface;
 
-	list_for_each_entry_safe(iface, _iface, l, next)
+	/* should remove sub-interfaces first (eth1.10 before eth1)
+	 * parsing list in reverse is the poor man tools */
+	list_for_each_entry_safe_reverse(iface, _iface, l, next)
 		gtp_interface_destroy(iface);
 	return 0;
 }

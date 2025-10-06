@@ -384,17 +384,18 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 		}
 	}
 
+	free(buf);
+
 	/* remove unused template */
-	for (i = 0; i < tpl_check_n && i < p->tpl_n; i++) {
-		if (tpl_check[j])
-			continue;
-		log_message(LOG_INFO, "%s: template %s is not referenced, remove",
-			    p->name, p->tpl[i]->name);
-		p->tpl_data[i] = p->tpl_data[p->tpl_n - 1];
-		p->tpl[i] = p->tpl[--p->tpl_n];
+	for (i = 0; i < tpl_check_n; i++) {
+		if (!tpl_check[j]) {
+			log_message(LOG_INFO, "%s: template %s is not referenced, "
+				    "remove", p->name, p->tpl[i]->name);
+			p->tpl_data[i] = p->tpl_data[p->tpl_n - 1];
+			p->tpl[i] = p->tpl[--p->tpl_n];
+		}
 	}
 
-	free(buf);
 	return 0;
 
  err:
@@ -407,15 +408,18 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 static int
 gtp_bpf_prog_prepare(struct gtp_bpf_prog *p)
 {
-	int i;
+	int i, ret;
 
 	if (__test_bit(GTP_BPF_PROG_FL_LOAD_PREPARED_BIT, &p->flags))
 		return 0;
 
 	for (i = 0; i < p->tpl_n; i++) {
 		if (p->tpl[i]->prepare != NULL &&
-		    p->tpl[i]->prepare(p, p->tpl_data[i]) < 0)
-			goto err;
+		    (ret = p->tpl[i]->prepare(p, p->tpl_data[i]))) {
+			if (ret < 0)
+				goto err;
+			return 1;
+		}
 	}
 
 	__set_bit(GTP_BPF_PROG_FL_LOAD_PREPARED_BIT, &p->flags);
@@ -429,7 +433,7 @@ gtp_bpf_prog_prepare(struct gtp_bpf_prog *p)
 }
 
 static int
-gtp_bpf_prog_load(struct gtp_bpf_prog *p)
+gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	struct bpf_program *bpf_prg;
@@ -502,6 +506,24 @@ gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 	return -1;
 }
 
+/*
+ * load bpf program. returns:
+ *   -1 on error
+ *    0 on success (or already running)
+ *    1 if prepare() template cb says it's not ready for loading
+ */
+int
+gtp_bpf_prog_load(struct gtp_bpf_prog *p)
+{
+	int ret = -1;
+
+	if (!p->run.obj && (gtp_bpf_prog_open(p) ||
+			    (ret = gtp_bpf_prog_prepare(p)) ||
+			    gtp_bpf_prog_load_prg(p)))
+		return ret;
+	return 0;
+}
+
 int
 gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 {
@@ -510,9 +532,9 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 	int i;
 
 	/* Load program if not yet running */
-	if (!p->run.obj && (gtp_bpf_prog_open(p) < 0 ||
-			    gtp_bpf_prog_prepare(p) < 0 ||
-			    gtp_bpf_prog_load(p) < 0))
+	if (!p->run.obj && (gtp_bpf_prog_open(p) ||
+			    gtp_bpf_prog_prepare(p) ||
+			    gtp_bpf_prog_load_prg(p)))
 		return -1;
 
 	/* Attach XDP */
@@ -561,6 +583,15 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 
 	return 0;
 }
+
+bool
+gtp_bpf_prog_is_attached(struct gtp_bpf_prog *p, struct gtp_interface *iface)
+{
+	return (iface->bpf_prog == p &&
+		(iface->bpf_xdp_lnk || iface->bpf_tc_lnk)) ||
+		(iface->link_iface && gtp_bpf_prog_is_attached(p, iface->link_iface));
+}
+
 
 void
 gtp_bpf_prog_detach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
@@ -701,7 +732,7 @@ gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
 
 	/* re-open bpf file */
 	if (gtp_bpf_prog_open(p) ||
-	    gtp_bpf_prog_prepare(p) < 0)
+	    gtp_bpf_prog_prepare(p))
 		return;
 
 	/* assign bpf_map from running program if map specs are the same.
@@ -739,7 +770,7 @@ gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
 	}
 
 	/* re-load bpf program */
-	if (gtp_bpf_prog_load(p)) {
+	if (gtp_bpf_prog_load_prg(p)) {
 		log_message(LOG_INFO, "%s cannot reload bpf program, "
 			    "keep previous running one", p->name);
 		return;
@@ -765,7 +796,7 @@ gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
 
  cant_soft_reload:
 	/* re-load bpf program */
-	if (gtp_bpf_prog_load(p)) {
+	if (gtp_bpf_prog_load_prg(p)) {
 		log_message(LOG_INFO, "%s: cannot reload bpf program, "
 			    "keep previous running one", p->name);
 		return;

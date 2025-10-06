@@ -250,11 +250,29 @@ DEFUN(cgn_interface,
 		return CMD_WARNING;
 	}
 
-	if (cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "network-in")) < 0) {
-		vty_out(vty, "%% {itf:%s} cannot attach to carrier-grade-nat bloc '%s'",
+	cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "network-in"));
+
+	return CMD_SUCCESS;
+}
+
+/* attached on INTERFACE_NODE */
+DEFUN(cgn_no_interface,
+      cgn_no_interface_cmd,
+      "no carrier-grade-nat CGNBLOCK",
+      "Destroy carrier-grade on this interface\n"
+      "carrier-grade-nat configuration bloc name\n")
+{
+	struct gtp_interface *iface = vty->index;
+	struct cgn_ctx *c;
+
+	c = cgn_ctx_get_by_name(argv[0]);
+	if (c == NULL) {
+		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined",
 			iface->ifname, argv[0]);
 		return CMD_WARNING;
 	}
+
+	cgn_ctx_detach_interface(c, iface);
 
 	return CMD_SUCCESS;
 }

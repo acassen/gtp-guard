@@ -43,8 +43,9 @@ _acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
 	if (d->r == NULL)
 		return XDP_PASS;
 
-	bpf_printk("got the rule ! table:%d vlan:%d action:%d iface:%d",
-		   d->r->table, d->r->vlan_id, d->r->action, d->r->ifindex);
+	bpf_printk("got the rule ! table:%d vlan:%d gre_r:%x action:%d iface:%d",
+		   d->r->table, d->r->vlan_id, d->r->gre_remote,
+		   d->r->action, d->r->ifindex);
 
 	return d->r->action;
 }
@@ -149,8 +150,6 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
  * rewrite packet according to 'if_rule'. usually the latest
  * call from xdp program.
  *
- * packet is intended to be forwarded, so mac addresses are swapped.
- *
  * if packet is going to be processed locally, then return XDP_PASS
  * before.
  */
@@ -169,8 +168,12 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	fibp.ipv4_dst = bpf_ntohl(d->dst_addr);
 
 	__u32 flags = BPF_FIB_LOOKUP_DIRECT;
-	if (d->r->gre_remote)
+	if (d->r->gre_remote) {
 		flags |= BPF_FIB_LOOKUP_SRC;
+		fibp.ipv4_dst = d->r->gre_remote;
+	} else {
+		fibp.ipv4_dst = bpf_ntohl(d->dst_addr);
+	}
 	if (d->r->table) {
 		flags |= BPF_FIB_LOOKUP_TBID;
 		fibp.tbid = d->r->table;
@@ -225,13 +228,10 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			return XDP_DROP;
 
 		/* remove vlan header */
-		if (d->k.vlan_id && !d->r->vlan_id)
+		if ((d->k.vlan_id && !d->r->vlan_id) || adjust_sz)
 			ethh->h_proto = __constant_htons(ETH_P_IP);
 
 		payload = ethh + 1;
-		__u8 *p = payload;
-		if ((void *)(p + 1) > data_end)
-			return XDP_DROP;
 	}
 
 	/* add gre tunnel if necessary */
@@ -239,7 +239,6 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		struct iphdr *ip4h = payload;
 		if ((void *)(ip4h + 1) > data_end)
 			return XDP_DROP;
-		barrier_var(ip4h);
 
 		struct gre_hdr *gre = (struct gre_hdr *)(ip4h + 1);
 		if ((void *)(gre + 1) > data_end)

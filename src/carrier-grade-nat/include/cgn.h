@@ -43,25 +43,19 @@ struct port_timeout_config
 	uint16_t tcp_est;
 };
 
-/* bpf maps */
-enum {
-	BPF_CGN_MAP_V4_BLOCKS = 0,
-	BPF_CGN_MAP_V4_FREE_BLOCKS,
-	BPF_CGN_MAP_USERS,
-	BPF_CGN_MAP_FLOW_PORT_TIMEOUTS,
-	BPF_CGN_MAP_CNT
-};
-
 struct cgn_ctx
 {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	struct list_head	next;
+	struct gtp_bpf_prog	*prg;	/* always set */
 
-	/* links to bpf-prog and interfaces */
-	struct gtp_bpf_prog	*prg;
+	/* links to interfaces */
 	struct gtp_interface	*priv;
 	struct gtp_interface	*pub;
+	bool			bind_priv;
+	bool			bind_pub;
+	bool			rules_set;
 
 	/* bpf maps */
 	struct bpf_map		*v4_blocks;
@@ -89,7 +83,8 @@ struct cgn_ctx
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
 int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
 int cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
-			     bool from_priv);
+			     bool is_priv);
+void cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface);
 struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
 void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);
