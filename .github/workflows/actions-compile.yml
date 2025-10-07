@@ -24,13 +24,11 @@ jobs:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
         with:
-          apt: libelf-dev llvm
-      - name: recursive checkout (with libbpf submodule)
+          apt: libelf-dev llvm meson
+      - name: checkout
         uses: actions/checkout@v4
-        with:
-          submodules: true
       - name: make gtp-guard
-        run : CC=${{ matrix.compiler }} make -j $(nproc)
+        run : CC=${{ matrix.compiler }} make
       - name: basic run
         run : bin/gtp-guard --version
       - name: Upload gtp-guard artifacts
@@ -39,9 +37,7 @@ jobs:
           name : artifact-gtp-guard-${{ matrix.compiler }}-${{ matrix.arch }}
           path : |
             bin/gtp-guard
-            src/bpf/*.bpf
             bin/*.bpf
-            test/
 
 #
 #  Save the planet
