@@ -445,6 +445,7 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 	log_message(LOG_INFO, "%s: loading program into kernel", p->name);
 
 	/* Finally load it (kernel runs verifier) */
+	p->log_buf[0] = 0;
 	err = bpf_object__load(p->load.obj);
 	if (*p->log_buf) {
 		log_message(LOG_DEBUG, "--- FULL KERNEL BPF LOG ---\n");
@@ -750,14 +751,14 @@ gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
 			log_message(LOG_INFO, "%s: map not found on "
 				    "running program, do a full reload",
 				    name);
-			goto cant_soft_reload;
+			goto full_reload;
 		}
 		if (bpf_map__type(map) != bpf_map__type(omap) ||
 		    bpf_map__key_size(map) != bpf_map__key_size(omap) ||
 		    bpf_map__value_size(map) != bpf_map__value_size(omap)) {
 			log_message(LOG_INFO, "%s: map caracteristics changed, "
 				    "do a full reload", name);
-			goto cant_soft_reload;
+			goto full_reload;
 		}
 
 	}
@@ -794,29 +795,35 @@ gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
 
 	return;
 
- cant_soft_reload:
+ full_reload:
 	/* re-load bpf program */
-	if (gtp_bpf_prog_load_prg(p)) {
-		log_message(LOG_INFO, "%s: cannot reload bpf program, "
-			    "keep previous running one", p->name);
+	if (gtp_bpf_prog_load(p)) {
+		if (p->run.obj == NULL)
+			log_message(LOG_INFO, "%s: cannot load bpf program",
+				    p->name);
+		else
+			log_message(LOG_INFO, "%s: cannot reload bpf program, "
+				    "keep previous running one", p->name);
 		return;
 	}
 
-	/* detach running programs */
+	/* detach & attach running programs */
 	list_for_each_entry(iface, &p->iface_bind_list, bpf_prog_list) {
 		gtp_interface_stop(iface);
 	}
-
- full_reload:
 	list_for_each_entry(iface, &p->iface_bind_list, bpf_prog_list) {
 		++st_if_t;
 		if (!gtp_interface_start(iface))
 			++st_if_r;
 	}
+
 	if (st_if_r)
 		log_message(LOG_INFO, "%s: full-reload successful, "
 			    "new program is loaded on %d/%d interfaces",
 			    p->name, st_if_r, st_if_t);
+	else
+		log_message(LOG_WARNING, "%s: full-reload failed (%d ifaces)",
+			    p->name, st_if_t);
 }
 
 
