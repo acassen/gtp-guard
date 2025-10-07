@@ -22,6 +22,7 @@
 #include "gtp_data.h"
 #include "gtp_proxy.h"
 #include "gtp_router.h"
+#include "cgn.h"
 #include "gtp_request.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
@@ -58,6 +59,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
 	INIT_LIST_HEAD(&new->pfcp_router_ctx);
+	gtp_bpf_progs_init();
 	pppoe_init();
 
 	return new;

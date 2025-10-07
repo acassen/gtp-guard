@@ -135,7 +135,7 @@ parse_cmdline(int argc, char **argv)
 			exit(1);
 			break;
 		}
-                curind = optind;
+		curind = optind;
 	}
 
 	if (optind < argc) {

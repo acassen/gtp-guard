@@ -1835,7 +1835,7 @@ config_from_file(struct vty *vty, FILE *fp)
 		ret = cmd_execute_command_strict(vline, vty, NULL);
 
 		/* Try again with setting node to CONFIG_NODE */
-		while (ret != CMD_SUCCESS && ret != CMD_WARNING &&
+		while (ret != CMD_SUCCESS &&
 		       ret != CMD_ERR_NOTHING_TODO && vty->node != CONFIG_NODE) {
 			vty->node = node_parent(vty->node);
 			ret = cmd_execute_command_strict (vline, vty, NULL);
@@ -1843,8 +1843,7 @@ config_from_file(struct vty *vty, FILE *fp)
 
 		cmd_free_strvec(vline);
 
-		if (ret != CMD_SUCCESS && ret != CMD_WARNING &&
-		    ret != CMD_ERR_NOTHING_TODO)
+		if (ret != CMD_SUCCESS && ret != CMD_ERR_NOTHING_TODO)
 			return ret;
 	}
 

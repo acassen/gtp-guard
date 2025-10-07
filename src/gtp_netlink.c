@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <unistd.h>
@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
+#include <linux/if_tunnel.h>
 
 #include "gtp_data.h"
 #include "gtp_netlink.h"
@@ -34,6 +35,9 @@
 #include "logger.h"
 #include "bitops.h"
 
+
+/* Fwd declaration  */
+static int netlink_if_link_del(struct nlmsghdr *h);
 
 /* Local data */
 static struct nl_handle nl_kernel = { .fd = -1 };	/* Kernel reflection channel */
@@ -115,8 +119,8 @@ parse_rtattr(struct rtattr **tb, int max, struct rtattr *rta, size_t len, unsign
 
 /* Parse Netlink message */
 static int
-netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *),
-		   struct nl_handle *nl, struct nlmsghdr *n, bool read_all)
+netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *, void *arg),
+		   struct nl_handle *nl, struct nlmsghdr *n, void *filter_arg, bool read_all)
 {
 	ssize_t len;
 	int ret = 0;
@@ -231,7 +235,7 @@ netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *),
 				return -1;
 			}
 
-			error = (*filter) (&snl, h);
+			error = (*filter) (&snl, h, filter_arg);
 			if (error < 0) {
 				log_message(LOG_INFO, "Netlink: filter function error");
 				ret = error;
@@ -353,7 +357,8 @@ netlink_close(struct nl_handle *nl)
  *	Netlink neighbour lookup
  */
 static int
-netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h)
+netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h,
+		     __attribute__((unused)) void *arg)
 {
 	struct ndmsg *r = NLMSG_DATA(h);
 	struct rtattr *tb[NDA_MAX + 1];
@@ -371,7 +376,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 
 	/* Only netlink broadcast related to IP Address matter */
 	if (!tb[NDA_DST] || !tb[NDA_LLADDR] || RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
-		return -1;
+		return 0;
 
 	PMALLOC(addr);
 	addr->family = r->ndm_family;
@@ -425,7 +430,7 @@ netlink_neigh_lookup(__attribute__((unused)) struct thread *thread)
 	if (err)
 		return;
 
-	netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, false);
+	netlink_parse_info(netlink_neigh_filter, &nl_cmd, NULL, NULL, false);
 }
 
 
@@ -433,13 +438,14 @@ netlink_neigh_lookup(__attribute__((unused)) struct thread *thread)
  *	Kernel Netlink reflector
  */
 static int
-netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h)
+netlink_filter(struct sockaddr_nl *snl, struct nlmsghdr *h, __attribute__((unused)) void *arg)
 {
 	switch (h->nlmsg_type) {
 	case RTM_NEWNEIGH:
-		netlink_neigh_filter(snl, h);
+		netlink_neigh_filter(snl, h, NULL);
 		break;
-	default:
+	case RTM_DELLINK:
+		netlink_if_link_del(h);
 		break;
 	}
 	return 0;
@@ -451,7 +457,7 @@ kernel_netlink(struct thread *thread)
 	struct nl_handle *nl = THREAD_ARG(thread);
 
 	if (thread->type != THREAD_READ_TIMEOUT)
-		netlink_parse_info(netlink_filter, nl, NULL, true);
+		netlink_parse_info(netlink_filter, nl, NULL, NULL, true);
 
 	nl->thread = thread_add_read(master, kernel_netlink, nl, nl->fd, TIMER_NEVER, 0);
 }
@@ -461,43 +467,48 @@ kernel_netlink(struct thread *thread)
  *	Netlink Interface lookup
  */
 static int
-netlink_if_get_ll_addr(struct gtp_interface *iface, struct rtattr *tb[], int type)
+netlink_if_link_del(struct nlmsghdr *h)
 {
-	size_t i;
+	struct ifinfomsg *ifi = NLMSG_DATA(h);
+	struct gtp_interface *iface;
+	int len = h->nlmsg_len;
 
-	if (!tb[type])
+	len -= NLMSG_LENGTH(sizeof(*ifi));
+	if (len < 0)
+		return -1;
+
+	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
+	if (!iface)
 		return 0;
 
-	size_t hw_addr_len = RTA_PAYLOAD(tb[type]);
-
-	if (hw_addr_len > sizeof(iface->hw_addr))
-		return -1;
-
-	switch (type) {
-	case IFLA_ADDRESS:
-		iface->hw_addr_len = hw_addr_len;
-		memcpy(iface->hw_addr, RTA_DATA(tb[type]), hw_addr_len);
-		/*
-		* Don't allow a hardware address of all zeroes
-		* Mark hw_addr_len as 0 to warn
-		*/
-		for (i = 0; i < hw_addr_len; i++)
-			if (iface->hw_addr[i] != 0)
-				break;
-		iface->hw_addr_len = (i == hw_addr_len) ? 0 : hw_addr_len;
-		break;
-	case IFLA_BROADCAST:
-		/* skip this one */
-		break;
-	default:
-		return -1;
-	}
+	gtp_interface_put(iface);
+	gtp_interface_destroy(iface);
 
 	return 0;
 }
 
 static int
-netlink_if_request(struct nl_handle *nl, unsigned char family, uint16_t type, bool stats)
+netlink_if_get_ll_addr(struct gtp_interface *iface, struct rtattr *tb[])
+{
+	struct ether_addr zero_eth = {};
+	struct ether_addr *eth = RTA_DATA(tb[IFLA_ADDRESS]);
+
+	/* Is address set ? */
+	if (!tb[IFLA_ADDRESS] || RTA_PAYLOAD(tb[IFLA_ADDRESS]) != ETH_ALEN)
+		return 0;
+
+	/* Don't allow a hardware address of all zeroes */
+	if (!memcmp(eth, &zero_eth, ETH_ALEN))
+		return 0;
+
+	memcpy(iface->hw_addr, eth, ETH_ALEN);
+	iface->hw_addr_len = ETH_ALEN;
+
+	return 0;
+}
+
+static int
+netlink_if_request(struct nl_handle *nl, unsigned char family, uint16_t type, int ifindex, bool stats)
 {
 	ssize_t status;
 	struct sockaddr_nl snl = { .nl_family = AF_NETLINK };
@@ -507,11 +518,12 @@ netlink_if_request(struct nl_handle *nl, unsigned char family, uint16_t type, bo
 		char buf[1024];
 	} req = {
 		.nlh.nlmsg_len = NLMSG_LENGTH(sizeof req.i),
-		.nlh.nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST,
+		.nlh.nlmsg_flags = (ifindex == 0 ? NLM_F_DUMP : 0) | NLM_F_REQUEST,
 		.nlh.nlmsg_type = type,
 		.nlh.nlmsg_pid = 0,
 		.nlh.nlmsg_seq = ++nl->seq,
 		.i.ifi_family = family,
+		.i.ifi_index = ifindex,
 	};
 	__u32 filt_mask = 0;
 
@@ -530,11 +542,13 @@ netlink_if_request(struct nl_handle *nl, unsigned char family, uint16_t type, bo
 	return 0;
 }
 
+/*
+ * fill gtp_interface data from kernel for vlan or gre devices
+ */
 static int
 netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 {
-	struct rtattr *linkinfo[IFLA_INFO_MAX+1];
-	struct rtattr *attr[IFLA_VLAN_MAX+1], **data = NULL;
+	struct rtattr *linkinfo[IFLA_INFO_MAX + 1];
 	struct rtattr *linkdata;
 	const char *kind;
 
@@ -545,37 +559,60 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 			     , RTA_DATA(tb), RTA_PAYLOAD(tb)
 			     , NLA_F_NESTED);
 
-	if (!linkinfo[IFLA_INFO_KIND])
+	if (!linkinfo[IFLA_INFO_KIND] || !linkinfo[IFLA_INFO_DATA])
 		return -1;
 
 	kind = (const char *)RTA_DATA(linkinfo[IFLA_INFO_KIND]);
-
-	/* Only take care of vlan interface type */
-	if (strncmp(kind, "vlan", 4))
-		return -1;
-
 	linkdata = linkinfo[IFLA_INFO_DATA];
-	if (!linkdata)
-		return -1;
 
-	parse_rtattr(attr, IFLA_VLAN_MAX
-			 , RTA_DATA(linkdata), RTA_PAYLOAD(linkdata)
-			 , NLA_F_NESTED);
-	data = attr;
+	if (!strcmp(kind, "vlan")) {
+		struct rtattr *attr[IFLA_VLAN_MAX + 1];
 
-	if (!data[IFLA_VLAN_ID])
-		return -1;
+		parse_rtattr(attr, IFLA_VLAN_MAX, RTA_DATA(linkdata),
+			     RTA_PAYLOAD(linkdata), NLA_F_NESTED);
 
-	iface->vlan_id = *(__u16 *)RTA_DATA(data[IFLA_VLAN_ID]);
+		if (!attr[IFLA_VLAN_ID])
+			return -1;
+
+		iface->vlan_id = *(__u16 *)RTA_DATA(attr[IFLA_VLAN_ID]);
+
+	} else if (!strcmp(kind, "gre")) {
+		struct rtattr *attr[IFLA_GRE_MAX + 1];
+		struct gtp_interface *link_iface;
+		int link_ifindex;
+
+		parse_rtattr(attr, IFLA_GRE_MAX, RTA_DATA(linkdata),
+			     RTA_PAYLOAD(linkdata), NLA_F_NESTED);
+
+		if (!attr[IFLA_GRE_REMOTE] ||
+		    RTA_PAYLOAD(attr[IFLA_GRE_REMOTE]) != 4)
+			return -1;
+
+		iface->tunnel_mode = 1;
+
+		/* "ip tunnel .... dev xxx" specified, attach to this device */
+		if (attr[IFLA_GRE_LINK]) {
+			link_ifindex = *(uint32_t *)RTA_DATA(attr[IFLA_GRE_LINK]);
+			link_iface = gtp_interface_get_by_ifindex(link_ifindex);
+			if (link_iface != NULL)
+				iface->link_iface = link_iface;
+		}
+
+		addr_fromip4(&iface->tunnel_remote,
+			     *(uint32_t *)RTA_DATA(attr[IFLA_GRE_REMOTE]));
+	}
+
 	return 0;
 }
 
 static int
-netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h)
+netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h, void *arg)
 {
 	struct ifinfomsg *ifi = NLMSG_DATA(h);
 	struct rtattr *tb[IFLA_MAX + 1];
-	struct gtp_interface *iface;
+	bool create = arg == (void*)1;
+	struct gtp_interface *iface, *link_iface;
+	int link_ifindex;
 	int len = h->nlmsg_len;
 	int err = 0;
 
@@ -590,47 +627,41 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 
 	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
 	if (!iface) {
+		/* do not create interface when updating stats */
+		if (!create)
+			return 0;
+
 		/* reflect interface topology */
 		iface = gtp_interface_alloc((char *)RTA_DATA(tb[IFLA_IFNAME])
 					    , ifi->ifi_index);
 		if (!iface)
 			return -1;
+
+		/* get mac address (if it's a device) */
+		err = netlink_if_get_ll_addr(iface, tb);
+		if (err) {
+			if (err) {
+				log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
+						    , __FUNCTION__
+						    , iface->ifname);
+			}
+			gtp_interface_destroy(iface);
+			return err;
+		}
+
+		/* IFLA_LINK point to physical interface (real device) in the same netns.
+		 * used to point vlan devices to their physical devices */
+		if (tb[IFLA_LINK] != NULL &&
+		    tb[IFLA_LINK_NETNSID] == NULL &&
+		    RTA_PAYLOAD(tb[IFLA_LINK]) == sizeof (uint32_t)) {
+			link_ifindex = *(uint32_t *)RTA_DATA(tb[IFLA_LINK]);
+			link_iface = gtp_interface_get_by_ifindex(link_ifindex);
+			if (link_iface != NULL)
+				iface->link_iface = link_iface;
+		}
+
+		netlink_if_link_info(tb[IFLA_LINKINFO], iface);
 	}
-
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
-		get_rtnl_link_stats_rta(iface->link_metrics, tb);
-
-	err = netlink_if_get_ll_addr(iface, tb, IFLA_ADDRESS);
-	if (err || !iface->hw_addr_len)
-		log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
-				    , __FUNCTION__
-				    , iface->ifname);
-
-	netlink_if_link_info(tb[IFLA_LINKINFO], iface);
-	gtp_interface_put(iface);
-	return err;
-}
-
-static int
-netlink_if_link_update_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlmsghdr *h)
-{
-	struct ifinfomsg *ifi = NLMSG_DATA(h);
-	struct rtattr *tb[IFLA_MAX + 1];
-	struct gtp_interface *iface;
-	int len = h->nlmsg_len;
-
-	if (h->nlmsg_type != RTM_NEWLINK)
-		return 0;
-
-	len -= NLMSG_LENGTH(sizeof(*ifi));
-	if (len < 0)
-		return -1;
-
-	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len, 0);
-
-	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
-	if (!iface)
-		return 0;
 
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
 		get_rtnl_link_stats_rta(iface->link_metrics, tb);
@@ -653,25 +684,25 @@ netlink_if_stats_update(__attribute__((unused)) struct thread *t)
 		}
 	}
 
-	err = netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true);
+	err = netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, 0, true);
 	if (err) {
 		netlink_close(&nl_cmd);
 		goto end;
 	}
 
-	netlink_parse_info(netlink_if_link_update_filter, &nl_cmd, NULL, false);
-  end:
+	netlink_parse_info(netlink_if_link_filter, &nl_cmd, NULL, (void *)0, false);
+ end:
 	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update
-					       , NULL, 5*TIMER_HZ);
+					       , NULL, TIMER_HZ);
 }
 
-static int
-netlink_if_lookup(void)
+int
+gtp_netlink_if_lookup(int ifindex)
 {
-	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, true) < 0)
+	if (netlink_if_request(&nl_cmd, AF_PACKET, RTM_GETLINK, ifindex, true) < 0)
 		return -1;
 
-	netlink_parse_info(netlink_if_link_filter, &nl_cmd, NULL, false);
+	netlink_parse_info(netlink_if_link_filter, &nl_cmd, NULL, (void *)1, false);
 	return 0;
 }
 
@@ -686,10 +717,6 @@ netlink_if_init(void)
 		log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
 		return -1;
 	}
-
-	err = netlink_if_lookup();
-	if (err)
-		return -1;
 
 	thread_add_event(master, netlink_if_stats_update, NULL, 0);
 
@@ -722,7 +749,7 @@ gtp_netlink_init(void)
 
 	/* Register Kernel netlink reflector */
 	err = netlink_open(&nl_kernel, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
-				     , RTNLGRP_NEIGH, 0);
+				     , RTNLGRP_NEIGH, RTNLGRP_LINK, 0);
 	if (err) {
 		log_message(LOG_INFO, "Error while registering Kernel netlink reflector channel");
 		return -1;

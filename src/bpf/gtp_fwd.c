@@ -32,7 +32,7 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <sys/socket.h>
-#include <uapi/linux/bpf.h>
+#include <linux/bpf.h>
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
 #include "gtp.h"

@@ -45,6 +45,22 @@ addr_copy(union addr *dst, const union addr *src)
 		dst->sa.sa_family = AF_UNSPEC;
 }
 
+void
+addr_fromip4(union addr *a, uint32_t ipaddr)
+{
+	a->family = AF_INET;
+	a->sin.sin_addr.s_addr = ipaddr;
+	a->sin.sin_port = 0;
+}
+
+uint32_t
+addr_toip4(const union addr *a)
+{
+	if (a->family == AF_INET)
+		return a->sin.sin_addr.s_addr;
+	return 0;
+}
+
 int
 addr_cmp(const union addr *la, const union addr *ra)
 {

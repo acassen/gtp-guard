@@ -20,15 +20,29 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
+/* system includes */
+#include <errno.h>
+#include <string.h>
 #include <assert.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <linux/if_ether.h>
+#include <libbpf.h>
 
+/* local includes */
+#include "libbpf.h"
+#include "inet_server.h"
+#include "inet_utils.h"
 #include "tools.h"
 #include "utils.h"
 #include "list_head.h"
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
+#include "gtp_interface_rule.h"
 #include "cgn.h"
+#include "bpf/lib/cgn-def.h"
+
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -37,37 +51,6 @@ extern struct data *daemon_data;
 /*
  *	CGN utilities
  */
-
-
-/*
- *	BPF stuff
- */
-
-static int
-cgn_bpf_opened(gtp_bpf_prog_t *p, struct bpf_object *obj)
-{
-	return 0;
-}
-
-static int
-cgn_bpf_loaded(gtp_bpf_prog_t *p, struct bpf_object *obj)
-{
-	return 0;
-}
-
-static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
-	.mode = BPF_PROG_MODE_CGN,
-	.description = "cgn",
-	.opened = cgn_bpf_opened,
-	.loaded = cgn_bpf_loaded,
-};
-
-static void __attribute__((constructor))
-gtp_bpf_fwd_init(void)
-{
-	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_cgn);
-}
-
 
 
 /* compact addr/netmask from cgn_addr array.
@@ -156,6 +139,92 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 	return k;
 }
 
+static void
+cgn_ctx_set_rules(struct cgn_ctx *c)
+{
+	/* everything configured/binded, set traffic rules */
+	if (!c->rules_set &&
+	    c->priv != NULL && c->bind_priv &&
+	    c->pub != NULL && c->bind_pub) {
+		gtp_interface_rule_add(c->priv, c->pub, 10, 100);
+		gtp_interface_rule_add(c->pub, c->priv, 11, 500);
+		c->rules_set = true;
+		return;
+	}
+
+	/* something not configured/binded anymore, unset traffic rules */
+	if (c->rules_set && (!c->bind_priv || !c->bind_pub)) {
+		assert(c->priv && c->pub);
+		gtp_interface_rule_del(c->priv);
+		gtp_interface_rule_del(c->pub);
+		c->rules_set = false;
+	}
+}
+
+static void
+cgn_ctx_iface_event_cb(struct gtp_interface *iface,
+		       enum gtp_interface_event type,
+		       void *ud)
+{
+	struct cgn_ctx *c = ud;
+
+	switch (type) {
+	case GTP_INTERFACE_EV_PRG_BIND:
+		if (iface == c->priv)
+			c->bind_priv = true;
+		if (iface == c->pub)
+			c->bind_pub = true;
+		break;
+
+	case GTP_INTERFACE_EV_PRG_UNBIND:
+	case GTP_INTERFACE_EV_DESTROYING:
+		if (iface == c->priv)
+			c->bind_priv = false;
+		if (iface == c->pub)
+			c->bind_pub = false;
+		break;
+	}
+
+	cgn_ctx_set_rules(c);
+
+	if (type == GTP_INTERFACE_EV_DESTROYING) {
+		if (iface == c->priv)
+			c->priv = NULL;
+		if (iface == c->pub)
+			c->pub = NULL;
+	}
+}
+
+int
+cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
+			 bool is_priv)
+{
+	struct gtp_interface **piface = is_priv ? &c->priv : &c->pub;
+
+	if (*piface) {
+		errno = EEXIST;
+		return -1;
+	}
+	*piface = iface;
+
+	if (gtp_bpf_prog_is_attached(c->prg, iface))
+		*(is_priv ? &c->bind_priv : &c->bind_pub) = true;
+
+	gtp_interface_register_event(iface, cgn_ctx_iface_event_cb, c);
+
+	cgn_ctx_set_rules(c);
+
+	return 0;
+}
+
+void
+cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface)
+{
+	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c);
+	gtp_interface_unregister_event(iface, cgn_ctx_iface_event_cb);
+}
+
+
 struct cgn_ctx *
 cgn_ctx_get_by_name(const char *name)
 {
@@ -174,14 +243,34 @@ struct cgn_ctx *
 cgn_ctx_alloc(const char *name)
 {
 	struct cgn_ctx *c = NULL;
+	struct gtp_bpf_prog *p;
+
+	/* cgn configure a bpf-program. create it if it doesn't exist */
+	p = gtp_bpf_prog_get(name);
+	if (p == NULL) {
+		p = gtp_bpf_prog_alloc(name);
+		if (p == NULL)
+			return NULL;
+	}
 
 	c = calloc(1, sizeof (*c));
-	assert(c != NULL);
-	c->port_start = 1025;
+	if (c == NULL)
+		return NULL;
+
+	/* attach to bpf-prog */
+	if (gtp_bpf_prog_tpl_data_set(p, "cgn", c)) {
+		free(c);
+		return NULL;
+	}
+
+	c->prg = p;
+	c->port_start = 1500;
 	c->port_end = 65535;
-	c->block_size = 1000;
+	c->block_size = 500;
 	c->block_count = (c->port_end - c->port_start) / c->block_size;
 	c->port_end = c->port_start + c->block_size * c->block_count;
+	c->flow_per_user = 2000;
+	c->block_per_user = min(4, CGN_USER_BLOCKS_MAX);
 	c->timeout.udp = CGN_PROTO_TIMEOUT_UDP;
 	c->timeout.tcp_synfin = CGN_PROTO_TIMEOUT_TCP_SYNFIN;
 	c->timeout.tcp_est = CGN_PROTO_TIMEOUT_TCP_EST;
@@ -196,6 +285,7 @@ cgn_ctx_alloc(const char *name)
 void
 cgn_ctx_release(struct cgn_ctx *c)
 {
+	free(c->cgn_addr);
 	list_del(&c->next);
 	free(c);
 }

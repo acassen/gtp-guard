@@ -24,6 +24,8 @@ union addr
 static void addr_zero(union addr *a);
 socklen_t addr_len(const union addr *a);
 void addr_copy(union addr *dst, const union addr *src);
+void addr_fromip4(union addr *a, uint32_t ipaddr);
+uint32_t addr_toip4(const union addr *a);
 int addr_cmp(const union addr *la, const union addr *ra);
 int addr_cmp_ip(const union addr *la, const union addr *ra);
 int addr_cmp_port(const union addr *la, const union addr *ra);

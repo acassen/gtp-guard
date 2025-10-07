@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <net/if.h>
@@ -30,25 +30,27 @@
 #include "logger.h"
 #include "inet_utils.h"
 
-
 /* Extern data */
 extern struct data *daemon_data;
 
+
+struct gtp_bpf_mirror
+{
+	struct bpf_map *mrules;
+};
 
 /*
  *	MAP related
  */
 static int
-gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, struct bpf_object *bpf_obj)
+gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, void *udata)
 {
-	struct bpf_map *map;
+	struct gtp_bpf_mirror *pm = udata;
 
 	/* MAP ref for faster access */
-	p->bpf_maps = MALLOC(sizeof(struct gtp_bpf_maps) * TC_MIRROR_MAP_CNT);
-	map = gtp_bpf_load_map(bpf_obj, "mirror_rules");
-	if (!map)
+	pm->mrules = gtp_bpf_load_map(p->load.obj, "mirror_rules");
+	if (!pm->mrules)
 		return -1;
-	p->bpf_maps[TC_MIRROR_MAP_RULES].map = map;
 
 	return 0;
 }
@@ -70,6 +72,7 @@ gtp_bpf_mirror_rule_set(struct gtp_bpf_mirror_rule *r,  struct gtp_mirror_rule *
 int
 gtp_bpf_mirror_action(int action, void *arg, struct gtp_bpf_prog *p)
 {
+	struct gtp_bpf_mirror *pm = gtp_bpf_prog_tpl_data_get(p, "gtp_mirror");
 	struct gtp_mirror_rule *m = arg;
 	struct bpf_map *map;
 	struct gtp_bpf_mirror_rule r;
@@ -77,9 +80,9 @@ gtp_bpf_mirror_action(int action, void *arg, struct gtp_bpf_prog *p)
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	int err;
 
-	if (!p)
+	if (!p || !pm)
 		return -1;
-	map = p->bpf_maps[TC_MIRROR_MAP_RULES].map;
+	map = pm->mrules;
 
 	/* skip inconsistent call */
 	if ((action == RULE_ADD && m->active) ||
@@ -131,6 +134,7 @@ gtp_bpf_mirror_action(int action, void *arg, struct gtp_bpf_prog *p)
 int
 gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 {
+	struct gtp_bpf_mirror *pm = gtp_bpf_prog_tpl_data_get(p, "gtp_mirror");
 	struct bpf_map *map;
 	__be32 key, next_key;
 	struct gtp_bpf_mirror_rule r;
@@ -139,9 +143,9 @@ gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 	char ipaddr[16], ifname[IF_NAMESIZE];
 	int err = 0;
 
-	if (!p)
+	if (!p || !pm)
 		return -1;
-	map = p->bpf_maps[TC_MIRROR_MAP_RULES].map;
+	map = pm->mrules;
 
 	vty_out(vty, "+------------------+--------+----------+-------------+%s"
 		     "|      Address     |  Port  | Protocol |  Interface  |%s"
@@ -174,8 +178,9 @@ gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 }
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_mirror = {
-	.mode = BPF_PROG_MODE_GTP_MIRROR,
+	.name = "gtp_mirror",
 	.description = "gtp-mirror",
+	.udata_alloc_size = sizeof (struct gtp_bpf_mirror),
 	.loaded = gtp_bpf_mirror_load_maps,
 };
 

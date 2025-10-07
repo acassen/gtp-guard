@@ -26,6 +26,9 @@
 #include "gtp_stddef.h"
 #include "list_head.h"
 
+struct gtp_bpf_prog;
+struct gtp_interface;
+
 /* default protocol timeout values */
 #define CGN_PROTO_TIMEOUT_TCP_EST	600
 #define CGN_PROTO_TIMEOUT_TCP_SYNFIN	120
@@ -40,24 +43,35 @@ struct port_timeout_config
 	uint16_t tcp_est;
 };
 
-enum cgn_flags {
-	CGN_FL_SHUTDOWN_BIT,
-};
-
 struct cgn_ctx
 {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
-	unsigned long		flags;
 	struct list_head	next;
+	struct gtp_bpf_prog	*prg;	/* always set */
 
-	/* conf */
+	/* links to interfaces */
+	struct gtp_interface	*priv;
+	struct gtp_interface	*pub;
+	bool			bind_priv;
+	bool			bind_pub;
+	bool			rules_set;
+
+	/* bpf maps */
+	struct bpf_map		*v4_blocks;
+	struct bpf_map		*v4_free_blocks;
+	struct bpf_map		*users;
+	struct bpf_map		*flow_port_timeouts;
+
+	/* conf. read-only after bpf prog is opened */
 	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */
 	uint32_t		cgn_addr_n;
 	uint16_t		port_start;
 	uint16_t		port_end;
-	uint16_t		block_size;	/* # of port per block */
-	uint16_t		block_count;	/* # of block per ip */
+	uint32_t		block_size;	/* # of port per block */
+	uint32_t		block_count;	/* # of block per ip */
+	uint32_t		flow_per_user;	/* max # of flow per user */
+	uint8_t			block_per_user;	/* max # of blocks per user */
 	struct port_timeout_config timeout;
 	struct port_timeout_config timeout_by_port[0x10000];
 	uint16_t		timeout_icmp;
@@ -65,12 +79,14 @@ struct cgn_ctx
 	/* metrics */
 };
 
-/* Prototypes */
+/* cgn.c */
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
 int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
+int cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
+			     bool is_priv);
+void cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface);
 struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
 void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);
 int cgn_init(void);
 int cgn_destroy(void);
-

@@ -767,7 +767,7 @@ pppoe_dispatch_session_pkt(struct pppoe *pppoe, struct pkt *pkt)
 	}
 
 	if (code) {
-		log_message(LOG_INFO, "%s(): %s: pppoe session invalid code:0x..2x for "
+		log_message(LOG_INFO, "%s(): %s: pppoe session invalid code:0x%.2x for "
 				      ETHER_FMT " session = 0x%.4x"
 				    , __FUNCTION__, pppoe->ifname, code
 				    , ETHER_BYTES(eh->ether_shost), session);

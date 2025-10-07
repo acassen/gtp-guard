@@ -31,9 +31,23 @@
 #include "utils.h"
 #include "inet_utils.h"
 
+/* XXX: defined in gtp_bpf_rt.c */
+struct gtp_bpf_prog;
+int
+gtp_bpf_rt_lladdr_update(void *p)
+{
+	return 0;
+}
+int
+gtp_bpf_rt_metrics_init(struct gtp_bpf_prog *p, int a, int b)
+{
+	return 0;
+}
+
+
 /* Local data */
-data_t *daemon_data;
-thread_master_t *master = NULL;
+struct data *daemon_data;
+struct thread_master *master = NULL;
 const char *apn_str;
 const char *plmn_str;
 const char *nameserver;
@@ -119,7 +133,7 @@ parse_cmdline(int argc, char **argv)
 			exit(1);
 			break;
 		}
-                curind = optind;
+		curind = optind;
 	}
 
 	if (optind < argc) {
@@ -141,13 +155,13 @@ parse_cmdline(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	struct sockaddr_in pgw, sgw;
-	gtp_apn_t *apn;
-	gtp_service_t *svc;
+	struct gtp_apn *apn;
+	struct gtp_service *svc;
 	unsigned long flags = 0;
 	int err;
 
-        /* Command line parsing */
-        err = parse_cmdline(argc, argv);
+	/* Command line parsing */
+	err = parse_cmdline(argc, argv);
 	if (err) {
 		usage(argv[0]);
 		exit(-1);

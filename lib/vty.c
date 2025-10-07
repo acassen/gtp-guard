@@ -1417,7 +1417,7 @@ vty_flush(struct thread *t)
 	} else {
 		flushrc = buffer_flush_window(vty->obuf, vty->fd, vty->width,
 					      vty->lines >= 0 ? vty->lines :
-							        vty->height,
+								vty->height,
 					      erase, 0);
 	}
 
@@ -1584,7 +1584,7 @@ vty_listen(struct thread_master *m, struct sockaddr_storage *addr)
 	/* Socket tweaking */
 	ret = setsockopt(accept_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 	if (ret < 0) {
-		log_message(LOG_INFO, "Vty error cant do SO_REUSEADDR errno=%d (%ù)"
+		log_message(LOG_INFO, "Vty error cant do SO_REUSEADDR errno=%d (%m)"
 				    , errno);
 		close(accept_sock);
 		return -1;
@@ -1709,8 +1709,9 @@ vty_read_file(FILE *confp)
 			log_message(LOG_ERR, "There is no such command.\n");
 			break;
 		}
-		log_message(LOG_ERR, "Error occured during reading below line.\n%s\n"
-				   , vty->buf);
+		if (ret != CMD_WARNING)
+			log_message(LOG_ERR, "Error occured during reading below line.\n%s\n"
+					   , vty->buf);
 		vty_close(vty);
 		return -1;
 	}
@@ -1813,7 +1814,7 @@ vty_read_config(char *config_file, char *config_default_dir)
 		if (confp == NULL) {
 			log_message(LOG_ERR, "%s: failed to open configuration file %s: %s\n"
 					   , __func__, fullpath, strerror (errno));
-          
+
 			confp = vty_use_backup_config(fullpath);
 			if (confp) {
 				log_message(LOG_ERR, "WARNING: using backup configuration file!\n");
@@ -1829,7 +1830,7 @@ vty_read_config(char *config_file, char *config_default_dir)
 		if (confp == NULL) {
 			log_message(LOG_ERR, "%s: failed to open configuration file %s: %s\n"
 					   , __func__, config_default_dir, strerror(errno));
-          
+
 			confp = vty_use_backup_config(config_default_dir);
 			if (confp) {
 				log_message(LOG_ERR, "WARNING: using backup configuration file!\n");
@@ -1844,7 +1845,9 @@ vty_read_config(char *config_file, char *config_default_dir)
 		}
 	}
 
-	vty_read_file(confp);
+	if (vty_read_file(confp) < 0)
+		log_message(LOG_ERR, "%s: error loading configuration file"
+				   , fullpath);
 	fclose(confp);
 	host_config_set(fullpath);
 	FREE_PTR(tmp);

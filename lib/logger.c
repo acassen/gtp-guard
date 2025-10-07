@@ -16,15 +16,17 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdlib.h>
 #include <syslog.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
 
-/* Boolean flag - send messages to console as well as syslog */
+/* Boolean flag - send messages to console instead of syslog */
 static bool log_console = false;
 
 void
@@ -34,20 +36,47 @@ enable_console_log(void)
 }
 
 void
-log_message(const int facility, const char *fmt, ...)
+log_message_va(const int priority, const char *fmt, va_list args)
 {
-	va_list args;
-	char buf[256];
-
-	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
+	char buf[512];
+	int n;
 
 	if (log_console) {
-		fprintf(stderr, "%s\n", buf);
-	}
+		va_list args_cp;
+		char *p = NULL;
 
-	syslog(facility, "%s", buf);
+		va_copy(args_cp, args);
+		n = vsnprintf(buf, sizeof (buf), fmt, args);
+
+		/* output was truncated, we want full output on stderr */
+		if (n >= sizeof (buf)) {
+			p = malloc(n + 2);
+			if (!p)
+				return;
+			n = vsnprintf(p, n + 1, fmt, args_cp);
+		} else {
+			p = buf;
+		}
+		/* add trailing '\n' if there is none */
+		if (n > 0 && p[n - 1] == '\n')
+			p[n - 1] = 0;
+		fprintf(stderr, "%s\n", p);
+		if (p != buf)
+			free(p);
+	} else {
+		vsnprintf(buf, sizeof (buf), fmt, args);
+		syslog(priority, "%s", buf);
+	}
+}
+
+void
+log_message(const int priority, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	log_message_va(priority, fmt, args);
+	va_end(args);
 }
 
 void
@@ -60,7 +89,7 @@ conf_write(FILE *fp, const char *fmt, ...)
 		vfprintf(fp, fmt, args);
 		fprintf(fp, "\n");
 	} else
-		log_message(LOG_INFO, fmt, args);
+		log_message_va(LOG_INFO, fmt, args);
 
 	va_end(args);
 }

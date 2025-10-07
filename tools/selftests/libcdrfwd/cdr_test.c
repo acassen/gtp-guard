@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <unistd.h>
 
-#include "compat.h"
+#include "tools.h"
 #include "signals.h"
 #include "cdr_fwd-priv.h"
 #include "cdr_avp.h"
@@ -23,7 +23,7 @@
 
 /* globals */
 uint64_t cdrlog = 3;	/* trace1 + trace2 */
-struct _thread_master *master;
+struct thread_master *master;
 static int sigint;
 
 
@@ -43,12 +43,12 @@ sigint_hdl(__attribute__((unused)) void *v, __attribute__((unused)) int sig)
 }
 
 static struct cdr_fwd_context *ctx;
-static struct _thread *tick_ev;
+static struct thread *tick_ev;
 static int k;
 
 
 static void
-_tick_cb(struct _thread *t)
+_tick_cb(struct thread *t)
 {
 	uint8_t data[50];
 	char b[1000];
@@ -97,14 +97,14 @@ test_ticket_async(void)
 
 struct srv_ctx
 {
-	struct _thread *io;
+	struct thread *io;
 	int64_t seq;
 	int win_size;
 	int nb_processed;
 };
 
 static void
-_server_io_cb(struct _thread *ev)
+_server_io_cb(struct thread *ev)
 {
 	struct srv_ctx *srv = ev->arg;
 	static uint8_t recv_buf[8000];
@@ -176,14 +176,14 @@ _server_io_cb(struct _thread *ev)
 	return;
 
  err:
-	thread_del_read(srv->io);
+	thread_del(srv->io);
 	close(fd);
 	free(srv);
 	return;
 }
 
 static void
-_server_accept(struct _thread *ev)
+_server_accept(struct thread *ev)
 {
 	struct srv_ctx *srv;
 	union addr ra;

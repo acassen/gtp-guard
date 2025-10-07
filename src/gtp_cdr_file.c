@@ -231,7 +231,7 @@ gtp_cdr_file_close(struct gtp_cdr_file *f)
 	}
 
 	/* Resize, Close & Move to final dst */
-	log_message(LOG_INFO, "%s(): Closing cdr-file:%s (%ldBytes)"
+	log_message(LOG_INFO, "%s(): Closing cdr-file:%s (%dBytes)"
 			    , __FUNCTION__
 			    , f->dst_path, ntohl(h->flen));
 	disk_map_resize(map_file, ntohl(h->flen));

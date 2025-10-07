@@ -16,9 +16,10 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <net/if.h>
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
@@ -26,6 +27,7 @@
 #include "gtp_bpf_rt.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
+#include "gtp_netlink.h"
 #include "command.h"
 #include "bitops.h"
 #include "utils.h"
@@ -40,26 +42,12 @@ extern struct data *daemon_data;
  *	VTY helpers
  */
 static int
-gtp_interface_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics *m)
-{
-	struct vty *vty = arg;
-
-	vty_out(vty, "   %s: packets:%lld bytes:%lld%s"
-		   , (direction) ? "TX" : "RX"
-		   , m->packets, m->bytes
-		   , VTY_NEWLINE);
-	vty_out(vty, "       dropped_packets:%lld dropped_bytes:%lld%s"
-		   , m->dropped_packets, m->dropped_bytes
-		   , VTY_NEWLINE);
-	return 0;
-}
-
-static int
 gtp_interface_show(struct gtp_interface *iface, void *arg)
 {
-	struct gtp_bpf_prog *p = iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog;
+	struct gtp_bpf_prog *p = iface->bpf_prog;
 	struct vty *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
+	int i;
 
 	vty_out(vty, "interface %s%s"
 		   , iface->ifname
@@ -73,25 +61,26 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	if (iface->vlan_id)
 		vty_out(vty, " vlan-id:%d%s"
 			   , iface->vlan_id, VTY_NEWLINE);
+	if (iface->table_id)
+		vty_out(vty, " table-id:%d%s"
+			   , iface->table_id, VTY_NEWLINE);
+	if (iface->link_iface)
+		vty_out(vty, " link-iface:%s%s"
+			   , iface->link_iface->ifname, VTY_NEWLINE);
+	if (addr_len(&iface->tunnel_remote))
+		vty_out(vty, " tunnel-remote:%s%s"
+			   , addr_stringify(&iface->tunnel_remote
+			   , addr_str, sizeof (addr_str)), VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
 			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
 			   , ETHER_BYTES(iface->direct_tx_hw_addr)
 			   , VTY_NEWLINE);
-	if (!p)
-		goto end;
+	for (i = 0; p && i < p->tpl_n; i++) {
+		if (p->tpl[i]->vty_iface_show)
+			p->tpl[i]->vty_iface_show(p, iface, vty);
+	}
 
-	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_GTP
-			      , gtp_interface_metrics_show
-			      , vty);
-	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_PPPOE
-			      , gtp_interface_metrics_show
-			      , vty);
-	gtp_bpf_rt_stats_vty(p, iface->ifindex, IF_METRICS_IPIP
-			      , gtp_interface_metrics_show
-			      , vty);
-
-  end:
 	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
 }
@@ -109,18 +98,9 @@ DEFUN(interface,
 	struct gtp_interface *new;
 	int ifindex;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	new = gtp_interface_get(argv[0]);
-	if (new) {
-		vty->node = INTERFACE_NODE;
-		vty->index = new;
-		gtp_interface_put(new);
-		return CMD_SUCCESS;
-	}
+	if (new)
+		goto end;
 
 	ifindex = if_nametoindex(argv[0]);
 	if (!ifindex) {
@@ -129,7 +109,19 @@ DEFUN(interface,
 		return CMD_WARNING;
 	}
 
-	new = gtp_interface_alloc(argv[0], ifindex);
+	/* use netlink to get this link, along with necessary data (eth addr).
+	 * it will alloc the gtp_interface data */
+	if (gtp_netlink_if_lookup(ifindex) < 0)
+		return CMD_WARNING;
+
+	new = gtp_interface_get(argv[0]);
+	if (!new) {
+		vty_out(vty, "%% cannot get interface %s%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+ end:
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
 	gtp_interface_put(new);
@@ -180,15 +172,19 @@ DEFUN(interface_bpf_prog,
 		return CMD_WARNING;
 	}
 
-	if (iface->bpf_prog_attr[p->type].prog) {
-		vty_out(vty, "%% bpf-program:'%s' already in-use for type:%s%s"
-			   , iface->bpf_prog_attr[p->type].prog->name
-			   , (p->type == GTP_BPF_PROG_TYPE_XDP) ? "XDP" : "TC"
+	if (iface->bpf_prog && iface->bpf_prog != p) {
+		vty_out(vty, "%% bpf-program:'%s' already loaded on this interface%s"
+			   , iface->bpf_prog->name
 			   , VTY_NEWLINE);
+		gtp_bpf_prog_put(p);
 		return CMD_WARNING;
 	}
 
-	iface->bpf_prog_attr[p->type].prog = p;
+	if (!iface->bpf_prog) {
+		iface->bpf_prog = p;
+		list_add(&iface->bpf_prog_list, &p->iface_bind_list);
+	}
+
 	return CMD_SUCCESS;
 }
 
@@ -219,27 +215,20 @@ DEFUN(interface_direct_tx_gw,
 	return CMD_SUCCESS;
 }
 
-DEFUN(interface_carrier_grade_nat,
-      interface_carrier_grade_nat_cmd,
-      "carrier-grade-nat CGNBLOCK side (network-in|network-out)",
-      "Configure carrier-grade on this interface\n"
-      "carrier-grade-nat configuration bloc name\n"
-      "Side this interface is handling\n"
-      "Network's operator side (private,local,inside)\n"
-      "Internet side (public,remote,outside)\n")
+DEFUN(interface_table_id,
+      interface_table_id_cmd,
+      "ip route table-id <0-32767>",
+      "IP Interface\n"
+      "Route definition\n"
+      "Set IP table used for fib_lookup (0 for main table)\n"
+      "IP table-id\n")
 {
 	struct gtp_interface *iface = vty->index;
 
-	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
-	__clear_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
-	bsd_strlcpy(iface->cgn_name, argv[0], sizeof (iface->cgn_name) - 1);
-	if (!strcmp(argv[1], "network-in"))
-		__set_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags);
-	else
-		__set_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags);
+	VTY_GET_INTEGER_RANGE("IP table-id", iface->table_id, argv[0], 0, 32767);
+
 	return CMD_SUCCESS;
 }
-
 
 DEFUN(interface_description,
       interface_description_cmd,
@@ -366,7 +355,7 @@ DEFUN(interface_shutdown,
 		return CMD_WARNING;
 	}
 
-	gtp_interface_unload_bpf(iface);
+	gtp_interface_stop(iface);
 	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
 	return CMD_SUCCESS;
 }
@@ -377,8 +366,6 @@ DEFUN(interface_no_shutdown,
       "Activate interface\n")
 {
 	struct gtp_interface *iface = vty->index;
-	struct gtp_bpf_prog *p, *p_xdp = NULL;
-	int err = 0, i;
 
 	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
 		vty_out(vty, "%% interface:'%s' is already running%s"
@@ -387,56 +374,8 @@ DEFUN(interface_no_shutdown,
 		return CMD_WARNING;
 	}
 
-	if (!iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_XDP].prog &&
-	    !iface->bpf_prog_attr[GTP_BPF_PROG_TYPE_TC].prog) {
-		vty_out(vty, "%% no bpf-program configured for interface:'%s'%s"
-			   , iface->ifname, VTY_NEWLINE);
-		goto end;
-	}
-
-	err = gtp_interface_load_bpf(iface);
-	if (err) {
-		vty_out(vty, "%% error attaching bpf-program to interface:'%s'%s"
-			   , iface->ifname, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	for (i = 0; i < GTP_BPF_PROG_TYPE_MAX; i++) {
-		p = iface->bpf_prog_attr[i].prog;
-		if (!p)
-			continue;
-		if (p->type == GTP_BPF_PROG_TYPE_XDP)
-			p_xdp = p;
-
-		vty_out(vty, "Success attaching bpf-program:'%s' to interface:'%s'%s"
-			   , p->name
-			   , iface->ifname, VTY_NEWLINE);
-		log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
-				    , p->name
-				    , iface->ifname);
-	}
-
-	if (!p_xdp)
-		goto end;
-
-	/* Metrics init */
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p_xdp,
-							iface->ifindex, IF_METRICS_GTP);
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p_xdp,
-							iface->ifindex, IF_METRICS_PPPOE);
-	if (__test_bit(GTP_INTERFACE_FL_METRICS_IPIP_BIT, &iface->flags))
-		err = (err) ? : gtp_bpf_rt_metrics_init(p_xdp,
-							iface->ifindex, IF_METRICS_IPIP);
-	if (err) {
-		vty_out(vty, "%% !!!Warning!!! error initializing metrics for interface:'%s'%s"
-			   , iface->ifname
-			   , VTY_NEWLINE);
-	}
-
-  end:
 	__clear_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
+	gtp_interface_start(iface);
 	return CMD_SUCCESS;
 }
 
@@ -470,23 +409,6 @@ DEFUN(show_interface,
 
 /* Configuration writer */
 static int
-interface_config_bpf_write(struct vty *vty, struct gtp_interface *iface)
-{
-	struct gtp_bpf_prog *p;
-	int i;
-
-	for (i = 0; i < GTP_BPF_PROG_TYPE_MAX; i++) {
-		p = iface->bpf_prog_attr[i].prog;
-		if (!p)
-			continue;
-
-		vty_out(vty, " bpf-program %s%s", p->name, VTY_NEWLINE);
-	}
-
-	return 0;
-}
-
-static int
 interface_config_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->interfaces;
@@ -497,11 +419,14 @@ interface_config_write(struct vty *vty)
 		vty_out(vty, "interface %s%s", iface->ifname, VTY_NEWLINE);
 		if (iface->description[0])
 			vty_out(vty, " description %s%s", iface->description, VTY_NEWLINE);
-		interface_config_bpf_write(vty, iface);
+		if (iface->bpf_prog)
+			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"
 				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
 				   , VTY_NEWLINE);
+#if 0
+		// XXX: add conf_writer callback
 		if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags))
 			vty_out(vty, " carrier-grade-nat %s side network-in%s"
 				   , iface->cgn_name
@@ -510,6 +435,9 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " carrier-grade-nat %s side network-out%s"
 				   , iface->cgn_name
 				   , VTY_NEWLINE);
+#endif
+		if (iface->table_id)
+			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
 			vty_out(vty, " metrics gtp%s", VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_PPPOE_BIT, &iface->flags))
@@ -542,7 +470,7 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &interface_description_cmd);
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
-	install_element(INTERFACE_NODE, &interface_carrier_grade_nat_cmd);
+	install_element(INTERFACE_NODE, &interface_table_id_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &no_interface_metrics_gtp_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_pppoe_cmd);

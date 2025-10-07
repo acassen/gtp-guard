@@ -20,15 +20,24 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
-#include <string.h>
+/* system includes */
+#include <net/if.h>
 #include <arpa/inet.h>
+#include <linux/if_ether.h>
+#include <errno.h>
 
+/* local includes */
+#include "utils.h"
+#include "inet_server.h"
+#include "inet_utils.h"
 #include "bitops.h"
 #include "addr.h"
 #include "tools.h"
 #include "list_head.h"
 #include "command.h"
 #include "gtp_data.h"
+#include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
 #include "cgn.h"
 
 
@@ -51,7 +60,11 @@ DEFUN(cgn,
 	c = cgn_ctx_get_by_name(argv[0]);
 	if (c == NULL) {
 		c = cgn_ctx_alloc(argv[0]);
-		__set_bit(CGN_FL_SHUTDOWN_BIT, &c->flags);
+		if (c == NULL) {
+			log_message(LOG_WARNING, "cannot create carrier-grade-nat"
+				    "bloc %s", argv[0]);
+			return CMD_WARNING;
+		}
 	}
 	vty->node = CGN_NODE;
 	vty->index = c;
@@ -92,52 +105,6 @@ DEFUN(cgn_desciption,
 	return CMD_SUCCESS;
 }
 
-DEFUN(cgn_shutdown,
-      cgn_shutdown_cmd,
-      "shutdown",
-      "Desactivate Carrier Grade NAT instance\n")
-{
-	struct cgn_ctx *c = vty->index;
-
-	if (__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags))
-		return CMD_WARNING;
-
-	/*... Stop stuffs ...*/
-
-	__set_bit(CGN_FL_SHUTDOWN_BIT, &c->flags);
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(cgn_no_shutdown,
-      cgn_no_shutdown_cmd,
-      "no shutdown",
-      "Activate Carrier Grade NAT instance\n")
-{
-	struct cgn_ctx *c = vty->index;
-
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' is already running\n",
-			c->name);
-		return CMD_WARNING;
-	}
-
-
-	/*... Start stuffs ...
-	 *
-	 * To submit I/O MUX : thread.h :
-	 *   thread_add_event(master, ....);
-	 *   thread_add_read(master, ...);
-	 *   thread_add_write(master, ...);
-	 *   thread_add_timer(master, ...);
-	 */
-
-	__clear_bit(CGN_FL_SHUTDOWN_BIT, &c->flags);
-
-	return CMD_SUCCESS;
-}
-
-
 DEFUN(cgn_ip_pool,
       cgn_ip_pool_cmd,
       "ipv4-pool ADDR",
@@ -147,12 +114,6 @@ DEFUN(cgn_ip_pool,
 	union addr addr;
 	uint64_t count;
 	uint32_t base, ns, i;
-
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running\n", c->name);
-		return CMD_WARNING;
-	}
 
 	if (addr_parse_ip(argv[0], &addr, NULL, &count, 1)) {
 		vty_out(vty, "%% carrier-grade-nat:'%s' cannot "
@@ -189,18 +150,12 @@ DEFUN(cgn_block_conf_pool,
 	struct cgn_ctx *c = vty->index;
 	uint16_t port_start, port_end, block_size;
 
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running", c->name);
-		return CMD_WARNING;
-	}
-
 	port_start = atoi(argv[0]);
 	port_end = atoi(argv[1]);
 	block_size = atoi(argv[2]);
 
 	if (!block_size || port_end <= port_start ||
-	    block_size < port_end - port_start) {
+	    block_size > port_end - port_start) {
 		vty_out(vty, "%% carrier-grade-nat:'%s' invalid "
 			"block_size/port_start/port_end config\n",
 			c->name);
@@ -223,12 +178,6 @@ DEFUN(cgn_protocol_conf_pool,
 {
 	struct cgn_ctx *c = vty->index;
 
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running", c->name);
-		return CMD_WARNING;
-	}
-
 	if (!strcmp(argv[0], "icmp"))
 		c->timeout_icmp = max(atoi(argv[1]), 20);
 	else
@@ -244,12 +193,6 @@ DEFUN(cgn_protocol_tcp_conf_pool,
 {
 	struct cgn_ctx *c = vty->index;
 
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running", c->name);
-		return CMD_WARNING;
-	}
-
 	c->timeout.tcp_est = max(atoi(argv[0]), 60);
 	c->timeout.tcp_synfin = max(atoi(argv[1]), 20);
 
@@ -262,12 +205,6 @@ DEFUN(cgn_protocol_udp_port_conf_pool,
       "Configure udp protocol timeout by port\n")
 {
 	struct cgn_ctx *c = vty->index;
-
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running", c->name);
-		return CMD_WARNING;
-	}
 
 	uint16_t port = atoi(argv[1]);
 	if (port)
@@ -284,12 +221,6 @@ DEFUN(cgn_protocol_tcp_port_conf_pool,
 {
 	struct cgn_ctx *c = vty->index;
 
-	if (!__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags)) {
-		vty_out(vty, "%% carrier-grade-nat:'%s' cannot modify this "
-			"setting while running", c->name);
-		return CMD_WARNING;
-	}
-
 	uint16_t port = atoi(argv[2]);
 	if (port) {
 		c->timeout_by_port[port].tcp_est = max(atoi(argv[0]), 60);
@@ -298,6 +229,54 @@ DEFUN(cgn_protocol_tcp_port_conf_pool,
 
 	return CMD_SUCCESS;
 }
+
+/* attached on INTERFACE_NODE */
+DEFUN(cgn_interface,
+      cgn_interface_cmd,
+      "carrier-grade-nat CGNBLOCK side (network-in|network-out)",
+      "Configure carrier-grade on this interface\n"
+      "carrier-grade-nat configuration bloc name\n"
+      "Side this interface is handling\n"
+      "Network's operator side (private,local,inside)\n"
+      "Internet side (public,remote,outside)\n")
+{
+	struct gtp_interface *iface = vty->index;
+	struct cgn_ctx *c;
+
+	c = cgn_ctx_get_by_name(argv[0]);
+	if (c == NULL) {
+		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined",
+			iface->ifname, argv[0]);
+		return CMD_WARNING;
+	}
+
+	cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "network-in"));
+
+	return CMD_SUCCESS;
+}
+
+/* attached on INTERFACE_NODE */
+DEFUN(cgn_no_interface,
+      cgn_no_interface_cmd,
+      "no carrier-grade-nat CGNBLOCK",
+      "Destroy carrier-grade on this interface\n"
+      "carrier-grade-nat configuration bloc name\n")
+{
+	struct gtp_interface *iface = vty->index;
+	struct cgn_ctx *c;
+
+	c = cgn_ctx_get_by_name(argv[0]);
+	if (c == NULL) {
+		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined",
+			iface->ifname, argv[0]);
+		return CMD_WARNING;
+	}
+
+	cgn_ctx_detach_interface(c, iface);
+
+	return CMD_SUCCESS;
+}
+
 
 
 /*
@@ -388,8 +367,6 @@ config_cgn_write(struct vty *vty)
 					c->timeout_by_port[p].udp, p);
 		if (c->timeout_icmp != CGN_PROTO_TIMEOUT_ICMP)
 			vty_out(vty, " protocol icmp %d\n", c->timeout_icmp);
-  		vty_out(vty, " %sshutdown\n",
-			__test_bit(CGN_FL_SHUTDOWN_BIT, &c->flags) ? "" : "no ");
 		vty_out(vty, "!\n");
 	}
 
@@ -409,14 +386,13 @@ cmd_ext_cgn_install(void)
 
 	install_default(CGN_NODE);
 	install_element(CGN_NODE, &cgn_description_cmd);
-	install_element(CGN_NODE, &cgn_shutdown_cmd);
-	install_element(CGN_NODE, &cgn_no_shutdown_cmd);
 	install_element(CGN_NODE, &cgn_ip_pool_cmd);
 	install_element(CGN_NODE, &cgn_block_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_tcp_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_udp_port_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_tcp_port_conf_cmd);
+	install_element(INTERFACE_NODE, &cgn_interface_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cgn_cmd);
