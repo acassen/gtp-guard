@@ -374,3 +374,41 @@ gtp_bpf_fwd_init(void)
 {
 	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_fwd);
 }
+
+
+
+
+/*
+ * for gtp_fwd-ifr bpf source file
+ */
+
+static int
+gtp_bpf_fwd_load_maps_ifr(struct gtp_bpf_prog *p, void *udata)
+{
+	struct gtp_bpf_fwd *pf = udata;
+
+	/* MAP ref for faster access */
+	pf->teid_xlat = gtp_bpf_load_map(p->load.obj, "teid_xlat");
+	if (!pf->teid_xlat)
+		return -1;
+
+	pf->iptnl_info = gtp_bpf_load_map(p->load.obj, "iptnl_info");
+	if (!pf->iptnl_info)
+		return -1;
+
+	return 0;
+}
+
+
+static struct gtp_bpf_prog_tpl gtp_bpf_tpl_fwd_2 = {
+	.name = "gtp_fwd-ifr",
+	.description = "gtp-forward",
+	.udata_alloc_size = sizeof (struct gtp_bpf_fwd),
+	.loaded = gtp_bpf_fwd_load_maps_ifr,
+};
+
+static void __attribute__((constructor))
+gtp_bpf_fwd_init_2(void)
+{
+	gtp_bpf_prog_tpl_register(&gtp_bpf_tpl_fwd_2);
+}
