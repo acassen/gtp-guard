@@ -322,7 +322,7 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
 	const struct gtp_bpf_prog_tpl *tpl;
 	char *argv[BPF_PROG_TPL_MAX], *buf;
-	bool tpl_check[p->tpl_n] = {};
+	bool tpl_check[p->tpl_n];
 	int tpl_check_n = p->tpl_n;
 	int i, j, n;
 	const size_t log_buf_size = 1 << 20;
@@ -362,6 +362,7 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	if (n < 0)
 		goto err;
 
+	memset(tpl_check, 0, sizeof (tpl_check));
 	for (i = 0; i < n; i++) {
 		tpl = gtp_bpf_prog_tpl_get(argv[i]);
 		if (tpl == NULL) {
@@ -387,7 +388,7 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 	free(buf);
 
 	/* remove unused template */
-	for (i = 0; i < tpl_check_n; i++) {
+	for (i = 0; i < tpl_check_n && i < p->tpl_n; i++) {
 		if (!tpl_check[j]) {
 			log_message(LOG_INFO, "%s: template %s is not referenced, "
 				    "remove", p->name, p->tpl[i]->name);

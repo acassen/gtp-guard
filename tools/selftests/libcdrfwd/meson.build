@@ -14,6 +14,7 @@ gtpg_obj = gtp_guard_exe.extract_objects(lib_src)
 t = executable(
   'cdrfwd_test', test_src,
   objects: gtpg_obj,
+  c_args: [ '-Wno-unused-result' ],
   include_directories: inc,
   dependencies: [libcrypt_dep],
   install: false,
