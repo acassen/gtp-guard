@@ -36,6 +36,7 @@
 /* global vars */
 unsigned long debug = 0;
 
+
 /*
  * like snprintf & vsnprintf, but always return number of char
  * written, this allows usage like this:
@@ -108,56 +109,37 @@ hexdump_format(const char *prefix, unsigned char *dst, size_t dsize,
 	       const unsigned char *src, size_t ssize)
 {
 	size_t i, j, pos = 0;
-	int ret;
 
 	if (!dst || !src)
 		return -1;
 
 	for (i = 0; i < ssize; i += 16) {
 		/* Print offset */
-		ret = scnprintf((char *)dst + pos, dsize - pos, "%s%04zx  ", prefix, i);
-		if (ret < 0 || (size_t)ret >= dsize - pos)
-			return -1;
-		pos += ret;
+		pos += scnprintf((char *)dst + pos, dsize - pos, "%s%04zx  ", prefix, i);
 
 		/* Print hex values */
 		for (j = 0; j < 16; j++) {
-			if (i + j < ssize) {
-				ret = scnprintf((char *)dst + pos, dsize - pos, "%02x ", src[i + j]);
-			} else {
-				ret = scnprintf((char *)dst + pos, dsize - pos, "   ");
-			}
-			if (ret < 0 || (size_t)ret >= dsize - pos)
-				return -1;
-			pos += ret;
+			if (i + j < ssize)
+				pos += scnprintf((char *)dst + pos, dsize - pos, "%02x ", src[i + j]);
+			else
+				pos += scnprintf((char *)dst + pos, dsize - pos, "   ");
 
-			if (j == 7) {
-				ret = scnprintf((char *)dst + pos, dsize - pos, "- ");
-				if (ret < 0 || (size_t)ret >= dsize - pos)
-					return -1;
-				pos += ret;
-			}
+			if (j == 7)
+				pos += scnprintf((char *)dst + pos, dsize - pos, "- ");
 		}
 
-		ret = scnprintf((char *)dst + pos, dsize - pos, " ");
-		if (ret < 0 || (size_t)ret >= dsize - pos)
-			return -1;
-		pos += ret;
+		pos += scnprintf((char *)dst + pos, dsize - pos, " ");
 
 		/* Print ASCII representation */
 		for (j = 0; j < 16 && i + j < ssize; j++) {
 			unsigned char c = src[i + j];
-			ret = scnprintf((char *)dst + pos, dsize - pos, "%c",
-					(c >= 32 && c <= 126) ? c : '.');
-			if (ret < 0 || (size_t)ret >= dsize - pos)
-				return -1;
-			pos += ret;
+			pos += scnprintf((char *)dst + pos, dsize - pos, "%c",
+					 (c >= 32 && c <= 126) ? c : '.');
 		}
 
-		ret = scnprintf((char *)dst + pos, dsize - pos, "\n");
-		if (ret < 0 || (size_t)ret >= dsize - pos)
-			return -1;
-		pos += ret;
+		/* Last '\n' MUST be under the caller's control */
+		if (i + 16 < ssize)
+			pos += scnprintf((char *)dst + pos, dsize - pos, "\n");
 	}
 
 	return pos;

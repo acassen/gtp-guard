@@ -57,16 +57,71 @@ static int no_password_check = 0;
 
 
 /* VTY standard output function. */
+static char *
+vty_buffer_build(char *dst, size_t dsize, int *len, const char *fmt, va_list args)
+{
+	int size = dsize;
+	char *tmp = NULL;
+	char *p = NULL;
+
+	/* Try to write to initial buffer.  */
+	*len = vsnprintf(dst, dsize, fmt, args);
+
+	/* Initial buffer is not enough.  */
+	if (*len < 0 || *len >= dsize) {
+		for (;;) {
+			if (*len > -1)
+				size = *len + 1;
+			else
+				size = size * 2;
+
+			tmp = REALLOC(p, size);
+			if (!tmp) {
+				FREE_PTR(p);
+				return NULL;
+			}
+			p = tmp;
+
+			*len = vsnprintf(p, size, fmt, args);
+
+			if (*len > -1 && *len < size)
+				break;
+		}
+	}
+
+	/* When initial buffer is enough to store all output.  */
+	return (p) ? : dst;
+}
+
+static void
+vty_buffer_put(struct vty *vty, char *buf, int bsize)
+{
+	char *s, *e;
+
+	if (vty->type != VTY_TERM) {
+		/* Pointer p must point out buffer. */
+		buffer_put(vty->obuf, (u_char *) buf, bsize);
+		return;
+	}
+
+	/* Convert '\n' to '\r\n' if needed */
+	for (s = buf; s < buf + bsize; s = e + 1) {
+		e = strchrnul(s, '\n');
+		buffer_put(vty->obuf, s, e - s);
+		if (e[0] == '\n' && e > s && e[-1] != '\r')
+			buffer_put(vty->obuf, "\r\n", 2);
+		else if (e[0] == '\n')
+			buffer_put(vty->obuf, "\n", 1);
+	}
+}
+
 int
 vty_out(struct vty *vty, const char *fmt, ...)
 {
 	va_list args;
 	int len = 0;
-	int size = 1024;
 	char buf[1024];
-	char *tmp = NULL;
 	char *p = NULL;
-	char *s, *e;
 
 	if (vty_shell(vty)) {
 		va_start(args, fmt);
@@ -77,51 +132,43 @@ vty_out(struct vty *vty, const char *fmt, ...)
 
 	/* Try to write to initial buffer.  */
 	va_start(args, fmt);
-	len = vsnprintf(buf, sizeof buf, fmt, args);
+	p = vty_buffer_build(buf, sizeof buf, &len, fmt, args);
 	va_end(args);
 
-	/* Initial buffer is not enough.  */
-	if (len < 0 || len >= size) {
-		for (;;) {
-			if (len > -1)
-				size = len + 1;
-			else
-				size = size * 2;
-
-			tmp = REALLOC(p, size);
-			if (!tmp) {
-				FREE(p);
-				return -1;
-			}
-			p = tmp;
-
-			va_start(args, fmt);
-			len = vsnprintf(p, size, fmt, args);
-			va_end(args);
-
-			if (len > -1 && len < size)
-				break;
-		}
-	}
-
-	/* When initial buffer is enough to store all output.  */
 	if (!p)
-		p = buf;
+		return -1;
 
-	/* Convert '\n' to '\r\n' if needed */
-	if (vty->type == VTY_TERM) {
-		for (s = p; s < p + len; s = e + 1) {
-			e = strchrnul(s, '\n');
-			buffer_put(vty->obuf, s, e - s);
-			if (e[0] == '\n' && e > s && e[-1] != '\r')
-				buffer_put(vty->obuf, "\r\n", 2);
-			else if (e[0] == '\n')
-				buffer_put(vty->obuf, "\n", 1);
+	vty_buffer_put(vty, p, len);
+
+	/* If p is not different with buf, it is allocated buffer.  */
+	if (p != buf)
+		FREE(p);
+
+	return len;
+}
+
+int
+vty_brd_out(const char *fmt, ...)
+{
+	va_list args;
+	int len = 0;
+	unsigned int i;
+	struct vty *v;
+	char buf[1024];
+	char *p = NULL;
+
+	/* Try to write to initial buffer.  */
+	va_start(args, fmt);
+	p = vty_buffer_build(buf, sizeof buf, &len, fmt, args);
+	va_end(args);
+
+	if (!p)
+		return -1;
+
+	for (i = 0; i < vector_active(vtyvec); i++) {
+		if ((v = vector_slot(vtyvec, i)) != NULL) {
+			vty_buffer_put(v, p, len);
 		}
-
-	} else {
-		/* Pointer p must point out buffer. */
-		buffer_put(vty->obuf, (u_char *) p, len);
 	}
 
 	/* If p is not different with buf, it is allocated buffer.  */

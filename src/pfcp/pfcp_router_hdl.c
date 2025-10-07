@@ -187,8 +187,8 @@ pfcp_router_handle(struct pfcp_server *srv, struct sockaddr_storage *addr)
 
 	//printf("---[ incoming packet ]---\n");
 	//hexdump("PFCP ", pbuff->head, pkt_buffer_len(pbuff));
-	hexdump_format(buffer, 4096, pbuff->head, pkt_buffer_len(pbuff));
-	printf("---[ Ingress ]---\n%s", buffer);
+	hexdump_format("", buffer, 4096, pbuff->head, pkt_buffer_len(pbuff));
+	printf("---[ Ingress ]---\n%s\n", buffer);
 
 	if (*(pfcp_msg_hdl[pfcph->type].hdl)) {
 		pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
