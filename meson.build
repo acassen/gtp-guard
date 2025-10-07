@@ -19,7 +19,6 @@ project('gtp-guard', 'c',
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wstrict-prototypes', language: 'c')
 add_project_arguments('-Wno-extra', language: 'c')
-#add_project_arguments('-Wno-typedef-redefinition', language: 'c')
 add_project_arguments('-ggdb', language: 'c')
 
 # get programs to compile ebpf

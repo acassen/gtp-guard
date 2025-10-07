@@ -22,4 +22,4 @@ t = executable(
   build_by_default: false,
 )
 
-test('resolv-naptr', t)
+test('resolv-naptr', t, args : ['--help', 'a', 'b', 'c', 'd'])

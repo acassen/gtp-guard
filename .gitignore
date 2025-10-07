@@ -2,3 +2,4 @@
 bin
 build
 subprojects/libbpf
+subprojects/.wraplock

@@ -32,8 +32,14 @@
 #include "inet_utils.h"
 
 /* XXX: defined in gtp_bpf_rt.c */
+struct gtp_bpf_prog;
 int
-gtp_bpf_rt_lladdr_update(void *)
+gtp_bpf_rt_lladdr_update(void *p)
+{
+	return 0;
+}
+int
+gtp_bpf_rt_metrics_init(struct gtp_bpf_prog *p, int a, int b)
 {
 	return 0;
 }
