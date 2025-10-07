@@ -48,7 +48,7 @@ struct {
 } mirror_rules SEC(".maps");
 
 
-SEC("tc")
+SEC("tcx/ingress")
 int tc_gtp_mirror(struct __sk_buff *skb)
 {
 	void *data = (void *)(long)skb->data;

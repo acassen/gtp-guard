@@ -23,11 +23,15 @@ struct {
 	__type(value, struct if_rule);
 } if_rule SEC(".maps");
 
+#define IF_RULE_FL_XDP_ADJUSTED		0x01
+
 struct if_rule_data
 {
+	struct xdp_md *ctx;
 	struct if_rule_key k;
 	struct if_rule *r;
-	void *payload;
+	__u16 flags;
+	__u16 pl_off;
 	__u32 dst_addr;
 };
 
@@ -55,7 +59,7 @@ _acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
  * parse first layers of an ip packet (eth, vlan, ip, gre),
  * without modifying packet. usually the first call of xdp program.
  *
- * looks in 'if' a rule that can match incoming trafic.
+ * looks in 'if_rule' a rule that can match incoming trafic.
  *
  * thes rules are set by userapp. if found, rule gives an 'action'.
  * action is either XDP_*, or a custom value that caller will know.
@@ -63,8 +67,9 @@ _acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
  * eg. for cgn: 10 for traffic coming from 'network-in', 11 for
  * traffic coming from 'network-out'.
  *
- * returns action's rule, or any of XDP_*. unsupported protocols
- * will XDP_PASS, obviously invalid packets will XDP_DROP.
+ * returns action's rule, or any of XDP_*:
+ *   - returns XDP_PASS on unsupported protocols
+ *   - returns XDP_DROP on invalid packets
  */
 static __attribute__((noinline)) int
 if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
@@ -74,7 +79,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	struct ethhdr *ethh = data;
 	struct vlan_hdr *vlanh;
 	struct iphdr *ip4h;
-	void *payload;
+	__u16 offset;
 	__u16 eth_type;
 	int ret;
 
@@ -91,9 +96,9 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			return XDP_DROP;
 		d->k.vlan_id = bpf_ntohs(vlanh->vlan_tci) & 0x0fff;
 		eth_type = vlanh->next_proto;
-		payload = vlanh + 1;
+		offset = sizeof (*ethh) + sizeof (*vlanh);
 	} else {
-		payload = ethh + 1;
+		offset = sizeof (*ethh);
 	}
 
 	d->k.ifindex = ctx->ingress_ifindex;
@@ -103,7 +108,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		//d->family = AF_INET;
 
 		/* check ipv4 header */
-		ip4h = payload;
+		ip4h = data + offset;
 		if ((void *)(ip4h + 1) > data_end)
 			return XDP_DROP;
 
@@ -111,17 +116,19 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		if (ip4h->version == 4 &&
 		    ip4h->ihl == 5 &&
 		    ip4h->protocol == IPPROTO_GRE) {
-			struct gre_hdr *gre = (struct gre_hdr *)(ip4h + 1);
+			offset += sizeof (*ip4h);
+			struct gre_hdr *gre = (struct gre_hdr *)(data + offset);
 			if ((void *)(gre + 1) > data_end)
 				return 1;
 			if (GRE_VERSION(gre) == GRE_VERSION_1701 && gre->flags == 0) {
 				/* is a basic gre tunnel */
 				d->k.gre_remote = ip4h->saddr;
 
-				ip4h = (struct iphdr *)(gre + 1);
+				offset += sizeof (*gre);
+				ip4h = (struct iphdr *)(data + offset);
 				if ((void *)(ip4h + 1) > data_end)
 					return XDP_DROP;
-				d->payload = ip4h;
+				d->pl_off = offset;
 				switch (gre->proto) {
 				case __constant_htons(ETH_P_IP):
 					return _acl_ipv4(&d->k, d);
@@ -132,7 +139,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		}
 
 		/* handle this ipv4 payload */
-		d->payload = payload;
+		d->pl_off = offset;
 		return _acl_ipv4(&d->k, d);
 
 	case __constant_htons(ETH_P_IPV6):
@@ -165,7 +172,6 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		.ifindex = ctx->ingress_ifindex,
 	};
 	fibp.family = AF_INET;
-	fibp.ipv4_dst = bpf_ntohl(d->dst_addr);
 
 	__u32 flags = BPF_FIB_LOOKUP_DIRECT;
 	if (d->r->gre_remote) {
@@ -207,6 +213,10 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	/* and adjust it */
 	if (adjust_sz && bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
 		return XDP_ABORTED;
+
+	/* adjusted in modules. rewrite all eth/vlan fields */
+	if (d->flags & IF_RULE_FL_XDP_ADJUSTED)
+		adjust_sz = 1;
 
 	/* build output packet iface encap */
 	ethh = data = (void *)(long)ctx->data;

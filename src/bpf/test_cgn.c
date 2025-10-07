@@ -86,7 +86,7 @@ int cgn_test_pkt(struct xdp_md *ctx)
 		return 1;
 
 	struct if_rule_data ifd = {
-		.payload = eth + 1,
+		.pl_off = sizeof (*eth),
 	};
 
 	ret = cgn_pkt_handle(ctx, &ifd, eth->h_dest[5]);

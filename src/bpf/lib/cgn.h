@@ -1214,11 +1214,15 @@ _handle_pkt_icmp_error(struct xdp_md *ctx, struct cgn_packet *cp,
 static __attribute__((noinline)) int
 cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 {
+	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
-	struct iphdr *ip4h = d->payload;
+	struct iphdr *ip4h = data + d->pl_off;
 	struct cgn_packet *cp;
 	void *payload;
 	int ret;
+
+	if (d->pl_off > 256 || (void *)(ip4h + 1) > data_end)
+		return 2;
 
 	ret = 0;
 	cp = bpf_map_lookup_elem(&cgn_on_stack, &ret);
