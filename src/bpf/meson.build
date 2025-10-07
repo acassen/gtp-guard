@@ -48,7 +48,7 @@ foreach bsrc : bpf_sources
 			   output : name + '.bpf',
 			   command : [llc, '-march=bpf', '-filetype=obj',
 				      '-o', '@OUTPUT@', '@INPUT@'],
-			   install_dir: get_option('bindir'),
+			   install_dir: get_option('sharedstatedir') + '/gtp-guard',
 			   install: true
   )
 endforeach

@@ -41,7 +41,7 @@ all: $(BUILDDIR)/build.ninja
 $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(MESON_OPTS)
 
-clean:
+clean: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) clean $(ninja_opts)
 	$Q rm -f $(BIN)/*
 

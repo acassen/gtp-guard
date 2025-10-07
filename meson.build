@@ -70,6 +70,7 @@ gtp_guard_exe = executable(
   include_directories: inc,
   dependencies: [libbpf_dep, libcrypt_dep, libelf_dep],
   link_args: [ '-lresolv' ],
+  install_dir: get_option('sbindir'),
   install: true,
 )
 
