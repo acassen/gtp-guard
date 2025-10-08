@@ -1,0 +1,12 @@
+[Unit]
+Description=GTP Guard: GPRS Tunneling Protocol Routing software
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+LimitCORE=infinity
+ExecStart=/usr/sbin/gtp-guard -n -d
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

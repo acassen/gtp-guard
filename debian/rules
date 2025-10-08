@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+export MESON_OPTS=--prefix=/usr
+export BUILDDIR=debian/build
+
+%:
+	dh $@
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym

@@ -1,6 +1,6 @@
 project('libbpf', 'c',
 	meson_version: '>= 0.56.0',
-	version: run_command('get_version.sh').stdout().strip(),
+	version: run_command('get_version.sh', check: true).stdout().strip(),
 	default_options: [
 	  'c_std=gnu89',
 	  'werror=true',
