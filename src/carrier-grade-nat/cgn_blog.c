@@ -70,7 +70,7 @@ enum cdr_avp_type {
 
 
 static void
-cgn_blog_send(struct cgn_ctx *c, struct cgn_v4_block_log *e)
+cgn_blog_send(struct cgn_ctx *c, const struct cgn_v4_block_log *e)
 {
 	uint8_t data[400 + sizeof (struct cdr_header)];
 	struct cdr_header *hdr = (struct cdr_header *)(data);
@@ -112,8 +112,8 @@ cgn_blog_send(struct cgn_ctx *c, struct cgn_v4_block_log *e)
 		hdr->nb_avp += 2;
 	}
 
-	e->duration = htonl(e->duration);
-	cdr_avp_append(&dst, end - dst, CDR_DURATION, 4, &e->duration);
+	uint32_t duration = htonl(e->duration);
+	cdr_avp_append(&dst, end - dst, CDR_DURATION, 4, &duration);
 	++hdr->nb_avp;
 
 	hdr->size = htobe16(dst - (uint8_t *)(hdr + 1));
@@ -159,6 +159,9 @@ cgn_pb_io_read(struct thread *t)
 	err = perf_buffer__consume_buffer(pb->pb, pb->cpu);
 	if (err)
 		log_message(LOG_INFO, "perf consume buffer: %m");
+
+	pb->t = thread_add_read(master, cgn_pb_io_read, pb, t->u.f.fd,
+				TIMER_NEVER, 0);
 }
 
 int

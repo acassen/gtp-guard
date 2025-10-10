@@ -40,6 +40,7 @@ struct cgn_v4_block_log
 	__u16		port_start;
 	__u16		port_size;
 	__u8		flag;
+	__u8		pad[3];
 } __attribute__((packed));
 
 
