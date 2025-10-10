@@ -24,7 +24,7 @@ jobs:
       - name: add missing packages
         uses: ConorMacBride/install-package@v1
         with:
-          apt: libelf-dev llvm meson
+          apt: libelf-dev libpcap-dev llvm meson
       - name: checkout
         uses: actions/checkout@v4
       - name: make gtp-guard

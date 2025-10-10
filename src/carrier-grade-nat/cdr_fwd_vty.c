@@ -208,9 +208,9 @@ DEFUN(cdr_remote_addr,
 		return CMD_WARNING;
 	}
 
-	if (c->remote_n >= c->remote_msize) {
-		c->remote_msize = (c->remote_n ?: 4) * 2;
-		c->remote = realloc(c->remote, c->remote_msize *
+	if (c->remote_n >= e->remote_msize) {
+		e->remote_msize = (c->remote_n ?: 4) * 2;
+		c->remote = realloc(c->remote, e->remote_msize *
 				    sizeof (*c->remote));
 	}
 

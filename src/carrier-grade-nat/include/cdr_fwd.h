@@ -40,7 +40,6 @@ struct cdr_fwd_config
 
 	union addr			*remote;
 	int				remote_n;
-	int				remote_msize;
 
 	/* round-robin, switch connection after this period (seconds) */
 	int				rr_roll_period;
@@ -56,6 +55,7 @@ struct cdr_fwd_entry
 	struct cdr_fwd_config		cfc;
 	struct cdr_fwd_context		*ctx;
 	int				refcount;
+	int				remote_msize;
 	struct list_head		list;
 };
 

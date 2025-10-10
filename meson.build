@@ -28,6 +28,7 @@ llc = find_program('llc', required: true)
 # libraries this project is using
 libcrypt_dep = dependency('libcrypt')
 libelf_dep = dependency('libelf')
+libpcap_dep = dependency('libpcap')
 
 # check for system's libbpf 
 # if not found or version too old, fetch and compile libbpf from git
