@@ -257,9 +257,10 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 	c->v4_free_blocks = bpf_object__find_map_by_name(obj, "v4_free_blocks");
 	c->users = bpf_object__find_map_by_name(obj, "users");
 	c->flow_port_timeouts = bpf_object__find_map_by_name(obj, "flow_port_timeouts");
+	c->blog_event = bpf_object__find_map_by_name(obj, "block_log_event");
 
-	if (!c->v4_blocks || !c->v4_free_blocks ||
-	    !c->users || !c->flow_port_timeouts)
+	if (!c->v4_blocks || !c->v4_free_blocks || !c->users ||
+	    !c->flow_port_timeouts || !c->blog_event)
 		return 1;
 
 	/* prepare memory to be copied to maps */
@@ -312,7 +313,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 		bpf_map__update_elem(m, &k, sizeof (k), &val, sizeof (val), 0);
 	}
 
-	return 0;
+	return cgn_blog_init(c);
 }
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {

@@ -29,6 +29,7 @@
 struct gtp_bpf_prog;
 struct gtp_interface;
 
+
 /* default protocol timeout values */
 #define CGN_PROTO_TIMEOUT_TCP_EST	600
 #define CGN_PROTO_TIMEOUT_TCP_SYNFIN	120
@@ -62,6 +63,7 @@ struct cgn_ctx
 	struct bpf_map		*v4_free_blocks;
 	struct bpf_map		*users;
 	struct bpf_map		*flow_port_timeouts;
+	struct bpf_map		*blog_event;
 
 	/* conf. read-only after bpf prog is opened */
 	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */
@@ -76,8 +78,14 @@ struct cgn_ctx
 	struct port_timeout_config timeout_by_port[0x10000];
 	uint16_t		timeout_icmp;
 
+	/* cgn_blog */
+	struct perf_buffer	*blog_pb;
+	struct cgn_blog_pb	**blog_apb;	/* per cpu */
+	struct cdr_fwd_entry	*blog_cdr_fwd;
+
 	/* metrics */
 };
+
 
 /* cgn.c */
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
@@ -90,3 +98,7 @@ void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);
 int cgn_init(void);
 int cgn_destroy(void);
+
+/* cgn_blog.c */
+int cgn_blog_init(struct cgn_ctx *c);
+void cgn_blog_release(struct cgn_ctx *c);

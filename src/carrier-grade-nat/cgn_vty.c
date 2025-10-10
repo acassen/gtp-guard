@@ -38,12 +38,12 @@
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
+#include "cdr_fwd.h"
 #include "cgn.h"
 
 
 /* Extern data */
 extern struct data *daemon_data;
-extern struct thread_master *master;
 
 
 /*
@@ -83,7 +83,7 @@ DEFUN(no_cgn,
 	/* Already existing ? */
 	c = cgn_ctx_get_by_name(argv[0]);
 	if (c == NULL) {
-		vty_out(vty, "%% unknown carrier-grade-nat instance %s",
+		vty_out(vty, "%% unknown carrier-grade-nat instance %s\n",
 			argv[0]);
 		return CMD_WARNING;
 	}
@@ -92,7 +92,7 @@ DEFUN(no_cgn,
 	return CMD_SUCCESS;
 }
 
-DEFUN(cgn_desciption,
+DEFUN(cgn_description,
       cgn_description_cmd,
       "description STRING",
       "Set Carrier-Grade-NAT description\n"
@@ -213,7 +213,6 @@ DEFUN(cgn_protocol_udp_port_conf_pool,
 	return CMD_SUCCESS;
 }
 
-
 DEFUN(cgn_protocol_tcp_port_conf_pool,
       cgn_protocol_tcp_port_conf_cmd,
       "protocol tcp TIMEOUT synfin STO port PORT",
@@ -226,6 +225,49 @@ DEFUN(cgn_protocol_tcp_port_conf_pool,
 		c->timeout_by_port[port].tcp_est = max(atoi(argv[0]), 60);
 		c->timeout_by_port[port].tcp_synfin = max(atoi(argv[1]), 20);
 	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(cgn_cdr_fwd,
+      cgn_cdr_fwd_cmd,
+      "cdr-fwd NAME",
+      "Configure cdr-forward instance to attached\n"
+      "Cdr-Forward instance name\n")
+{
+	struct cgn_ctx *c = vty->index;
+	struct cdr_fwd_entry *e;
+
+	e = cdr_fwd_entry_get(argv[0], false);
+	if (e == NULL) {
+		vty_out(vty, "%% cdr-fwd:%s not found\n", argv[0]);
+		return CMD_WARNING;
+	}
+	++e->refcount;
+
+	if (c->blog_cdr_fwd != NULL)
+		--c->blog_cdr_fwd->refcount;
+	c->blog_cdr_fwd = e;
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(cgn_no_cdr_fwd,
+      cgn_no_cdr_fwd_cmd,
+      "no cdr-fwd",
+      "Detach"
+      "Configure cdr-forward instance to be detached\n"
+      "Cdr-Forward instance name\n")
+{
+	struct cgn_ctx *c = vty->index;
+
+	if (c->blog_cdr_fwd == NULL) {
+		vty_out(vty, "%% no cdr-fwd instance attached\n");
+		return CMD_WARNING;
+	}
+
+	--c->blog_cdr_fwd->refcount;
+	c->blog_cdr_fwd = NULL;
 
 	return CMD_SUCCESS;
 }
@@ -245,7 +287,7 @@ DEFUN(cgn_interface,
 
 	c = cgn_ctx_get_by_name(argv[0]);
 	if (c == NULL) {
-		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined",
+		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined\n",
 			iface->ifname, argv[0]);
 		return CMD_WARNING;
 	}
@@ -267,7 +309,7 @@ DEFUN(cgn_no_interface,
 
 	c = cgn_ctx_get_by_name(argv[0]);
 	if (c == NULL) {
-		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined",
+		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined\n",
 			iface->ifname, argv[0]);
 		return CMD_WARNING;
 	}
@@ -307,7 +349,7 @@ DEFUN(show_cgn,
 	const char *name = NULL;
 
 	if (list_empty(&daemon_data->cgn)) {
-		vty_out(vty, "%% No carrier-grade-nat instance configured...");
+		vty_out(vty, "%% No carrier-grade-nat instance configured...\n");
 		return CMD_SUCCESS;
 	}
 
@@ -367,6 +409,8 @@ config_cgn_write(struct vty *vty)
 					c->timeout_by_port[p].udp, p);
 		if (c->timeout_icmp != CGN_PROTO_TIMEOUT_ICMP)
 			vty_out(vty, " protocol icmp %d\n", c->timeout_icmp);
+		if (c->blog_cdr_fwd != NULL)
+			vty_out(vty, " cdr-fwd %s\n", c->blog_cdr_fwd->name);
 		vty_out(vty, "!\n");
 	}
 
@@ -392,7 +436,10 @@ cmd_ext_cgn_install(void)
 	install_element(CGN_NODE, &cgn_protocol_tcp_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_udp_port_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_tcp_port_conf_cmd);
+	install_element(CGN_NODE, &cgn_cdr_fwd_cmd);
+	install_element(CGN_NODE, &cgn_no_cdr_fwd_cmd);
 	install_element(INTERFACE_NODE, &cgn_interface_cmd);
+	install_element(INTERFACE_NODE, &cgn_no_interface_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cgn_cmd);

@@ -47,6 +47,7 @@ enum node_type {
 	CFG_LOG_NODE,					/* Configure the logging */
 
 	PDN_NODE,					/* PDN daemon commands. */
+	CDRFWD_NODE,					/* CDR-FWD commands. */
 	BPF_PROG_NODE,					/* BPF prog commands. */
 	CGN_NODE,					/* Carrier Grade NAT */
 	INTERFACE_NODE,					/* Interface commands. */

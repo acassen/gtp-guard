@@ -31,6 +31,40 @@ struct {
 } test_map SEC(".maps");
 
 
+/*
+ * block allocation/release log test
+ */
+struct {
+	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+	__uint(key_size, sizeof(__u32));
+	__uint(value_size, sizeof(__u32));
+} block_log_event SEC(".maps");
+
+static void send_event(struct xdp_md *ctx)
+{
+	struct cgn_v4_block_log s = {
+		.prefix = "cmg-toto",
+		.cgn_addr = 0x01010101,
+		.priv_addr = 0x0a000001,
+		.duration = 500,
+		.port_start = 1500,
+		.port_size = 50,
+		.flag = CGN_BLOG_FL_ALLOC,
+	};
+	bpf_perf_event_output(ctx, &block_log_event,
+			      BPF_F_CURRENT_CPU, &s, sizeof(s));
+}
+
+SEC("xdp")
+int test_block_log(struct xdp_md *ctx)
+{
+	send_event(ctx);
+
+	return XDP_PASS;
+}
+
+
+
 SEC("xdp")
 int xdp_entry_1(struct xdp_md *ctx)
 {

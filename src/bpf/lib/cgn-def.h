@@ -4,6 +4,7 @@
 
 #include "tools.h"
 
+
 /*
  * ipv4 block allocation.
  * filled by userspace on startup, then exclusively managed by bpf program
@@ -26,6 +27,20 @@ struct cgn_v4_ipblock {
 	__u32			_pad;
 	struct cgn_v4_block	b[];		/* 'total' blocks follow */
 };
+
+#define CGN_BLOG_FL_ALLOC	0x01
+
+/* log entry sent to userspace  */
+struct cgn_v4_block_log
+{
+	char		prefix[32];	/* log prefix */
+	__u32		cgn_addr;	/* allocated ip (v4) */
+	__u32		priv_addr;	/* private ip */
+	__u32		duration;	/* in seconds */
+	__u16		port_start;
+	__u16		port_size;
+	__u8		flag;
+} __attribute__((packed));
 
 
 /* global lock for ipv4 block allocation */
