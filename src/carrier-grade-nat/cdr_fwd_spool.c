@@ -67,7 +67,7 @@ cdr_fwd_spool_purge(struct cdr_fwd_context *ctx)
 			    srt->win_idx != -1 && srt->win_idx <= i)
 				goto stop;
 		}
-		sprintf(buf, "%s/spool_%ld", ctx->cfg.spool_path,
+		sprintf(buf, "%s/spool_%ld", ctx->cfg->spool_path,
 			ctx->spool_f[i].ts);
 		trace1(ctx->log, "spool: remove %s", buf);
 		unlink(buf);
@@ -138,10 +138,10 @@ cdr_fwd_spool_list_directory(struct cdr_fwd_context *ctx)
 	off_t total = 0;
 
 	/* scan spool dir */
-	n = scandir(ctx->cfg.spool_path, &dent,
+	n = scandir(ctx->cfg->spool_path, &dent,
 		    scandir_filter, scandir_compar);
 	if (n < 0) {
-		err(ctx->log, "%s: %m", ctx->cfg.spool_path);
+		err(ctx->log, "%s: %m", ctx->cfg->spool_path);
 		return;
 	}
 
@@ -156,7 +156,7 @@ cdr_fwd_spool_list_directory(struct cdr_fwd_context *ctx)
 			     ts);
 		} else {
 			snprintf(path, sizeof (path), "%s/%s",
-				 ctx->cfg.spool_path, dent[i]->d_name);
+				 ctx->cfg->spool_path, dent[i]->d_name);
 			if (stat(path, &st) < 0) {
 				err(ctx->log, "%s: stat: %m", path);
 			} else if (st.st_size < 8) {
@@ -173,7 +173,7 @@ cdr_fwd_spool_list_directory(struct cdr_fwd_context *ctx)
 	free(dent);
 
 	debug(ctx->log, "%s: %d spool files scanned, total size: %ld bytes",
-	      ctx->cfg.spool_path, ctx->spool_f_u, total);
+	      ctx->cfg->spool_path, ctx->spool_f_u, total);
 }
 
 static void
@@ -209,7 +209,7 @@ cdr_fwd_disk_check_usage(struct cdr_fwd_context *ctx)
 	for (i = ctx->spool_f_l; i < ctx->spool_f_u - 4 &&
 		     ctx->disk_avail < 0.10; i++) {
 		snprintf(path, sizeof (path), "%s/spool_%lu",
-			 ctx->cfg.spool_path, ctx->spool_f[i].ts);
+			 ctx->cfg->spool_path, ctx->spool_f[i].ts);
 		trace1(ctx->log, "spool: remove %s", path);
 		unlink(path);
 
@@ -255,21 +255,21 @@ cdr_fwd_spool_list_idx_files(struct cdr_fwd_context *ctx)
 	union addr a;
 	int n, i, r;
 
-	trace1(ctx->log, "%s: scanning idx_* files", ctx->cfg.spool_path);
+	trace1(ctx->log, "%s: scanning idx_* files", ctx->cfg->spool_path);
 
 	/* scan spool dir */
-	n = scandir(ctx->cfg.spool_path, &dent,
+	n = scandir(ctx->cfg->spool_path, &dent,
 		    scandir_wincur_filter, alphasort);
 	if (n < 0) {
-		err(ctx->log, "%s: %m", ctx->cfg.spool_path);
+		err(ctx->log, "%s: %m", ctx->cfg->spool_path);
 		return;
 	}
 
 	if (n == 0)
-		debug(ctx->log, "%s: no idx_* file", ctx->cfg.spool_path);
+		debug(ctx->log, "%s: no idx_* file", ctx->cfg->spool_path);
 
 	for (i = 0; i < n; i++) {
-		trace1(ctx->log, "%s: found %s", ctx->cfg.spool_path,
+		trace1(ctx->log, "%s: found %s", ctx->cfg->spool_path,
 		       dent[i]->d_name);
 		r = sscanf(dent[i]->d_name, "idx_%63s", buf);
 		if (r != 1) {
@@ -462,7 +462,7 @@ cdr_fwd_spool_read_ticket(struct cdr_fwd_server *sr,
  next:
 	assert(sr->cur_idx != -1);
 	ts = ctx->spool_f[sr->cur_idx].ts;
-	l = scnprintf(path, sizeof (path), "%s/spool_%ld", ctx->cfg.spool_path, ts);
+	l = scnprintf(path, sizeof (path), "%s/spool_%ld", ctx->cfg->spool_path, ts);
 
 	/* open spool file */
 	if (sr->cur_fd < 0) {
@@ -531,7 +531,7 @@ cdr_fwd_spool_write_ticket(struct cdr_fwd_context *ctx,
 	/* time to roll the file ? create a new file if none exists */
 	if (ctx->spool_wr_idx != -1) {
 		ts = ctx->spool_f[ctx->spool_wr_idx].ts;
-		if (now - ts >= ctx->cfg.roll_period) {
+		if (now - ts >= ctx->cfg->roll_period) {
 			disk_close_fd(&ctx->spool_wr_fd);
 			ts = now;
 			info(ctx->log, "spool: time to roll, to %ld", ts);
@@ -542,7 +542,7 @@ cdr_fwd_spool_write_ticket(struct cdr_fwd_context *ctx,
 		ts = now;
 		info(ctx->log, "spool: create a new spool file, at %ld", ts);
 	}
-	snprintf(path, sizeof (path), "%s/spool_%lu", ctx->cfg.spool_path, ts);
+	snprintf(path, sizeof (path), "%s/spool_%lu", ctx->cfg->spool_path, ts);
 
 	/* create file if none opened */
 	if (ctx->spool_wr_fd < 0) {

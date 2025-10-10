@@ -40,6 +40,7 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
 #include "gtp_interface_rule.h"
+#include "cdr_fwd.h"
 #include "cgn.h"
 #include "bpf/lib/cgn-def.h"
 
@@ -285,6 +286,10 @@ cgn_ctx_alloc(const char *name)
 void
 cgn_ctx_release(struct cgn_ctx *c)
 {
+	if (c->blog_cdr_fwd != NULL)
+		--c->blog_cdr_fwd->refcount;
+	if (c->blog_pb != NULL)
+		cgn_blog_release(c);
 	free(c->cgn_addr);
 	list_del(&c->next);
 	free(c);
@@ -308,5 +313,7 @@ cgn_destroy(void)
 	list_for_each_entry_safe(cgn, cgn_tmp, l, next) {
 		cgn_ctx_release(cgn);
 	}
+	cdr_fwd_entry_release();
+
 	return 0;
 }

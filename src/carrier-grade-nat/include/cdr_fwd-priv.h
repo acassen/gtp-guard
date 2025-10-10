@@ -55,7 +55,7 @@ struct cdr_fwd_spool_file
 /* Pool of servers */
 struct cdr_fwd_context
 {
-	struct cdr_fwd_config		cfg;
+	struct cdr_fwd_config		*cfg;
 	uint16_t			flags;
 
 	uint64_t			log;

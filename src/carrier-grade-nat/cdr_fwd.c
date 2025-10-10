@@ -39,17 +39,17 @@ cdr_fwd_remote_send_data(struct cdr_fwd_server *sr, int cmd,
 	switch (cmd) {
 	case CDR_FWD_SND_WND_SIZE:
 		trace1(sr->ctx->log, "%s: sending ack_window=%u",
-		       sr->addr_str, sr->ctx->cfg.ack_window);
-		tc.size = sprintf(tc.mtext, "%d", sr->ctx->cfg.ack_window) + 1;
+		       sr->addr_str, sr->ctx->cfg->ack_window);
+		tc.size = sprintf(tc.mtext, "%d", sr->ctx->cfg->ack_window) + 1;
 		tc.mtype = -3;
 		iov[0].iov_base = &tc;
 		iov[0].iov_len = tc.size + sizeof (tc.size) + sizeof (tc.mtype);
 		break;
 
 	case CDR_FWD_SND_NEWSEQ:
-		if (sr->ctx->cfg.instance_id)
+		if (sr->ctx->cfg->instance_id)
 			tc.size = sprintf(tc.mtext, "%d_%u",
-					  sr->ctx->cfg.instance_id, sr->seq) + 1;
+					  sr->ctx->cfg->instance_id, sr->seq) + 1;
 		else
 			tc.size = sprintf(tc.mtext, "%u", sr->seq) + 1;
 		trace1(sr->ctx->log, "%s: sending new_seq=%s",
@@ -137,13 +137,17 @@ cdr_fwd_remote_select(struct cdr_fwd_context *ctx, struct cdr_fwd_server *new)
 	struct cdr_fwd_server *old = ctx->active_sr;
 
 	/* no need to select a server in active-active mode */
-	if (ctx->cfg.lb_mode == CDR_FWD_MODE_ACTIVE_ACTIVE)
+	if (ctx->cfg->lb_mode == CDR_FWD_MODE_ACTIVE_ACTIVE)
 		return false;
 
 	/* no change */
 	if (old == new) {
-		if (new != NULL)
+		if (new != NULL) {
+			ctx->active_reco_n = 0;
+			ctx->active_reco_recent = 0;
+			ctx->active_since = time(NULL);
 			new->flags &= ~CDR_FWD_FL_ROTATE;
+		}
 		return false;
 	}
 
@@ -246,8 +250,8 @@ cdr_fwd_remote_check(struct cdr_fwd_context *ctx)
 		cdr_fwd_remote_select_next(ctx);
 	}
 
-	if (ctx->cfg.lb_mode == CDR_FWD_MODE_ROUND_ROBIN &&
-	    ctx->active_since + ctx->cfg.rr_roll_period < now &&
+	if (ctx->cfg->lb_mode == CDR_FWD_MODE_ROUND_ROBIN &&
+	    ctx->active_since + ctx->cfg->rr_roll_period < now &&
 	    !(ctx->active_sr->flags & CDR_FWD_FL_ROTATE)) {
 		info(ctx->log, "%s: round-robin, time to switch server",
 		     ctx->active_sr->addr_str);
@@ -261,7 +265,7 @@ _tick_remote_check(struct thread *ev)
 	struct cdr_fwd_context *ctx = ev->arg;
 
 	cdr_fwd_remote_check(ctx);
-	ctx->active_tick = thread_add_timer(ctx->cfg.loop, _tick_remote_check,
+	ctx->active_tick = thread_add_timer(ctx->cfg->loop, _tick_remote_check,
 					  ctx, USEC_PER_SEC);
 }
 
@@ -287,18 +291,18 @@ cdr_fwd_ctx_dump(const struct cdr_fwd_context *ctx, char *b, size_t s)
 
 	k += scnprintf(b + k, s - k, "config:\n");
 	k += scnprintf(b + k, s - k, "  spool_path: %s\n",
-		       ctx->cfg.spool_path);
+		       ctx->cfg->spool_path);
 	k += scnprintf(b + k, s - k, "  roll_period: %d seconds\n",
-		       ctx->cfg.roll_period);
-	k += scnprintf(b + k, s - k, "  load balancing mode: %d\n",
-		       ctx->cfg.lb_mode);
-	if (ctx->cfg.lb_mode == CDR_FWD_MODE_ROUND_ROBIN)
+		       ctx->cfg->roll_period);
+	k += scnprintf(b + k, s - k, "  load balancing mode: %s\n",
+		       cdr_fwd_lb_mode_to_str(ctx->cfg->lb_mode));
+	if (ctx->cfg->lb_mode == CDR_FWD_MODE_ROUND_ROBIN)
 		k += scnprintf(b + k, s - k, "  round-robin switch period: %d seconds\n",
-			       ctx->cfg.rr_roll_period);
+			       ctx->cfg->rr_roll_period);
 	k += scnprintf(b + k, s - k, "  ack_window: %d\n",
-		       ctx->cfg.ack_window);
+		       ctx->cfg->ack_window);
 	k += scnprintf(b + k, s - k, "  instance_id: %d\n",
-		       ctx->cfg.instance_id);
+		       ctx->cfg->instance_id);
 	k += scnprintf(b + k, s - k, "spool:\n");
 	if (ctx->flags & CDR_FWD_FL_CTX_SPOOL_ONLY)
 		k += scnprintf(b + k, s - k, "  force spool, send tickets only on periodic()\n");
@@ -363,7 +367,7 @@ cdr_fwd_ctx_dump(const struct cdr_fwd_context *ctx, char *b, size_t s)
 				       sr->try_count);
 		}
 		k += scnprintf(b + k, s - k, "    seq      : %u sent_in_win: %d/%d\n",
-			       sr->seq, sr->cntsent, ctx->cfg.ack_window);
+			       sr->seq, sr->cntsent, ctx->cfg->ack_window);
 		k += scnprintf(b + k, s - k, "    spool pos: idx=%d "
 			       "ts=%ld off=%ld fd=%d\n",
 			       sr->cur_idx, sr->cur_idx == -1 ? 0 :
@@ -486,7 +490,7 @@ cdr_fwd_send_ticket(struct cdr_fwd_context *ctx, const uint8_t *data, int size)
 
 	} else {
 		/* send to server(s) */
-		if (ctx->cfg.lb_mode == CDR_FWD_MODE_ACTIVE_ACTIVE) {
+		if (ctx->cfg->lb_mode == CDR_FWD_MODE_ACTIVE_ACTIVE) {
 			list_for_each_entry(sr, &ctx->remote_list, list) {
 				_send_ticket(sr, &t, r);
 			}
@@ -520,7 +524,7 @@ cdr_fwd_ctx_add_remote(struct cdr_fwd_context *ctx, const union addr *addr)
 		 addr_stringify(&sr->addr, buf, sizeof (buf)));
 
 	snprintf(buf, sizeof (buf), "%s/idx_%s",
-		 ctx->cfg.spool_path, sr->addr_str);
+		 ctx->cfg->spool_path, sr->addr_str);
 	sr->cur_filepath = strdup(buf);
 
 	list_add_tail(&sr->list, &ctx->remote_list);
@@ -542,38 +546,43 @@ _del_remote(struct cdr_fwd_context *ctx, struct cdr_fwd_server *sr)
 	free(sr);
 }
 
-static struct cdr_fwd_context *
-_cdr_fwd_ctx_create(const struct cdr_fwd_config *cfc)
+
+
+/*
+ * create context
+ */
+struct cdr_fwd_context *
+cdr_fwd_ctx_create(struct cdr_fwd_config *cfc)
 {
 	struct cdr_fwd_context *ctx;
+	struct cdr_fwd_server *sr;
+	int i;
+
+	if (cfc->loop == NULL)
+		return NULL;
 
 	ctx = calloc(1, sizeof (*ctx));
-	ctx->cfg = *cfc;
+	ctx->cfg = cfc;
 	ctx->log = cfc->log;
 	INIT_LIST_HEAD(&ctx->remote_list);
 
-	if (ctx->cfg.lb_mode == 0)
-		ctx->cfg.lb_mode = CDR_FWD_MODE_FAIL_OVER;
-	if (ctx->cfg.roll_period <= 0)
-		ctx->cfg.roll_period = 600;
-	if (ctx->cfg.ack_window <= 0)
-		ctx->cfg.ack_window = 200;
-	if (!ctx->cfg.spool_path[0])
-		strcpy(ctx->cfg.spool_path, "/tmp");
-	if (ctx->cfg.rr_roll_period <= 0)
-		ctx->cfg.rr_roll_period = 3600;
+	if (ctx->cfg->lb_mode == 0)
+		ctx->cfg->lb_mode = CDR_FWD_MODE_FAIL_OVER;
+	if (ctx->cfg->roll_period <= 0)
+		ctx->cfg->roll_period = 600;
+	if (ctx->cfg->ack_window <= 0)
+		ctx->cfg->ack_window = 200;
+	if (!ctx->cfg->spool_path[0])
+		strcpy(ctx->cfg->spool_path, "/tmp");
+	if (ctx->cfg->rr_roll_period <= 0)
+		ctx->cfg->rr_roll_period = 3600;
 
-	return ctx;
-}
-
-static void
-_cdr_fwd_ctx_init(struct cdr_fwd_context *ctx)
-{
-	struct cdr_fwd_server *sr;
+	for (i = 0; i < cfc->remote_n; i++)
+		cdr_fwd_ctx_add_remote(ctx, &cfc->remote[i]);
 
 	cdr_fwd_spool_init(ctx);
 
-	switch (ctx->cfg.lb_mode) {
+	switch (ctx->cfg->lb_mode) {
 	case CDR_FWD_MODE_ACTIVE_ACTIVE:
 		/* set all servers active */
 		list_for_each_entry(sr, &ctx->remote_list, list) {
@@ -592,37 +601,14 @@ _cdr_fwd_ctx_init(struct cdr_fwd_context *ctx)
 		if (ctx->active_sr == NULL)
 			cdr_fwd_remote_select_next(ctx);
 
-		ctx->active_tick = thread_add_timer(ctx->cfg.loop,
+		ctx->active_tick = thread_add_timer(ctx->cfg->loop,
 						    _tick_remote_check,
 						    ctx, USEC_PER_SEC);
 
 		break;
 	default:
-		warn(ctx->log, "invalid lb_mode=%d", ctx->cfg.lb_mode);
+		warn(ctx->log, "invalid lb_mode=%d", ctx->cfg->lb_mode);
 	}
-}
-
-
-
-/*
- * create context
- */
-struct cdr_fwd_context *
-cdr_fwd_ctx_create(const struct cdr_fwd_config *cfc,
-		   const union addr *remote_array)
-{
-	struct cdr_fwd_context *ctx;
-	int i;
-
-	if (cfc->loop == NULL)
-		return NULL;
-
-	ctx = _cdr_fwd_ctx_create(cfc);
-	if (remote_array != NULL) {
-		for (i = 0; addr_len(&remote_array[i]); i++)
-			cdr_fwd_ctx_add_remote(ctx, &remote_array[i]);
-	}
-	_cdr_fwd_ctx_init(ctx);
 
 	return ctx;
 }
@@ -639,4 +625,90 @@ cdr_fwd_ctx_release(struct cdr_fwd_context *ctx)
 	cdr_fwd_spool_release(ctx);
 	thread_del(ctx->active_tick);
 	free(ctx);
+}
+
+static const char *cdr_fwd_lb_mode_str[] = {
+	[CDR_FWD_MODE_ACTIVE_ACTIVE]	= "active-active",
+	[CDR_FWD_MODE_FAIL_OVER]	= "fail-over",
+	[CDR_FWD_MODE_ROUND_ROBIN]	= "round-robin",
+};
+
+const char *
+cdr_fwd_lb_mode_to_str(int val)
+{
+	if (val >= ARRAY_SIZE(cdr_fwd_lb_mode_str) ||
+	    cdr_fwd_lb_mode_str[val] == NULL)
+		return "";
+
+	return cdr_fwd_lb_mode_str[val];
+}
+
+int
+str_to_cdr_fwd_lb_mode(const char *str)
+{
+	unsigned i;
+
+	for (i = 0; str && i < ARRAY_SIZE(cdr_fwd_lb_mode_str); i++)
+		if (cdr_fwd_lb_mode_str[i] != NULL &&
+		    strcasecmp(cdr_fwd_lb_mode_str[i], str) == 0)
+			return i;
+
+	return -1;
+}
+
+
+
+/*
+ * cdr_fwd_entry is instances of cdr_fwd_ctx.
+ * manage a list
+ */
+
+static LIST_HEAD(cdr_fwd_entry_list);
+
+
+struct cdr_fwd_entry *
+cdr_fwd_entry_get(const char *name, bool create)
+{
+	struct cdr_fwd_entry *e;
+
+	list_for_each_entry(e, &cdr_fwd_entry_list, list) {
+		if (!strcmp(name, e->name))
+			return e;
+	}
+
+	if (!create)
+		return NULL;
+
+	e = calloc(1, sizeof (*e));
+	snprintf(e->name, sizeof (e->name), "%s", name);
+	list_add(&e->list, &cdr_fwd_entry_list);
+	e->cfc.loop = master;
+
+	return e;
+}
+
+struct list_head *
+cdr_fwd_entry_get_list(void)
+{
+	return &cdr_fwd_entry_list;
+}
+
+void
+cdr_fwd_entry_destroy(struct cdr_fwd_entry *e)
+{
+	if (e->ctx != NULL)
+		cdr_fwd_ctx_release(e->ctx);
+	list_del(&e->list);
+	free(e->cfc.remote);
+	free(e);
+}
+
+void
+cdr_fwd_entry_release(void)
+{
+	struct cdr_fwd_entry *e, *e_tmp;
+
+	list_for_each_entry_safe(e, e_tmp, &cdr_fwd_entry_list, list) {
+		cdr_fwd_entry_destroy(e);
+	}
 }

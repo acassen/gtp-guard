@@ -72,24 +72,23 @@ _tick_cb(struct thread *t)
 static void
 test_ticket_async(void)
 {
-	struct cdr_fwd_config cdrcfg;
-	union addr addr[4];
-	//char b[1000];
+	struct cdr_fwd_entry *e;
 
-	memset(&cdrcfg, 0x00, sizeof (cdrcfg));
-	cdrcfg.log = cdrlog;
-	cdrcfg.loop = master;
-	cdrcfg.ack_window = 10;
-	cdrcfg.rr_roll_period = 5;
+	e = cdr_fwd_entry_get("cdr-e-test", true);
+	e->cfc.ack_window = 10;
+	e->cfc.rr_roll_period = 5;
 	/* cdrcfg.lb_mode = CDR_FWD_MODE_ACTIVE_ACTIVE; */
 	/* cdrcfg.lb_mode = CDR_FWD_MODE_FAIL_OVER; */
-	cdrcfg.lb_mode = CDR_FWD_MODE_ROUND_ROBIN;
-	strcpy(cdrcfg.spool_path, "test_spool");
-	addr_parse_const("127.0.0.1:1664", &addr[0]);
-	addr_parse_const("127.0.0.1:1665", &addr[1]);
-	addr_parse_const("127.0.0.1:1666", &addr[2]);
-	addr_zero(&addr[3]);
-	ctx = cdr_fwd_ctx_create(&cdrcfg, addr);
+	e->cfc.lb_mode = CDR_FWD_MODE_ROUND_ROBIN;
+	strcpy(e->cfc.spool_path, "test_spool");
+	e->cfc.remote = calloc(3, sizeof (union addr));
+	e->cfc.remote_n = 2;
+
+	addr_parse_const("127.0.0.1:1664", &e->cfc.remote[0]);
+	addr_parse_const("127.0.0.1:1665", &e->cfc.remote[1]);
+	addr_parse_const("127.0.0.1:1666", &e->cfc.remote[2]);
+	e->ctx = cdr_fwd_ctx_create(&e->cfc);
+	assert(e->ctx != NULL);
 
 	tick_ev = thread_add_timer(master, _tick_cb, NULL, USEC_PER_SEC);
 }

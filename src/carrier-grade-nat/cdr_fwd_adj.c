@@ -39,8 +39,8 @@ cdr_fwd_adjacency_ticket(struct cdr_fwd_server *sr, struct cdr_fwd_ticket_buffer
 		return;
 
 	/* window full, ack this sequence */
-	if (sr->cntsent >= sr->ctx->cfg.ack_window) {
-		sr->cntrecv_low = sr->ctx->cfg.ack_window + 1;
+	if (sr->cntsent >= sr->ctx->cfg->ack_window) {
+		sr->cntrecv_low = sr->ctx->cfg->ack_window + 1;
 		if (cdr_fwd_remote_send_data(sr, CDR_FWD_SND_ACK, NULL) < 0)
 			return;
 
@@ -305,7 +305,7 @@ _server_reconnect(struct cdr_fwd_server *sr)
 	/* set reconnect delay */
 	if (sr->connect_ev == NULL) {
 		sr->connect_ev =
-			thread_add_timer(sr->ctx->cfg.loop, _server_connect,
+			thread_add_timer(sr->ctx->cfg->loop, _server_connect,
 					 sr, sr->try_count * 2 * USEC_PER_SEC);
 	}
 }
@@ -355,9 +355,9 @@ _server_connect(struct thread *ev)
 	}
 
 	/* local bind */
-	if (sr->ctx->cfg.addr_ip_bound.sa.sa_family) {
-		if (bind(fd, &sr->ctx->cfg.addr_ip_bound.sa,
-			 addr_len(&sr->ctx->cfg.addr_ip_bound)) != 0) {
+	if (sr->ctx->cfg->addr_ip_bound.sa.sa_family) {
+		if (bind(fd, &sr->ctx->cfg->addr_ip_bound.sa,
+			 addr_len(&sr->ctx->cfg->addr_ip_bound)) != 0) {
 			err(sr->ctx->log, "bind: %m");
 			close(fd);
 			_server_reconnect(sr);
@@ -401,7 +401,7 @@ cdr_fwd_adjacency_reset(struct cdr_fwd_server *sr)
 void
 cdr_fwd_adjacency_init(struct cdr_fwd_server *sr)
 {
-	thread_add_event(sr->ctx->cfg.loop, _server_connect, sr, 0);
+	thread_add_event(sr->ctx->cfg->loop, _server_connect, sr, 0);
 }
 
 void

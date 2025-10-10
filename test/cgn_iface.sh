@@ -104,6 +104,12 @@ run() {
     start_gtpguard
 
     gtpg_conf "
+cdr-fwd cgn
+ spool-path /tmp/spool
+ instance-id 2
+ remote 127.0.0.1:1900
+ no shutdown
+
 bpf-program cgn	
  path bin/cgn.bpf
  no shutdown
@@ -111,6 +117,7 @@ bpf-program cgn
 carrier-grade-nat cgn
  description trop_bien
  ipv4-pool 37.141.0.0/24
+ cdr-fwd cgn
 
 interface priv
  description priv_itf

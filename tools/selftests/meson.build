@@ -3,4 +3,5 @@
 subdir('libcdrfwd')
 subdir('lib-thread')
 subdir('resolv-naptr')
-#subdir('pGW-cdr')
+subdir('pGW-cdr')
+subdir('carrier-grade-nat')

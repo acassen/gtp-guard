@@ -20,10 +20,7 @@
 #define CDR_FWD_PATH_MAX			400
 
 /* forward declaration */
-struct _thread_master;
 struct cdr_fwd_context;
-struct fmlog;
-struct fmcfg;
 
 /* load balancing mode */
 enum cdr_fwd_lb_mode {
@@ -41,6 +38,9 @@ struct cdr_fwd_config
 	uint32_t			instance_id;
 	union addr			addr_ip_bound;
 
+	union addr			*remote;
+	int				remote_n;
+
 	/* round-robin, switch connection after this period (seconds) */
 	int				rr_roll_period;
 
@@ -49,9 +49,19 @@ struct cdr_fwd_config
 };
 
 
+struct cdr_fwd_entry
+{
+	char				name[64];
+	struct cdr_fwd_config		cfc;
+	struct cdr_fwd_context		*ctx;
+	int				refcount;
+	int				remote_msize;
+	struct list_head		list;
+};
+
+
 /* cdr_fwd.c */
-struct cdr_fwd_context *cdr_fwd_ctx_create(const struct cdr_fwd_config *cfc,
-					   const union addr *remote_array);
+struct cdr_fwd_context *cdr_fwd_ctx_create(struct cdr_fwd_config *cfc);
 void cdr_fwd_ctx_release(struct cdr_fwd_context *ctx);
 void cdr_fwd_ctx_force_spool_set(struct cdr_fwd_context *ctx, bool enable);
 bool cdr_fwd_ctx_force_spool_get(struct cdr_fwd_context *ctx);
@@ -63,5 +73,10 @@ void cdr_fwd_send_ticket(struct cdr_fwd_context *ctx,
 int cdr_fwd_ctx_dump(const struct cdr_fwd_context *ctx, char *b, size_t s);
 int cdr_fwd_ctx_dump_stats(const struct cdr_fwd_context *ctx, char *b, size_t s);
 
-const char *cdr_fwd_lb_mode_to_str(int cal);
+const char *cdr_fwd_lb_mode_to_str(int val);
 int str_to_cdr_fwd_lb_mode(const char *str);
+
+struct cdr_fwd_entry *cdr_fwd_entry_get(const char *name, bool create);
+struct list_head *cdr_fwd_entry_get_list(void);
+void cdr_fwd_entry_destroy(struct cdr_fwd_entry *e);
+void cdr_fwd_entry_release(void);

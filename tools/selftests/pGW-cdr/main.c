@@ -38,8 +38,8 @@
 
 
 /* Local data */
-data_t *daemon_data;
-thread_master_t *master = NULL;
+struct data *daemon_data;
+struct thread_master *master = NULL;
 
 /* Local var */
 static const char *gtp_pcap_file;
@@ -48,6 +48,16 @@ static const char *document_root;
 static const char *archive_root;
 static bool verbose = false;
 
+/* grip */
+int gtp_bpf_rt_teid_bytes(struct gtp_teid *, uint64_t *) {
+	return 0;
+}
+struct gtp_apn *gtp_apn_get(const char *) {
+	return NULL;
+}
+int gtp_bpf_fwd_teid_bytes(struct gtp_teid *, uint64_t *) {
+	return 0;
+}
 
 /*
  *	Usage function
@@ -157,7 +167,7 @@ parse_cmdline(int argc, char **argv)
 /*
  *	PCAP related
  */
-static gtp_cdr_t *
+static struct gtp_cdr *
 gtp_pcap_process(const char *path)
 {
 	char errbuff[PCAP_ERRBUF_SIZE];
@@ -168,9 +178,9 @@ gtp_pcap_process(const char *path)
 	pcap_t *pcap;
 	struct iphdr *iph;
 	struct udphdr *udph;
-	pkt_buffer_t *pkt;
-	gtp_msg_t *msg;
-	gtp_cdr_t *cdr;
+	struct pkt_buffer *pkt;
+	struct gtp_msg *msg;
+	struct gtp_cdr *cdr;
 
 	pcap = pcap_open_offline(path, errbuff);
 	if (!pcap) {
@@ -187,10 +197,10 @@ gtp_pcap_process(const char *path)
 		if (verbose)
 			printf("* Packet # %i - size: %d Bytes (epoch: %ld:%ld secs)\n",
 				++packetCount, header->len, header->ts.tv_sec, header->ts.tv_usec);
- 
+
 		if (header->len != header->caplen)
 			printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
- 
+
 		iph = (struct iphdr *) (data + sizeof(struct ethhdr));
 		if (iph->protocol != IPPROTO_UDP)
 			continue;
@@ -208,12 +218,12 @@ gtp_pcap_process(const char *path)
 
 		if (verbose) {
 			printf("  ---[ GTP packet ]---\n");
-			hexdump("  ", (char *) pkt->head, pkt_buffer_len(pkt));
+			hexdump("  ", pkt->head, pkt_buffer_len(pkt));
 			gtp_msg_dump("  ", msg);
 		}
 
 		gtp_cdr_update(pkt, msg, cdr);
-	
+
 		gtp_msg_destroy(msg);
 	}
 
@@ -229,7 +239,7 @@ gtp_pcap_process(const char *path)
 static int
 write_cdr(const void *buf, size_t bsize)
 {
-	map_file_t *map_file;
+	struct map_file *map_file;
 	off_t offset = 0;
 	int err, i;
 
@@ -260,7 +270,7 @@ write_cdr(const void *buf, size_t bsize)
 			continue;
 
 		fprintf(stderr, "\n#%d buffer miss-match :\n", i);
-		hexdump("Error buffer ", (char *)map_file->map + offset, bsize);
+		hexdump("Error buffer ", map_file->map + offset, bsize);
 		goto end;
 	}
 	printf("Success vrfy file content integrity\n");
@@ -274,8 +284,8 @@ end:
 static int
 write_cdr_file(const void *buf, size_t bsize)
 {
-	gtp_cdr_spool_t *s;
-	gtp_cdr_file_t *f;
+	struct gtp_cdr_spool *s;
+	struct gtp_cdr_file *f;
 	int err, i;
 
 	/* Init context */
@@ -334,7 +344,7 @@ int main(int argc, char **argv)
 {
 	uint8_t data[512];
 	int len;
-	gtp_cdr_t *cdr;
+	struct gtp_cdr *cdr;
 
 	/* Command line parsing */
 	parse_cmdline(argc, argv);
@@ -355,12 +365,12 @@ int main(int argc, char **argv)
 	gtp_cdr_destroy(cdr);
 
 	printf("----[ Generated CDR (%d) ]----\n", len);
-	hexdump("", (char *) data, len);
+	hexdump("", data, len);
 
 	/* Generate c array to be injected into third party
 	 * ASN.1 decoder to validate our ASN.1 encoder output.
 	 */
-	buffer_to_c_array("cdr_3gpp", (char *) data, len);
+	buffer_to_c_array("cdr_3gpp", data, len);
 
 	/* I/O operations */
 	if (gtp_cdr_file)

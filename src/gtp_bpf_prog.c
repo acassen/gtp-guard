@@ -504,6 +504,8 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
  err:
 	bpf_object__close(p->load.obj);
 	p->load.obj = NULL;
+	p->load.tc = NULL;
+	p->load.xdp = NULL;
 	__set_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags);
 	return -1;
 }
@@ -517,11 +519,11 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 int
 gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 {
-	int ret = -1;
+	int ret;
 
-	if (!p->run.obj && (gtp_bpf_prog_open(p) ||
+	if (!p->run.obj && ((ret = gtp_bpf_prog_open(p)) ||
 			    (ret = gtp_bpf_prog_prepare(p)) ||
-			    gtp_bpf_prog_load_prg(p)))
+			    (ret = gtp_bpf_prog_load_prg(p))))
 		return ret;
 	return 0;
 }
@@ -534,9 +536,7 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 	int i;
 
 	/* Load program if not yet running */
-	if (!p->run.obj && (gtp_bpf_prog_open(p) ||
-			    gtp_bpf_prog_prepare(p) ||
-			    gtp_bpf_prog_load_prg(p)))
+	if (gtp_bpf_prog_load(p))
 		return -1;
 
 	/* Attach XDP */
