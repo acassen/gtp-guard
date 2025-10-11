@@ -60,33 +60,37 @@ static int no_password_check = 0;
 static char *
 vty_buffer_build(char *dst, size_t dsize, int *len, const char *fmt, va_list args)
 {
+	va_list ap;
 	int size = dsize;
 	char *tmp = NULL;
 	char *p = NULL;
+
+	va_copy(ap, args);
 
 	/* Try to write to initial buffer.  */
 	*len = vsnprintf(dst, dsize, fmt, args);
 
 	/* Initial buffer is not enough.  */
 	if (*len < 0 || *len >= dsize) {
-		for (;;) {
-			if (*len > -1)
-				size = *len + 1;
-			else
-				size = size * 2;
+		size = (*len < 0) ? size * 2 : *len + 1;
 
-			tmp = REALLOC(p, size);
-			if (!tmp) {
-				FREE_PTR(p);
-				return NULL;
-			}
-			p = tmp;
-
-			*len = vsnprintf(p, size, fmt, args);
-
-			if (*len > -1 && *len < size)
-				break;
+		tmp = REALLOC(p, size);
+		if (!tmp) {
+			FREE_PTR(p);
+			va_end(ap);
+			return NULL;
 		}
+		p = tmp;
+
+		*len = vsnprintf(p, size, fmt, ap);
+	}
+
+	va_end(ap);
+
+	/* error on retry */
+	if (*len < 0) {
+		FREE_PTR(p);
+		return NULL;
 	}
 
 	/* When initial buffer is enough to store all output.  */

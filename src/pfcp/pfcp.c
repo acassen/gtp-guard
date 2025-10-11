@@ -19,6 +19,7 @@
  * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include "pfcp_assoc.h"
 #include "pfcp_router.h"
 
 
@@ -28,12 +29,14 @@
 int
 pfcp_init(void)
 {
+	pfcp_assoc_init();
 	return 0;
 }
 
 int
 pfcp_destroy(void)
 {
+	pfcp_assoc_destroy();
 	pfcp_router_destroy();
 	return 0;
 }

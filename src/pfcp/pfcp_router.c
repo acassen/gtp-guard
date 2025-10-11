@@ -131,27 +131,10 @@ pfcp_router_alloc(const char *name)
 }
 
 int
-pfcp_router_ctx_server_destroy(struct pfcp_router *ctx)
-{
-	pfcp_server_destroy(&ctx->s);
-	return 0;
-}
-
-int
 pfcp_router_ctx_destroy(struct pfcp_router *ctx)
 {
 	list_head_del(&ctx->next);
-	return 0;
-}
-
-int
-pfcp_router_server_destroy(void)
-{
-	struct pfcp_router *c;
-
-	list_for_each_entry(c, &daemon_data->pfcp_router_ctx, next)
-		pfcp_router_ctx_server_destroy(c);
-
+	pfcp_server_destroy(&ctx->s);
 	return 0;
 }
 
@@ -161,7 +144,7 @@ pfcp_router_destroy(void)
 	struct pfcp_router *c, *_c;
 
 	list_for_each_entry_safe(c, _c, &daemon_data->pfcp_router_ctx, next) {
-		list_head_del(&c->next);
+		pfcp_router_ctx_destroy(c);
 		FREE(c);
 	}
 

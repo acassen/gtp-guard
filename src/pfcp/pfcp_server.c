@@ -78,7 +78,7 @@ pfcp_server_init(struct pfcp_server *s, void *ctx,
 	srv->rcv = pfcp_server_rcv;
 
 	/* Create UDP Listener */
-	err = inet_server_init(&s->s, SOCK_DGRAM);
+	err = inet_server_init(srv, SOCK_DGRAM);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error creating GTP on [%s]:%d"
 				    , __FUNCTION__

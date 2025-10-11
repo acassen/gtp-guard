@@ -22,10 +22,12 @@
 
 #include <stddef.h>
 #include <sys/types.h>
+#include "vty.h"
 
 #define TABLE_MAX_COLUMNS	16
 #define TABLE_INITIAL_ROWS	8
 #define TABLE_MAX_CELL_LEN	128
+#define TABLE_BUFFER_SIZE	4096
 
 enum table_style {
 	STYLE_ASCII = 0,
@@ -68,6 +70,7 @@ struct table {
 	int num_columns;
 
 	struct table_cell *cells;
+	char buffer[TABLE_BUFFER_SIZE];
 	int num_rows;
 	int max_rows;
 };
@@ -81,4 +84,5 @@ int table_add_row(struct table *tbl, ...);
 int table_add_row_fmt(struct table *tbl, const char *fmt, ...)
 	__attribute__ ((format (printf, 2, 3)));
 ssize_t table_format(struct table *tbl, unsigned char *dst, size_t dsize);
+int table_vty_out(struct table *tbl, struct vty *vty);
 void table_destroy(struct table *tbl);

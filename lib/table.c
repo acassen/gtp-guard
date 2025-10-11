@@ -204,7 +204,6 @@ table_set_column(struct table *tbl, ...)
 	}
 	va_end(args);
 
-
 	return 0;
 }
 
@@ -222,7 +221,6 @@ table_set_header_align(struct table *tbl, ...)
 		tbl->columns[col].h_align = va_arg(args, enum table_align);
 	va_end(args);
 
-
 	return 0;
 }
 
@@ -239,7 +237,6 @@ table_set_column_align(struct table *tbl, ...)
 	for (col = 0; col < tbl->num_columns; col++)
 		tbl->columns[col].align = va_arg(args, enum table_align);
 	va_end(args);
-
 
 	return 0;
 }
@@ -320,17 +317,16 @@ int
 table_add_row_fmt(struct table *tbl, const char *fmt, ...)
 {
 	int fmt_col = table_fmt_num_cols(fmt);
-	char buffer[1024];
-	char *pos = buffer;
-	const char *cp = buffer;
+	char *pos = tbl->buffer;
+	const char *cp = tbl->buffer;
 	va_list ap;
 	int ret, col;
 
-	if (fmt_col != tbl->num_columns)
+	if (!tbl || table_row_resize(tbl) || fmt_col != tbl->num_columns)
 		return -1;
 
 	va_start(ap, fmt);
-	ret = vsnprintf(buffer, sizeof(buffer), fmt, ap);
+	ret = vsnprintf(tbl->buffer, sizeof(tbl->buffer), fmt, ap);
 	va_end(ap);
 
 	if (ret < 0)
@@ -447,6 +443,36 @@ table_format(struct table *tbl, unsigned char *dst, size_t dsize)
 	table_format_separator(tbl, dst, dsize, &pos, BL);
 
 	return pos;
+}
+
+int
+table_vty_out(struct table *tbl, struct vty *vty)
+{
+	unsigned char *dst = (unsigned char *) tbl->buffer;
+	size_t dsize = TABLE_BUFFER_SIZE;
+	size_t pos = 0;
+	int row;
+
+	if (!tbl || !vty)
+		return -1;
+
+	/* Header */
+	table_format_header(tbl, dst, dsize, &pos);
+	vty_out(vty, "%s", dst);
+	pos = 0;
+
+	/* Data rows */
+	for (row = 0; row < tbl->num_rows; row++) {
+		struct table_cell *row_cells = &tbl->cells[row * tbl->num_columns];
+		table_format_row(tbl, dst, dsize, &pos, row_cells, false, RL);
+		vty_out(vty, "%s", dst);
+		pos = 0;
+	}
+
+	/* Bottom separator */
+	table_format_separator(tbl, dst, dsize, &pos, BL);
+	vty_out(vty, "%s", dst);
+	return 0;
 }
 
 void
