@@ -247,7 +247,6 @@ pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
 	return k;
 }
 
-
 int
 pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id)
 {

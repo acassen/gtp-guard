@@ -408,34 +408,6 @@ install_element(enum node_type ntype, struct cmd_element *cmd)
 	cmd->cmdsize = cmd_cmdsize(cmd->strvec);
 }
 
-static const unsigned char itoa64[] =
-"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-static void
-to64(char *s, long v, int n)
-{
-	while (--n >= 0) {
-		*s++ = itoa64[v&0x3f];
-		v >>= 6;
-	}
-}
-
-static char *
-zencrypt (const char *passwd)
-{
-	char salt[6];
-	timeval_t tv;
-	char *crypt(const char *, const char *);
-
-	gettimeofday(&tv,0);
-  
-	to64(&salt[0], random(), 3);
-	to64(&salt[3], tv.tv_usec, 3);
-	salt[5] = '\0';
-
-	return crypt(passwd, salt);
-}
-
 /* This function write configuration of this host. */
 static int
 config_write_host(struct vty *vty)
@@ -443,23 +415,13 @@ config_write_host(struct vty *vty)
 	if (host.name)
 		vty_out(vty, "hostname %s%s", host.name, VTY_NEWLINE);
 
-	if (host.encrypt) {
-		if (host.password_encrypt)
-			vty_out(vty, "password 8 %s%s", host.password_encrypt, VTY_NEWLINE); 
-		if (host.enable_encrypt)
-			vty_out(vty, "enable password 8 %s%s", host.enable_encrypt, VTY_NEWLINE); 
-	} else {
-		if (host.password)
-			vty_out(vty, "password %s%s", host.password, VTY_NEWLINE);
-		if (host.enable)
-			vty_out(vty, "enable password %s%s", host.enable, VTY_NEWLINE);
-	}
+	if (host.password)
+		vty_out(vty, "password %s%s", host.password, VTY_NEWLINE);
+	if (host.enable)
+		vty_out(vty, "enable password %s%s", host.enable, VTY_NEWLINE);
 
 	if (host.advanced)
 		vty_out(vty, "service advanced-vty%s", VTY_NEWLINE);
-
-	if (host.encrypt)
-		vty_out(vty, "service password-encryption%s", VTY_NEWLINE);
 
 	if (host.lines >= 0)
 		vty_out(vty, "service terminal-length %d%s", host.lines,
@@ -1874,8 +1836,7 @@ DEFUN(enable,
       "Turn on privileged mode command\n")
 {
 	/* If enable password is NULL, change to ENABLE_NODE */
-	if ((host.enable == NULL && host.enable_encrypt == NULL) ||
-	    vty->type == VTY_SHELL_SERV)
+	if ((host.enable == NULL) || vty->type == VTY_SHELL_SERV)
 		vty->node = ENABLE_NODE;
 	else
 		vty->node = AUTH_ENABLE_NODE;
@@ -2255,8 +2216,6 @@ DEFUN(config_password, password_cmd,
 		if (*argv[0] == '8') {
 			FREE_PTR(host.password);
 			host.password = NULL;
-			FREE_PTR(host.password_encrypt);
-			host.password_encrypt = strdup(argv[1]);
 			return CMD_SUCCESS;
 		} else {
 			vty_out(vty, "Unknown encryption type.%s", VTY_NEWLINE);
@@ -2271,13 +2230,7 @@ DEFUN(config_password, password_cmd,
 	}
 
 	FREE_PTR(host.password);
-	host.password = NULL;
-
-	if (host.encrypt) {
-		FREE_PTR(host.password_encrypt);
-		host.password_encrypt = strdup(zencrypt(argv[0]));
-	} else
-		host.password = strdup(argv[0]);
+	host.password = strdup(argv[0]);
 
 	return CMD_SUCCESS;
 }
@@ -2308,9 +2261,6 @@ DEFUN(config_enable_password, enable_password_cmd,
 			FREE_PTR(host.enable);
 			host.enable = NULL;
 
-			FREE_PTR(host.enable_encrypt);
-			host.enable_encrypt = strdup(argv[1]);
-
 			return CMD_SUCCESS;
 		} else {
 			vty_out(vty, "Unknown encryption type.%s", VTY_NEWLINE);
@@ -2324,15 +2274,9 @@ DEFUN(config_enable_password, enable_password_cmd,
 	}
 
 	FREE_PTR(host.enable);
-	host.enable = NULL;
 
 	/* Plain password input. */
-	if (host.encrypt) {
-		FREE_PTR(host.enable_encrypt);
-		host.enable_encrypt = strdup(zencrypt(argv[0]));
-	} else {
-		host.enable = strdup(argv[0]);
-	}
+	host.enable = strdup(argv[0]);
 
 	return CMD_SUCCESS;
 }
@@ -2354,57 +2298,9 @@ DEFUN(no_config_enable_password, no_enable_password_cmd,
 	FREE_PTR(host.enable);
 	host.enable = NULL;
 
-	FREE_PTR(host.enable_encrypt);
-	host.enable_encrypt = NULL;
-
 	return CMD_SUCCESS;
 }
 	
-DEFUN(service_password_encrypt,
-      service_password_encrypt_cmd,
-      "service password-encryption",
-      "Set up miscellaneous service\n"
-      "Enable encrypted passwords\n")
-{
-	if (host.encrypt)
-		return CMD_SUCCESS;
-
-	host.encrypt = 1;
-
-	if (host.password) {
-		FREE_PTR(host.password_encrypt);
-		host.password_encrypt = strdup(zencrypt(host.password));
-	}
-
-	if (host.enable) {
-		FREE_PTR(host.enable_encrypt);
-		host.enable_encrypt = strdup(zencrypt(host.enable));
-	}
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(no_service_password_encrypt,
-      no_service_password_encrypt_cmd,
-      "no service password-encryption",
-      NO_STR
-      "Set up miscellaneous service\n"
-      "Enable encrypted passwords\n")
-{
-	if (!host.encrypt)
-		return CMD_SUCCESS;
-
-	host.encrypt = 0;
-
-	FREE_PTR(host.password_encrypt);
-	host.password_encrypt = NULL;
-
-	FREE_PTR(host.enable_encrypt);
-	host.enable_encrypt = NULL;
-
-	return CMD_SUCCESS;
-}
-
 DEFUN(config_terminal_length, config_terminal_length_cmd,
       "terminal length <0-512>",
       "Set terminal line parameters\n"
@@ -2625,8 +2521,6 @@ cmd_init(void)
 	install_element(CONFIG_NODE, &enable_password_text_cmd);
 	install_element(CONFIG_NODE, &no_enable_password_cmd);
 
-	install_element(CONFIG_NODE, &service_password_encrypt_cmd);
-	install_element(CONFIG_NODE, &no_service_password_encrypt_cmd);
 	install_element(CONFIG_NODE, &banner_motd_default_cmd);
 	install_element(CONFIG_NODE, &banner_motd_file_cmd);
 	install_element(CONFIG_NODE, &no_banner_motd_cmd);
@@ -2689,9 +2583,7 @@ cmd_terminate(void)
 	FREE_PTR(desc_cr.str);
 	FREE_PTR(host.name);
 	FREE_PTR(host.password);
-	FREE_PTR(host.password_encrypt);
 	FREE_PTR(host.enable);
-	FREE_PTR(host.enable_encrypt);
 	FREE_PTR(host.motdfile);
 	FREE_PTR(host.config);
 }

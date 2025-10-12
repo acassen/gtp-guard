@@ -30,7 +30,6 @@
 #include "gtp_session.h"
 #include "gtp_router.h"
 #include "gtp_interface.h"
-#include "memory.h"
 #include "utils.h"
 #include "logger.h"
 #include "bitops.h"

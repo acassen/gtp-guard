@@ -25,7 +25,6 @@
 #include "command.h"
 #include "bitops.h"
 #include "utils.h"
-#include "logger.h"
 
 
 /* Extern data */

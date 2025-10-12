@@ -16,7 +16,7 @@ t = executable(
   objects: gtpg_obj,
   c_args: [ '-Wno-unused-result' ],
   include_directories: inc,
-  dependencies: [libcrypt_dep],
+  dependencies: [],
   install: false,
   build_by_default: false,
 )

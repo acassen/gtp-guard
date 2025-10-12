@@ -26,7 +26,6 @@ clang = find_program('clang', required: true)
 llc = find_program('llc', required: true)
 
 # libraries this project is using
-libcrypt_dep = dependency('libcrypt')
 libelf_dep = dependency('libelf')
 libpcap_dep = dependency('libpcap')
 
@@ -69,7 +68,7 @@ subdir('src')
 gtp_guard_exe = executable(
   'gtp-guard', src,
   include_directories: inc,
-  dependencies: [libbpf_dep, libcrypt_dep, libelf_dep],
+  dependencies: [libbpf_dep, libelf_dep],
   link_args: [ '-lresolv' ],
   install_dir: get_option('sbindir'),
   install: true,

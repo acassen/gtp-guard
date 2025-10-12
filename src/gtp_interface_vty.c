@@ -24,7 +24,6 @@
 #include <linux/rtnetlink.h>
 
 #include "gtp_data.h"
-#include "gtp_bpf_rt.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
 #include "gtp_netlink.h"
@@ -32,7 +31,6 @@
 #include "bitops.h"
 #include "utils.h"
 #include "memory.h"
-#include "logger.h"
 
 /* Extern data */
 extern struct data *daemon_data;

@@ -17,10 +17,8 @@ struct host {
 	char			*name;			/* Host name of this router. */
 
 	char			*password;		/* Password for vty interface. */
-	char			*password_encrypt;
 
 	char			*enable;		/* Enable password */
-	char			*enable_encrypt;
 
 	int			lines;			/* System wide terminal lines. */
 
@@ -29,7 +27,6 @@ struct host {
 	char			*config;		/* config file name of this host */
 
 	int			advanced;		/* Flags for services */
-	int			encrypt;
 
 	const char		*motd;			/* Banner configuration. */
 	char			*motdfile;

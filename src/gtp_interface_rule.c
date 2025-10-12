@@ -23,10 +23,6 @@
 #include "gtp_interface.h"
 #include "bpf/lib/if_rule-def.h"
 #include "addr.h"
-#include "memory.h"
-#include "utils.h"
-#include "bitops.h"
-#include "logger.h"
 
 
 /*

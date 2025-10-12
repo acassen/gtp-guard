@@ -16,7 +16,7 @@ t = executable(
   'pGW-cdr', test_src,
   objects: gtpg_obj,
   include_directories: inc,
-  dependencies: [libbpf_dep, libpcap_dep, libcrypt_dep],
+  dependencies: [libbpf_dep, libpcap_dep],
   install: false,
   build_by_default: false,
 )

@@ -16,7 +16,7 @@ t = executable(
   'test-resolv', test_src,
   objects: gtpg_obj,
   include_directories: inc,
-  dependencies: [libbpf_dep, libcrypt_dep, libelf_dep],
+  dependencies: [libbpf_dep, libelf_dep],
   link_args : [ '-lresolv' ],
   install: false,
   build_by_default: false,

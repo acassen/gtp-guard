@@ -61,40 +61,34 @@ static char *
 vty_buffer_build(char *dst, size_t dsize, int *len, const char *fmt, va_list args)
 {
 	va_list ap;
-	int size = dsize;
-	char *tmp = NULL;
 	char *p = NULL;
 
 	va_copy(ap, args);
 
-	/* Try to write to initial buffer.  */
+	/* Try to write to initial buffer */
 	*len = vsnprintf(dst, dsize, fmt, args);
+	if (*len < 0)
+		goto err;
 
-	/* Initial buffer is not enough.  */
-	if (*len < 0 || *len >= dsize) {
-		size = (*len < 0) ? size * 2 : *len + 1;
+	/* Initial buffer is not enough */
+	if (*len >= dsize) {
+		p = MALLOC(*len + 1);
+		if (!p)
+			goto err;
 
-		tmp = REALLOC(p, size);
-		if (!tmp) {
-			FREE_PTR(p);
-			va_end(ap);
-			return NULL;
-		}
-		p = tmp;
-
-		*len = vsnprintf(p, size, fmt, ap);
+		*len = vsnprintf(p, *len + 1, fmt, ap);
+		if (*len < 0)
+			goto err;
 	}
 
 	va_end(ap);
 
-	/* error on retry */
-	if (*len < 0) {
-		FREE_PTR(p);
-		return NULL;
-	}
-
-	/* When initial buffer is enough to store all output.  */
+	/* When initial buffer is enough to store all output */
 	return (p) ? : dst;
+err:
+	va_end(ap);
+	FREE_PTR(p);
+	return NULL;
 }
 
 static void
@@ -103,7 +97,7 @@ vty_buffer_put(struct vty *vty, char *buf, int bsize)
 	char *s, *e;
 
 	if (vty->type != VTY_TERM) {
-		/* Pointer p must point out buffer. */
+		/* Pointer p must point out buffer */
 		buffer_put(vty->obuf, (u_char *) buf, bsize);
 		return;
 	}
@@ -134,7 +128,7 @@ vty_out(struct vty *vty, const char *fmt, ...)
 		return len;
 	}
 
-	/* Try to write to initial buffer.  */
+	/* Try to write to initial buffer */
 	va_start(args, fmt);
 	p = vty_buffer_build(buf, sizeof buf, &len, fmt, args);
 	va_end(args);
@@ -144,7 +138,7 @@ vty_out(struct vty *vty, const char *fmt, ...)
 
 	vty_buffer_put(vty, p, len);
 
-	/* If p is not different with buf, it is allocated buffer.  */
+	/* If p is different from buf, it is an allocated buffer */
 	if (p != buf)
 		FREE(p);
 
@@ -337,29 +331,20 @@ vty_auth(struct vty *vty, char *buf)
 
 	switch (vty->node) {
 	case AUTH_NODE:
-		if (host.encrypt)
-			passwd = host.password_encrypt;
-		else
-			passwd = host.password;
+		passwd = host.password;
 		if (host.advanced)
 			next_node = host.enable ? VIEW_NODE : ENABLE_NODE;
 		else
 			next_node = VIEW_NODE;
 		break;
 	case AUTH_ENABLE_NODE:
-		if (host.encrypt)
-			passwd = host.enable_encrypt;
-		else
-			passwd = host.enable;
+		passwd = host.enable;
 		next_node = ENABLE_NODE;
 		break;
 	}
 
 	if (passwd) {
-		if (host.encrypt)
-			fail = strcmp(crypt(buf, passwd), passwd);
-		else
-			fail = strcmp(buf, passwd);
+		fail = strcmp(buf, passwd);
 	} else {
 		fail = 1;
 	}
@@ -1493,7 +1478,7 @@ vty_create(struct thread_master *m, int vty_sock, struct sockaddr_storage *addr)
 
 	if (!no_password_check) {
 		/* Vty is not available if password isn't set. */
-		if (host.password == NULL && host.password_encrypt == NULL) {
+		if (host.password == NULL) {
 			vty_out(vty, "Vty password is not set.%s", VTY_NEWLINE);
 			vty->status = VTY_CLOSE;
 			vty_close(vty);

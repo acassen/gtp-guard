@@ -27,7 +27,6 @@
 #include "gtp_bpf_iptnl.h"
 #include "gtp_session.h"
 #include "gtp_proxy.h"
-#include "memory.h"
 #include "bitops.h"
 #include "logger.h"
 

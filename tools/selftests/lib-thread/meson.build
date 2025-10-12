@@ -6,7 +6,7 @@ t = executable(
   'thread_test', files('main.c'),
   objects: gtpg_obj,
   include_directories: inc,
-  dependencies: [libcrypt_dep, libbpf_dep],
+  dependencies: [libbpf_dep],
   install: false,
   build_by_default: false,
 )
