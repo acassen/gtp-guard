@@ -42,7 +42,7 @@ struct gtp_bpf_mirror
  *	MAP related
  */
 static int
-gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, void *udata)
+gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct gtp_bpf_mirror *pm = udata;
 

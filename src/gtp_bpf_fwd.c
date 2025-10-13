@@ -58,7 +58,7 @@ gtp_bpf_fwd_ll_attr(struct gtp_interface *iface, void *arg)
 }
 
 static int
-gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata)
+gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct gtp_bpf_fwd *pf = udata;
 
@@ -382,7 +382,7 @@ gtp_bpf_fwd_init(void)
  */
 
 static int
-gtp_bpf_fwd_load_maps_ifr(struct gtp_bpf_prog *p, void *udata)
+gtp_bpf_fwd_load_maps_ifr(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct gtp_bpf_fwd *pf = udata;
 

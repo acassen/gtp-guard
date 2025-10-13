@@ -127,7 +127,7 @@ gtp_interface_rule_del(struct gtp_interface *from)
  */
 
 static int
-gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata)
+gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct gtp_bpf_interface_rule *r = udata;
 

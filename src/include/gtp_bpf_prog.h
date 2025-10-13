@@ -45,7 +45,7 @@ struct gtp_bpf_prog_tpl {
 	size_t			udata_alloc_size;
 
 	int (*prepare)(struct gtp_bpf_prog *, void *);
-	int (*loaded)(struct gtp_bpf_prog *, void *);
+	int (*loaded)(struct gtp_bpf_prog *, void *, bool);
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);

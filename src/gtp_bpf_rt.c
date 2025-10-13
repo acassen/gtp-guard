@@ -53,7 +53,7 @@ struct gtp_bpf_rt
  *	XDP RT BPF related
  */
 static int
-gtp_bpf_rt_load_maps(struct gtp_bpf_prog *p, void *udata)
+gtp_bpf_rt_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct gtp_bpf_rt *pr = udata;
 

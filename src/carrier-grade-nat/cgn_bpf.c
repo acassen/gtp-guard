@@ -189,6 +189,8 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 	struct bpf_map *m;
 	uint64_t icmp_to;
 
+	/* bpf program is not yet attached to cgn block configuration.
+	 * this is not an error, but stop loading. */
 	if (c == NULL)
 		return 1;
 
@@ -238,7 +240,7 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 
 
 static int
-cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
+cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 {
 	struct bpf_object *obj = p->load.obj;
 	struct cgn_ctx *c = udata;
@@ -261,7 +263,10 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 
 	if (!c->v4_blocks || !c->v4_free_blocks || !c->users ||
 	    !c->flow_port_timeouts || !c->blog_event)
-		return 1;
+		return -1;
+
+	if (reloading)
+		return 0;
 
 	/* prepare memory to be copied to maps */
 	free_cnt = free_area = malloc(fmsize);

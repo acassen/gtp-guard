@@ -483,14 +483,15 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 	if (!p->load.tc && !p->load.xdp)
 		goto err;
 
+	struct bpf_object *run_obj = p->run.obj;
+
 	for (i = 0; i < p->tpl_n; i++) {
 		if (p->tpl[i]->loaded != NULL &&
-		    p->tpl[i]->loaded(p, p->tpl_data[i]))
+		    p->tpl[i]->loaded(p, p->tpl_data[i], run_obj != NULL))
 			goto err;
 	}
 
 	/* program is now loaded, set to running */
-	struct bpf_object *run_obj = p->run.obj;
 	memcpy(&p->run, &p->load, sizeof (p->run));
 	p->load.obj = NULL;
 	p->load.tc = NULL;
