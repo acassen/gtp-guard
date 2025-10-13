@@ -171,11 +171,6 @@ cgn_blog_init(struct cgn_ctx *c)
 	int map_fd, fd;
 	uint64_t cpu;
 
-	if (c->blog_pb != NULL) {
-		printf("skip %s, already done\n", __func__);
-		return 0;
-	}
-
 	map_fd = bpf_map__fd(c->blog_event);
 	c->blog_pb = perf_buffer__new(map_fd, PERF_BUFFER_PAGES,
 				      handle_event, handle_missed_events, c, NULL);
@@ -188,15 +183,17 @@ cgn_blog_init(struct cgn_ctx *c)
 			     sizeof (*c->blog_apb));
 	for (cpu = 0; cpu < perf_buffer__buffer_cnt(c->blog_pb); cpu++) {
 		fd = perf_buffer__buffer_fd(c->blog_pb, cpu);
-		if (fd < 0)
+		if (fd < 0) {
+			cgn_blog_release(c);
 			return fd;
+		}
 
 		pb = calloc(1, sizeof (*pb));
 		pb->pb = c->blog_pb;
 		pb->cpu = cpu;
 		pb->t = thread_add_read(master, cgn_pb_io_read, pb, fd,
 					TIMER_NEVER, 0);
-		c->blog_apb[cpu] = pb;
+		c->blog_apb[c->blog_apb_n++] = pb;
 	}
 
 	return 0;
@@ -206,13 +203,19 @@ void
 cgn_blog_release(struct cgn_ctx *c)
 {
 	struct cgn_blog_pb *pb;
-	uint64_t cpu;
+	int i;
 
-	for (cpu = 0; cpu < perf_buffer__buffer_cnt(c->blog_pb); cpu++) {
-		pb = c->blog_apb[cpu];
+	if (c->blog_pb == NULL)
+		return;
+
+	for (i = 0; i < c->blog_apb_n; i++) {
+		pb = c->blog_apb[i];
 		thread_del(pb->t);
 		free(pb);
 	}
+	c->blog_apb_n = 0;
 	free(c->blog_apb);
+	c->blog_apb = NULL;
 	perf_buffer__free(c->blog_pb);
+	c->blog_pb = NULL;
 }

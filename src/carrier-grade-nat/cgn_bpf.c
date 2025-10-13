@@ -321,11 +321,20 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 	return cgn_blog_init(c);
 }
 
+static void
+cgn_bpf_closed(struct gtp_bpf_prog *p, void *udata)
+{
+	struct cgn_ctx *c = udata;
+
+	cgn_blog_release(c);
+}
+
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.name = "cgn",
 	.description = "carrier-grade-nat",
 	.prepare = cgn_bpf_prepare,
 	.loaded = cgn_bpf_loaded,
+	.closed = cgn_bpf_closed,
 };
 
 static void __attribute__((constructor))

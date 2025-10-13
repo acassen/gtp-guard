@@ -46,6 +46,7 @@ struct gtp_bpf_prog_tpl {
 
 	int (*prepare)(struct gtp_bpf_prog *, void *);
 	int (*loaded)(struct gtp_bpf_prog *, void *, bool);
+	void (*closed)(struct gtp_bpf_prog *, void *);
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);

@@ -82,6 +82,7 @@ struct cgn_ctx
 	struct perf_buffer	*blog_pb;
 	struct cgn_blog_pb	**blog_apb;	/* per cpu */
 	struct cdr_fwd_entry	*blog_cdr_fwd;
+	int			blog_apb_n;
 
 	/* metrics */
 };

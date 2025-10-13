@@ -621,18 +621,26 @@ gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 {
 	int i;
 
+	p->run.tc = NULL;
+	p->run.xdp = NULL;
+	if (p->run.obj != NULL) {
+		for (i = 0; i < p->tpl_n; i++) {
+			if (p->tpl[i]->closed != NULL)
+				p->tpl[i]->closed(p, p->tpl_data[i]);
+		}
+
+		bpf_object__close(p->run.obj);
+	}
+	p->run.obj = NULL;
+
+	if (p->load.obj != NULL)
+		bpf_object__close(p->load.obj);
+	p->load.obj = NULL;
+
 	for (i = 0; i < p->tpl_n; i++) {
 		if (p->tpl[i]->udata_alloc_size)
 			free(p->tpl_data[i]);
 	}
-	p->run.tc = NULL;
-	p->run.xdp = NULL;
-	if (p->run.obj != NULL)
-		bpf_object__close(p->run.obj);
-	p->run.obj = NULL;
-	if (p->load.obj != NULL)
-		bpf_object__close(p->load.obj);
-	p->load.obj = NULL;
 	p->tpl_n = 0;
 }
 
