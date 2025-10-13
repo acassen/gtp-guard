@@ -25,7 +25,7 @@
 #include <arpa/inet.h>
 
 #include "pfcp_msg.h"
-#include "pfcp.h"
+#include "include/pfcp.h"
 #include "pkt_buffer.h"
 
 /*
@@ -43,8 +43,11 @@ int
 pfcp_msg_reset_hlen(struct pkt_buffer *pbuff)
 {
 	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
+	uint16_t len = PFCP_HEADER_LEN - 4;
 
-	hdr->length = 0;
+	/* 3GPP.TS.29.244 7.2.2.4.1 */
+	len -= (hdr->s) ? 0 : PFCP_SEID_LEN ;
+	hdr->length = htons(len);
 	pkt_buffer_set_data_pointer(pbuff, pfcp_msg_hlen(pbuff));
 	pkt_buffer_set_end_pointer(pbuff, pfcp_msg_hlen(pbuff));
 	return 0;

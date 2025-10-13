@@ -27,6 +27,7 @@
 #include "pfcp_router.h"
 #include "pfcp_server.h"
 #include "pfcp_router_hdl.h"
+#include "timer.h"
 #include "utils.h"
 #include "memory.h"
 
@@ -123,7 +124,7 @@ pfcp_router_alloc(const char *name)
 
 	/* by default same as instance name */
 	bsd_strlcpy(new->node_id, name, GTP_NAME_MAX_LEN - 1);
-	new->recovery_ts = time(NULL);
+	new->recovery_ts = time_now_to_ntp();
 
 	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);
 

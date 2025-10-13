@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <sys/prctl.h>
+#include <time.h>
 
 #include "memory.h"
 #include "utils.h"
@@ -206,6 +207,16 @@ time_now_to_calendar(struct tm *t)
 	return localtime_r(&time_now.tv_sec, t);
 }
 
+/* Convert time_now to ntp with epoch offset.
+ * RFC5905.6 : NTP Epoch is 1/1/1900-00:00h.
+ *  NTP Timestamp Era Offset per Figure 4:
+ *  (70*365 + 17)*86400 = 2208988800
+ */
+uint32_t
+time_now_to_ntp(void)
+{
+	return (uint32_t)time(NULL) + 2208988800;
+}
 
 /*
  *	Timer thread related

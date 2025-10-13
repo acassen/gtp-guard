@@ -47,7 +47,7 @@ pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length)
 }
 
 int
-pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, time_t ts)
+pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts)
 {
 	struct pfcp_ie_recovery_time_stamp *ie;
 	unsigned int length = sizeof(*ie);
@@ -56,7 +56,7 @@ pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, time_t ts)
 		return -1;
 
 	ie = (struct pfcp_ie_recovery_time_stamp *) pbuff->data;
-	ie->ts = htonl((uint32_t) ts);
+	ie->ts = htonl(ts);
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);

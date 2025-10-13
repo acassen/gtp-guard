@@ -37,7 +37,7 @@ struct pfcp_router {
 	struct pfcp_server	s;
 
 	char			node_id[GTP_NAME_MAX_LEN];
-	time_t			recovery_ts;
+	uint32_t		recovery_ts;
 
 	unsigned long		flags;
 

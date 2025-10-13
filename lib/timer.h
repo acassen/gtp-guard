@@ -141,5 +141,6 @@ void timespec_add_now_ms(struct timespec *t, timeval_t *now, unsigned long ms);
 timeval_t timer_now(void);
 timeval_t set_time_now(void);
 struct tm *time_now_to_calendar(struct tm *t);
+uint32_t time_now_to_ntp(void);
 timeval_t timer_add_ll(timeval_t a, uint64_t b) __attribute__((const));
 timeval_t timer_sub_ll(timeval_t a, uint64_t b) __attribute__((const));
