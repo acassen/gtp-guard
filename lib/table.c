@@ -486,3 +486,55 @@ table_destroy(struct table *tbl)
 
 	free(tbl);
 }
+
+#if 0
+/* Usage example */
+int main(int argc, char **argv)
+{
+	unsigned char buffer[4096] = {};
+	struct table *tbl;
+	struct vty *vty; /* extern vty */
+	int i;
+
+	/* Construct a 3 columns table */
+	tbl = table_init(3, STYLE_SINGLE_LINE_ROUNDED);
+
+	/* Set columns title */
+	table_set_column(tbl, "#", "Column 1", "Bigfoot Column 2");
+
+	/* define title cell alignment */
+	table_set_header_align(tbl, ALIGN_CENTER, ALIGN_CENTER, ALIGN_CENTER);
+
+	/* define column cell alignment */
+	table_set_column_align(tbl, ALIGN_CENTER, ALIGN_LEFT, ALIGN_RIGHT);
+
+	/* Add static row strings */
+	table_add_row(tbl, "1", "str1", "str11 very long long 3");
+	table_add_row(tbl, "2", "str2", "str21");
+	table_add_row(tbl, "3", "str3", "str31");
+
+	/* Add formatted row */
+	for (i = 4; i < 8; i++)
+		table_add_row_fmt(tbl, "%d|str%d|str%d1", i, i, i);
+
+	/* Format table into provided buffer. Truncate if not large enough */
+	table_format(tbl, buffer, 4096);
+
+	/* 1. stdout table */
+	printf("%s\n", buffer);
+
+	/* 2. vty table */
+	vty_out(vty, "%s\n", buffer);
+
+	/* 3. Alternatively you can display table to vty per-line ...
+	 *    => Dynamically vty_out each line formatted to skip the need
+	 *       to use intermediate buffer
+	 */
+	table_vty_out(vty, tbl);
+
+	/* Destroy table context */
+	table_destroy(tbl);
+
+	exit(0);
+}
+#endif

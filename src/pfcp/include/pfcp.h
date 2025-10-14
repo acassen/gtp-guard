@@ -33,7 +33,7 @@
 
 
 /* Macro */
-#define PFCP_SQN(s) (ntohl(sqn) >> 8)
+#define PFCP_SQN(sqn) (ntohl(sqn) >> 8)
 
 
 /* 3GPP.TS.29.244 7.2.2.1 */

@@ -23,8 +23,8 @@
 
 #include "gtp_bpf_prog.h"
 #include "gtp_data.h"
+#include "include/pfcp_router.h"
 #include "inet_server.h"
-#include "pfcp_router.h"
 #include "pfcp_assoc.h"
 #include "pfcp.h"
 #include "inet_utils.h"
@@ -146,19 +146,19 @@ DEFUN(pfcp_listen,
 	struct sockaddr_storage *addr = &srv->s.addr;
 	int port = PFCP_PORT, err = 0;
 
-        if (argc < 1) {
-                vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
-        if (__test_bit(PFCP_ROUTER_FL_LISTEN_BIT, &c->flags)) {
-                vty_out(vty, "%% PFCP listener already configured!%s"
+	if (__test_bit(PFCP_ROUTER_FL_LISTEN_BIT, &c->flags)) {
+		vty_out(vty, "%% PFCP listener already configured!%s"
 			   , VTY_NEWLINE);
-                return CMD_WARNING;
-        }
+		return CMD_WARNING;
+	}
 
-        if (argc == 2)
-                VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
+	if (argc == 2)
+		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
 	if (err) {
@@ -179,6 +179,38 @@ DEFUN(pfcp_listen,
 			    , inet_sockaddrtos(addr)
 			    , ntohs(inet_sockaddrport(addr)));
 	__set_bit(PFCP_ROUTER_FL_LISTEN_BIT, &c->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(pfcp_debug,
+      pfcp_debug_cmd,
+      "debug STRING",
+      "activate PFCP debug option\n"
+      "valid mode is a combinaison of [ingress_msg|egress_msg]\n")
+{
+	struct pfcp_router *c = vty->index;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (strstr(argv[0], "ingress_msg"))
+		__set_bit(PFCP_DEBUG_FL_INGRESS_MSG_BIT, &c->debug);
+	if (strstr(argv[0], "egress_msg"))
+		__set_bit(PFCP_DEBUG_FL_EGRESS_MSG_BIT, &c->debug);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pfcp_debug,
+      no_pfcp_debug_cmd,
+      "no debug",
+      "Disable debug mode\n")
+{
+	struct pfcp_router *c = vty->index;
+
+	c->debug = 0;
 	return CMD_SUCCESS;
 }
 
@@ -257,6 +289,21 @@ DEFUN(show_pfcp_assoc,
  *	Configuration writer
  */
 static int
+config_pfcp_router_debug(struct vty *vty, struct pfcp_router *c)
+{
+	if (!c->debug)
+		return -1;
+
+	vty_out(vty, " debug ");
+	if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG_BIT, &c->debug))
+		vty_out(vty, "ingress_msg");
+	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG_BIT, &c->debug))
+		vty_out(vty, "|egress_msg");
+	vty_out(vty, "\n");
+	return 0;
+}
+
+static int
 config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
@@ -265,6 +312,7 @@ config_pfcp_router_write(struct vty *vty)
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "pfcp-router %s%s", c->name, VTY_NEWLINE);
+		config_pfcp_router_debug(vty, c);
 		if (c->description[0])
 			vty_out(vty, " description %s%s"
 				   , c->description, VTY_NEWLINE);
@@ -298,6 +346,8 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_description_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_bpf_prog_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_debug_cmd);
+	install_element(PFCP_ROUTER_NODE, &no_pfcp_debug_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

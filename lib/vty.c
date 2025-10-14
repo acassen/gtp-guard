@@ -164,8 +164,9 @@ vty_brd_out(const char *fmt, ...)
 		return -1;
 
 	for (i = 0; i < vector_active(vtyvec); i++) {
-		if ((v = vector_slot(vtyvec, i)) != NULL) {
+		if ((v = vector_slot(vtyvec, i)) != NULL && v->monitor) {
 			vty_buffer_put(v, p, len);
+			vty_event(master, VTY_WRITE, v->fd, v);
 		}
 	}
 
@@ -418,6 +419,9 @@ vty_write(struct vty *vty, const char *buf, size_t nbytes)
 
 	/* Should we do buffering here ?  And make vty_flush (vty) ? */
 	buffer_put(vty->obuf, buf, nbytes);
+
+	if (vty->monitor)
+		buffer_flush_available(vty->obuf, vty->fd);
 }
 
 /* Ensure length of input buffer.  Is buffer is short, double it. */
@@ -680,7 +684,7 @@ vty_delete_char(struct vty *vty)
 	vty_write(vty, &telnet_space_char, 1);
 
 	for (i = 0; i < size; i++)
-		vty_write (vty, &telnet_backward_char, 1);
+		vty_write(vty, &telnet_backward_char, 1);
 }
 
 /* Delete a character before the point. */
@@ -710,7 +714,7 @@ vty_kill_line(struct vty *vty)
 	for (i = 0; i < size; i++)
 		vty_write(vty, &telnet_backward_char, 1);
 
-	memset (&vty->buf[vty->cp], 0, size);
+	memset(&vty->buf[vty->cp], 0, size);
 	vty->length = vty->cp;
 }
 
@@ -718,8 +722,8 @@ vty_kill_line(struct vty *vty)
 static void
 vty_kill_line_from_beginning(struct vty *vty)
 {
-	vty_beginning_of_line (vty);
-	vty_kill_line (vty);
+	vty_beginning_of_line(vty);
+	vty_kill_line(vty);
 }
 
 /* Delete a word before the point. */
@@ -1303,7 +1307,7 @@ vty_read(struct thread *t)
 			vty_end_of_line(vty);
 			break;
 		case CONTROL('F'):
-			vty_forward_char (vty);
+			vty_forward_char(vty);
 			break;
 		case CONTROL('H'):
 		case 0x7f:
@@ -1398,7 +1402,7 @@ vty_flush(struct thread *t)
 	erase = ((vty->status == VTY_MORE || vty->status == VTY_MORELINE));
 
 	/* N.B. if width is 0, that means we don't know the window size. */
-	if ((vty->lines == 0) || (vty->width == 0)) {
+	if ((vty->lines == 0) || (vty->width == 0) || (vty->monitor)) {
 		flushrc = buffer_flush_available(vty->obuf, vty->fd);
 	} else if (vty->status == VTY_MORELINE) {
 		flushrc = buffer_flush_window(vty->obuf, vty->fd, vty->width,
@@ -2124,6 +2128,7 @@ DEFUN(terminal_monitor,
       "Copy debug output to the current terminal line\n")
 {
 	vty->monitor = 1;
+	vty_prompt_hold(vty);
 	return CMD_SUCCESS;
 }
 

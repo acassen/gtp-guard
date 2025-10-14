@@ -30,11 +30,17 @@ enum pfcp_flags {
 	PFCP_ROUTER_FL_LISTEN_BIT,
 };
 
+enum pfcp_debug_flags {
+	PFCP_DEBUG_FL_INGRESS_MSG_BIT,
+	PFCP_DEBUG_FL_EGRESS_MSG_BIT,
+};
+
 struct pfcp_router {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	struct gtp_bpf_prog	*bpf_prog;
 	struct pfcp_server	s;
+	unsigned long		debug;
 
 	char			node_id[GTP_NAME_MAX_LEN];
 	uint32_t		recovery_ts;

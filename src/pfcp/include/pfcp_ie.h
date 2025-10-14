@@ -2426,13 +2426,13 @@ struct pfcp_ie_source_ip_address {
 		};
 	};
 	union {
-		struct in_addr v4;
-		struct in6_addr v6;
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
 		struct {
-			struct in_addr v4;
-			struct in6_addr v6;
+			struct in_addr ipv4;
+			struct in6_addr ipv6;
 		} both;
-	} ip_address;
+	};
 	uint8_t mask_prefix_length;
 } __attribute__((packed));
 

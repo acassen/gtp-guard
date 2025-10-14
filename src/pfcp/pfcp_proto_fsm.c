@@ -21,12 +21,10 @@
 
 #include "pfcp.h"
 #include "pfcp_router.h"
-#include "pfcp_router_hdl.h"
 #include "pfcp_assoc.h"
 #include "pfcp_msg.h"
 #include "pfcp_utils.h"
 #include "pkt_buffer.h"
-#include "utils.h"
 #include "logger.h"
 
 
@@ -152,15 +150,12 @@ end:
 }
 
 
-
-
-
 /*
- *	PFCP Message handle
+ *	PFCP FSM
  */
 static const struct {
-	int (*hdl) (struct pfcp_server *, struct sockaddr_storage *);
-} pfcp_msg_hdl[1 << 8] = {
+	int (*fsm) (struct pfcp_server *, struct sockaddr_storage *);
+} pfcp_msg[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_response },
 	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_response },
@@ -179,21 +174,15 @@ static const struct {
 };
 
 int
-pfcp_router_handle(struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	unsigned char buffer[4096];
 
-	//printf("---[ incoming packet ]---\n");
-	//hexdump("PFCP ", pbuff->head, pkt_buffer_len(pbuff));
-	hexdump_format("", buffer, 4096, pbuff->head, pkt_buffer_len(pbuff));
-	printf("---[ Ingress ]---\n%s\n", buffer);
-
-	if (*(pfcp_msg_hdl[pfcph->type].hdl)) {
+	if (*(pfcp_msg[pfcph->type].fsm)) {
 		pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
 
-		return (*(pfcp_msg_hdl[pfcph->type].hdl)) (srv, addr);
+		return (*(pfcp_msg[pfcph->type].fsm)) (srv, addr);
 	}
 
 	pfcp_metrics_rx_notsup(&srv->msg_metrics, pfcph->type);

@@ -160,6 +160,7 @@ int vty_listen(struct thread_master *m, struct sockaddr_storage *addr);
 void vty_reset(void);
 struct vty *vty_new(void);
 int vty_out(struct vty *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+int vty_brd_out(const char *fmt, ...);
 ssize_t vty_send_out(struct vty *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 void vty_prompt_hold(struct vty *vty);
 void vty_prompt_restore(struct vty *vty);

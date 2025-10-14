@@ -23,4 +23,4 @@
 #include "pfcp_server.h"
 
 /* Prototypes */
-int pfcp_router_handle(struct pfcp_server *srv, struct sockaddr_storage *addr);
+int pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr);
