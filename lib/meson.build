@@ -16,6 +16,7 @@ lib_src = files(
   'logger.c',
   'md5.c',
   'memory.c',
+  'mempool.c',
   'pidfile.c',
   'pkt_buffer.c',
   'prefix.c',
