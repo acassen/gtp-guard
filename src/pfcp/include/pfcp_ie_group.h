@@ -27,13 +27,11 @@
  *	PFCP PFD Management Grouped IEs
  */
 struct pfcp_ie_pfd_context {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_pfd_contents *pfd_contents;
 };
 
 struct pfcp_ie_application_id_pfds {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_application_id *application_id;
 	/* Optional IEs */
@@ -45,12 +43,10 @@ struct pfcp_ie_application_id_pfds {
  *	PFCP Association Setup Grouped IEs
  */
 struct pfcp_ie_session_retention_information {
-	struct pfcp_ie *h;
 	struct pfcp_ie_cp_pfcp_entity_ip_address *cp_pfcp_entity_ip_address;
 };
 
 struct pfcp_ie_ue_ip_address_pool_information {
-	struct pfcp_ie *h;
 	struct pfcp_ie_ue_ip_address_pool_identity *ue_ip_address_pool_identity;
 	struct pfcp_ie_network_instance *network_instance;
 	struct pfcp_ie_s_nssai *s_nssai;
@@ -62,7 +58,6 @@ struct pfcp_ie_ue_ip_address_pool_information {
  *	PFCP Association Update Grouped IEs
  */
 struct pfcp_ie_gtp_u_path_qos_control_information {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 	/* Optional IEs */
@@ -74,7 +69,6 @@ struct pfcp_ie_gtp_u_path_qos_control_information {
 };
 
 struct pfcp_ie_gtp_u_path_qos_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 	/* Optional IEs */
@@ -86,7 +80,6 @@ struct pfcp_ie_gtp_u_path_qos_report {
 };
 
 struct pfcp_ie_ue_ip_address_usage_information {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_sequence_number *sequence_number;
 	struct pfcp_ie_metric *number_of_ue_ip_addresses;
@@ -103,19 +96,16 @@ struct pfcp_ie_ue_ip_address_usage_information {
  *	PFCP Node Report Grouped IEs
  */
 struct pfcp_ie_user_plane_path_failure_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 };
 
 struct pfcp_ie_user_plane_path_recovery_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 };
 
 struct pfcp_ie_peer_up_restart_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_remote_gtp_u_peer *remote_gtp_u_peer;
 };
@@ -125,7 +115,6 @@ struct pfcp_ie_peer_up_restart_report {
  *	PFCP Session Set Modification Grouped IEs
  */
 struct pfcp_ie_session_change_info {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_alternative_smf_ip_address *alternative_smf_pgwc_ip_address;
 	/* Conditional IEs */
@@ -141,7 +130,6 @@ struct pfcp_ie_session_change_info {
 
 /* Redundant Transmission Detection Parameters IE */
 struct pfcp_ie_redundant_transmission_detection_parameters {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_f_teid *f_teid;
 	struct pfcp_ie_network_instance *network_instance;
@@ -149,7 +137,6 @@ struct pfcp_ie_redundant_transmission_detection_parameters {
 
 /* Ethernet Packet Filter Grouped IE */
 struct pfcp_ie_ethernet_packet_filter {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_ethernet_filter_id *ethernet_filter_id;
 	struct pfcp_ie_ethernet_filter_properties *ethernet_filter_properties;
@@ -162,7 +149,6 @@ struct pfcp_ie_ethernet_packet_filter {
 
 /* PDI (Packet Detection Information) Grouped IE */
 struct pfcp_ie_pdi {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_source_interface *source_interface;
 	/* Optional IEs */
@@ -186,7 +172,6 @@ struct pfcp_ie_pdi {
 
 /* Create PDR (Packet Detection Rule) Grouped IE */
 struct pfcp_ie_create_pdr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_pdr_id *pdr_id;
 	struct pfcp_ie_precedence *precedence;
@@ -206,7 +191,6 @@ struct pfcp_ie_create_pdr {
 
 /* Create FAR (Forwarding Action Rule) Grouped IE */
 struct pfcp_ie_forwarding_parameters {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_destination_interface *destination_interface;
 	struct pfcp_ie_network_instance *network_instance;
@@ -222,7 +206,6 @@ struct pfcp_ie_forwarding_parameters {
 	struct pfcp_ie_ip_address_and_port_number_replacement *ip_address_and_port_number_replacement;
 };
 struct pfcp_ie_duplicating_parameters {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_destination_interface *destination_interface;
 	struct pfcp_ie_outer_header_creation *outer_header_creation;
@@ -230,7 +213,6 @@ struct pfcp_ie_duplicating_parameters {
 	struct pfcp_ie_forwarding_policy *forwarding_policy;
 };
 struct pfcp_ie_create_far {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_far_id *far_id;
 	struct pfcp_ie_apply_action *apply_action;
@@ -242,14 +224,12 @@ struct pfcp_ie_create_far {
 
 /* Create URR (Usage Reporting Rule) Grouped IE */
 struct pfcp_ie_aggregated_urrs {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_aggregated_urr_id *aggregated_urr_id;
 	/* Optional IEs */
 	struct pfcp_ie_multiplier *multiplier;
 };
 struct pfcp_ie_additional_monitoring_time {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_monitoring_time *monitoring_time;
 	/* Optional IEs */
@@ -263,7 +243,6 @@ struct pfcp_ie_additional_monitoring_time {
 	struct pfcp_ie_event_quota *event_quota;
 };
 struct pfcp_ie_create_urr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_urr_id *urr_id;
 	struct pfcp_ie_measurement_method *measurement_method;
@@ -299,7 +278,6 @@ struct pfcp_ie_create_urr {
 
 /* Create QER (QoS Enhancement Rule) Grouped IE */
 struct pfcp_ie_create_qer {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_qer_id *qer_id;
 	struct pfcp_ie_qer_correlation_id *qer_correlation_id;
@@ -320,7 +298,6 @@ struct pfcp_ie_create_qer {
 
 /* Create BAR (Buffering Action Rule) Grouped IE */
 struct pfcp_ie_create_bar {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_bar_id *bar_id;
 	/* Optional IEs */
@@ -333,7 +310,6 @@ struct pfcp_ie_create_bar {
 
 /* Create Traffic Endpoint Grouped IE */
 struct pfcp_ie_create_traffic_endpoint {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
 	/* Optional IEs */
@@ -354,7 +330,6 @@ struct pfcp_ie_create_traffic_endpoint {
 
 /* Create MAR (Multicast Access Rule) Grouped IE */
 struct pfcp_ie_create_mar {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_mar_id *mar_id;
 	struct pfcp_ie_steering_functionality *steering_functionality;
@@ -364,7 +339,6 @@ struct pfcp_ie_create_mar {
 
 /* Create SRR (Session Report Rule) Grouped IE */
 struct pfcp_ie_create_srr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_srr_id *srr_id;
 	/* FIXME: ...Just Basic support for now...*/
@@ -377,7 +351,6 @@ struct pfcp_ie_create_srr {
 
 /* Created PDR Grouped IE */
 struct pfcp_ie_created_pdr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_pdr_id *pdr_id;
 	/* Optional IEs */
@@ -387,7 +360,6 @@ struct pfcp_ie_created_pdr {
 
 /* Load Control Information Grouped IE */
 struct pfcp_ie_load_control_information {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_sequence_number *load_control_sequence_number;
 	struct pfcp_ie_metric *load_metric;
@@ -395,7 +367,6 @@ struct pfcp_ie_load_control_information {
 
 /* Overload Control Information Grouped IE */
 struct pfcp_ie_overload_control_information {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_sequence_number *overload_control_sequence_number;
 	struct pfcp_ie_metric *overload_reduction_metric;
@@ -406,7 +377,6 @@ struct pfcp_ie_overload_control_information {
 
 /* Created Traffic Endpoint Grouped IE */
 struct pfcp_ie_created_traffic_endpoint {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
 	struct pfcp_ie_local_ingress_tunnel *local_ingress_tunnel;
@@ -417,7 +387,6 @@ struct pfcp_ie_created_traffic_endpoint {
 
 /* Partial Failure Grouped IE */
 struct pfcp_ie_partial_failure_information {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_failed_rule_id *failed_rule_id;
 	struct pfcp_ie_cause *cause;
@@ -431,63 +400,54 @@ struct pfcp_ie_partial_failure_information {
 
 /* Remove PDR Grouped IE */
 struct pfcp_ie_remove_pdr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_pdr_id *pdr_id;
 };
 
 /* Remove FAR Grouped IE */
 struct pfcp_ie_remove_far {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_far_id *far_id;
 };
 
 /* Remove URR Grouped IE */
 struct pfcp_ie_remove_urr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_urr_id *urr_id;
 };
 
 /* Remove QER Grouped IE */
 struct pfcp_ie_remove_qer {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_qer_id *qer_id;
 };
 
 /* Remove BAR Grouped IE */
 struct pfcp_ie_remove_bar {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_bar_id *bar_id;
 };
 
 /* Remove Traffic Endpoint Grouped IE */
 struct pfcp_ie_remove_traffic_endpoint {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
 };
 
 /* Remove MAR Grouped IE */
 struct pfcp_ie_remove_mar {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_mar_id *mar_id;
 };
 
 /* Remove SRR Grouped IE */
 struct pfcp_ie_remove_srr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_srr_id *srr_id;
 };
 
 /* Update PDR Grouped IE */
 struct pfcp_ie_update_pdr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_pdr_id *pdr_id;
 	/* Optional IEs */
@@ -505,7 +465,6 @@ struct pfcp_ie_update_pdr {
 
 /* Update Forwarding Parameters Grouped IE */
 struct pfcp_ie_update_forwarding_parameters {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_destination_interface *destination_interface;
 	struct pfcp_ie_network_instance *network_instance;
@@ -521,7 +480,6 @@ struct pfcp_ie_update_forwarding_parameters {
 
 /* Update Duplicating Parameters Grouped IE */
 struct pfcp_ie_update_duplicating_parameters {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_destination_interface *destination_interface;
 	struct pfcp_ie_outer_header_creation *outer_header_creation;
@@ -536,7 +494,6 @@ struct pfcp_ie_update_duplicating_parameters {
 
 /* Downlink Data Report Grouped IE */
 struct pfcp_ie_downlink_data_report {
-	struct pfcp_ie *h;
 	/* Optional IEs */
 	struct pfcp_ie_pdr_id *pdr_id;
 	struct pfcp_ie_downlink_data_service_information *downlink_data_service_information;
@@ -544,7 +501,6 @@ struct pfcp_ie_downlink_data_report {
 
 /* Error Indication Report Grouped IE */
 struct pfcp_ie_error_indication_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_f_teid *remote_f_teid;
 	/* Optional IEs */
@@ -553,7 +509,6 @@ struct pfcp_ie_error_indication_report {
 
 /* Packet Rate Status Report Grouped IE */
 struct pfcp_ie_packet_rate_status_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_qer_id *qer_id;
 	struct pfcp_ie_packet_rate_status *packet_rate_status;
@@ -563,7 +518,6 @@ struct pfcp_ie_packet_rate_status_report {
 
 /* Session Report Grouped IE */
 struct pfcp_ie_session_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_srr_id *srr_id;
 	struct pfcp_ie_access_availability_report *access_availability_report;
@@ -573,7 +527,6 @@ struct pfcp_ie_session_report {
 
 /* Update FAR Grouped IE */
 struct pfcp_ie_update_far {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_far_id *far_id;
 	/* Optional IEs */
@@ -585,7 +538,6 @@ struct pfcp_ie_update_far {
 
 /* Update URR Grouped IE */
 struct pfcp_ie_update_urr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_urr_id *urr_id;
 	/* Optional IEs */
@@ -621,7 +573,6 @@ struct pfcp_ie_update_urr {
 
 /* Update QER Grouped IE */
 struct pfcp_ie_update_qer {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_qer_id *qer_id;
 	/* Optional IEs */
@@ -640,7 +591,6 @@ struct pfcp_ie_update_qer {
 
 /* Update BAR Grouped IE */
 struct pfcp_ie_update_bar {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_bar_id *bar_id;
 	/* Optional IEs */
@@ -650,7 +600,6 @@ struct pfcp_ie_update_bar {
 
 /* Update Traffic Endpoint Grouped IE */
 struct pfcp_ie_update_traffic_endpoint {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_traffic_endpoint_id *traffic_endpoint_id;
 	/* Optional IEs */
@@ -665,7 +614,6 @@ struct pfcp_ie_update_traffic_endpoint {
 
 /* Update MAR Grouped IE */
 struct pfcp_ie_update_mar {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_mar_id *mar_id;
 	/* Optional IEs */
@@ -675,7 +623,6 @@ struct pfcp_ie_update_mar {
 
 /* Update SRR Grouped IE */
 struct pfcp_ie_update_srr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_srr_id *srr_id;
 	/* Optional IEs */
@@ -684,7 +631,6 @@ struct pfcp_ie_update_srr {
 
 /* Query URR Grouped IE */
 struct pfcp_ie_query_urr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_urr_id *urr_id;
 };
@@ -696,7 +642,6 @@ struct pfcp_ie_query_urr {
 
 /* Usage Report SMR Grouped IE */
 struct pfcp_ie_usage_report {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_urr_id *urr_id;
 	struct pfcp_ie_ur_seqn *ur_seqn;
@@ -719,7 +664,6 @@ struct pfcp_ie_usage_report {
 
 /* Updated PDR Grouped IE */
 struct pfcp_ie_updated_pdr {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_pdr_id *pdr_id;
 	/* Optional IEs */
@@ -729,7 +673,6 @@ struct pfcp_ie_updated_pdr {
 
 /* Additional Usage Reports Information Grouped IE */
 struct pfcp_ie_additional_usage_reports_information {
-	struct pfcp_ie *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_auri *auri;
 	/* Optional IEs */

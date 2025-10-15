@@ -155,7 +155,7 @@ end:
  */
 static const struct {
 	int (*fsm) (struct pfcp_server *, struct sockaddr_storage *);
-} pfcp_msg[1 << 8] = {
+} pfcp_fsm_msg[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_response },
 	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_response },
@@ -179,10 +179,10 @@ pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 
-	if (*(pfcp_msg[pfcph->type].fsm)) {
+	if (*(pfcp_fsm_msg[pfcph->type].fsm)) {
 		pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
 
-		return (*(pfcp_msg[pfcph->type].fsm)) (srv, addr);
+		return (*(pfcp_fsm_msg[pfcph->type].fsm)) (srv, addr);
 	}
 
 	pfcp_metrics_rx_notsup(&srv->msg_metrics, pfcph->type);

@@ -33,6 +33,26 @@
 
 
 /*
+ *	Common formatting helpers
+ */
+static size_t
+pfcp_recovery_ts_format(struct pfcp_ie_recovery_time_stamp *recovery_ts, char *buffer, size_t size)
+{
+	size_t pos = 0;
+	time_t ts;
+
+	ts = ntohl(recovery_ts->ts);
+	pos += scnprintf(buffer + pos, size - pos, "Recovery Time Stamp:\n");
+	pos += scnprintf(buffer + pos, size - pos, "  Value: %u (seconds since 1900-01-01)\n",
+				(uint32_t) ts);
+	ts -= 2208988800;
+	pos += scnprintf(buffer + pos, size - pos, "  Time: %s", ctime(&ts));
+
+	return pos;
+}
+
+
+/*
  *	PFCP Heartbeat Dump
  */
 static void
@@ -40,9 +60,8 @@ pfcp_heartbeat_req_format(struct pkt_buffer *pbuff, char *buffer, size_t size)
 {
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_heartbeat_request req = {};
-	char addr_str[INET6_ADDRSTRLEN] = {};
+	char addr_str[INET6_ADDRSTRLEN];
 	size_t pos = 0;
-	time_t ts;
 	int err;
 
 	if (!pbuff || !buffer || size == 0)
@@ -56,14 +75,8 @@ pfcp_heartbeat_req_format(struct pkt_buffer *pbuff, char *buffer, size_t size)
 	}
 
 	/* Recovery Time Stamp (Mandatory) */
-	if (req.recovery_time_stamp) {
-		ts = ntohl(req.recovery_time_stamp->ts);
-		pos += scnprintf(buffer + pos, size - pos, "Recovery Time Stamp:\n");
-		pos += scnprintf(buffer + pos, size - pos, "  Value: %u (seconds since 1900-01-01)\n",
-				 (uint32_t) ts);
-		ts -= 2208988800;
-		pos += scnprintf(buffer + pos, size - pos, "  Time: %s", ctime(&ts));
-	}
+	if (req.recovery_time_stamp)
+		pos += pfcp_recovery_ts_format(req.recovery_time_stamp, buffer + pos, size - pos);
 
 	/* Source IP Address (Optional) */
 	if (req.source_ip_address) {
@@ -73,10 +86,11 @@ pfcp_heartbeat_req_format(struct pkt_buffer *pbuff, char *buffer, size_t size)
 					 NIPQUAD(req.source_ip_address->ipv4));
 		}
 		if (req.source_ip_address->v6) {
-			if (!inet_ntop(AF_INET6, &req.source_ip_address->ipv6, addr_str,
+			if (inet_ntop(AF_INET6, &req.source_ip_address->ipv6, addr_str,
 				      INET6_ADDRSTRLEN))
-				bsd_strlcat(addr_str, "[!!! malformed !!!]", INET6_ADDRSTRLEN);
-			pos += scnprintf(buffer + pos, size - pos, "  IPv6: %s\n", addr_str);
+				pos += scnprintf(buffer + pos, size - pos, "  IPv6: %s\n", addr_str);
+			else
+				pos += scnprintf(buffer + pos, size - pos, "IPv6 [!!! malformed !!!]\n");
 		}
 	}
 }
@@ -87,7 +101,7 @@ pfcp_heartbeat_req_format(struct pkt_buffer *pbuff, char *buffer, size_t size)
  */
 static const struct {
 	void (*fmt) (struct pkt_buffer *pbuff, char *buffer, size_t size);
-} pfcp_msg[1 << 8] = {
+} pfcp_dump_msg[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]                = { pfcp_heartbeat_req_format },
         [PFCP_PFD_MANAGEMENT_REQUEST]           = { NULL },
@@ -117,7 +131,7 @@ pfcp_proto_buffer_format(struct sockaddr_storage *addr, struct pkt_buffer *pbuff
 	snprintf(title, sizeof(title), " %s packet %s [%s]:%d len:%d ",
 		 (dir == PFCP_DIRECTION_INGRESS) ? "ingress" : "egress",
 		 (dir == PFCP_DIRECTION_INGRESS) ? "from" : "to",
-		 inet_sockaddrtos(addr), inet_sockaddrport(addr),
+		 inet_sockaddrtos(addr), ntohs(inet_sockaddrport(addr)),
 		 pkt_buffer_len(pbuff));
 	text_len = strlen(title) + 2;
 	padding_left = (width - text_len) / 2;
@@ -174,8 +188,8 @@ pfcp_proto_dump(struct pfcp_server *srv, struct sockaddr_storage *addr,
 	pfcp_proto_header_format(pbuff, buffer, size);
 	vty_brd_out("%s", buffer);
 
-	if (*(pfcp_msg[pfcph->type].fmt)) {
-		(*(pfcp_msg[pfcph->type].fmt)) (pbuff, buffer, size);
+	if (*(pfcp_dump_msg[pfcph->type].fmt)) {
+		(*(pfcp_dump_msg[pfcph->type].fmt)) (pbuff, buffer, size);
 		vty_brd_out("%s\n", buffer);
 	}
 }

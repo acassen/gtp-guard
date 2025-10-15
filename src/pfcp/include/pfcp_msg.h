@@ -21,6 +21,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "pfcp.h"
 #include "pfcp_ie.h"
 #include "pkt_buffer.h"
 
@@ -37,7 +38,6 @@
 
 /* PFCP Heartbeat */
 struct pfcp_heartbeat_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
 	/* Optional IEs */
@@ -45,14 +45,12 @@ struct pfcp_heartbeat_request {
 };
 
 struct pfcp_heartbeat_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
 };
 
 /* PFCP PFD Management */
 struct pfcp_pfd_management_request {
-	struct pfcp_hdr *h;
 	/* Optional IEs */
 	struct pfcp_ie_node_id *node_id;
 	/* Grouped IEs */
@@ -60,7 +58,6 @@ struct pfcp_pfd_management_request {
 };
 
 struct pfcp_pfd_management_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_cause *cause;
 	/* Optional IEs */
@@ -70,7 +67,6 @@ struct pfcp_pfd_management_response {
 
 /* PFCP Association Setup */
 struct pfcp_association_setup_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_recovery_time_stamp *recovery_time_stamp;
@@ -87,7 +83,6 @@ struct pfcp_association_setup_request {
 };
 
 struct pfcp_association_setup_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -106,7 +101,6 @@ struct pfcp_association_setup_response {
 
 /* PFCP Association Update */
 struct pfcp_association_update_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	/* Optional IEs */
@@ -124,7 +118,6 @@ struct pfcp_association_update_request {
 };
 
 struct pfcp_association_update_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -137,13 +130,11 @@ struct pfcp_association_update_response {
 
 /* PFCP Association Release */
 struct pfcp_association_release_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 };
 
 struct pfcp_association_release_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -151,7 +142,6 @@ struct pfcp_association_release_response {
 
 /* PFCP Node Report */
 struct pfcp_node_report_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_node_report_type *node_report_type;
@@ -162,7 +152,6 @@ struct pfcp_node_report_request {
 };
 
 struct pfcp_node_report_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -172,7 +161,6 @@ struct pfcp_node_report_response {
 
 /* PFCP Session Set Deletion */
 struct pfcp_session_set_deletion_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	/* Optional IEs */
@@ -186,7 +174,6 @@ struct pfcp_session_set_deletion_request {
 };
 
 struct pfcp_session_set_deletion_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -196,7 +183,6 @@ struct pfcp_session_set_deletion_response {
 
 /* PFCP Session Set Modification */
 struct pfcp_session_set_modification_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	/* Grouped IEs */
@@ -204,7 +190,6 @@ struct pfcp_session_set_modification_request {
 };
 
 struct pfcp_session_set_modification_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -214,7 +199,6 @@ struct pfcp_session_set_modification_response {
 
 /* PFCP Session Establishment */
 struct pfcp_session_establishment_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_f_seid *cp_f_seid;
@@ -245,7 +229,6 @@ struct pfcp_session_establishment_request {
 };
 
 struct pfcp_session_establishment_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_node_id *node_id;
 	struct pfcp_ie_cause *cause;
@@ -263,7 +246,6 @@ struct pfcp_session_establishment_response {
 
 /* PFCP Session Modification */
 struct pfcp_session_modification_request {
-	struct pfcp_hdr *h;
 	/* Optional IEs */
 	struct pfcp_ie_f_seid *cp_f_seid;
 	struct pfcp_ie_remove_pdr *remove_pdr;
@@ -306,7 +288,6 @@ struct pfcp_session_modification_request {
 };
 
 struct pfcp_session_modification_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_cause *cause;
 	/* Optional IEs */
@@ -323,7 +304,6 @@ struct pfcp_session_modification_response {
 
 /* PFCP Session Deletion */
 struct pfcp_session_deletion_request {
-	struct pfcp_hdr *h;
 	/* Conditional IEs */
 	struct pfcp_ie_tl_container *tl_container;
 	struct pfcp_ie_node_id *node_id;
@@ -331,7 +311,6 @@ struct pfcp_session_deletion_request {
 };
 
 struct pfcp_session_deletion_response {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_cause *cause;
 	/* Optional IEs */
@@ -346,7 +325,6 @@ struct pfcp_session_deletion_response {
 
 /* PFCP Session Report */
 struct pfcp_session_report_request {
-	struct pfcp_hdr *h;
 	/* Mandatory IEs */
 	struct pfcp_ie_report_type *report_type;
 	/* Optional IEs */
@@ -363,9 +341,6 @@ struct pfcp_session_report_request {
 };
 
 struct pfcp_session_report_response {
-	struct pfcp_hdr *h;
-	/* Mandatory IEs */
-	struct pfcp_ie_cause *cause;
 	/* Optional IEs */
 	struct pfcp_ie_offending *offending_ie;
 	struct pfcp_ie_update_bar *update_bar;
@@ -376,6 +351,36 @@ struct pfcp_session_report_response {
 	struct pfcp_ie_fq_csid *pgwc_smf_fq_csid;
 	struct pfcp_ie_group_id *group_id;
 	struct pfcp_ie_node_id *node_id;
+};
+
+struct pfcp_msg {
+	struct pfcp_hdr h;
+	union {
+		struct pfcp_heartbeat_request *heartbeat_request;
+		struct pfcp_heartbeat_response *heartbeat_response;
+		struct pfcp_pfd_management_request *pfd_management_request;
+		struct pfcp_pfd_management_response *pfd_management_response;
+		struct pfcp_association_setup_request *association_setup_request;
+		struct pfcp_association_setup_response *association_setup_response;
+		struct pfcp_association_update_request *association_update_request;
+		struct pfcp_association_update_response *association_update_response;
+		struct pfcp_association_release_request *association_release_request;
+		struct pfcp_association_release_response *association_release_response;
+		struct pfcp_node_report_request *node_report_request;
+		struct pfcp_node_report_response *node_report_response;
+		struct pfcp_session_set_deletion_request *session_set_deletion_request;
+		struct pfcp_session_set_deletion_response *session_set_deletion_response;
+		struct pfcp_session_set_modification_request *session_set_modification_request;
+		struct pfcp_session_set_modification_response *session_set_modification_response;
+		struct pfcp_session_establishment_request *session_establishment_request;
+		struct pfcp_session_establishment_response *session_establishment_response;
+		struct pfcp_session_modification_request *session_modification_request;
+		struct pfcp_session_modification_response *session_modification_response;
+		struct pfcp_session_deletion_request *session_deletion_request;
+		struct pfcp_session_deletion_response *session_deletion_response;
+		struct pfcp_session_report_request *session_report_request;
+		struct pfcp_session_report_response *session_report_response;
+	};
 };
 
 /* Prototypes */

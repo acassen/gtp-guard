@@ -394,7 +394,7 @@ struct pfcp_ie_sdf_filter {
 /* Application ID IE */
 struct pfcp_ie_application_id {
 	struct pfcp_ie h;
-	uint8_t application_identifier[];
+	uint8_t id[];
 } __attribute__((packed));
 
 /* Gate Status IE */
