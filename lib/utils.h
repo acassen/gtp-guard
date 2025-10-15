@@ -25,6 +25,13 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
+#ifndef likely
+# define likely(x) __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
+# define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
 /* Evaluates to -1, 0 or 1 as appropriate.
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
 #define less_equal_greater_than(a,b)    ({ typeof(a) _a = (a); typeof(b) _b = (b); (_a) < (_b) ? -1 : (_a) == (_b) ? 0 : 1; })
@@ -52,6 +59,12 @@
 
 /* ARRAY_SIZE */
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
+/* struct st { char b[13]; };
+ * int aligned_size = ALIGN(sizeof (st), 8);  => 16 */
+# define __ALIGN_MASK(x, mask)	(((x) + (mask)) & ~(mask))
+# define ALIGN(x, a)		__ALIGN_MASK(x, (typeof(x))(a)-1)
+# define PTR_ALIGN(p, a)	((typeof(p))ALIGN((size_t)(p), (a)))
 
 /* STR(MACRO) stringifies MACRO */
 #define _STR(x) #x
