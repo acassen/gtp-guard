@@ -62,6 +62,7 @@ struct cgn_ctx
 	struct bpf_map		*v4_blocks;
 	struct bpf_map		*v4_free_blocks;
 	struct bpf_map		*users;
+	struct bpf_map		*v4_priv_flows;
 	struct bpf_map		*flow_port_timeouts;
 	struct bpf_map		*blog_event;
 
@@ -77,6 +78,8 @@ struct cgn_ctx
 	struct port_timeout_config timeout;
 	struct port_timeout_config timeout_by_port[0x10000];
 	uint16_t		timeout_icmp;
+	size_t			v4_block_size_tmp;
+	size_t			v4_block_size;
 
 	/* cgn_blog */
 	struct perf_buffer	*blog_pb;
@@ -99,6 +102,10 @@ void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);
 int cgn_init(void);
 int cgn_destroy(void);
+
+/* cgn_bpf.c */
+void cgn_bpf_user_full_dump(struct cgn_ctx *c, uint32_t addr, char *buf, size_t s);
+void cgn_bpf_block_alloc_dump(struct cgn_ctx *c, char *b, size_t s);
 
 /* cgn_blog.c */
 int cgn_blog_init(struct cgn_ctx *c);

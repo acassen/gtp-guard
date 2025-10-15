@@ -139,6 +139,23 @@ show interface
 "
 
     ip netns exec cgn-priv ping -c 1 -I 10.0.0.1 8.8.8.8
+
+    gtpg_show "
+show carrier-grade-nat flows 10.0.0.1
+"
+
+}
+
+
+pkt() {
+    ip netns exec cgn-priv ping -c 1 -I 10.0.0.1 8.8.8.8
+    echo tata | ip netns exec cgn-priv nc -s 10.0.0.1 8.8.8.8  9000
+    echo toto | ip netns exec cgn-priv nc -u -s 10.0.0.1 8.8.8.8 9000
+
+    gtpg_show "
+show carrier-grade-nat flows 10.0.0.1
+"
+
 }
 
 
@@ -152,6 +169,9 @@ case $action in
     run)
 	setup
 	run ;;
+    pkt)
+	pkt ;;
+
 
     *) fail "action '$action' not recognized" ;;
 esac

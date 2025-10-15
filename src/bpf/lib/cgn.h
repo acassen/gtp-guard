@@ -100,6 +100,30 @@ struct {
 	__type(value, __u32[]);
 } v4_free_blocks SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+	__uint(key_size, sizeof(__u32));
+	__uint(value_size, sizeof(__u32));
+} v4_block_log_event SEC(".maps");
+
+static __always_inline void
+_block_log(struct xdp_md *ctx, __u32 priv_addr, __u32 cgn_addr,
+	   const struct cgn_v4_block *bl, int alloc)
+{
+	__u32 duration = bpf_ktime_get_ns() - bl->alloc_time / NSEC_PER_SEC;
+
+	struct cgn_v4_block_log s = {
+		.prefix = "cmg-to-be-set",
+		.cgn_addr = cgn_addr,
+		.priv_addr = priv_addr,
+		.duration = duration,
+		.port_start = bl->cgn_port_start,
+		.port_size = port_count,
+		.flag = alloc ? CGN_BLOG_FL_ALLOC : 0,
+	};
+	bpf_perf_event_output(ctx, &v4_block_log_event,
+			      BPF_F_CURRENT_CPU, &s, sizeof(s));
+}
 
 static __always_inline int
 _block_lookup(__u32 ipbl_idx, __u32 bl_idx,
@@ -146,6 +170,7 @@ _block_alloc_sub(struct cgn_user *u, struct cgn_v4_ipblock *ipbl,
 			u->block_idx[block_n] = bl_idx;
 			++u->block_n;
 
+			bl->alloc_time = bpf_ktime_get_ns();
 			*out_bl = bl;
 			return 0;
 		}
@@ -728,6 +753,9 @@ _flow_alloc(struct cgn_user *u, struct cgn_packet *pp)
 		return NULL;
 	}
 	pp->cgn_addr = ipbl->cgn_addr;
+
+	_block_log(pp->ctx, u->addr, ipbl->cgn_addr, bl, 1);
+
 	cgn_port = _block_get_next_port(bl);
 	if (cgn_port)
 		_flow_add_entry(pp, bl, cgn_port, &f);
@@ -1221,15 +1249,14 @@ cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 	void *payload;
 	int ret;
 
+	struct cgn_packet cp_static = {
+		.ctx = ctx,
+	};
+	cp = &cp_static;
+
 	if (d->pl_off > 256 || (void *)(ip4h + 1) > data_end)
 		return 2;
 
-	ret = 0;
-	cp = bpf_map_lookup_elem(&cgn_on_stack, &ret);
-	if (cp == NULL)
-		return -1;
-
-	__builtin_memset(cp, 0x00, sizeof (*cp));
 	cp->proto = ip4h->protocol;
 	cp->from_priv = from_priv;
 	cp->src_addr = bpf_ntohl(ip4h->saddr);
