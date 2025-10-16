@@ -123,7 +123,6 @@ pfcp_parse_ie_application_id_pfds(void *m, void *n, const uint8_t *cp)
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_msg *msg = m;
 	struct pfcp_ie_application_id_pfds *pfds = n;
-	struct pfcp_ie_pfd_context *pfd_context;
 
 	switch (ie_type) {
 	case PFCP_IE_APPLICATION_ID:
@@ -131,12 +130,10 @@ pfcp_parse_ie_application_id_pfds(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_PFD_CONTEXT:
-		pfd_context = mpool_zalloc(&msg->mp, sizeof(*pfd_context));
-		if (!pfd_context)
-			return -1;
-		pfds->pfd_context = pfd_context;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_pfd_context, msg, pfd_context);
+		pfds->pfd_context = mpool_zalloc(&msg->mp, sizeof(*pfds->pfd_context));
+		if (pfds->pfd_context)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_pfd_context, msg, pfds->pfd_context);
 		break;
 
 	default:
@@ -153,11 +150,9 @@ pfcp_parse_application_id_pfds(struct pfcp_msg *msg, const uint8_t *cp)
 	struct pfcp_ie_application_id_pfds *new;
 
 	new = mpool_zalloc(&msg->mp, sizeof(*new));
-	if (!new)
-		return NULL;
-
-	pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-			pfcp_parse_ie_application_id_pfds, msg, new);
+	if (new)
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_application_id_pfds, msg, new);
 	return new;
 }
 
@@ -254,8 +249,6 @@ pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, in
 	uint16_t ie_type = ntohs(ie->type);
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_association_setup_request *req = msg->association_setup_request;
-	struct pfcp_ie_session_retention_information *session_retention_info;
-	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
 
 	if (!req) {
 		req = mpool_zalloc(&msg->mp, sizeof(*req));
@@ -299,22 +292,18 @@ pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, in
 		req->pfcpasreq_flags = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_SESSION_RETENTION_INFORMATION: /* Grouped */
-		session_retention_info = mpool_zalloc(&msg->mp, sizeof(*session_retention_info));
-		if (!session_retention_info)
-			return;
-		req->session_retention_info = session_retention_info;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_session_retention_information, msg, session_retention_info);
+	case PFCP_IE_SESSION_RETENTION_INFORMATION:
+		req->session_retention_info = mpool_zalloc(&msg->mp, sizeof(*req->session_retention_info));
+		if (req->session_retention_info)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_session_retention_information, msg, req->session_retention_info);
 		break;
 
-	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION: /* Grouped */
-		ue_ip_address_pool_info = mpool_zalloc(&msg->mp, sizeof(*ue_ip_address_pool_info));
-		if (!ue_ip_address_pool_info)
-			return;
-		req->ue_ip_address_pool_info = ue_ip_address_pool_info;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_ue_ip_address_pool_information, msg, ue_ip_address_pool_info);
+	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION:
+		req->ue_ip_address_pool_info = mpool_zalloc(&msg->mp, sizeof(*req->ue_ip_address_pool_info));
+		if (req->ue_ip_address_pool_info)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_ue_ip_address_pool_information, msg, req->ue_ip_address_pool_info);
 		break;
 
 	default:
@@ -418,10 +407,6 @@ pfcp_parse_association_update_request(struct pfcp_msg *msg, const uint8_t *cp, i
 	uint16_t ie_type = ntohs(ie->type);
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_association_update_request *req = msg->association_update_request;
-	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
-	struct pfcp_ie_gtp_u_path_qos_control_information *qos_control_info;
-	struct pfcp_ie_ue_ip_address_usage_information *usage_info;
-
 	if (!req) {
 		req = mpool_zalloc(&msg->mp, sizeof(*req));
 		if (!req)
@@ -463,31 +448,25 @@ pfcp_parse_association_update_request(struct pfcp_msg *msg, const uint8_t *cp, i
 		req->smf_set_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION: /* Grouped */
-		ue_ip_address_pool_info = mpool_zalloc(&msg->mp, sizeof(*ue_ip_address_pool_info));
-		if (!ue_ip_address_pool_info)
-			return;
-		req->ue_ip_address_pool_information = ue_ip_address_pool_info;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_ue_ip_address_pool_information, msg, ue_ip_address_pool_info);
+	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION:
+		req->ue_ip_address_pool_information = mpool_zalloc(&msg->mp, sizeof(*req->ue_ip_address_pool_information));
+		if (req->ue_ip_address_pool_information)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_ue_ip_address_pool_information, msg, req->ue_ip_address_pool_information);
 		break;
 
-	case PFCP_IE_GTP_U_PATH_QOS_CONTROL_INFORMATION: /* Grouped */
-		qos_control_info = mpool_zalloc(&msg->mp, sizeof(*qos_control_info));
-		if (!qos_control_info)
-			return;
-		req->gtp_u_path_qos_control_information = qos_control_info;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_gtp_u_path_qos_control_information, msg, qos_control_info);
+	case PFCP_IE_GTP_U_PATH_QOS_CONTROL_INFORMATION:
+		req->gtp_u_path_qos_control_information = mpool_zalloc(&msg->mp, sizeof(*req->gtp_u_path_qos_control_information));
+		if (req->gtp_u_path_qos_control_information)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_gtp_u_path_qos_control_information, msg, req->gtp_u_path_qos_control_information);
 		break;
 
-	case PFCP_IE_UE_IP_ADDRESS_USAGE_INFORMATION: /* Grouped */
-		usage_info = mpool_zalloc(&msg->mp, sizeof(*usage_info));
-		if (!usage_info)
-			return;
-		req->ue_ip_address_usage_information = usage_info;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_ue_ip_address_usage_information, msg, usage_info);
+	case PFCP_IE_UE_IP_ADDRESS_USAGE_INFORMATION:
+		req->ue_ip_address_usage_information = mpool_zalloc(&msg->mp, sizeof(*req->ue_ip_address_usage_information));
+		if (req->ue_ip_address_usage_information)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_ue_ip_address_usage_information, msg, req->ue_ip_address_usage_information);
 		break;
 
 	default:
@@ -597,9 +576,6 @@ pfcp_parse_node_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *man
 	uint16_t ie_type = ntohs(ie->type);
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_node_report_request *req = msg->node_report_request;
-	struct pfcp_ie_user_plane_path_failure_report *failure_report;
-	struct pfcp_ie_user_plane_path_recovery_report *recovery_report;
-	struct pfcp_ie_peer_up_restart_report *restart_report;
 
 	if (!req) {
 		req = mpool_zalloc(&msg->mp, sizeof(*req));
@@ -619,31 +595,25 @@ pfcp_parse_node_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *man
 		*mandatory |= (1 << 1);
 		break;
 
-	case PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT: /* Grouped */
-		failure_report = mpool_zalloc(&msg->mp, sizeof(*failure_report));
-		if (!failure_report)
-			return;
-		req->user_plane_path_failure_report = failure_report;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_user_plane_path_failure_report, msg, failure_report);
+	case PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT:
+		req->user_plane_path_failure_report = mpool_zalloc(&msg->mp, sizeof(*req->user_plane_path_failure_report));
+		if (req->user_plane_path_failure_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_user_plane_path_failure_report, msg, req->user_plane_path_failure_report);
 		break;
 
-	case PFCP_IE_USER_PLANE_PATH_RECOVERY_REPORT: /* Grouped */
-		recovery_report = mpool_zalloc(&msg->mp, sizeof(*recovery_report));
-		if (!recovery_report)
-			return;
-		req->user_plane_path_recovery_report = recovery_report;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_user_plane_path_recovery_report, msg, recovery_report);
+	case PFCP_IE_USER_PLANE_PATH_RECOVERY_REPORT:
+		req->user_plane_path_recovery_report = mpool_zalloc(&msg->mp, sizeof(*req->user_plane_path_recovery_report));
+		if (req->user_plane_path_recovery_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_user_plane_path_recovery_report, msg, req->user_plane_path_recovery_report);
 		break;
 
-	case PFCP_IE_PEER_UP_RESTART_REPORT: /* Grouped */
-		restart_report = mpool_zalloc(&msg->mp, sizeof(*restart_report));
-		if (!restart_report)
-			return;
-		req->peer_up_restart_report = restart_report;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_peer_up_restart_report, msg, restart_report);
+	case PFCP_IE_PEER_UP_RESTART_REPORT:
+		req->peer_up_restart_report = mpool_zalloc(&msg->mp, sizeof(*req->peer_up_restart_report));
+		if (req->peer_up_restart_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_peer_up_restart_report, msg, req->peer_up_restart_report);
 		break;
 
 	default:
@@ -967,8 +937,6 @@ pfcp_parse_ie_create_far(void *m, void *n, const uint8_t *cp)
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_msg *msg = m;
 	struct pfcp_ie_create_far *create_far = n;
-	struct pfcp_ie_forwarding_parameters *fwd_params;
-	struct pfcp_ie_duplicating_parameters *dup_params;
 
 	switch (ie_type) {
 	case PFCP_IE_FAR_ID:
@@ -979,22 +947,18 @@ pfcp_parse_ie_create_far(void *m, void *n, const uint8_t *cp)
 		create_far->apply_action = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_FORWARDING_PARAMETERS: /* Grouped */
-		fwd_params = mpool_zalloc(&msg->mp, sizeof(*fwd_params));
-		if (!fwd_params)
-			return -1;
-		create_far->forwarding_parameters = fwd_params;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_fwd_params, msg, fwd_params);
+	case PFCP_IE_FORWARDING_PARAMETERS:
+		create_far->forwarding_parameters = mpool_zalloc(&msg->mp, sizeof(*create_far->forwarding_parameters));
+		if (create_far->forwarding_parameters)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_fwd_params, msg, create_far->forwarding_parameters);
 		break;
 
-	case PFCP_IE_DUPLICATING_PARAMETERS: /* Grouped */
-		dup_params = mpool_zalloc(&msg->mp, sizeof(*dup_params));
-		if (!dup_params)
-			return -1;
-		create_far->duplicating_parameters = dup_params;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_dup_params, msg, dup_params);
+	case PFCP_IE_DUPLICATING_PARAMETERS:
+		create_far->duplicating_parameters = mpool_zalloc(&msg->mp, sizeof(*create_far->duplicating_parameters));
+		if (create_far->duplicating_parameters)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_dup_params, msg, create_far->duplicating_parameters);
 		break;
 
 	case PFCP_IE_BAR_ID:
@@ -1094,8 +1058,6 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_msg *msg = m;
 	struct pfcp_ie_create_urr *create_urr = n;
-	struct pfcp_ie_aggregated_urrs *aggregated_urrs;
-	struct pfcp_ie_additional_monitoring_time *additional_monitoring_time;
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
@@ -1194,13 +1156,11 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 		create_urr->time_quota_mechanism = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_AGGREGATED_URRS: /* Grouped */
-		aggregated_urrs = mpool_zalloc(&msg->mp, sizeof(*aggregated_urrs));
-		if (!aggregated_urrs)
-			return -1;
-		create_urr->aggregated_urrs = aggregated_urrs;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_aggregated_urrs, msg, aggregated_urrs);
+	case PFCP_IE_AGGREGATED_URRS:
+		create_urr->aggregated_urrs = mpool_zalloc(&msg->mp, sizeof(*create_urr->aggregated_urrs));
+		if (create_urr->aggregated_urrs)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_aggregated_urrs, msg, create_urr->aggregated_urrs);
 		break;
 
 	case PFCP_IE_FAR_ID:
@@ -1211,13 +1171,11 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 		create_urr->ethernet_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_ADDITIONAL_MONITORING_TIME: /* Grouped */
-		additional_monitoring_time = mpool_zalloc(&msg->mp, sizeof(*additional_monitoring_time));
-		if (!additional_monitoring_time)
-			return -1;
-		create_urr->additional_monitoring_time = additional_monitoring_time;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_additional_monitoring_time, msg, additional_monitoring_time);
+	case PFCP_IE_ADDITIONAL_MONITORING_TIME:
+		create_urr->additional_monitoring_time = mpool_zalloc(&msg->mp, sizeof(*create_urr->additional_monitoring_time));
+		if (create_urr->additional_monitoring_time)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_additional_monitoring_time, msg, create_urr->additional_monitoring_time);
 		break;
 
 	case PFCP_IE_NUMBER_OF_REPORTS:
@@ -1553,74 +1511,74 @@ pfcp_parse_session_establishment_request(struct pfcp_msg *msg, const uint8_t *cp
 
 	case PFCP_IE_CREATE_PDR:
 		new_pdr = mpool_realloc(&msg->mp, req, sizeof(*new_pdr) * (req->nr_create_pdr + 1));
-		if (!new_pdr)
-			return;
-		req->create_pdr[req->nr_create_pdr++] = new_pdr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_pdr, msg, new_pdr);
+		if (new_pdr) {
+			req->create_pdr[req->nr_create_pdr++] = new_pdr;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_pdr, msg, new_pdr);
+		}
 		break;
 
 	case PFCP_IE_CREATE_FAR:
 		new_far = mpool_realloc(&msg->mp, req, sizeof(*new_far) * (req->nr_create_far + 1));
-		if (!new_far)
-			return;
-		req->create_far[req->nr_create_far++] = new_far;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_far, msg, new_far);
+		if (new_far) {
+			req->create_far[req->nr_create_far++] = new_far;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_far, msg, new_far);
+		}
 		break;
 
 	case PFCP_IE_CREATE_URR:
 		new_urr = mpool_realloc(&msg->mp, req, sizeof(*new_urr) * (req->nr_create_urr + 1));
-		if (!new_urr)
-			return;
-		req->create_urr[req->nr_create_urr++] = new_urr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_urr, msg, new_urr);
+		if (new_urr) {
+			req->create_urr[req->nr_create_urr++] = new_urr;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_urr, msg, new_urr);
+		}
 		break;
 
 	case PFCP_IE_CREATE_QER:
 		new_qer = mpool_realloc(&msg->mp, req, sizeof(*new_pdr) * (req->nr_create_qer + 1));
-		if (!new_qer)
-			return;
-		req->create_qer[req->nr_create_qer++] = new_qer;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_qer, msg, new_qer);
+		if (new_qer) {
+			req->create_qer[req->nr_create_qer++] = new_qer;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_qer, msg, new_qer);
+		}
 		break;
 
 	case PFCP_IE_CREATE_BAR:
 		new_bar = mpool_realloc(&msg->mp, req, sizeof(*new_bar) * (req->nr_create_bar + 1));
-		if (!new_bar)
-			return;
-		req->create_bar[req->nr_create_bar++] = new_bar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_bar, msg, new_bar);
+		if (new_bar) {
+			req->create_bar[req->nr_create_bar++] = new_bar;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_bar, msg, new_bar);
+		}
 		break;
 
 	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
 		new_te = mpool_realloc(&msg->mp, req, sizeof(*new_te) * (req->nr_create_traffic_endpoint + 1));
-		if (!new_te)
-			return;
-		req->create_traffic_endpoint[req->nr_create_traffic_endpoint++] = new_te;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_traffic_endpoint, msg, new_te);
+		if (new_te) {
+			req->create_traffic_endpoint[req->nr_create_traffic_endpoint++] = new_te;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_traffic_endpoint, msg, new_te);
+		}
 		break;
 
 	case PFCP_IE_CREATE_MAR:
 		new_mar = mpool_realloc(&msg->mp, req, sizeof(*new_mar) * (req->nr_create_mar + 1));
-		if (!new_mar)
-			return;
-		req->create_mar[req->nr_create_mar++] = new_mar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_mar, msg, new_mar);
+		if (new_mar) {
+			req->create_mar[req->nr_create_mar++] = new_mar;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_mar, msg, new_mar);
+		}
 		break;
 
 	case PFCP_IE_CREATE_SRR:
 		new_srr = mpool_realloc(&msg->mp, req, sizeof(*new_srr) * (req->nr_create_srr + 1));
-		if (!new_srr)
-			return;
-		req->create_srr[req->nr_create_srr++] = new_srr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_srr, msg, new_srr);
+		if (new_srr) {
+			req->create_srr[req->nr_create_srr++] = new_srr;
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_srr, msg, new_srr);
+		}
 		break;
 
 	default:
@@ -1964,8 +1922,6 @@ pfcp_parse_ie_update_far(void *m, void *n, const uint8_t *cp)
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_msg *msg = m;
 	struct pfcp_ie_update_far *update_far = n;
-	struct pfcp_ie_update_forwarding_parameters *update_fwd_params;
-	struct pfcp_ie_update_duplicating_parameters *update_dup_params;
 
 	switch (ie_type) {
 	case PFCP_IE_FAR_ID:
@@ -1976,22 +1932,18 @@ pfcp_parse_ie_update_far(void *m, void *n, const uint8_t *cp)
 		update_far->apply_action = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_FORWARDING_PARAMETERS: /* Grouped */
-		update_fwd_params = mpool_zalloc(&msg->mp, sizeof(*update_fwd_params));
-		if (!update_fwd_params)
-			return -1;
-		update_far->update_forwarding_parameters = update_fwd_params;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_fwd_params, msg, update_fwd_params);
+	case PFCP_IE_UPDATE_FORWARDING_PARAMETERS:
+		update_far->update_forwarding_parameters = mpool_zalloc(&msg->mp, sizeof(*update_far->update_forwarding_parameters));
+		if (update_far->update_forwarding_parameters)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_fwd_params, msg, update_far->update_forwarding_parameters);
 		break;
 
-	case PFCP_IE_UPDATE_DUPLICATING_PARAMETERS: /* Grouped */
-		update_dup_params = mpool_zalloc(&msg->mp, sizeof(*update_dup_params));
-		if (!update_dup_params)
-			return -1;
-		update_far->update_duplicating_parameters = update_dup_params;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_dup_params, msg, update_dup_params);
+	case PFCP_IE_UPDATE_DUPLICATING_PARAMETERS:
+		update_far->update_duplicating_parameters = mpool_zalloc(&msg->mp, sizeof(*update_far->update_duplicating_parameters));
+		if (update_far->update_duplicating_parameters)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_dup_params, msg, update_far->update_duplicating_parameters);
 		break;
 
 	case PFCP_IE_BAR_ID:
@@ -2013,8 +1965,6 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_msg *msg = m;
 	struct pfcp_ie_update_urr *update_urr = n;
-	struct pfcp_ie_aggregated_urrs *aggregated_urrs;
-	struct pfcp_ie_additional_monitoring_time *additional_monitoring_time;
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
@@ -2113,13 +2063,12 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 		update_urr->time_quota_mechanism = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_AGGREGATED_URRS: /* Grouped */
-		aggregated_urrs = mpool_zalloc(&msg->mp, sizeof(*aggregated_urrs));
-		if (!aggregated_urrs)
-			return -1;
-		update_urr->aggregated_urrs = aggregated_urrs;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_aggregated_urrs, msg, aggregated_urrs);
+	case PFCP_IE_AGGREGATED_URRS:
+		update_urr->aggregated_urrs = mpool_zalloc(&msg->mp, sizeof(*update_urr->aggregated_urrs));
+		if (update_urr->aggregated_urrs)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_aggregated_urrs, msg,
+					update_urr->aggregated_urrs);
 		break;
 
 	case PFCP_IE_FAR_ID:
@@ -2130,13 +2079,11 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 		update_urr->ethernet_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_ADDITIONAL_MONITORING_TIME: /* Grouped */
-		additional_monitoring_time = mpool_zalloc(&msg->mp, sizeof(*additional_monitoring_time));
-		if (!additional_monitoring_time)
-			return -1;
-		update_urr->additional_monitoring_time = additional_monitoring_time;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_additional_monitoring_time, msg, additional_monitoring_time);
+	case PFCP_IE_ADDITIONAL_MONITORING_TIME:
+		update_urr->additional_monitoring_time = mpool_zalloc(&msg->mp, sizeof(*update_urr->additional_monitoring_time));
+		if (update_urr->additional_monitoring_time)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_additional_monitoring_time, msg, update_urr->additional_monitoring_time);
 		break;
 
 	case PFCP_IE_NUMBER_OF_REPORTS:
@@ -2375,31 +2322,6 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 	uint16_t ie_type = ntohs(ie->type);
 	size_t size = sizeof(*ie) + ntohs(ie->length);
 	struct pfcp_session_modification_request *req = msg->session_modification_request;
-	struct pfcp_ie_remove_pdr *new_remove_pdr;
-	struct pfcp_ie_remove_far *new_remove_far;
-	struct pfcp_ie_remove_urr *new_remove_urr;
-	struct pfcp_ie_remove_qer *new_remove_qer;
-	struct pfcp_ie_remove_bar *new_remove_bar;
-	struct pfcp_ie_remove_traffic_endpoint *new_remove_te;
-	struct pfcp_ie_remove_mar *new_remove_mar;
-	struct pfcp_ie_remove_srr *new_remove_srr;
-	struct pfcp_ie_create_pdr *new_create_pdr;
-	struct pfcp_ie_create_far *new_create_far;
-	struct pfcp_ie_create_urr *new_create_urr;
-	struct pfcp_ie_create_qer *new_create_qer;
-	struct pfcp_ie_create_bar *new_create_bar;
-	struct pfcp_ie_create_traffic_endpoint *new_create_te;
-	struct pfcp_ie_create_mar *new_create_mar;
-	struct pfcp_ie_create_srr *new_create_srr;
-	struct pfcp_ie_update_pdr *new_update_pdr;
-	struct pfcp_ie_update_far *new_update_far;
-	struct pfcp_ie_update_urr *new_update_urr;
-	struct pfcp_ie_update_qer *new_update_qer;
-	struct pfcp_ie_update_bar *new_update_bar;
-	struct pfcp_ie_update_traffic_endpoint *new_update_te;
-	struct pfcp_ie_update_mar *new_update_mar;
-	struct pfcp_ie_update_srr *new_update_srr;
-	struct pfcp_ie_query_urr *new_query_urr;
 
 	if (!req) {
 		req = mpool_zalloc(&msg->mp, sizeof(*req));
@@ -2414,165 +2336,132 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_REMOVE_PDR:
-		new_remove_pdr = mpool_zalloc(&msg->mp, sizeof(*new_remove_pdr));
-		if (!new_remove_pdr)
-			return;
-		req->remove_pdr = new_remove_pdr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_pdr, msg, new_remove_pdr);
+		req->remove_pdr = mpool_zalloc(&msg->mp, sizeof(*req->remove_pdr));
+		if (req->remove_pdr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_pdr, msg, req->remove_pdr);
 		break;
 
 	case PFCP_IE_REMOVE_FAR:
-		new_remove_far = mpool_zalloc(&msg->mp, sizeof(*new_remove_far));
-		if (!new_remove_far)
-			return;
-		req->remove_far = new_remove_far;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_far, msg, new_remove_far);
+		req->remove_far = mpool_zalloc(&msg->mp, sizeof(*req->remove_far));
+		if (req->remove_far)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_far, msg, req->remove_far);
 		break;
 
 	case PFCP_IE_REMOVE_URR:
-		new_remove_urr = mpool_zalloc(&msg->mp, sizeof(*new_remove_urr));
-		if (!new_remove_urr)
-			return;
-		req->remove_urr = new_remove_urr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_urr, msg, new_remove_urr);
+		req->remove_urr = mpool_zalloc(&msg->mp, sizeof(*req->remove_urr));
+		if (req->remove_urr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_urr, msg, req->remove_urr);
 		break;
 
 	case PFCP_IE_REMOVE_QER:
-		new_remove_qer = mpool_zalloc(&msg->mp, sizeof(*new_remove_qer));
-		if (!new_remove_qer)
-			return;
-		req->remove_qer = new_remove_qer;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_qer, msg, new_remove_qer);
+		req->remove_qer = mpool_zalloc(&msg->mp, sizeof(*req->remove_qer));
+		if (req->remove_qer)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_qer, msg, req->remove_qer);
 		break;
 
 	case PFCP_IE_REMOVE_BAR:
-		new_remove_bar = mpool_zalloc(&msg->mp, sizeof(*new_remove_bar));
-		if (!new_remove_bar)
-			return;
-		req->remove_bar = new_remove_bar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_bar, msg, new_remove_bar);
+		req->remove_bar = mpool_zalloc(&msg->mp, sizeof(*req->remove_bar));
+		if (req->remove_bar)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_bar, msg, req->remove_bar);
 		break;
 
 	case PFCP_IE_REMOVE_TRAFFIC_ENDPOINT:
-		new_remove_te = mpool_zalloc(&msg->mp, sizeof(*new_remove_te));
-		if (!new_remove_te)
-			return;
-		req->remove_traffic_endpoint = new_remove_te;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_traffic_endpoint, msg, new_remove_te);
+		req->remove_traffic_endpoint = mpool_zalloc(&msg->mp, sizeof(*req->remove_traffic_endpoint));
+		if (req->remove_traffic_endpoint)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_traffic_endpoint, msg,
+					req->remove_traffic_endpoint);
 		break;
 
 	case PFCP_IE_CREATE_PDR:
-		new_create_pdr = mpool_zalloc(&msg->mp, sizeof(*new_create_pdr));
-		if (!new_create_pdr)
-			return;
-		req->create_pdr = new_create_pdr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_pdr, msg, new_create_pdr);
+		req->create_pdr = mpool_zalloc(&msg->mp, sizeof(*req->create_pdr));
+		if (req->create_pdr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_pdr, msg, req->create_pdr);
 		break;
 
 	case PFCP_IE_CREATE_FAR:
-		new_create_far = mpool_zalloc(&msg->mp, sizeof(*new_create_far));
-		if (!new_create_far)
-			return;
-		req->create_far = new_create_far;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_far, msg, new_create_far);
+		req->create_far = mpool_zalloc(&msg->mp, sizeof(*req->create_far));
+		if (req->create_far)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_far, msg, req->create_far);
 		break;
 
 	case PFCP_IE_CREATE_URR:
-		new_create_urr = mpool_zalloc(&msg->mp, sizeof(*new_create_urr));
-		if (!new_create_urr)
-			return;
-		req->create_urr = new_create_urr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_urr, msg, new_create_urr);
+		req->create_urr = mpool_zalloc(&msg->mp, sizeof(*req->create_urr));
+		if (req->create_urr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_urr, msg, req->create_urr);
 		break;
 
 	case PFCP_IE_CREATE_QER:
-		new_create_qer = mpool_zalloc(&msg->mp, sizeof(*new_create_qer));
-		if (!new_create_qer)
-			return;
-		req->create_qer = new_create_qer;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_qer, msg, new_create_qer);
+		req->create_qer = mpool_zalloc(&msg->mp, sizeof(*req->create_qer));
+		if (req->create_qer)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_qer, msg, req->create_qer);
 		break;
 
 	case PFCP_IE_CREATE_BAR:
-		new_create_bar = mpool_zalloc(&msg->mp, sizeof(*new_create_bar));
-		if (!new_create_bar)
-			return;
-		req->create_bar = new_create_bar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_bar, msg, new_create_bar);
+		req->create_bar = mpool_zalloc(&msg->mp, sizeof(*req->create_bar));
+		if (req->create_bar)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_bar, msg, req->create_bar);
 		break;
 
 	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
-		new_create_te = mpool_zalloc(&msg->mp, sizeof(*new_create_te));
-		if (!new_create_te)
-			return;
-		req->create_traffic_endpoint = new_create_te;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_traffic_endpoint, msg, new_create_te);
+		req->create_traffic_endpoint = mpool_zalloc(&msg->mp, sizeof(*req->create_traffic_endpoint));
+		if (req->create_traffic_endpoint)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_traffic_endpoint, msg,
+					req->create_traffic_endpoint);
 		break;
 
 	case PFCP_IE_UPDATE_PDR:
-		new_update_pdr = mpool_zalloc(&msg->mp, sizeof(*new_update_pdr));
-		if (!new_update_pdr)
-			return;
-		req->update_pdr = new_update_pdr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_pdr, msg, new_update_pdr);
+		req->update_pdr = mpool_zalloc(&msg->mp, sizeof(*req->update_pdr));
+		if (req->update_pdr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_pdr, msg, req->update_pdr);
 		break;
 
 	case PFCP_IE_UPDATE_FAR:
-		new_update_far = mpool_zalloc(&msg->mp, sizeof(*new_update_far));
-		if (!new_update_far)
-			return;
-		req->update_far = new_update_far;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_far, msg, new_update_far);
+		req->update_far = mpool_zalloc(&msg->mp, sizeof(*req->update_far));
+		if (req->update_far)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_far, msg, req->update_far);
 		break;
 
 	case PFCP_IE_UPDATE_URR:
-		new_update_urr = mpool_zalloc(&msg->mp, sizeof(*new_update_urr));
-		if (!new_update_urr)
-			return;
-		req->update_urr = new_update_urr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_urr, msg, new_update_urr);
+		req->update_urr = mpool_zalloc(&msg->mp, sizeof(*req->update_urr));
+		if (req->update_urr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_urr, msg, req->update_urr);
 		break;
 
 	case PFCP_IE_UPDATE_QER:
-		new_update_qer = mpool_zalloc(&msg->mp, sizeof(*new_update_qer));
-		if (!new_update_qer)
-			return;
-		req->update_qer = new_update_qer;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_qer, msg, new_update_qer);
+		req->update_qer = mpool_zalloc(&msg->mp, sizeof(*req->update_qer));
+		if (req->update_qer)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_qer, msg, req->update_qer);
 		break;
 
 	case PFCP_IE_UPDATE_BAR:
-		new_update_bar = mpool_zalloc(&msg->mp, sizeof(*new_update_bar));
-		if (!new_update_bar)
-			return;
-		req->update_bar = new_update_bar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_bar, msg, new_update_bar);
+		req->update_bar = mpool_zalloc(&msg->mp, sizeof(*req->update_bar));
+		if (req->update_bar)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_bar, msg, req->update_bar);
 		break;
 
 	case PFCP_IE_UPDATE_TRAFFIC_ENDPOINT:
-		new_update_te = mpool_zalloc(&msg->mp, sizeof(*new_update_te));
-		if (!new_update_te)
-			return;
-		req->update_traffic_endpoint = new_update_te;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_traffic_endpoint, msg, new_update_te);
+		req->update_traffic_endpoint = mpool_zalloc(&msg->mp, sizeof(*req->update_traffic_endpoint));
+		if (req->update_traffic_endpoint)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_traffic_endpoint, msg,
+					req->update_traffic_endpoint);
 		break;
 
 	case PFCP_IE_PFCPSMREQ_FLAGS:
@@ -2580,12 +2469,10 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_QUERY_URR:
-		new_query_urr = mpool_zalloc(&msg->mp, sizeof(*new_query_urr));
-		if (!new_query_urr)
-			return;
-		req->query_urr = new_query_urr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_query_urr, msg, new_query_urr);
+		req->query_urr = mpool_zalloc(&msg->mp, sizeof(*req->query_urr));
+		if (req->query_urr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_query_urr, msg, req->query_urr);
 		break;
 
 	case PFCP_IE_FQ_CSID:
@@ -2614,30 +2501,24 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_REMOVE_MAR:
-		new_remove_mar = mpool_zalloc(&msg->mp, sizeof(*new_remove_mar));
-		if (!new_remove_mar)
-			return;
-		req->remove_mar = new_remove_mar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_mar, msg, new_remove_mar);
+		req->remove_mar = mpool_zalloc(&msg->mp, sizeof(*req->remove_mar));
+		if (req->remove_mar)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_mar, msg, req->remove_mar);
 		break;
 
 	case PFCP_IE_UPDATE_MAR:
-		new_update_mar = mpool_zalloc(&msg->mp, sizeof(*new_update_mar));
-		if (!new_update_mar)
-			return;
-		req->update_mar = new_update_mar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_mar, msg, new_update_mar);
+		req->update_mar = mpool_zalloc(&msg->mp, sizeof(*req->update_mar));
+		if (req->update_mar)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_mar, msg, req->update_mar);
 		break;
 
 	case PFCP_IE_CREATE_MAR:
-		new_create_mar = mpool_zalloc(&msg->mp, sizeof(*new_create_mar));
-		if (!new_create_mar)
-			return;
-		req->create_mar = new_create_mar;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_mar, msg, new_create_mar);
+		req->create_mar = mpool_zalloc(&msg->mp, sizeof(*req->create_mar));
+		if (req->create_mar)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_mar, msg, req->create_mar);
 		break;
 
 	case PFCP_IE_NODE_ID:
@@ -2645,30 +2526,24 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_REMOVE_SRR:
-		new_remove_srr = mpool_zalloc(&msg->mp, sizeof(*new_remove_srr));
-		if (!new_remove_srr)
-			return;
-		req->remove_srr = new_remove_srr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_remove_srr, msg, new_remove_srr);
+		req->remove_srr = mpool_zalloc(&msg->mp, sizeof(*req->remove_srr));
+		if (req->remove_srr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_remove_srr, msg, req->remove_srr);
 		break;
 
 	case PFCP_IE_CREATE_SRR:
-		new_create_srr = mpool_zalloc(&msg->mp, sizeof(*new_create_srr));
-		if (!new_create_srr)
-			return;
-		req->create_srr = new_create_srr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_create_srr, msg, new_create_srr);
+		req->create_srr = mpool_zalloc(&msg->mp, sizeof(*req->create_srr));
+		if (req->create_srr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_create_srr, msg, req->create_srr);
 		break;
 
 	case PFCP_IE_UPDATE_SRR:
-		new_update_srr = mpool_zalloc(&msg->mp, sizeof(*new_update_srr));
-		if (!new_update_srr)
-			return;
-		req->update_srr = new_update_srr;
-		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
-				pfcp_parse_ie_update_srr, msg, new_update_srr);
+		req->update_srr = mpool_zalloc(&msg->mp, sizeof(*req->update_srr));
+		if (req->update_srr)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_update_srr, msg, req->update_srr);
 		break;
 
 	case PFCP_IE_RAT_TYPE:
