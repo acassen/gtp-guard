@@ -193,54 +193,128 @@ pfcp_parse_pfd_management_request(struct pfcp_msg *msg, const uint8_t *cp, int *
 /*
  * 	PFCP Association Setup Request
  */
+static int
+pfcp_parse_ie_session_retention_information(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_session_retention_information *session_retention_info = n;
+
+	switch (ie_type) {
+	case PFCP_IE_CP_PFCP_ENTITY_IP_ADDRESS:
+		session_retention_info->cp_pfcp_entity_ip_address = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_ue_ip_address_pool_information(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info = n;
+
+	switch (ie_type) {
+	case PFCP_IE_UE_IP_ADDRESS_POOL_IDENTITY:
+		ue_ip_address_pool_info->ue_ip_address_pool_identity = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_NETWORK_INSTANCE:
+		ue_ip_address_pool_info->network_instance = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_S_NSSAI:
+		ue_ip_address_pool_info->s_nssai = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_IP_VERSION:
+		ue_ip_address_pool_info->ip_version = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static void
 pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_association_setup_request *req = msg->association_setup_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_association_setup_request *req = msg->association_setup_request;
+	struct pfcp_ie_session_retention_information *session_retention_info;
+	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->association_setup_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_RECOVERY_TIME_STAMP:
-		req->recovery_time_stamp = (struct pfcp_ie_recovery_time_stamp *)cp;
+		req->recovery_time_stamp = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 1);
 		break;
 
 	case PFCP_IE_UP_FUNCTION_FEATURES:
-		req->up_function_features = (struct pfcp_ie_up_function_features *)cp;
+		req->up_function_features = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_CP_FUNCTION_FEATURES:
-		req->cp_function_features = (struct pfcp_ie_cp_function_features *)cp;
+		req->cp_function_features = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION:
-		req->user_plane_ip_resource_info = (struct pfcp_ie_user_plane_ip_resource_information *)cp;
+		req->user_plane_ip_resource_info = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_ALTERNATIVE_SMF_IP_ADDRESS:
-		req->alternative_smf_ip_address = (struct pfcp_ie_alternative_smf_ip_address *)cp;
+		req->alternative_smf_ip_address = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_SMF_SET_ID:
-		req->smf_set_id = (struct pfcp_ie_smf_set_id *)cp;
+		req->smf_set_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_PFCPASREQ_FLAGS:
-		req->pfcpasreq_flags = (struct pfcp_ie_pfcpasreq_flags *)cp;
+		req->pfcpasreq_flags = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_SESSION_RETENTION_INFORMATION:
-		req->session_retention_info = (struct pfcp_ie_session_retention_information *)cp;
+	case PFCP_IE_SESSION_RETENTION_INFORMATION: /* Grouped */
+		session_retention_info = mpool_zalloc(&msg->mp, sizeof(*session_retention_info));
+		if (!session_retention_info)
+			return;
+		req->session_retention_info = session_retention_info;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_session_retention_information, msg, session_retention_info);
 		break;
 
-	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION:
-		req->ue_ip_address_pool_info = (struct pfcp_ie_ue_ip_address_pool_information *)cp;
+	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION: /* Grouped */
+		ue_ip_address_pool_info = mpool_zalloc(&msg->mp, sizeof(*ue_ip_address_pool_info));
+		if (!ue_ip_address_pool_info)
+			return;
+		req->ue_ip_address_pool_info = ue_ip_address_pool_info;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_ue_ip_address_pool_information, msg, ue_ip_address_pool_info);
 		break;
 
 	default:
@@ -251,57 +325,169 @@ pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, in
 /*
  * 	PFCP Association Update Request
  */
+static int
+pfcp_parse_ie_gtp_u_path_qos_control_information(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_gtp_u_path_qos_control_information *qos_control_info = n;
+
+	switch (ie_type) {
+	case PFCP_IE_REMOTE_GTP_U_PEER:
+		qos_control_info->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_GTP_U_PATH_INTERFACE_TYPE:
+		qos_control_info->gtp_u_path_interface_type = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QOS_REPORT_TRIGGER:
+		qos_control_info->qos_report_trigger = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
+		qos_control_info->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MEASUREMENT_PERIOD:
+		qos_control_info->measurement_period = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MT_EDT_CONTROL_INFORMATION:
+		qos_control_info->mt_edt_control_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_ue_ip_address_usage_information(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_ue_ip_address_usage_information *usage_info = n;
+
+	switch (ie_type) {
+	case PFCP_IE_SEQUENCE_NUMBER:
+		usage_info->sequence_number = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_METRIC:
+		usage_info->number_of_ue_ip_addresses = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_VALIDITY_TIMER:
+		usage_info->validity_timer = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_NUMBER_OF_UE_IP_ADDRESSES:
+		usage_info->number_of_ue_ip_addresses_ie = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_NETWORK_INSTANCE:
+		usage_info->network_instance = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_UE_IP_ADDRESS_POOL_IDENTITY:
+		usage_info->ue_ip_address_pool_identity = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_S_NSSAI:
+		usage_info->s_nssai = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static void
 pfcp_parse_association_update_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_association_update_request *req = msg->association_update_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_association_update_request *req = msg->association_update_request;
+	struct pfcp_ie_ue_ip_address_pool_information *ue_ip_address_pool_info;
+	struct pfcp_ie_gtp_u_path_qos_control_information *qos_control_info;
+	struct pfcp_ie_ue_ip_address_usage_information *usage_info;
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->association_update_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_UP_FUNCTION_FEATURES:
-		req->up_function_features = (struct pfcp_ie_up_function_features *)cp;
+		req->up_function_features = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_CP_FUNCTION_FEATURES:
-		req->cp_function_features = (struct pfcp_ie_cp_function_features *)cp;
+		req->cp_function_features = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_PFCP_ASSOCIATION_RELEASE_REQUEST:
-		req->association_release_request = (struct pfcp_ie_pfcp_association_release_request *)cp;
+		req->association_release_request = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_GRACEFUL_RELEASE_PERIOD:
-		req->graceful_release_period = (struct pfcp_ie_graceful_release_period *)cp;
+		req->graceful_release_period = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_PFCPAUREQ_FLAGS:
-		req->pfcpaureq_flags = (struct pfcp_ie_pfcpaureq_flags *)cp;
+		req->pfcpaureq_flags = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_ALTERNATIVE_SMF_IP_ADDRESS:
-		req->alternative_smf_ip_address = (struct pfcp_ie_alternative_smf_ip_address *)cp;
+		req->alternative_smf_ip_address = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_SMF_SET_ID:
-		req->smf_set_id = (struct pfcp_ie_smf_set_id *)cp;
+		req->smf_set_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION:
-		req->ue_ip_address_pool_information = (struct pfcp_ie_ue_ip_address_pool_information *)cp;
+	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION: /* Grouped */
+		ue_ip_address_pool_info = mpool_zalloc(&msg->mp, sizeof(*ue_ip_address_pool_info));
+		if (!ue_ip_address_pool_info)
+			return;
+		req->ue_ip_address_pool_information = ue_ip_address_pool_info;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_ue_ip_address_pool_information, msg, ue_ip_address_pool_info);
 		break;
 
-	case PFCP_IE_GTP_U_PATH_QOS_CONTROL_INFORMATION:
-		req->gtp_u_path_qos_control_information = (struct pfcp_ie_gtp_u_path_qos_control_information *)cp;
+	case PFCP_IE_GTP_U_PATH_QOS_CONTROL_INFORMATION: /* Grouped */
+		qos_control_info = mpool_zalloc(&msg->mp, sizeof(*qos_control_info));
+		if (!qos_control_info)
+			return;
+		req->gtp_u_path_qos_control_information = qos_control_info;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_gtp_u_path_qos_control_information, msg, qos_control_info);
 		break;
 
-	case PFCP_IE_UE_IP_ADDRESS_USAGE_INFORMATION:
-		req->ue_ip_address_usage_information = (struct pfcp_ie_ue_ip_address_usage_information *)cp;
+	case PFCP_IE_UE_IP_ADDRESS_USAGE_INFORMATION: /* Grouped */
+		usage_info = mpool_zalloc(&msg->mp, sizeof(*usage_info));
+		if (!usage_info)
+			return;
+		req->ue_ip_address_usage_information = usage_info;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_ue_ip_address_usage_information, msg, usage_info);
 		break;
 
 	default:
@@ -315,13 +501,21 @@ pfcp_parse_association_update_request(struct pfcp_msg *msg, const uint8_t *cp, i
 static void
 pfcp_parse_association_release_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_association_release_request *req = msg->association_release_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_association_release_request *req = msg->association_release_request;
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->association_release_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
