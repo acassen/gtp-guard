@@ -527,34 +527,123 @@ pfcp_parse_association_release_request(struct pfcp_msg *msg, const uint8_t *cp, 
 /*
  * 	PFCP Node Report Request
  */
+static int
+pfcp_parse_ie_user_plane_path_failure_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_user_plane_path_failure_report *failure_report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_REMOTE_GTP_U_PEER:
+		failure_report->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_user_plane_path_recovery_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_user_plane_path_recovery_report *recovery_report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_REMOTE_GTP_U_PEER:
+		recovery_report->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_peer_up_restart_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_peer_up_restart_report *restart_report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_REMOTE_GTP_U_PEER:
+		restart_report->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static void
 pfcp_parse_node_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_node_report_request *req = msg->node_report_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_node_report_request *req = msg->node_report_request;
+	struct pfcp_ie_user_plane_path_failure_report *failure_report;
+	struct pfcp_ie_user_plane_path_recovery_report *recovery_report;
+	struct pfcp_ie_peer_up_restart_report *restart_report;
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->node_report_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_NODE_REPORT_TYPE:
-		req->node_report_type = (struct pfcp_ie_node_report_type *)cp;
+		req->node_report_type = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 1);
 		break;
 
-	case PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT:
-		req->user_plane_path_failure_report = (struct pfcp_ie_user_plane_path_failure_report *)cp;
+	case PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT: /* Grouped */
+		failure_report = mpool_zalloc(&msg->mp, sizeof(*failure_report));
+		if (!failure_report)
+			return;
+		req->user_plane_path_failure_report = failure_report;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_user_plane_path_failure_report, msg, failure_report);
 		break;
 
-	case PFCP_IE_USER_PLANE_PATH_RECOVERY_REPORT:
-		req->user_plane_path_recovery_report = (struct pfcp_ie_user_plane_path_recovery_report *)cp;
+	case PFCP_IE_USER_PLANE_PATH_RECOVERY_REPORT: /* Grouped */
+		recovery_report = mpool_zalloc(&msg->mp, sizeof(*recovery_report));
+		if (!recovery_report)
+			return;
+		req->user_plane_path_recovery_report = recovery_report;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_user_plane_path_recovery_report, msg, recovery_report);
 		break;
 
-	case PFCP_IE_PEER_UP_RESTART_REPORT:
-		req->peer_up_restart_report = (struct pfcp_ie_peer_up_restart_report *)cp;
+	case PFCP_IE_PEER_UP_RESTART_REPORT: /* Grouped */
+		restart_report = mpool_zalloc(&msg->mp, sizeof(*restart_report));
+		if (!restart_report)
+			return;
+		req->peer_up_restart_report = restart_report;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_peer_up_restart_report, msg, restart_report);
 		break;
 
 	default:
@@ -568,31 +657,39 @@ pfcp_parse_node_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *man
 static void
 pfcp_parse_session_set_deletion_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_session_set_deletion_request *req = msg->session_set_deletion_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_session_set_deletion_request *req = msg->session_set_deletion_request;
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->session_set_deletion_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_FQ_CSID:
 		if (!req->sgw_c_fq_csid)
-			req->sgw_c_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->sgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->pgw_c_fq_csid)
-			req->pgw_c_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->pgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->sgw_u_fq_csid)
-			req->sgw_u_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->sgw_u_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->pgw_u_fq_csid)
-			req->pgw_u_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->pgw_u_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->twan_fq_csid)
-			req->twan_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->twan_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->epdg_fq_csid)
-			req->epdg_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->epdg_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->mme_fq_csid)
-			req->mme_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->mme_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	default:
