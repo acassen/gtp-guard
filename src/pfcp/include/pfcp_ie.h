@@ -34,6 +34,7 @@
 /* PFCP IE Types */
 enum pfcp_ie_type {
 	/* Elementary IEs */
+	PFCP_IE_PDI				= 2,
 	PFCP_IE_CAUSE				= 19,
 	PFCP_IE_SOURCE_INTERFACE		= 20,
 	PFCP_IE_F_TEID				= 21,

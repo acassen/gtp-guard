@@ -220,14 +220,22 @@ struct pfcp_session_establishment_request {
 	struct pfcp_ie_rat_type *rat_type;
 	struct pfcp_ie_group_id *group_id;
 	/* Grouped IEs */
-	struct pfcp_ie_create_pdr *create_pdr[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_far *create_far[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_urr *create_urr[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_qer *create_qer[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_bar *create_bar[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_traffic_endpoint *create_traffic_endpoint[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_mar *create_mar[PFCP_REQ_IE_ARRAY_SIZE];
-	struct pfcp_ie_create_srr *create_srr[PFCP_REQ_IE_ARRAY_SIZE];
+	struct pfcp_ie_create_pdr **create_pdr;
+	struct pfcp_ie_create_far **create_far;
+	struct pfcp_ie_create_urr **create_urr;
+	struct pfcp_ie_create_qer **create_qer;
+	struct pfcp_ie_create_bar **create_bar;
+	struct pfcp_ie_create_traffic_endpoint **create_traffic_endpoint;
+	struct pfcp_ie_create_mar **create_mar;
+	struct pfcp_ie_create_srr **create_srr;
+	int nr_create_pdr;
+	int nr_create_far;
+	int nr_create_urr;
+	int nr_create_qer;
+	int nr_create_bar;
+	int nr_create_traffic_endpoint;
+	int nr_create_mar;
+	int nr_create_srr;
 };
 
 struct pfcp_session_establishment_response {
