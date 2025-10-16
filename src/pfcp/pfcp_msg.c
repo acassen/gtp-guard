@@ -1340,157 +1340,1052 @@ pfcp_parse_session_establishment_request(struct pfcp_msg *msg, const uint8_t *cp
 /*
  * 	PFCP Session Modification Request
  */
-static void
-pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
+static int
+pfcp_parse_ie_remove_pdr(void *m, void *n, const uint8_t *cp)
 {
-	struct pfcp_session_modification_request *req = msg->session_modification_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_pdr *remove_pdr = n;
 
 	switch (ie_type) {
-	case PFCP_IE_F_SEID:
-		req->cp_f_seid = (struct pfcp_ie_f_seid *)cp;
+	case PFCP_IE_PDR_ID:
+		remove_pdr->pdr_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_PDR:
-		req->remove_pdr = (struct pfcp_ie_remove_pdr *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_far(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_far *remove_far = n;
+
+	switch (ie_type) {
+	case PFCP_IE_FAR_ID:
+		remove_far->far_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_FAR:
-		req->remove_far = (struct pfcp_ie_remove_far *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_urr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_urr *remove_urr = n;
+
+	switch (ie_type) {
+	case PFCP_IE_URR_ID:
+		remove_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_URR:
-		req->remove_urr = (struct pfcp_ie_remove_urr *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_qer(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_qer *remove_qer = n;
+
+	switch (ie_type) {
+	case PFCP_IE_QER_ID:
+		remove_qer->qer_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_QER:
-		req->remove_qer = (struct pfcp_ie_remove_qer *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_bar(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_bar *remove_bar = n;
+
+	switch (ie_type) {
+	case PFCP_IE_BAR_ID:
+		remove_bar->bar_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_BAR:
-		req->remove_bar = (struct pfcp_ie_remove_bar *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_traffic_endpoint(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_traffic_endpoint *remove_traffic_endpoint = n;
+
+	switch (ie_type) {
+	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
+		remove_traffic_endpoint->traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_TRAFFIC_ENDPOINT:
-		req->remove_traffic_endpoint = (struct pfcp_ie_remove_traffic_endpoint *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_mar(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_mar *remove_mar = n;
+
+	switch (ie_type) {
+	case PFCP_IE_MAR_ID:
+		remove_mar->mar_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_CREATE_PDR:
-		req->create_pdr = (struct pfcp_ie_create_pdr *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_remove_srr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_remove_srr *remove_srr = n;
+
+	switch (ie_type) {
+	case PFCP_IE_SRR_ID:
+		remove_srr->srr_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_CREATE_FAR:
-		req->create_far = (struct pfcp_ie_create_far *)cp;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_pdr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_pdr *update_pdr = n;
+	struct pfcp_ie_pdi *pdi;
+
+	switch (ie_type) {
+	case PFCP_IE_PDR_ID:
+		update_pdr->pdr_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_CREATE_URR:
-		req->create_urr = (struct pfcp_ie_create_urr *)cp;
+	case PFCP_IE_OUTER_HEADER_REMOVAL:
+		update_pdr->outer_header_removal = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_CREATE_QER:
-		req->create_qer = (struct pfcp_ie_create_qer *)cp;
+	case PFCP_IE_PRECEDENCE:
+		update_pdr->precedence = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_CREATE_BAR:
-		req->create_bar = (struct pfcp_ie_create_bar *)cp;
+	case PFCP_IE_PDI: /* Grouped */
+		pdi = mpool_zalloc(&msg->mp, sizeof(*pdi));
+		if (!pdi)
+			return -1;
+		update_pdr->pdi = pdi;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_pdi, msg, pdi);
 		break;
 
-	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
-		req->create_traffic_endpoint = (struct pfcp_ie_create_traffic_endpoint *)cp;
+	case PFCP_IE_FAR_ID:
+		update_pdr->far_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_PDR:
-		req->update_pdr = (struct pfcp_ie_update_pdr *)cp;
+	case PFCP_IE_URR_ID:
+		update_pdr->urr_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_FAR:
-		req->update_far = (struct pfcp_ie_update_far *)cp;
+	case PFCP_IE_QER_ID:
+		update_pdr->qer_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_URR:
-		req->update_urr = (struct pfcp_ie_update_urr *)cp;
+	case PFCP_IE_ACTIVATE_PREDEFINED_RULES:
+		update_pdr->activate_predefined_rules = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_QER:
-		req->update_qer = (struct pfcp_ie_update_qer *)cp;
+	case PFCP_IE_DEACTIVATE_PREDEFINED_RULES:
+		update_pdr->deactivate_predefined_rules = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_BAR:
-		req->update_bar = (struct pfcp_ie_update_bar *)cp;
+	case PFCP_IE_ACTIVATION_TIME:
+		update_pdr->activation_time = mpool_memdup(&msg->mp, cp, size);
 		break;
 
-	case PFCP_IE_UPDATE_TRAFFIC_ENDPOINT:
-		req->update_traffic_endpoint = (struct pfcp_ie_update_traffic_endpoint *)cp;
+	case PFCP_IE_DEACTIVATION_TIME:
+		update_pdr->deactivation_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_fwd_params(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_forwarding_parameters *update_fwd_params = n;
+
+	switch (ie_type) {
+	case PFCP_IE_DESTINATION_INTERFACE:
+		update_fwd_params->destination_interface = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_NETWORK_INSTANCE:
+		update_fwd_params->network_instance = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_REDIRECT_INFORMATION:
+		update_fwd_params->redirect_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_OUTER_HEADER_CREATION:
+		update_fwd_params->outer_header_creation = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
+		update_fwd_params->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_FORWARDING_POLICY:
+		update_fwd_params->forwarding_policy = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_HEADER_ENRICHMENT:
+		update_fwd_params->header_enrichment = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
+		update_fwd_params->linked_traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_PFCPSMREQ_FLAGS:
-		req->pfcpsmreq_flags = (struct pfcp_ie_pfcpsmreq_flags *)cp;
+		update_fwd_params->pfcpsm_req_flags = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_3GPP_INTERFACE_TYPE:
+		update_fwd_params->destination_interface_type = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_dup_params(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_duplicating_parameters *update_dup_params = n;
+
+	switch (ie_type) {
+	case PFCP_IE_DESTINATION_INTERFACE:
+		update_dup_params->destination_interface = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_OUTER_HEADER_CREATION:
+		update_dup_params->outer_header_creation = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
+		update_dup_params->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_FORWARDING_POLICY:
+		update_dup_params->forwarding_policy = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_far(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_far *update_far = n;
+	struct pfcp_ie_update_forwarding_parameters *update_fwd_params;
+	struct pfcp_ie_update_duplicating_parameters *update_dup_params;
+
+	switch (ie_type) {
+	case PFCP_IE_FAR_ID:
+		update_far->far_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_APPLY_ACTION:
+		update_far->apply_action = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_UPDATE_FORWARDING_PARAMETERS: /* Grouped */
+		update_fwd_params = mpool_zalloc(&msg->mp, sizeof(*update_fwd_params));
+		if (!update_fwd_params)
+			return -1;
+		update_far->update_forwarding_parameters = update_fwd_params;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_fwd_params, msg, update_fwd_params);
+		break;
+
+	case PFCP_IE_UPDATE_DUPLICATING_PARAMETERS: /* Grouped */
+		update_dup_params = mpool_zalloc(&msg->mp, sizeof(*update_dup_params));
+		if (!update_dup_params)
+			return -1;
+		update_far->update_duplicating_parameters = update_dup_params;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_dup_params, msg, update_dup_params);
+		break;
+
+	case PFCP_IE_BAR_ID:
+		update_far->bar_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_urr *update_urr = n;
+	struct pfcp_ie_aggregated_urrs *aggregated_urrs;
+	struct pfcp_ie_additional_monitoring_time *additional_monitoring_time;
+
+	switch (ie_type) {
+	case PFCP_IE_URR_ID:
+		update_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MEASUREMENT_METHOD:
+		update_urr->measurement_method = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_REPORTING_TRIGGERS:
+		update_urr->reporting_triggers = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MEASUREMENT_PERIOD:
+		update_urr->measurement_period = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_VOLUME_THRESHOLD:
+		update_urr->volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_VOLUME_QUOTA:
+		update_urr->volume_quota = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIME_THRESHOLD:
+		update_urr->time_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIME_QUOTA:
+		update_urr->time_quota = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_EVENT_THRESHOLD:
+		update_urr->event_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_EVENT_QUOTA:
+		update_urr->event_quota = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QUOTA_HOLDING_TIME:
+		update_urr->quota_holding_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_DROPPED_DL_TRAFFIC_THRESHOLD:
+		update_urr->dropped_dl_traffic_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QUOTA_VALIDITY_TIME:
+		update_urr->quota_validity_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MONITORING_TIME:
+		update_urr->monitoring_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUBSEQUENT_VOLUME_THRESHOLD:
+		update_urr->subsequent_volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUBSEQUENT_TIME_THRESHOLD:
+		update_urr->subsequent_time_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUBSEQUENT_VOLUME_QUOTA:
+		update_urr->subsequent_volume_quota = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUBSEQUENT_TIME_QUOTA:
+		update_urr->subsequent_time_quota = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUBSEQUENT_EVENT_THRESHOLD:
+		update_urr->subsequent_event_threshold = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUBSEQUENT_EVENT_QUOTA:
+		update_urr->subsequent_event_quota = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_INACTIVITY_DETECTION_TIME:
+		update_urr->inactivity_detection_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_LINKED_URR_ID:
+		update_urr->linked_urr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MEASUREMENT_INFORMATION:
+		update_urr->measurement_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIME_QUOTA_MECHANISM:
+		update_urr->time_quota_mechanism = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_AGGREGATED_URRS: /* Grouped */
+		aggregated_urrs = mpool_zalloc(&msg->mp, sizeof(*aggregated_urrs));
+		if (!aggregated_urrs)
+			return -1;
+		update_urr->aggregated_urrs = aggregated_urrs;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_aggregated_urrs, msg, aggregated_urrs);
+		break;
+
+	case PFCP_IE_FAR_ID:
+		update_urr->far_id_for_quota_action = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_ETHERNET_INACTIVITY_TIMER:
+		update_urr->ethernet_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_ADDITIONAL_MONITORING_TIME: /* Grouped */
+		additional_monitoring_time = mpool_zalloc(&msg->mp, sizeof(*additional_monitoring_time));
+		if (!additional_monitoring_time)
+			return -1;
+		update_urr->additional_monitoring_time = additional_monitoring_time;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_additional_monitoring_time, msg, additional_monitoring_time);
+		break;
+
+	case PFCP_IE_NUMBER_OF_REPORTS:
+		update_urr->number_of_reports = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_qer(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_qer *update_qer = n;
+
+	switch (ie_type) {
+	case PFCP_IE_QER_ID:
+		update_qer->qer_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QER_CORRELATION_ID:
+		update_qer->qer_correlation_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_GATE_STATUS:
+		update_qer->gate_status = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_MBR:
+		update_qer->maximum_bitrate = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_GBR:
+		update_qer->guaranteed_bitrate = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_PACKET_RATE:
+		update_qer->packet_rate = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_DL_FLOW_LEVEL_MARKING:
+		update_qer->dl_flow_level_marking = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QFI:
+		update_qer->qos_flow_identifier = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_RQI:
+		update_qer->reflective_qos = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_PPI:
+		update_qer->paging_policy_indicator = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_AVERAGING_WINDOW:
+		update_qer->averaging_window = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QER_CONTROL_INDICATIONS:
+		update_qer->qer_control_indications = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_bar(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_bar *update_bar = n;
+
+	switch (ie_type) {
+	case PFCP_IE_BAR_ID:
+		update_bar->bar_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_DOWNLINK_DATA_NOTIFICATION_DELAY:
+		update_bar->downlink_data_notification_delay = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_SUGGESTED_BUFFERING_PACKETS_COUNT:
+		update_bar->suggested_buffering_packets_count = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_traffic_endpoint(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_traffic_endpoint *update_traffic_endpoint = n;
+
+	switch (ie_type) {
+	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
+		update_traffic_endpoint->traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_F_TEID:
+		update_traffic_endpoint->local_f_teid = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_NETWORK_INSTANCE:
+		update_traffic_endpoint->network_instance = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_UE_IP_ADDRESS:
+		update_traffic_endpoint->ue_ip_address = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_FRAMED_ROUTE:
+		update_traffic_endpoint->framed_route = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_FRAMED_ROUTING:
+		update_traffic_endpoint->framed_routing = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_FRAMED_IPV6_ROUTE:
+		update_traffic_endpoint->framed_ipv6_route = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QFI:
+		update_traffic_endpoint->qfi = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_mar(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_mar *update_mar = n;
+
+	switch (ie_type) {
+	case PFCP_IE_MAR_ID:
+		update_mar->mar_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_STEERING_FUNCTIONALITY:
+		update_mar->steering_functionality = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_STEERING_MODE:
+		update_mar->steering_mode = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_update_srr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_update_srr *update_srr = n;
+
+	switch (ie_type) {
+	case PFCP_IE_SRR_ID:
+		update_srr->srr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_ACCESS_AVAILABILITY_INFORMATION:
+		update_srr->access_availability_control_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_query_urr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_query_urr *query_urr = n;
+
+	switch (ie_type) {
+	case PFCP_IE_URR_ID:
+		query_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static void
+pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_session_modification_request *req = msg->session_modification_request;
+	struct pfcp_ie_remove_pdr *new_remove_pdr;
+	struct pfcp_ie_remove_far *new_remove_far;
+	struct pfcp_ie_remove_urr *new_remove_urr;
+	struct pfcp_ie_remove_qer *new_remove_qer;
+	struct pfcp_ie_remove_bar *new_remove_bar;
+	struct pfcp_ie_remove_traffic_endpoint *new_remove_te;
+	struct pfcp_ie_remove_mar *new_remove_mar;
+	struct pfcp_ie_remove_srr *new_remove_srr;
+	struct pfcp_ie_create_pdr *new_create_pdr;
+	struct pfcp_ie_create_far *new_create_far;
+	struct pfcp_ie_create_urr *new_create_urr;
+	struct pfcp_ie_create_qer *new_create_qer;
+	struct pfcp_ie_create_bar *new_create_bar;
+	struct pfcp_ie_create_traffic_endpoint *new_create_te;
+	struct pfcp_ie_create_mar *new_create_mar;
+	struct pfcp_ie_create_srr *new_create_srr;
+	struct pfcp_ie_update_pdr *new_update_pdr;
+	struct pfcp_ie_update_far *new_update_far;
+	struct pfcp_ie_update_urr *new_update_urr;
+	struct pfcp_ie_update_qer *new_update_qer;
+	struct pfcp_ie_update_bar *new_update_bar;
+	struct pfcp_ie_update_traffic_endpoint *new_update_te;
+	struct pfcp_ie_update_mar *new_update_mar;
+	struct pfcp_ie_update_srr *new_update_srr;
+	struct pfcp_ie_query_urr *new_query_urr;
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->session_modification_request = req;
+	}
+
+	switch (ie_type) {
+	case PFCP_IE_F_SEID:
+		req->cp_f_seid = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_REMOVE_PDR:
+		new_remove_pdr = mpool_zalloc(&msg->mp, sizeof(*new_remove_pdr));
+		if (!new_remove_pdr)
+			return;
+		req->remove_pdr = new_remove_pdr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_pdr, msg, new_remove_pdr);
+		break;
+
+	case PFCP_IE_REMOVE_FAR:
+		new_remove_far = mpool_zalloc(&msg->mp, sizeof(*new_remove_far));
+		if (!new_remove_far)
+			return;
+		req->remove_far = new_remove_far;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_far, msg, new_remove_far);
+		break;
+
+	case PFCP_IE_REMOVE_URR:
+		new_remove_urr = mpool_zalloc(&msg->mp, sizeof(*new_remove_urr));
+		if (!new_remove_urr)
+			return;
+		req->remove_urr = new_remove_urr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_urr, msg, new_remove_urr);
+		break;
+
+	case PFCP_IE_REMOVE_QER:
+		new_remove_qer = mpool_zalloc(&msg->mp, sizeof(*new_remove_qer));
+		if (!new_remove_qer)
+			return;
+		req->remove_qer = new_remove_qer;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_qer, msg, new_remove_qer);
+		break;
+
+	case PFCP_IE_REMOVE_BAR:
+		new_remove_bar = mpool_zalloc(&msg->mp, sizeof(*new_remove_bar));
+		if (!new_remove_bar)
+			return;
+		req->remove_bar = new_remove_bar;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_bar, msg, new_remove_bar);
+		break;
+
+	case PFCP_IE_REMOVE_TRAFFIC_ENDPOINT:
+		new_remove_te = mpool_zalloc(&msg->mp, sizeof(*new_remove_te));
+		if (!new_remove_te)
+			return;
+		req->remove_traffic_endpoint = new_remove_te;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_traffic_endpoint, msg, new_remove_te);
+		break;
+
+	case PFCP_IE_CREATE_PDR:
+		new_create_pdr = mpool_zalloc(&msg->mp, sizeof(*new_create_pdr));
+		if (!new_create_pdr)
+			return;
+		req->create_pdr = new_create_pdr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_pdr, msg, new_create_pdr);
+		break;
+
+	case PFCP_IE_CREATE_FAR:
+		new_create_far = mpool_zalloc(&msg->mp, sizeof(*new_create_far));
+		if (!new_create_far)
+			return;
+		req->create_far = new_create_far;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_far, msg, new_create_far);
+		break;
+
+	case PFCP_IE_CREATE_URR:
+		new_create_urr = mpool_zalloc(&msg->mp, sizeof(*new_create_urr));
+		if (!new_create_urr)
+			return;
+		req->create_urr = new_create_urr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_urr, msg, new_create_urr);
+		break;
+
+	case PFCP_IE_CREATE_QER:
+		new_create_qer = mpool_zalloc(&msg->mp, sizeof(*new_create_qer));
+		if (!new_create_qer)
+			return;
+		req->create_qer = new_create_qer;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_qer, msg, new_create_qer);
+		break;
+
+	case PFCP_IE_CREATE_BAR:
+		new_create_bar = mpool_zalloc(&msg->mp, sizeof(*new_create_bar));
+		if (!new_create_bar)
+			return;
+		req->create_bar = new_create_bar;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_bar, msg, new_create_bar);
+		break;
+
+	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
+		new_create_te = mpool_zalloc(&msg->mp, sizeof(*new_create_te));
+		if (!new_create_te)
+			return;
+		req->create_traffic_endpoint = new_create_te;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_traffic_endpoint, msg, new_create_te);
+		break;
+
+	case PFCP_IE_UPDATE_PDR:
+		new_update_pdr = mpool_zalloc(&msg->mp, sizeof(*new_update_pdr));
+		if (!new_update_pdr)
+			return;
+		req->update_pdr = new_update_pdr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_pdr, msg, new_update_pdr);
+		break;
+
+	case PFCP_IE_UPDATE_FAR:
+		new_update_far = mpool_zalloc(&msg->mp, sizeof(*new_update_far));
+		if (!new_update_far)
+			return;
+		req->update_far = new_update_far;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_far, msg, new_update_far);
+		break;
+
+	case PFCP_IE_UPDATE_URR:
+		new_update_urr = mpool_zalloc(&msg->mp, sizeof(*new_update_urr));
+		if (!new_update_urr)
+			return;
+		req->update_urr = new_update_urr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_urr, msg, new_update_urr);
+		break;
+
+	case PFCP_IE_UPDATE_QER:
+		new_update_qer = mpool_zalloc(&msg->mp, sizeof(*new_update_qer));
+		if (!new_update_qer)
+			return;
+		req->update_qer = new_update_qer;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_qer, msg, new_update_qer);
+		break;
+
+	case PFCP_IE_UPDATE_BAR:
+		new_update_bar = mpool_zalloc(&msg->mp, sizeof(*new_update_bar));
+		if (!new_update_bar)
+			return;
+		req->update_bar = new_update_bar;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_bar, msg, new_update_bar);
+		break;
+
+	case PFCP_IE_UPDATE_TRAFFIC_ENDPOINT:
+		new_update_te = mpool_zalloc(&msg->mp, sizeof(*new_update_te));
+		if (!new_update_te)
+			return;
+		req->update_traffic_endpoint = new_update_te;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_traffic_endpoint, msg, new_update_te);
+		break;
+
+	case PFCP_IE_PFCPSMREQ_FLAGS:
+		req->pfcpsmreq_flags = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_QUERY_URR:
-		req->query_urr = (struct pfcp_ie_query_urr *)cp;
+		new_query_urr = mpool_zalloc(&msg->mp, sizeof(*new_query_urr));
+		if (!new_query_urr)
+			return;
+		req->query_urr = new_query_urr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_query_urr, msg, new_query_urr);
 		break;
 
 	case PFCP_IE_FQ_CSID:
 		if (!req->pgw_c_fq_csid)
-			req->pgw_c_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->pgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->sgw_c_fq_csid)
-			req->sgw_c_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->sgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->mme_fq_csid)
-			req->mme_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->mme_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->epdg_fq_csid)
-			req->epdg_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->epdg_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		else if (!req->twan_fq_csid)
-			req->twan_fq_csid = (struct pfcp_ie_fq_csid *)cp;
+			req->twan_fq_csid = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_USER_PLANE_INACTIVITY_TIMER:
-		req->user_plane_inactivity_timer = (struct pfcp_ie_user_plane_inactivity_timer *)cp;
+		req->user_plane_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_QUERY_URR_REFERENCE:
-		req->query_urr_reference = (struct pfcp_ie_query_urr_reference *)cp;
+		req->query_urr_reference = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_TRACE_INFORMATION:
-		req->trace_information = (struct pfcp_ie_trace_information *)cp;
+		req->trace_information = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_REMOVE_MAR:
-		req->remove_mar = (struct pfcp_ie_remove_mar *)cp;
+		new_remove_mar = mpool_zalloc(&msg->mp, sizeof(*new_remove_mar));
+		if (!new_remove_mar)
+			return;
+		req->remove_mar = new_remove_mar;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_mar, msg, new_remove_mar);
 		break;
 
 	case PFCP_IE_UPDATE_MAR:
-		req->update_mar = (struct pfcp_ie_update_mar *)cp;
+		new_update_mar = mpool_zalloc(&msg->mp, sizeof(*new_update_mar));
+		if (!new_update_mar)
+			return;
+		req->update_mar = new_update_mar;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_mar, msg, new_update_mar);
 		break;
 
 	case PFCP_IE_CREATE_MAR:
-		req->create_mar = (struct pfcp_ie_create_mar *)cp;
+		new_create_mar = mpool_zalloc(&msg->mp, sizeof(*new_create_mar));
+		if (!new_create_mar)
+			return;
+		req->create_mar = new_create_mar;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_mar, msg, new_create_mar);
 		break;
 
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_REMOVE_SRR:
-		req->remove_srr = (struct pfcp_ie_remove_srr *)cp;
+		new_remove_srr = mpool_zalloc(&msg->mp, sizeof(*new_remove_srr));
+		if (!new_remove_srr)
+			return;
+		req->remove_srr = new_remove_srr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_remove_srr, msg, new_remove_srr);
 		break;
 
 	case PFCP_IE_CREATE_SRR:
-		req->create_srr = (struct pfcp_ie_create_srr *)cp;
+		new_create_srr = mpool_zalloc(&msg->mp, sizeof(*new_create_srr));
+		if (!new_create_srr)
+			return;
+		req->create_srr = new_create_srr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_create_srr, msg, new_create_srr);
 		break;
 
 	case PFCP_IE_UPDATE_SRR:
-		req->update_srr = (struct pfcp_ie_update_srr *)cp;
+		new_update_srr = mpool_zalloc(&msg->mp, sizeof(*new_update_srr));
+		if (!new_update_srr)
+			return;
+		req->update_srr = new_update_srr;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_update_srr, msg, new_update_srr);
 		break;
 
 	case PFCP_IE_RAT_TYPE:
-		req->rat_type = (struct pfcp_ie_rat_type *)cp;
+		req->rat_type = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_GROUP_ID:
-		req->group_id = (struct pfcp_ie_group_id *)cp;
+		req->group_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	default:
