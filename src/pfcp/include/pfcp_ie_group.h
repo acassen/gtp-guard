@@ -671,6 +671,7 @@ struct pfcp_ie_updated_pdr {
 	struct pfcp_ie_ue_ip_address *ue_ip_address;
 };
 
+#if 0
 /* Additional Usage Reports Information Grouped IE */
 struct pfcp_ie_additional_usage_reports_information {
 	/* Mandatory IEs */
@@ -678,3 +679,4 @@ struct pfcp_ie_additional_usage_reports_information {
 	/* Optional IEs */
 	struct pfcp_ie_number_of_additional_usage_reports *number_of_additional_usage_reports;
 };
+#endif

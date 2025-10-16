@@ -22,6 +22,8 @@
 
 #include "list_head.h"
 
+#define MPOOL_DEFAULT_SIZE	8192
+
 struct mpool
 {
 	struct list_head	head;
@@ -40,7 +42,7 @@ static char *mpool_xstrdup(struct mpool *mp, const char *src);
 char *mpool_asprintf(struct mpool *mp, const char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));
 
-void mpool_prealloc(struct mpool *mp, size_t size);
+int mpool_prealloc(struct mpool *mp, size_t size);
 static void mpool_move(struct mpool *dst, struct mpool *src);
 
 static void mpool_init(struct mpool *mp);

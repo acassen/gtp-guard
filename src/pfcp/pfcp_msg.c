@@ -21,12 +21,14 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
 
 #include "pfcp_msg.h"
 #include "include/pfcp.h"
 #include "pkt_buffer.h"
+#include "mempool.h"
 
 /*
  *	PFCP msg helpers
@@ -74,20 +76,24 @@ pfcp_add_ie_to_array(void ***array, void *ie)
  * 	PFCP Heartbeat Request
  */
 static void
-pfcp_parse_heartbeat_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_heartbeat_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_heartbeat_request *req = (struct pfcp_heartbeat_request *) arg;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_heartbeat_request *req;
+
+	req = mpool_malloc(&msg->mp, sizeof(*req));
+	msg->heartbeat_request = req;
 
 	switch (ie_type) {
 	case PFCP_IE_RECOVERY_TIME_STAMP:
-		req->recovery_time_stamp = (struct pfcp_ie_recovery_time_stamp *)cp;
+		req->recovery_time_stamp = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_SOURCE_IP_ADDRESS:
-		req->source_ip_address = (struct pfcp_ie_source_ip_address *)cp;
+		req->source_ip_address = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	default:
@@ -98,20 +104,93 @@ pfcp_parse_heartbeat_request(const uint8_t *cp, int *mandatory, void *arg)
 /*
  * 	PFCP PFD Management Request
  */
-static void
-pfcp_parse_pfd_management_request(const uint8_t *cp, int *mandatory, void *arg)
+static int
+pfcp_parse_ie_pfd_context(void *m, void *n, const uint8_t *cp)
 {
-	struct pfcp_pfd_management_request *req = (struct pfcp_pfd_management_request *) arg;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_pfd_context *pfd_context = n;
+
+	switch (ie_type) {
+	case PFCP_IE_PFD_CONTENTS:
+		pfd_context->pfd_contents = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_application_id_pfds(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_application_id_pfds *pfds = n;
+	struct pfcp_ie_pfd_context *pfd_context;
+
+	switch (ie_type) {
+	case PFCP_IE_APPLICATION_ID:
+		pfds->application_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_PFD_CONTEXT:
+		pfd_context = mpool_malloc(&msg->mp, sizeof(*pfd_context));
+		if (!pfd_context)
+			return -1;
+		pfds->pfd_context = pfd_context;
+		pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+				pfcp_parse_ie_pfd_context, msg, pfd_context);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static struct pfcp_ie_application_id_pfds *
+pfcp_parse_application_id_pfds(struct pfcp_msg *msg, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	struct pfcp_ie_application_id_pfds *new;
+
+	new = mpool_malloc(&msg->mp, sizeof(*new));
+	if (!new)
+		return NULL;
+
+	pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+			pfcp_parse_ie_application_id_pfds, msg, new);
+	return new;
+}
+
+static void
+pfcp_parse_pfd_management_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_pfd_management_request *req;
+
+	req = mpool_malloc(&msg->mp, sizeof(*req));
+	if (!req)
+		return;
+	msg->pfd_management_request = req;
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_APPLICATION_ID_PFDS:
-		req->application_id_pfds = (struct pfcp_ie_application_id_pfds *)cp;
+		req->application_id_pfds = pfcp_parse_application_id_pfds(msg, cp);
 		break;
 
 	default:
@@ -123,9 +202,9 @@ pfcp_parse_pfd_management_request(const uint8_t *cp, int *mandatory, void *arg)
  * 	PFCP Association Setup Request
  */
 static void
-pfcp_parse_association_setup_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_association_setup_request *req = (struct pfcp_association_setup_request *) arg;
+	struct pfcp_association_setup_request *req = msg->association_setup_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -181,9 +260,9 @@ pfcp_parse_association_setup_request(const uint8_t *cp, int *mandatory, void *ar
  * 	PFCP Association Update Request
  */
 static void
-pfcp_parse_association_update_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_association_update_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_association_update_request *req = (struct pfcp_association_update_request *) arg;
+	struct pfcp_association_update_request *req = msg->association_update_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -242,9 +321,9 @@ pfcp_parse_association_update_request(const uint8_t *cp, int *mandatory, void *a
  * 	PFCP Association Release Request
  */
 static void
-pfcp_parse_association_release_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_association_release_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_association_release_request *req = (struct pfcp_association_release_request *) arg;
+	struct pfcp_association_release_request *req = msg->association_release_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -263,9 +342,9 @@ pfcp_parse_association_release_request(const uint8_t *cp, int *mandatory, void *
  * 	PFCP Node Report Request
  */
 static void
-pfcp_parse_node_report_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_node_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_node_report_request *req = (struct pfcp_node_report_request *) arg;
+	struct pfcp_node_report_request *req = msg->node_report_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -301,9 +380,9 @@ pfcp_parse_node_report_request(const uint8_t *cp, int *mandatory, void *arg)
  * 	PFCP Session Set Deletion Request
  */
 static void
-pfcp_parse_session_set_deletion_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_session_set_deletion_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_session_set_deletion_request *req = (struct pfcp_session_set_deletion_request *) arg;
+	struct pfcp_session_set_deletion_request *req = msg->session_set_deletion_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -339,9 +418,9 @@ pfcp_parse_session_set_deletion_request(const uint8_t *cp, int *mandatory, void 
  * 	PFCP Session Establishment Request
  */
 static void
-pfcp_parse_session_establishment_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_session_establishment_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_session_establishment_request *req = (struct pfcp_session_establishment_request *) arg;
+	struct pfcp_session_establishment_request *req = msg->session_establishment_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -446,9 +525,9 @@ pfcp_parse_session_establishment_request(const uint8_t *cp, int *mandatory, void
  * 	PFCP Session Modification Request
  */
 static void
-pfcp_parse_session_modification_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_session_modification_request *req = (struct pfcp_session_modification_request *) arg;
+	struct pfcp_session_modification_request *req = msg->session_modification_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -607,9 +686,9 @@ pfcp_parse_session_modification_request(const uint8_t *cp, int *mandatory, void 
  * 	PFCP Session Deletion Request
  */
 static void
-pfcp_parse_session_deletion_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_session_deletion_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_session_deletion_request *req = (struct pfcp_session_deletion_request *) arg;
+	struct pfcp_session_deletion_request *req = msg->session_deletion_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -635,9 +714,9 @@ pfcp_parse_session_deletion_request(const uint8_t *cp, int *mandatory, void *arg
  * 	PFCP Session Report Request
  */
 static void
-pfcp_parse_session_report_request(const uint8_t *cp, int *mandatory, void *arg)
+pfcp_parse_session_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
-	struct pfcp_session_report_request *req = (struct pfcp_session_report_request *) arg;
+	struct pfcp_session_report_request *req = msg->session_report_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
 
@@ -698,7 +777,7 @@ pfcp_parse_session_report_request(const uint8_t *cp, int *mandatory, void *arg)
  */
 static const struct {
 	int mandatory_ie;
-	void (*parse) (const uint8_t *, int *, void *);
+	void (*parse) (struct pfcp_msg *, const uint8_t *, int *);
 } pfcp_msg_decoder[1 << 8] = {
 	[PFCP_HEARTBEAT_REQUEST]		= { 1,
 						    pfcp_parse_heartbeat_request
@@ -743,7 +822,7 @@ static const struct {
  * Parse recursion over set of IEs will be made during message handling.
  */
 int
-pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg)
+pfcp_msg_parse(struct pkt_buffer *pbuff, struct pfcp_msg *msg)
 {
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	int mandatory_found = 0;
@@ -751,7 +830,7 @@ pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg)
 	const uint8_t *cp;
 	size_t offset;
 
-	if (!pbuff || !arg)
+	if (!pbuff || !msg)
 		return -1;
 
 	/* Parse PFCP header */
@@ -771,7 +850,7 @@ pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg)
 		if (cp + offset > pbuff->end)
 			continue;
 
-		(*(pfcp_msg_decoder[pfcph->type].parse)) (cp, &mandatory_found, arg);
+		(*(pfcp_msg_decoder[pfcph->type].parse)) (msg, cp, &mandatory_found);
 	}
 
 	/* Validate mandatory IEs are present */
@@ -779,4 +858,31 @@ pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg)
 		return -1;
 
 	return 0;
+}
+
+struct pfcp_msg *
+pfcp_msg_alloc(void)
+{
+	struct pfcp_msg *new;
+	int err;
+
+	new = calloc(1, sizeof(*new));
+	if (!new)
+		return NULL;
+
+	mpool_init(&new->mp);
+	err = mpool_prealloc(&new->mp, MPOOL_DEFAULT_SIZE);
+	if (err) {
+		free(new);
+		return NULL;
+	}
+
+	return new;
+}
+
+void
+pfcp_msg_free(struct pfcp_msg *msg)
+{
+	mpool_release(&msg->mp);
+	free(msg);
 }

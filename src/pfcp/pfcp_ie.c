@@ -31,6 +31,31 @@
  *	PFCP Pkt IE Factory
  */
 int
+pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
+	        int (*hdl) (void *, void *, const uint8_t *), void *arg1, void *arg2)
+{
+	struct pfcp_ie *ie;
+	const uint8_t *cp, *end = buffer + bsize;
+	size_t offset;
+	int err;
+
+	for (cp = buffer; cp < end; cp += offset) {
+		ie = (struct pfcp_ie *) cp;
+		offset = sizeof(struct pfcp_ie) + ntohs(ie->length);
+
+		/* bound checking */
+		if (cp + offset > end)
+			return -1;
+
+		err = (*(hdl)) (arg1, arg2, cp);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
+
+int
 pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length)
 {
 	struct pfcp_hdr *h = (struct pfcp_hdr *) pbuff->head;

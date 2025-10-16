@@ -3464,6 +3464,9 @@ struct pfcp_ie_tl_container {
 
 
 /* Prototypes */
+int pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
+		    int (*parse) (void *, void *, const uint8_t *),
+		    void *arg1, void *arg2);
 int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
 int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);

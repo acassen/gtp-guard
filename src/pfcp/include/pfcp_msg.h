@@ -23,7 +23,9 @@
 #include <stdint.h>
 #include "pfcp.h"
 #include "pfcp_ie.h"
+#include "pfcp_ie_group.h"
 #include "pkt_buffer.h"
+#include "mempool.h"
 
 
 /*
@@ -354,6 +356,8 @@ struct pfcp_session_report_response {
 };
 
 struct pfcp_msg {
+	struct mpool mp;
+
 	struct pfcp_hdr h;
 	union {
 		struct pfcp_heartbeat_request *heartbeat_request;
@@ -386,4 +390,6 @@ struct pfcp_msg {
 /* Prototypes */
 int pfcp_msg_hlen(struct pkt_buffer *pbuff);
 int pfcp_msg_reset_hlen(struct pkt_buffer *pbuff);
-int pfcp_msg_parse(struct pkt_buffer *pbuff, void *arg);
+int pfcp_msg_parse(struct pkt_buffer *pbuff, struct pfcp_msg *msg);
+struct pfcp_msg *pfcp_msg_alloc(void);
+void pfcp_msg_free(struct pfcp_msg *msg);

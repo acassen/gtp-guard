@@ -133,7 +133,7 @@ mpool_new(size_t size)
 }
 
 static inline void *
-_mpool_alloc(struct mpool *mp, size_t size, bool zeromem)
+__mpool_alloc(struct mpool *mp, size_t size, bool zeromem)
 {
 	struct mpool_prealloc_area *pa;
 	struct mpool_chunk *c, *sc;
@@ -173,13 +173,13 @@ _mpool_alloc(struct mpool *mp, size_t size, bool zeromem)
 void *
 mpool_malloc(struct mpool *mp, size_t size)
 {
-	return _mpool_alloc(mp, size, false);
+	return __mpool_alloc(mp, size, false);
 }
 
 void *
 mpool_zalloc(struct mpool *mp, size_t size)
 {
-	return _mpool_alloc(mp, size, true);
+	return __mpool_alloc(mp, size, true);
 }
 
 void *
@@ -189,13 +189,13 @@ mpool_realloc(struct mpool *mp, void *old_data, size_t size)
 	void *d;
 
 	if (old_data == NULL)
-		return _mpool_alloc(mp, size, false);
+		return __mpool_alloc(mp, size, false);
 
 	oc = container_of(old_data, struct mpool_chunk, data);
 	if (oc->size >= size)
 		return oc->data;
 
-	d = _mpool_alloc(mp, size, false);
+	d = __mpool_alloc(mp, size, false);
 	if (unlikely(d == NULL))
 		return NULL;
 	memcpy(d, oc->data, oc->size);
@@ -215,13 +215,13 @@ mpool_zrealloc(struct mpool *mp, void *old_data, size_t size)
 	void *d;
 
 	if (old_data == NULL)
-		return _mpool_alloc(mp, size, true);
+		return __mpool_alloc(mp, size, true);
 
 	oc = container_of(old_data, struct mpool_chunk, data);
 	if (oc->size >= size)
 		return oc->data;
 
-	d = _mpool_alloc(mp, size, false);
+	d = __mpool_alloc(mp, size, false);
 	if (unlikely(d == NULL))
 		return NULL;
 	memcpy(d, oc->data, oc->size);
@@ -252,7 +252,7 @@ mpool_memdup(struct mpool *mp, const void *src, size_t size)
 {
 	void *out;
 
-	out = _mpool_alloc(mp, size, false);
+	out = __mpool_alloc(mp, size, false);
 	if (out)
 		memcpy(out, src, size);
 
@@ -265,7 +265,7 @@ mpool_strdup(struct mpool *mp, const char *src)
 	int l = strlen(src);
 	char *out;
 
-	out = _mpool_alloc(mp, l + 1, false);
+	out = __mpool_alloc(mp, l + 1, false);
 	if (out) {
 		strcpy(out, src);
 		out[l] = 0;
@@ -304,7 +304,7 @@ mpool_release(struct mpool *mp)
 	}
 }
 
-void
+int
 mpool_prealloc(struct mpool *mp, size_t size)
 {
 	struct mpool_prealloc_area *mpa;
@@ -313,10 +313,11 @@ mpool_prealloc(struct mpool *mp, size_t size)
 	size = ALIGN(size, 8);
 	b = malloc(sizeof (*b) + sizeof (*mpa) + size);
 	if (unlikely(b == NULL))
-		return;
+		return -1;
 	b->size = size;
 	b->flags = CHUNK_FL_PREALLOC_AREA;
 	mpa = (struct mpool_prealloc_area *)b->data;
 	mpa->idx = 0;
 	list_add(&b->list, &mp->head);
+	return 0;
 }
