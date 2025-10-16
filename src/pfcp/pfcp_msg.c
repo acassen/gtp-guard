@@ -2693,18 +2693,26 @@ pfcp_parse_session_deletion_request(struct pfcp_msg *msg, const uint8_t *cp, int
 	struct pfcp_session_deletion_request *req = msg->session_deletion_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->session_deletion_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_TL_CONTAINER:
-		req->tl_container = (struct pfcp_ie_tl_container *)cp;
+		req->tl_container = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_NODE_ID:
-		req->node_id = (struct pfcp_ie_node_id *)cp;
+		req->node_id = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_F_SEID:
-		req->cp_f_seid = (struct pfcp_ie_f_seid *)cp;
+		req->cp_f_seid = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	default:
@@ -2715,57 +2723,337 @@ pfcp_parse_session_deletion_request(struct pfcp_msg *msg, const uint8_t *cp, int
 /*
  * 	PFCP Session Report Request
  */
+static int
+pfcp_parse_ie_downlink_data_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_downlink_data_report *report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_PDR_ID:
+		report->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_DOWNLINK_DATA_SERVICE_INFORMATION:
+		report->downlink_data_service_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_usage_report_srr(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_usage_report *report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_URR_ID:
+		report->urr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_UR_SEQN:
+		report->ur_seqn = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_USAGE_REPORT_TRIGGER:
+		report->usage_report_trigger = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_START_TIME:
+		report->start_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_END_TIME:
+		report->end_time = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_VOLUME_MEASUREMENT:
+		report->volume_measurement = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_DURATION_MEASUREMENT:
+		report->duration_measurement = mpool_memdup(&msg->mp, cp, size);
+		break;
+#if 0
+	case PFCP_IE_APPLICATION_DETECTION_INFORMATION:
+		report->application_detection_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+#endif
+	case PFCP_IE_UE_IP_ADDRESS:
+		report->ue_ip_address = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_NETWORK_INSTANCE:
+		report->network_instance = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIME_OF_FIRST_PACKET:
+		report->time_of_first_packet = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIME_OF_LAST_PACKET:
+		report->time_of_last_packet = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_USAGE_INFORMATION:
+		report->usage_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_QUERY_URR_REFERENCE:
+		report->query_urr_reference = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIME_STAMP:
+		report->event_time_stamp = mpool_memdup(&msg->mp, cp, size);
+		break;
+#if 0
+	case PFCP_IE_ETHERNET_TRAFFIC_INFORMATION:
+		report->ethernet_traffic_information = mpool_memdup(&msg->mp, cp, size);
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_error_indication_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_error_indication_report *report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_F_TEID:
+		report->remote_f_teid = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_PDR_ID:
+		report->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_load_control_information(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_load_control_information *info = n;
+
+	switch (ie_type) {
+	case PFCP_IE_SEQUENCE_NUMBER:
+		info->load_control_sequence_number = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_METRIC:
+		info->load_metric = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_overload_control_information(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_overload_control_information *info = n;
+
+	switch (ie_type) {
+	case PFCP_IE_SEQUENCE_NUMBER:
+		info->overload_control_sequence_number = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_METRIC:
+		info->overload_reduction_metric = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_TIMER:
+		info->period_of_validity = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_OCI_FLAGS:
+		info->overload_control_information_flags = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_packet_rate_status_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_packet_rate_status_report *report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_QER_ID:
+		report->qer_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_PACKET_RATE_STATUS:
+		report->packet_rate_status = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+pfcp_parse_ie_session_report(void *m, void *n, const uint8_t *cp)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_msg *msg = m;
+	struct pfcp_ie_session_report *report = n;
+
+	switch (ie_type) {
+	case PFCP_IE_SRR_ID:
+		report->srr_id = mpool_memdup(&msg->mp, cp, size);
+		break;
+
+	case PFCP_IE_ACCESS_AVAILABILITY_REPORT:
+		report->access_availability_report = mpool_memdup(&msg->mp, cp, size);
+		break;
+#if 0
+	case PFCP_IE_QOS_MONITORING_REPORT:
+		report->qos_monitoring_report = mpool_memdup(&msg->mp, cp, size);
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+
 static void
 pfcp_parse_session_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
 {
 	struct pfcp_session_report_request *req = msg->session_report_request;
 	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
 	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+
+	if (!req) {
+		req = mpool_zalloc(&msg->mp, sizeof(*req));
+		if (!req)
+			return;
+		msg->session_report_request = req;
+	}
 
 	switch (ie_type) {
 	case PFCP_IE_REPORT_TYPE:
-		req->report_type = (struct pfcp_ie_report_type *)cp;
+		req->report_type = mpool_memdup(&msg->mp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_DOWNLINK_DATA_REPORT:
-		req->downlink_data_report = (struct pfcp_ie_downlink_data_report *)cp;
+		req->downlink_data_report = mpool_zalloc(&msg->mp, sizeof(*req->downlink_data_report));
+		if (req->downlink_data_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_downlink_data_report,
+					msg, req->downlink_data_report);
 		break;
 
 	case PFCP_IE_USAGE_REPORT:
-		req->usage_report = (struct pfcp_ie_usage_report *)cp;
+		req->usage_report = mpool_zalloc(&msg->mp, sizeof(*req->usage_report));
+		if (req->usage_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_usage_report_srr,
+					msg, req->usage_report);
 		break;
 
 	case PFCP_IE_ERROR_INDICATION_REPORT:
-		req->error_indication_report = (struct pfcp_ie_error_indication_report *)cp;
+		req->error_indication_report = mpool_zalloc(&msg->mp, sizeof(*req->error_indication_report));
+		if (req->error_indication_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_error_indication_report,
+					msg, req->error_indication_report);
 		break;
 
 	case PFCP_IE_LOAD_CONTROL_INFORMATION:
-		req->load_control_information = (struct pfcp_ie_load_control_information *)cp;
+		req->load_control_information = mpool_zalloc(&msg->mp, sizeof(*req->load_control_information));
+		if (req->load_control_information)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_load_control_information,
+					msg, req->load_control_information);
 		break;
 
 	case PFCP_IE_OVERLOAD_CONTROL_INFORMATION:
-		req->overload_control_information = (struct pfcp_ie_overload_control_information *)cp;
+		req->overload_control_information = mpool_zalloc(&msg->mp, sizeof(*req->overload_control_information));
+		if (req->overload_control_information)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_overload_control_information,
+					msg, req->overload_control_information);
 		break;
 
 	case PFCP_IE_ADDITIONAL_USAGE_REPORTS_INFORMATION:
-		req->additional_usage_reports_information = (struct pfcp_ie_additional_usage_reports_information *)cp;
+		req->additional_usage_reports_information = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_PFCPSRREQ_FLAGS:
-		req->pfcpsrreq_flags = (struct pfcp_ie_pfcpsrreq_flags *)cp;
+		req->pfcpsrreq_flags = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_F_SEID:
-		req->old_cp_f_seid = (struct pfcp_ie_f_seid *)cp;
+		req->old_cp_f_seid = mpool_memdup(&msg->mp, cp, size);
 		break;
 
 	case PFCP_IE_PACKET_RATE_STATUS_REPORT:
-		req->packet_rate_status_report = (struct pfcp_ie_packet_rate_status_report *)cp;
+		req->packet_rate_status_report = mpool_zalloc(&msg->mp, sizeof(*req->packet_rate_status_report));
+		if (req->packet_rate_status_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_packet_rate_status_report,
+					msg, req->packet_rate_status_report);
 		break;
 
 	case PFCP_IE_SESSION_REPORT:
-		req->session_report = (struct pfcp_ie_session_report *)cp;
+		req->session_report = mpool_zalloc(&msg->mp, sizeof(*req->session_report));
+		if (req->session_report)
+			pfcp_ie_foreach(cp + sizeof(*ie), ntohs(ie->length),
+					pfcp_parse_ie_session_report,
+					msg, req->session_report);
 		break;
 
 	default:

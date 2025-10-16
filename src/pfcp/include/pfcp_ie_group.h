@@ -512,8 +512,6 @@ struct pfcp_ie_packet_rate_status_report {
 	/* Mandatory IEs */
 	struct pfcp_ie_qer_id *qer_id;
 	struct pfcp_ie_packet_rate_status *packet_rate_status;
-	/* Optional IEs */
-	struct pfcp_ie_rate_control_status_per_qos_flow *rate_control_status_per_qos_flow;
 };
 
 /* Session Report Grouped IE */
@@ -522,7 +520,7 @@ struct pfcp_ie_session_report {
 	struct pfcp_ie_srr_id *srr_id;
 	struct pfcp_ie_access_availability_report *access_availability_report;
 	/* Optional IEs */
-	struct pfcp_ie_qos_monitoring_report *qos_monitoring_report;
+	/*struct pfcp_ie_qos_monitoring_report *qos_monitoring_report;*/
 };
 
 /* Update FAR Grouped IE */
@@ -651,14 +649,14 @@ struct pfcp_ie_usage_report {
 	struct pfcp_ie_end_time *end_time;
 	struct pfcp_ie_volume_measurement *volume_measurement;
 	struct pfcp_ie_duration_measurement *duration_measurement;
-	struct pfcp_ie_application_detection_information *application_detection_information;
+	/*struct pfcp_ie_application_detection_information *application_detection_information;*/
 	struct pfcp_ie_ue_ip_address *ue_ip_address;
 	struct pfcp_ie_network_instance *network_instance;
 	struct pfcp_ie_time_of_first_packet *time_of_first_packet;
 	struct pfcp_ie_time_of_last_packet *time_of_last_packet;
 	struct pfcp_ie_usage_information *usage_information;
 	struct pfcp_ie_query_urr_reference *query_urr_reference;
-	struct pfcp_ie_event_time_stamp *event_time_stamp;
+	struct pfcp_ie_time_stamp *event_time_stamp;
 	struct pfcp_ie_ethernet_traffic_information *ethernet_traffic_information;
 };
 
