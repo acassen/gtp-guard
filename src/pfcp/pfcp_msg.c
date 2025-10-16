@@ -822,7 +822,7 @@ static const struct {
  * Parse recursion over set of IEs will be made during message handling.
  */
 int
-pfcp_msg_parse(struct pkt_buffer *pbuff, struct pfcp_msg *msg)
+pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff)
 {
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	int mandatory_found = 0;

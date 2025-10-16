@@ -390,6 +390,6 @@ struct pfcp_msg {
 /* Prototypes */
 int pfcp_msg_hlen(struct pkt_buffer *pbuff);
 int pfcp_msg_reset_hlen(struct pkt_buffer *pbuff);
-int pfcp_msg_parse(struct pkt_buffer *pbuff, struct pfcp_msg *msg);
+int pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff);
 struct pfcp_msg *pfcp_msg_alloc(void);
 void pfcp_msg_free(struct pfcp_msg *msg);
