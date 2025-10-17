@@ -171,7 +171,7 @@ pfcp_proto_dump(struct pfcp_server *srv, struct pfcp_msg *msg, struct sockaddr_s
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	char buffer[4096];
+	char buffer[8192];
 	size_t size = sizeof(buffer);
 
 	pfcp_proto_buffer_format(addr, pbuff, buffer, size, dir);
