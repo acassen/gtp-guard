@@ -93,7 +93,7 @@ pfcp_parse_alloc_ie(struct pfcp_msg *msg, const uint8_t *buffer,
 		return -1;
 
 	*ie_dst = mpool_zalloc(&msg->mp, ie_size);
-	if (!ie_dst)
+	if (!*ie_dst)
 		return -1;
 
 	pfcp_ie_foreach(buffer + sizeof(*ie), ntohs(ie->length),
