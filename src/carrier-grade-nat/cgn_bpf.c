@@ -495,11 +495,11 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 	c->v4_free_blocks = bpf_object__find_map_by_name(obj, "v4_free_blocks");
 	c->users = bpf_object__find_map_by_name(obj, "users");
 	c->flow_port_timeouts = bpf_object__find_map_by_name(obj, "flow_port_timeouts");
-	c->blog_event = bpf_object__find_map_by_name(obj, "v4_block_log_event");
+	c->blog_queue = bpf_object__find_map_by_name(obj, "v4_block_log_queue");
 	c->v4_priv_flows = bpf_object__find_map_by_name(obj, "v4_priv_flows");
 
 	if (!c->v4_blocks || !c->v4_free_blocks || !c->users ||
-	    !c->flow_port_timeouts || !c->blog_event) {
+	    !c->flow_port_timeouts || !c->blog_queue) {
 		log_message(LOG_ERR, "%s: a mandatory bpf map is missing",
 			    p->name);
 		return -1;

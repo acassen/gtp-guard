@@ -64,7 +64,6 @@ struct cgn_ctx
 	struct bpf_map		*users;
 	struct bpf_map		*v4_priv_flows;
 	struct bpf_map		*flow_port_timeouts;
-	struct bpf_map		*blog_event;
 
 	/* conf. read-only after bpf prog is opened */
 	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */
@@ -82,10 +81,9 @@ struct cgn_ctx
 	size_t			v4_block_size;
 
 	/* cgn_blog */
-	struct perf_buffer	*blog_pb;
-	struct cgn_blog_pb	**blog_apb;	/* per cpu */
+	struct bpf_map		*blog_queue;
 	struct cdr_fwd_entry	*blog_cdr_fwd;
-	int			blog_apb_n;
+	struct thread		*blog_timer;
 
 	/* metrics */
 };

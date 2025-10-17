@@ -288,8 +288,7 @@ cgn_ctx_release(struct cgn_ctx *c)
 {
 	if (c->blog_cdr_fwd != NULL)
 		--c->blog_cdr_fwd->refcount;
-	if (c->blog_pb != NULL)
-		cgn_blog_release(c);
+	cgn_blog_release(c);
 	free(c->cgn_addr);
 	list_del(&c->next);
 	free(c);

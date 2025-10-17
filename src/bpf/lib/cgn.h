@@ -101,14 +101,13 @@ struct {
 } v4_free_blocks SEC(".maps");
 
 struct {
-	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-	__uint(key_size, sizeof(__u32));
-	__uint(value_size, sizeof(__u32));
-} v4_block_log_event SEC(".maps");
+	__uint(type, BPF_MAP_TYPE_QUEUE);
+	__uint(max_entries, 15000);
+	__type(value, struct cgn_v4_block_log);
+} v4_block_log_queue SEC(".maps");
 
 static __always_inline void
-_block_log(struct xdp_md *ctx, __u32 priv_addr, __u32 cgn_addr,
-	   const struct cgn_v4_block *bl, int alloc)
+_block_log(__u32 priv_addr, __u32 cgn_addr, const struct cgn_v4_block *bl, int alloc)
 {
 	__u32 duration = bpf_ktime_get_ns() - bl->alloc_time / NSEC_PER_SEC;
 
@@ -121,8 +120,7 @@ _block_log(struct xdp_md *ctx, __u32 priv_addr, __u32 cgn_addr,
 		.port_size = port_count,
 		.flag = alloc ? CGN_BLOG_FL_ALLOC : 0,
 	};
-	bpf_perf_event_output(ctx, &v4_block_log_event,
-			      BPF_F_CURRENT_CPU, &s, sizeof(s));
+	bpf_map_push_elem(&v4_block_log_queue, &s, 0);
 }
 
 static __always_inline int
@@ -461,6 +459,8 @@ _block_release(struct cgn_user *u, struct cgn_v4_ipblock *ipbl,
 		bpf_spin_unlock(lock);
 	}
 
+	_block_log(u->addr, ipbl->cgn_addr, bl, 0);
+
 	/* release in user's allocated block */
 	block_n = u->block_n;
 	if (block_n < 1 || block_n > bl_user_max)
@@ -753,8 +753,7 @@ _flow_alloc(struct cgn_user *u, struct cgn_packet *pp)
 		return NULL;
 	}
 	pp->cgn_addr = ipbl->cgn_addr;
-
-	_block_log(pp->ctx, u->addr, ipbl->cgn_addr, bl, 1);
+	_block_log(u->addr, ipbl->cgn_addr, bl, 1);
 
 	cgn_port = _block_get_next_port(bl);
 	if (cgn_port)
