@@ -27,6 +27,7 @@
 #include "gtp_data.h"
 #include "thread.h"
 #include "signals.h"
+#include "mempool.h"
 
 /* Local data */
 struct data *daemon_data;
@@ -91,6 +92,52 @@ static struct thread *t1, *t2, *t3;
 static int sigint;
 
 static void
+test_mpool(void)
+{
+	struct mpool mp = MPOOL_INIT(mp);
+	uint8_t *d, *a[100];
+
+	d = mpool_malloc(&mp, 60);
+	d[0] = 'a';
+	d[59] = 'b';
+	mpool_free(d);
+
+	for (int i = 0; i < 100; i++) {
+		a[i] = mpool_malloc(&mp, 10 + i * 2);
+	}
+	mpool_free(a[50]);
+	mpool_free(a[0]);
+	mpool_release(&mp);
+
+	struct obj {
+		struct mpool mp;
+		char s[130];
+	} *obj;
+
+	obj = mpool_new(sizeof (*obj), 1000);
+	mpool_delete(obj);
+
+	obj = mpool_new(sizeof (*obj), 0);
+	mpool_malloc(&obj->mp, 50);
+	mpool_delete(obj);
+
+	obj = mpool_new(sizeof (*obj), 1000);
+	mpool_malloc(&obj->mp, 50);
+	mpool_delete(obj);
+
+	memset(a, 0x00, sizeof (a));
+	obj = mpool_new(sizeof (*obj), 1000);
+	for (int i = 10; i < 100; i++)
+		a[i] = mpool_malloc(&obj->mp, 50);
+	for (int i = 0; i < 90; i++)
+		a[i] = mpool_realloc(&obj->mp, a[i], 70);
+	for (int i = 50; i < 60; i++)
+		mpool_free(a[i]);
+	mpool_delete(obj);
+}
+
+
+static void
 sigint_hdl(__attribute__((unused)) void *v, __attribute__((unused)) int sig)
 {
 	if (++sigint > 2) {
@@ -131,6 +178,9 @@ timer_func(struct thread *t)
 int main(int argc, char **argv)
 {
 	int err;
+
+	test_mpool();
+	return 0;
 
 	m = thread_make_master(false);
 
