@@ -29,26 +29,26 @@ struct mpool
 	struct list_head	head;
 };
 
-void *mpool_new(size_t size);
-void *mpool_malloc(struct mpool *mp, size_t size);
-void *mpool_zalloc(struct mpool *mp, size_t size);
-void *mpool_realloc(struct mpool *mp, void *old_data, size_t size);
-void *mpool_zrealloc(struct mpool *mp, void *old_data, size_t size);
+void *mpool_malloc(struct mpool *mp, uint32_t size);
+void *mpool_zalloc(struct mpool *mp, uint32_t size);
+void *mpool_realloc(struct mpool *mp, void *old_data, uint32_t size);
+void *mpool_zrealloc(struct mpool *mp, void *old_data, uint32_t size);
 void mpool_free(void *data);
 static void mpool_xfree(void *data);
-void *mpool_memdup(struct mpool *mp, const void *src, size_t size);
+void *mpool_memdup(struct mpool *mp, const void *src, uint32_t size);
 char *mpool_strdup(struct mpool *mp, const char *src);
 static char *mpool_xstrdup(struct mpool *mp, const char *src);
 char *mpool_asprintf(struct mpool *mp, const char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));
 
-int mpool_prealloc(struct mpool *mp, size_t size);
 static void mpool_move(struct mpool *dst, struct mpool *src);
-
 static void mpool_init(struct mpool *mp);
 void mpool_release(struct mpool *mp);
+int mpool_prealloc(struct mpool *mp, uint32_t size);
+void *mpool_new(uint32_t size, uint32_t prealloc_size);
+static void mpool_delete(void *data);
 
-#define MPOOL_INIT(name) { { &((name).head), &((name).head) } }
+#define MPOOL_INIT(name) { LIST_HEAD_INIT((name).head) }
 
 static inline void
 mpool_init(struct mpool *mp)
@@ -77,3 +77,8 @@ mpool_xstrdup(struct mpool *mp, const char *src)
 	return NULL;
 }
 
+static inline void
+mpool_delete(void *data)
+{
+	mpool_release(data);
+}

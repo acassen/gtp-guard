@@ -2930,17 +2930,10 @@ struct pfcp_msg *
 pfcp_msg_alloc(void)
 {
 	struct pfcp_msg *new;
-	int err;
 
-	new = mpool_new(sizeof(*new));
+	new = mpool_new(sizeof(*new), MPOOL_DEFAULT_SIZE);
 	if (!new)
 		return NULL;
-
-	err = mpool_prealloc(&new->mp, MPOOL_DEFAULT_SIZE);
-	if (err) {
-		free(new);
-		return NULL;
-	}
 
 	return new;
 }
@@ -2948,5 +2941,5 @@ pfcp_msg_alloc(void)
 void
 pfcp_msg_free(struct pfcp_msg *msg)
 {
-	mpool_release(&msg->mp);
+	mpool_delete(msg);
 }
