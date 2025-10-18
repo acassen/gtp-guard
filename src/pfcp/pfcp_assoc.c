@@ -25,6 +25,7 @@
 
 #include "pfcp_assoc.h"
 #include "gtp_stddef.h"
+#include "inet_utils.h"
 #include "jhash.h"
 #include "bitops.h"
 #include "addr.h"
@@ -164,12 +165,12 @@ pfcp_assoc_get_by_ie(struct pfcp_ie_node_id *ie)
 		break;
 
 	case PFCP_NODE_ID_TYPE_IPV6:
-		n.ipv4 = ie->ipv4;
+		n.ipv6 = ie->ipv6;
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		memcpy2str((char *)n.fqdn, GTP_NAME_MAX_LEN,
-			   ie->fqdn, ntohs(ie->h.length) - 1);
+		inet_fqdn2str((char *)n.fqdn, GTP_NAME_MAX_LEN,
+			      ie->fqdn, ntohs(ie->h.length) - 1);
 		break;
 
 	default:
@@ -304,8 +305,8 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		memcpy2str((char *)new->node_id.fqdn, GTP_NAME_MAX_LEN,
-			   node_id->fqdn, ntohs(node_id->h.length) - 1);
+		inet_fqdn2str((char *)new->node_id.fqdn, GTP_NAME_MAX_LEN,
+			      node_id->fqdn, ntohs(node_id->h.length) - 1);
 		break;
 
 	default:

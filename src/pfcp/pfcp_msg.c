@@ -59,23 +59,25 @@ pfcp_msg_reset_hlen(struct pkt_buffer *pbuff)
 
 static int
 pfcp_parse_add_ie_to_array(struct pfcp_msg *msg, const uint8_t *buffer,
-			   void ***array, int *asize, size_t ie_size,
+			   void ***ie_array, int *nr_ie, size_t ie_size,
 			   int (*ie_parse) (void *, void *, const uint8_t *))
 {
 	struct pfcp_ie *ie = (struct pfcp_ie *) buffer;
+	void **array;
 	void *new_ie;
 
 	new_ie = mpool_zalloc(&msg->mp, ie_size);
 	if (!new_ie)
 		return -1;
 
-	*array = mpool_realloc(&msg->mp, *array, ie_size * (*asize + 1));
-	if (!*array) {
+	array = mpool_realloc(&msg->mp, *ie_array, (*nr_ie + 1) * sizeof(void *));
+	if (!array) {
 		mpool_free(new_ie);
 		return -1;
 	}
+	*ie_array = array;
 
-	(*array)[*asize++] = new_ie;
+	array[(*nr_ie)++] = new_ie;
 	pfcp_ie_foreach(buffer + sizeof(*ie), ntohs(ie->length),
 			ie_parse, msg, new_ie);
 	return 0;
@@ -1521,44 +1523,44 @@ pfcp_parse_session_establishment_request(struct pfcp_msg *msg, const uint8_t *cp
 
 	case PFCP_IE_CREATE_PDR:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_pdr, &req->nr_create_pdr,
-					   sizeof(*req->create_pdr), pfcp_parse_ie_create_pdr);
+					   sizeof(struct pfcp_ie_create_pdr), pfcp_parse_ie_create_pdr);
 		break;
 
 	case PFCP_IE_CREATE_FAR:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_far, &req->nr_create_far,
-					   sizeof(*req->create_far), pfcp_parse_ie_create_far);
+					   sizeof(struct pfcp_ie_create_far), pfcp_parse_ie_create_far);
 		break;
 
 	case PFCP_IE_CREATE_URR:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_urr, &req->nr_create_urr,
-					   sizeof(*req->create_urr), pfcp_parse_ie_create_urr);
+					   sizeof(struct pfcp_ie_create_urr), pfcp_parse_ie_create_urr);
 		break;
 
 	case PFCP_IE_CREATE_QER:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_qer, &req->nr_create_qer,
-					   sizeof(*req->create_qer), pfcp_parse_ie_create_qer);
+					   sizeof(struct pfcp_ie_create_qer), pfcp_parse_ie_create_qer);
 		break;
 
 	case PFCP_IE_CREATE_BAR:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_bar, &req->nr_create_bar,
-					   sizeof(*req->create_bar), pfcp_parse_ie_create_bar);
+					   sizeof(struct pfcp_ie_create_bar), pfcp_parse_ie_create_bar);
 		break;
 
 	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_traffic_endpoint,
 					   &req->nr_create_traffic_endpoint,
-					   sizeof(*req->create_traffic_endpoint),
+					   sizeof(struct pfcp_ie_create_traffic_endpoint),
 					   pfcp_parse_ie_create_traffic_endpoint);
 		break;
 
 	case PFCP_IE_CREATE_MAR:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_mar, &req->nr_create_mar,
-					   sizeof(*req->create_mar), pfcp_parse_ie_create_mar);
+					   sizeof(struct pfcp_ie_create_mar), pfcp_parse_ie_create_mar);
 		break;
 
 	case PFCP_IE_CREATE_SRR:
 		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_srr, &req->nr_create_srr,
-					   sizeof(*req->create_srr), pfcp_parse_ie_create_srr);
+					   sizeof(struct pfcp_ie_create_srr), pfcp_parse_ie_create_srr);
 		break;
 
 	default:

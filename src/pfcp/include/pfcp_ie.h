@@ -782,7 +782,7 @@ struct pfcp_ie_up_function_features {
 struct pfcp_ie_apply_action {
 	struct pfcp_ie h;
 	union {
-		uint8_t action_flags;
+		uint8_t flags;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 			uint8_t drop:1;
@@ -939,19 +939,20 @@ struct pfcp_ie_f_seid {
 	};
 	uint64_t seid;
 	union {
-		struct in_addr v4;
-		struct in6_addr v6;
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
 		struct {
-			struct in_addr v4;
-			struct in6_addr v6;
+			struct in_addr ipv4;
+			struct in6_addr ipv6;
 		} both;
-	} ip_address;
+	};
 } __attribute__((packed));
 
 /* Node ID IE */
 #define PFCP_NODE_ID_TYPE_IPV4		0
 #define PFCP_NODE_ID_TYPE_IPV6		1
 #define PFCP_NODE_ID_TYPE_FQDN		2
+#define PFCP_NODE_ID_FQDN_MAX_LEN	64
 struct pfcp_ie_node_id {
 	struct pfcp_ie h;
 	union {
@@ -971,7 +972,7 @@ struct pfcp_ie_node_id {
 	union {
 		struct in_addr ipv4;
 		struct in6_addr ipv6;
-		uint8_t *fqdn;
+		uint8_t fqdn[PFCP_NODE_ID_FQDN_MAX_LEN];
 	};
 } __attribute__((packed));
 
@@ -1753,7 +1754,7 @@ struct pfcp_ie_user_plane_ip_resource_information {
 /* User Plane Inactivity Timer IE */
 struct pfcp_ie_user_plane_inactivity_timer {
 	struct pfcp_ie h;
-	uint32_t user_plane_inactivity_timer;
+	uint32_t timer;
 } __attribute__((packed));
 
 /* Multiplier IE */

@@ -108,6 +108,26 @@ udp_csum(const void *buffer, size_t len, uint32_t src_addr, uint32_t dest_addr)
 	return (uint16_t)~sum;
 }
 
+/* FQDN to string formating */
+char *
+inet_fqdn2str(char *dst, size_t dsize, const uint8_t *fqdn, size_t fsize)
+{
+	const uint8_t *cp, *end = fqdn + fsize;
+	size_t offset = 0;
+
+	for (cp = fqdn; cp < end; cp += *cp + 1) {
+		if (offset + *cp > dsize - 1)
+			return NULL;
+
+		memcpy(dst + offset, cp + 1, *cp);
+		offset += *cp;
+		dst[offset++] = '.';
+	}
+
+	dst[offset - 1] = 0;
+	return dst;
+}
+
 /* IP network to ascii representation */
 char *
 inet_ntop2(uint32_t addr)

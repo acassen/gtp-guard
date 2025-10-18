@@ -109,14 +109,14 @@ int
 pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const char *buffer, size_t bsize)
 {
 	struct pfcp_ie_node_id *ie;
-	unsigned int length = sizeof(*ie) + bsize;
+	unsigned int length = sizeof(struct pfcp_ie) + 1 + bsize;
 
 	if (pfcp_ie_put(pbuff, PFCP_IE_NODE_ID, length) < 0)
 		return -1;
 
 	ie = (struct pfcp_ie_node_id *) pbuff->data;
 	ie->node_id_type = PFCP_NODE_ID_TYPE_FQDN;
-	memcpy(ie->fqdn, buffer, bsize);
+	memcpy(ie->fqdn, buffer, (bsize > PFCP_NODE_ID_FQDN_MAX_LEN) ? PFCP_NODE_ID_FQDN_MAX_LEN - 1 : bsize);
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
