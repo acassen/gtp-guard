@@ -31,7 +31,10 @@
 /*
  *	Global defines
  */
-#define PFCP_REQ_IE_ARRAY_SIZE	10
+enum pfcp_msg_mem_scheme {
+	PFCP_MSG_MEM_DUP = 0,
+	PFCP_MSG_MEM_ZEROCOPY,
+};
 
 
 /*
@@ -365,6 +368,7 @@ struct pfcp_session_report_response {
 
 struct pfcp_msg {
 	struct mpool mp;
+	int m_scheme;
 
 	struct pfcp_hdr h;
 	union {
@@ -399,5 +403,5 @@ struct pfcp_msg {
 int pfcp_msg_hlen(struct pkt_buffer *pbuff);
 int pfcp_msg_reset_hlen(struct pkt_buffer *pbuff);
 int pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff);
-struct pfcp_msg *pfcp_msg_alloc(void);
+struct pfcp_msg *pfcp_msg_alloc(int scheme);
 void pfcp_msg_free(struct pfcp_msg *msg);

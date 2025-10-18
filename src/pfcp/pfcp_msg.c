@@ -103,6 +103,21 @@ pfcp_parse_alloc_ie(struct pfcp_msg *msg, const uint8_t *buffer,
 	return 0;
 }
 
+static void
+pfcp_msg_alloc_scheme(struct pfcp_msg *msg, void **dst, const uint8_t *src, size_t ssize)
+{
+	switch (msg->m_scheme) {
+	case PFCP_MSG_MEM_DUP:
+		*dst = mpool_memdup(&msg->mp, src, ssize);
+		break;
+
+	case PFCP_MSG_MEM_ZEROCOPY:
+		*dst = (void *)src;
+		break;
+	default:
+		break;
+	}
+}
 
 /*
  * 	PFCP Heartbeat Request
@@ -124,12 +139,12 @@ pfcp_parse_heartbeat_request(struct pfcp_msg *msg, const uint8_t *cp, int *manda
 
 	switch (ie_type) {
 	case PFCP_IE_RECOVERY_TIME_STAMP:
-		req->recovery_time_stamp = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->recovery_time_stamp, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_SOURCE_IP_ADDRESS:
-		req->source_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->source_ip_address, cp, size);
 		break;
 
 	default:
@@ -151,7 +166,7 @@ pfcp_parse_ie_pfd_context(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_PFD_CONTENTS:
-		pfd_context->pfd_contents = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pfd_context->pfd_contents, cp, size);
 		break;
 
 	default:
@@ -172,7 +187,7 @@ pfcp_parse_ie_application_id_pfds(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_APPLICATION_ID:
-		pfds->application_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pfds->application_id, cp, size);
 		break;
 
 	case PFCP_IE_PFD_CONTEXT:
@@ -217,7 +232,7 @@ pfcp_parse_pfd_management_request(struct pfcp_msg *msg, const uint8_t *cp, int *
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		break;
 
 	case PFCP_IE_APPLICATION_ID_PFDS:
@@ -243,7 +258,7 @@ pfcp_parse_ie_session_retention_information(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_CP_PFCP_ENTITY_IP_ADDRESS:
-		session_retention_info->cp_pfcp_entity_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&session_retention_info->cp_pfcp_entity_ip_address, cp, size);
 		break;
 
 	default:
@@ -264,19 +279,19 @@ pfcp_parse_ie_ue_ip_address_pool_information(void *m, void *n, const uint8_t *cp
 
 	switch (ie_type) {
 	case PFCP_IE_UE_IP_ADDRESS_POOL_IDENTITY:
-		ue_ip_address_pool_info->ue_ip_address_pool_identity = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&ue_ip_address_pool_info->ue_ip_address_pool_identity, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		ue_ip_address_pool_info->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&ue_ip_address_pool_info->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_S_NSSAI:
-		ue_ip_address_pool_info->s_nssai = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&ue_ip_address_pool_info->s_nssai, cp, size);
 		break;
 
 	case PFCP_IE_IP_VERSION:
-		ue_ip_address_pool_info->ip_version = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&ue_ip_address_pool_info->ip_version, cp, size);
 		break;
 
 	default:
@@ -303,37 +318,37 @@ pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, in
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_RECOVERY_TIME_STAMP:
-		req->recovery_time_stamp = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->recovery_time_stamp, cp, size);
 		*mandatory |= (1 << 1);
 		break;
 
 	case PFCP_IE_UP_FUNCTION_FEATURES:
-		req->up_function_features = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->up_function_features, cp, size);
 		break;
 
 	case PFCP_IE_CP_FUNCTION_FEATURES:
-		req->cp_function_features = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->cp_function_features, cp, size);
 		break;
 
 	case PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION:
-		req->user_plane_ip_resource_info = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->user_plane_ip_resource_info, cp, size);
 		break;
 
 	case PFCP_IE_ALTERNATIVE_SMF_IP_ADDRESS:
-		req->alternative_smf_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->alternative_smf_ip_address, cp, size);
 		break;
 
 	case PFCP_IE_SMF_SET_ID:
-		req->smf_set_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->smf_set_id, cp, size);
 		break;
 
 	case PFCP_IE_PFCPASREQ_FLAGS:
-		req->pfcpasreq_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->pfcpasreq_flags, cp, size);
 		break;
 
 	case PFCP_IE_SESSION_RETENTION_INFORMATION:
@@ -365,27 +380,27 @@ pfcp_parse_ie_gtp_u_path_qos_control_information(void *m, void *n, const uint8_t
 
 	switch (ie_type) {
 	case PFCP_IE_REMOTE_GTP_U_PEER:
-		qos_control_info->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&qos_control_info->remote_gtp_u_peer, cp, size);
 		break;
 
 	case PFCP_IE_GTP_U_PATH_INTERFACE_TYPE:
-		qos_control_info->gtp_u_path_interface_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&qos_control_info->gtp_u_path_interface_type, cp, size);
 		break;
 
 	case PFCP_IE_QOS_REPORT_TRIGGER:
-		qos_control_info->qos_report_trigger = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&qos_control_info->qos_report_trigger, cp, size);
 		break;
 
 	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
-		qos_control_info->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&qos_control_info->transport_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_PERIOD:
-		qos_control_info->measurement_period = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&qos_control_info->measurement_period, cp, size);
 		break;
 
 	case PFCP_IE_MT_EDT_CONTROL_INFORMATION:
-		qos_control_info->mt_edt_control_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&qos_control_info->mt_edt_control_information, cp, size);
 		break;
 
 	default:
@@ -406,31 +421,31 @@ pfcp_parse_ie_ue_ip_address_usage_information(void *m, void *n, const uint8_t *c
 
 	switch (ie_type) {
 	case PFCP_IE_SEQUENCE_NUMBER:
-		usage_info->sequence_number = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->sequence_number, cp, size);
 		break;
 
 	case PFCP_IE_METRIC:
-		usage_info->number_of_ue_ip_addresses = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->number_of_ue_ip_addresses, cp, size);
 		break;
 
 	case PFCP_IE_VALIDITY_TIMER:
-		usage_info->validity_timer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->validity_timer, cp, size);
 		break;
 
 	case PFCP_IE_NUMBER_OF_UE_IP_ADDRESSES:
-		usage_info->number_of_ue_ip_addresses_ie = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->number_of_ue_ip_addresses_ie, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		usage_info->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_UE_IP_ADDRESS_POOL_IDENTITY:
-		usage_info->ue_ip_address_pool_identity = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->ue_ip_address_pool_identity, cp, size);
 		break;
 
 	case PFCP_IE_S_NSSAI:
-		usage_info->s_nssai = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&usage_info->s_nssai, cp, size);
 		break;
 
 	default:
@@ -456,36 +471,36 @@ pfcp_parse_association_update_request(struct pfcp_msg *msg, const uint8_t *cp, i
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_UP_FUNCTION_FEATURES:
-		req->up_function_features = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->up_function_features, cp, size);
 		break;
 
 	case PFCP_IE_CP_FUNCTION_FEATURES:
-		req->cp_function_features = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->cp_function_features, cp, size);
 		break;
 
 	case PFCP_IE_PFCP_ASSOCIATION_RELEASE_REQUEST:
-		req->association_release_request = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->association_release_request, cp, size);
 		break;
 
 	case PFCP_IE_GRACEFUL_RELEASE_PERIOD:
-		req->graceful_release_period = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->graceful_release_period, cp, size);
 		break;
 
 	case PFCP_IE_PFCPAUREQ_FLAGS:
-		req->pfcpaureq_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->pfcpaureq_flags, cp, size);
 		break;
 
 	case PFCP_IE_ALTERNATIVE_SMF_IP_ADDRESS:
-		req->alternative_smf_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->alternative_smf_ip_address, cp, size);
 		break;
 
 	case PFCP_IE_SMF_SET_ID:
-		req->smf_set_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->smf_set_id, cp, size);
 		break;
 
 	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION:
@@ -528,7 +543,7 @@ pfcp_parse_association_release_request(struct pfcp_msg *msg, const uint8_t *cp, 
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
@@ -551,7 +566,7 @@ pfcp_parse_ie_user_plane_path_failure_report(void *m, void *n, const uint8_t *cp
 
 	switch (ie_type) {
 	case PFCP_IE_REMOTE_GTP_U_PEER:
-		failure_report->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&failure_report->remote_gtp_u_peer, cp, size);
 		break;
 
 	default:
@@ -572,7 +587,7 @@ pfcp_parse_ie_user_plane_path_recovery_report(void *m, void *n, const uint8_t *c
 
 	switch (ie_type) {
 	case PFCP_IE_REMOTE_GTP_U_PEER:
-		recovery_report->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&recovery_report->remote_gtp_u_peer, cp, size);
 		break;
 
 	default:
@@ -593,7 +608,7 @@ pfcp_parse_ie_peer_up_restart_report(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_REMOTE_GTP_U_PEER:
-		restart_report->remote_gtp_u_peer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&restart_report->remote_gtp_u_peer, cp, size);
 		break;
 
 	default:
@@ -620,12 +635,12 @@ pfcp_parse_node_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *man
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_NODE_REPORT_TYPE:
-		req->node_report_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_report_type, cp, size);
 		*mandatory |= (1 << 1);
 		break;
 
@@ -669,25 +684,25 @@ pfcp_parse_session_set_deletion_request(struct pfcp_msg *msg, const uint8_t *cp,
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_FQ_CSID:
 		if (!req->sgw_c_fq_csid)
-			req->sgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->sgw_c_fq_csid, cp, size);
 		else if (!req->pgw_c_fq_csid)
-			req->pgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->pgw_c_fq_csid, cp, size);
 		else if (!req->sgw_u_fq_csid)
-			req->sgw_u_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->sgw_u_fq_csid, cp, size);
 		else if (!req->pgw_u_fq_csid)
-			req->pgw_u_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->pgw_u_fq_csid, cp, size);
 		else if (!req->twan_fq_csid)
-			req->twan_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->twan_fq_csid, cp, size);
 		else if (!req->epdg_fq_csid)
-			req->epdg_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->epdg_fq_csid, cp, size);
 		else if (!req->mme_fq_csid)
-			req->mme_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->mme_fq_csid, cp, size);
 		break;
 
 	default:
@@ -709,71 +724,71 @@ pfcp_parse_ie_pdi(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SOURCE_INTERFACE:
-		pdi->source_interface = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->source_interface, cp, size);
 		break;
 
 	case PFCP_IE_F_TEID:
-		pdi->local_f_teid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->local_f_teid, cp, size);
 		break;
 
 	case PFCP_IE_LOCAL_INGRESS_TUNNEL:
-		pdi->local_ingress_tunnel = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->local_ingress_tunnel, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		pdi->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_REDUNDANT_TRANSMISSION_DETECTION_PARAMETERS:
-		pdi->redundant_transmission_detection_parameters = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->redundant_transmission_detection_parameters, cp, size);
 		break;
 
 	case PFCP_IE_UE_IP_ADDRESS:
-		pdi->ue_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->ue_ip_address, cp, size);
 		break;
 
 	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
-		pdi->traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->traffic_endpoint_id, cp, size);
 		break;
 
 	case PFCP_IE_SDF_FILTER:
-		pdi->sdf_filter = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->sdf_filter, cp, size);
 		break;
 
 	case PFCP_IE_APPLICATION_ID:
-		pdi->application_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->application_id, cp, size);
 		break;
 
 	case PFCP_IE_ETHERNET_PDU_SESSION_INFORMATION:
-		pdi->ethernet_pdu_session_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->ethernet_pdu_session_information, cp, size);
 		break;
 
 	case PFCP_IE_ETHERNET_PACKET_FILTER:
-		pdi->ethernet_packet_filter = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->ethernet_packet_filter, cp, size);
 		break;
 
 	case PFCP_IE_QFI:
-		pdi->qfi = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->qfi, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_ROUTE:
-		pdi->framed_route = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->framed_route, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_ROUTING :
-		pdi->framed_routing = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->framed_routing, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_IPV6_ROUTE:
-		pdi->framed_ipv6_route = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->framed_ipv6_route, cp, size);
 		break;
 
 	case PFCP_IE_3GPP_INTERFACE_TYPE:
-		pdi->source_interface_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->source_interface_type, cp, size);
 		break;
 
 	case PFCP_IE_AREA_SESSION_ID:
-		pdi->area_session_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&pdi->area_session_id, cp, size);
 		break;
 
 	default:
@@ -796,11 +811,11 @@ pfcp_parse_ie_create_pdr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_PDR_ID:
-		create_pdr->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->pdr_id, cp, size);
 		break;
 
 	case PFCP_IE_PRECEDENCE:
-		create_pdr->precedence = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->precedence, cp, size);
 		break;
 
 	case PFCP_IE_PDI: /* Grouped */
@@ -813,43 +828,43 @@ pfcp_parse_ie_create_pdr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_OUTER_HEADER_REMOVAL:
-		create_pdr->outer_header_removal = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->outer_header_removal, cp, size);
 		break;
 
 	case PFCP_IE_FAR_ID:
-		create_pdr->far_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->far_id, cp, size);
 		break;
 
 	case PFCP_IE_URR_ID:
-		create_pdr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->urr_id, cp, size);
 		break;
 
 	case PFCP_IE_QER_ID:
-		create_pdr->qer_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->qer_id, cp, size);
 		break;
 
 	case PFCP_IE_MAR_ID:
-		create_pdr->mar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->mar_id, cp, size);
 		break;
 
 	case PFCP_IE_ACTIVATE_PREDEFINED_RULES:
-		create_pdr->activate_predefined_rules = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->activate_predefined_rules, cp, size);
 		break;
 
 	case PFCP_IE_ACTIVATION_TIME:
-		create_pdr->activation_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->activation_time, cp, size);
 		break;
 
 	case PFCP_IE_DEACTIVATION_TIME:
-		create_pdr->deactivation_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->deactivation_time, cp, size);
 		break;
 
 	case PFCP_IE_UE_IP_ADDRESS_POOL_IDENTITY:
-		create_pdr->ue_ip_address_pool_identity = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->ue_ip_address_pool_identity, cp, size);
 		break;
 
 	case PFCP_IE_RAT_TYPE:
-		create_pdr->rat_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->rat_type, cp, size);
 		break;
 
 	default:
@@ -870,51 +885,51 @@ pfcp_parse_ie_fwd_params(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_DESTINATION_INTERFACE:
-		fwd_params->destination_interface = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->destination_interface, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		fwd_params->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_REDIRECT_INFORMATION:
-		fwd_params->redirect_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->redirect_information, cp, size);
 		break;
 
 	case PFCP_IE_OUTER_HEADER_CREATION:
-		fwd_params->outer_header_creation = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->outer_header_creation, cp, size);
 		break;
 
 	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
-		fwd_params->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->transport_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_FORWARDING_POLICY:
-		fwd_params->forwarding_policy = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->forwarding_policy, cp, size);
 		break;
 
 	case PFCP_IE_HEADER_ENRICHMENT:
-		fwd_params->header_enrichment = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->header_enrichment, cp, size);
 		break;
 
 	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
-		fwd_params->linked_traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->linked_traffic_endpoint_id, cp, size);
 		break;
 
 	case PFCP_IE_PROXYING:
-		fwd_params->proxying = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->proxying, cp, size);
 		break;
 
 	case PFCP_IE_3GPP_INTERFACE_TYPE:
-		fwd_params->destination_interface_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->destination_interface_type, cp, size);
 		break;
 
 	case PFCP_IE_DATA_NETWORK_ACCESS_IDENTIFIER:
-		fwd_params->data_network_access_identifier = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->data_network_access_identifier, cp, size);
 		break;
 
 	case PFCP_IE_IP_ADDRESS_AND_PORT_NUMBER_REPLACEMENT:
-		fwd_params->ip_address_and_port_number_replacement = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&fwd_params->ip_address_and_port_number_replacement, cp, size);
 		break;
 
 	default:
@@ -935,19 +950,19 @@ pfcp_parse_ie_dup_params(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_DESTINATION_INTERFACE:
-		dup_params->destination_interface = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&dup_params->destination_interface, cp, size);
 		break;
 
 	case PFCP_IE_OUTER_HEADER_CREATION:
-		dup_params->outer_header_creation = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&dup_params->outer_header_creation, cp, size);
 		break;
 
 	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
-		dup_params->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&dup_params->transport_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_FORWARDING_POLICY:
-		dup_params->forwarding_policy = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&dup_params->forwarding_policy, cp, size);
 		break;
 
 	default:
@@ -968,11 +983,11 @@ pfcp_parse_ie_create_far(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_FAR_ID:
-		create_far->far_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_far->far_id, cp, size);
 		break;
 
 	case PFCP_IE_APPLY_ACTION:
-		create_far->apply_action = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_far->apply_action, cp, size);
 		break;
 
 	case PFCP_IE_FORWARDING_PARAMETERS:
@@ -986,7 +1001,7 @@ pfcp_parse_ie_create_far(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_BAR_ID:
-		create_far->bar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_far->bar_id, cp, size);
 		break;
 
 	default:
@@ -1007,11 +1022,11 @@ pfcp_parse_ie_aggregated_urrs(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_AGGREGATED_URR_ID:
-		aggregated_urrs->aggregated_urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&aggregated_urrs->aggregated_urr_id, cp, size);
 		break;
 
 	case PFCP_IE_MULTIPLIER:
-		aggregated_urrs->multiplier = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&aggregated_urrs->multiplier, cp, size);
 		break;
 
 	default:
@@ -1032,39 +1047,39 @@ pfcp_parse_ie_additional_monitoring_time(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_MONITORING_TIME:
-		additional_monitoring_time->monitoring_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->monitoring_time, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_VOLUME_THRESHOLD:
-		additional_monitoring_time->subsequent_volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->subsequent_volume_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_TIME_THRESHOLD:
-		additional_monitoring_time->subsequent_time_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->subsequent_time_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_VOLUME_QUOTA:
-		additional_monitoring_time->subsequent_volume_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->subsequent_volume_quota, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_TIME_QUOTA:
-		additional_monitoring_time->subsequent_time_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->subsequent_time_quota, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_EVENT_THRESHOLD:
-		additional_monitoring_time->subsequent_event_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->subsequent_event_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_EVENT_QUOTA:
-		additional_monitoring_time->subsequent_event_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->subsequent_event_quota, cp, size);
 		break;
 
 	case PFCP_IE_EVENT_THRESHOLD:
-		additional_monitoring_time->event_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->event_threshold, cp, size);
 		break;
 
 	case PFCP_IE_EVENT_QUOTA:
-		additional_monitoring_time->event_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&additional_monitoring_time->event_quota, cp, size);
 		break;
 
 	default:
@@ -1085,99 +1100,99 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
-		create_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->urr_id, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_METHOD:
-		create_urr->measurement_method = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->measurement_method, cp, size);
 		break;
 
 	case PFCP_IE_REPORTING_TRIGGERS:
-		create_urr->reporting_triggers = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->reporting_triggers, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_PERIOD:
-		create_urr->measurement_period = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->measurement_period, cp, size);
 		break;
 
 	case PFCP_IE_VOLUME_THRESHOLD:
-		create_urr->volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->volume_threshold, cp, size);
 		break;
 
 	case PFCP_IE_VOLUME_QUOTA:
-		create_urr->volume_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->volume_quota, cp, size);
 		break;
 
 	case PFCP_IE_EVENT_THRESHOLD:
-		create_urr->event_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->event_threshold, cp, size);
 		break;
 
 	case PFCP_IE_EVENT_QUOTA:
-		create_urr->event_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->event_quota, cp, size);
 		break;
 
 	case PFCP_IE_TIME_THRESHOLD:
-		create_urr->time_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->time_threshold, cp, size);
 		break;
 
 	case PFCP_IE_TIME_QUOTA:
-		create_urr->time_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->time_quota, cp, size);
 		break;
 
 	case PFCP_IE_QUOTA_HOLDING_TIME:
-		create_urr->quota_holding_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->quota_holding_time, cp, size);
 		break;
 
 	case PFCP_IE_DROPPED_DL_TRAFFIC_THRESHOLD:
-		create_urr->dropped_dl_traffic_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->dropped_dl_traffic_threshold, cp, size);
 		break;
 
 	case PFCP_IE_QUOTA_VALIDITY_TIME:
-		create_urr->quota_validity_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->quota_validity_time, cp, size);
 		break;
 
 	case PFCP_IE_MONITORING_TIME:
-		create_urr->monitoring_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->monitoring_time, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_VOLUME_THRESHOLD:
-		create_urr->subsequent_volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->subsequent_volume_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_TIME_THRESHOLD:
-		create_urr->subsequent_time_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->subsequent_time_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_VOLUME_QUOTA:
-		create_urr->subsequent_volume_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->subsequent_volume_quota, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_TIME_QUOTA:
-		create_urr->subsequent_time_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->subsequent_time_quota, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_EVENT_THRESHOLD:
-		create_urr->subsequent_event_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->subsequent_event_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_EVENT_QUOTA:
-		create_urr->subsequent_event_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->subsequent_event_quota, cp, size);
 		break;
 
 	case PFCP_IE_INACTIVITY_DETECTION_TIME:
-		create_urr->inactivity_detection_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->inactivity_detection_time, cp, size);
 		break;
 
 	case PFCP_IE_LINKED_URR_ID:
-		create_urr->linked_urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->linked_urr_id, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_INFORMATION:
-		create_urr->measurement_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->measurement_information, cp, size);
 		break;
 
 	case PFCP_IE_TIME_QUOTA_MECHANISM:
-		create_urr->time_quota_mechanism = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->time_quota_mechanism, cp, size);
 		break;
 
 	case PFCP_IE_AGGREGATED_URRS:
@@ -1186,11 +1201,11 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_FAR_ID:
-		create_urr->far_id_for_quota_action = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->far_id_for_quota_action, cp, size);
 		break;
 
 	case PFCP_IE_ETHERNET_INACTIVITY_TIMER:
-		create_urr->ethernet_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->ethernet_inactivity_timer, cp, size);
 		break;
 
 	case PFCP_IE_ADDITIONAL_MONITORING_TIME:
@@ -1199,7 +1214,7 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_NUMBER_OF_REPORTS:
-		create_urr->number_of_reports = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->number_of_reports, cp, size);
 		break;
 
 	default:
@@ -1220,59 +1235,59 @@ pfcp_parse_ie_create_qer(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_QER_ID:
-		create_qer->qer_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->qer_id, cp, size);
 		break;
 
 	case PFCP_IE_QER_CORRELATION_ID:
-		create_qer->qer_correlation_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->qer_correlation_id, cp, size);
 		break;
 
 	case PFCP_IE_GATE_STATUS:
-		create_qer->gate_status = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->gate_status, cp, size);
 		break;
 
 	case PFCP_IE_MBR:
-		create_qer->maximum_bitrate = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->maximum_bitrate, cp, size);
 		break;
 
 	case PFCP_IE_GBR:
-		create_qer->guaranteed_bitrate = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->guaranteed_bitrate, cp, size);
 		break;
 
 	case PFCP_IE_PACKET_RATE:
-		create_qer->packet_rate = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->packet_rate, cp, size);
 		break;
 
 	case PFCP_IE_PACKET_RATE_STATUS:
-		create_qer->packet_rate_status = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->packet_rate_status, cp, size);
 		break;
 
 	case PFCP_IE_DL_FLOW_LEVEL_MARKING:
-		create_qer->dl_flow_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->dl_flow_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_QFI:
-		create_qer->qos_flow_identifier = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->qos_flow_identifier, cp, size);
 		break;
 
 	case PFCP_IE_RQI:
-		create_qer->reflective_qos = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->reflective_qos, cp, size);
 		break;
 
 	case PFCP_IE_PPI:
-		create_qer->paging_policy_indicator = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->paging_policy_indicator, cp, size);
 		break;
 
 	case PFCP_IE_AVERAGING_WINDOW:
-		create_qer->averaging_window = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->averaging_window, cp, size);
 		break;
 
 	case PFCP_IE_QER_CONTROL_INDICATIONS:
-		create_qer->qer_control_indications = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->qer_control_indications, cp, size);
 		break;
 
 	case PFCP_IE_QER_INDICATIONS:
-		create_qer->qer_indications = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_qer->qer_indications, cp, size);
 		break;
 
 	default:
@@ -1293,27 +1308,27 @@ pfcp_parse_ie_create_bar(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_BAR_ID:
-		create_bar->bar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_bar->bar_id, cp, size);
 		break;
 
 	case PFCP_IE_DOWNLINK_DATA_NOTIFICATION_DELAY:
-		create_bar->downlink_data_notification_delay = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_bar->downlink_data_notification_delay, cp, size);
 		break;
 
 	case PFCP_IE_SUGGESTED_BUFFERING_PACKETS_COUNT:
-		create_bar->suggested_buffering_packets_count = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_bar->suggested_buffering_packets_count, cp, size);
 		break;
 
 	case PFCP_IE_MT_EDT_CONTROL_INFORMATION:
-		create_bar->mt_edt_control_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_bar->mt_edt_control_information, cp, size);
 		break;
 
 	case PFCP_IE_DL_BUFFERING_DURATION:
-		create_bar->dl_buffering_duration = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_bar->dl_buffering_duration, cp, size);
 		break;
 
 	case PFCP_IE_DL_BUFFERING_SUGGESTED_PACKET_COUNT:
-		create_bar->dl_buffering_suggested_packet_count = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_bar->dl_buffering_suggested_packet_count, cp, size);
 		break;
 
 	default:
@@ -1334,59 +1349,59 @@ pfcp_parse_ie_create_traffic_endpoint(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
-		create_traffic_endpoint->traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->traffic_endpoint_id, cp, size);
 		break;
 
 	case PFCP_IE_F_TEID:
-		create_traffic_endpoint->local_f_teid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->local_f_teid, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		create_traffic_endpoint->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_REDUNDANT_TRANSMISSION_DETECTION_PARAMETERS:
-		create_traffic_endpoint->redundant_transmission_detection_parameters = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->redundant_transmission_detection_parameters, cp, size);
 		break;
 
 	case PFCP_IE_UE_IP_ADDRESS:
-		create_traffic_endpoint->ue_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->ue_ip_address, cp, size);
 		break;
 
 	case PFCP_IE_ETHERNET_PDU_SESSION_INFORMATION:
-		create_traffic_endpoint->ethernet_pdu_session_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->ethernet_pdu_session_information, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_ROUTE:
-		create_traffic_endpoint->framed_route = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->framed_route, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_ROUTING:
-		create_traffic_endpoint->framed_routing = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->framed_routing, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_IPV6_ROUTE:
-		create_traffic_endpoint->framed_ipv6_route = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->framed_ipv6_route, cp, size);
 		break;
 
 	case PFCP_IE_QFI:
-		create_traffic_endpoint->qfi = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->qfi, cp, size);
 		break;
 
 	case PFCP_IE_3GPP_INTERFACE_TYPE:
-		create_traffic_endpoint->source_interface_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->source_interface_type, cp, size);
 		break;
 
 	case PFCP_IE_LOCAL_INGRESS_TUNNEL:
-		create_traffic_endpoint->local_ingress_tunnel = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->local_ingress_tunnel, cp, size);
 		break;
 
 	case PFCP_IE_AREA_SESSION_ID:
-		create_traffic_endpoint->area_session_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->area_session_id, cp, size);
 		break;
 
 	case PFCP_IE_RAT_TYPE:
-		create_traffic_endpoint->rat_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_traffic_endpoint->rat_type, cp, size);
 		break;
 
 	default:
@@ -1407,15 +1422,15 @@ pfcp_parse_ie_create_mar(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_MAR_ID:
-		create_mar->mar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_mar->mar_id, cp, size);
 		break;
 
 	case PFCP_IE_STEERING_FUNCTIONALITY:
-		create_mar->steering_functionality = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_mar->steering_functionality, cp, size);
 		break;
 
 	case PFCP_IE_STEERING_MODE:
-		create_mar->steering_mode = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_mar->steering_mode, cp, size);
 		break;
 
 	default:
@@ -1436,7 +1451,7 @@ pfcp_parse_ie_create_srr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SRR_ID:
-		create_srr->srr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_srr->srr_id, cp, size);
 		break;
 
 	default:
@@ -1463,62 +1478,62 @@ pfcp_parse_session_establishment_request(struct pfcp_msg *msg, const uint8_t *cp
 
 	switch (ie_type) {
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
 	case PFCP_IE_F_SEID:
-		req->cp_f_seid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->cp_f_seid, cp, size);
 		*mandatory |= (1 << 1);
 		break;
 
 	case PFCP_IE_PDN_TYPE:
-		req->pdn_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->pdn_type, cp, size);
 		break;
 
 	case PFCP_IE_USER_PLANE_INACTIVITY_TIMER:
-		req->user_plane_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->user_plane_inactivity_timer, cp, size);
 		break;
 
 	case PFCP_IE_USER_ID:
-		req->user_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->user_id, cp, size);
 		break;
 
 	case PFCP_IE_TRACE_INFORMATION:
-		req->trace_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->trace_information, cp, size);
 		break;
 
 	case PFCP_IE_APN_DNN:
-		req->apn_dnn = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->apn_dnn, cp, size);
 		break;
 
 	case PFCP_IE_FQ_CSID:
 		if (!req->sgw_c_fq_csid)
-			req->sgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->sgw_c_fq_csid, cp, size);
 		else if (!req->mme_fq_csid)
-			req->mme_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->mme_fq_csid, cp, size);
 		else if (!req->pgwc_smf_fq_csid)
-			req->pgwc_smf_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->pgwc_smf_fq_csid, cp, size);
 		else if (!req->epdg_fq_csid)
-			req->epdg_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->epdg_fq_csid, cp, size);
 		else if (!req->twan_fq_csid)
-			req->twan_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->twan_fq_csid, cp, size);
 		break;
 
 	case PFCP_IE_PFCPSEREQ_FLAGS:
-		req->pfcpsereq_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->pfcpsereq_flags, cp, size);
 		break;
 
 	case PFCP_IE_CREATE_BRIDGE_ROUTER_INFO:
-		req->create_bridge_router_info = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->create_bridge_router_info, cp, size);
 		break;
 
 	case PFCP_IE_RAT_TYPE:
-		req->rat_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->rat_type, cp, size);
 		break;
 
 	case PFCP_IE_GROUP_ID:
-		req->group_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->group_id, cp, size);
 		break;
 
 	case PFCP_IE_CREATE_PDR:
@@ -1582,7 +1597,7 @@ pfcp_parse_ie_remove_pdr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_PDR_ID:
-		remove_pdr->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_pdr->pdr_id, cp, size);
 		break;
 
 	default:
@@ -1603,7 +1618,7 @@ pfcp_parse_ie_remove_far(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_FAR_ID:
-		remove_far->far_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_far->far_id, cp, size);
 		break;
 
 	default:
@@ -1624,7 +1639,7 @@ pfcp_parse_ie_remove_urr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
-		remove_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_urr->urr_id, cp, size);
 		break;
 
 	default:
@@ -1645,7 +1660,7 @@ pfcp_parse_ie_remove_qer(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_QER_ID:
-		remove_qer->qer_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_qer->qer_id, cp, size);
 		break;
 
 	default:
@@ -1666,7 +1681,7 @@ pfcp_parse_ie_remove_bar(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_BAR_ID:
-		remove_bar->bar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_bar->bar_id, cp, size);
 		break;
 
 	default:
@@ -1687,7 +1702,7 @@ pfcp_parse_ie_remove_traffic_endpoint(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
-		remove_traffic_endpoint->traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_traffic_endpoint->traffic_endpoint_id, cp, size);
 		break;
 
 	default:
@@ -1708,7 +1723,7 @@ pfcp_parse_ie_remove_mar(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_MAR_ID:
-		remove_mar->mar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_mar->mar_id, cp, size);
 		break;
 
 	default:
@@ -1729,7 +1744,7 @@ pfcp_parse_ie_remove_srr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SRR_ID:
-		remove_srr->srr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&remove_srr->srr_id, cp, size);
 		break;
 
 	default:
@@ -1751,15 +1766,15 @@ pfcp_parse_ie_update_pdr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_PDR_ID:
-		update_pdr->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->pdr_id, cp, size);
 		break;
 
 	case PFCP_IE_OUTER_HEADER_REMOVAL:
-		update_pdr->outer_header_removal = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->outer_header_removal, cp, size);
 		break;
 
 	case PFCP_IE_PRECEDENCE:
-		update_pdr->precedence = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->precedence, cp, size);
 		break;
 
 	case PFCP_IE_PDI: /* Grouped */
@@ -1772,31 +1787,31 @@ pfcp_parse_ie_update_pdr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_FAR_ID:
-		update_pdr->far_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->far_id, cp, size);
 		break;
 
 	case PFCP_IE_URR_ID:
-		update_pdr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->urr_id, cp, size);
 		break;
 
 	case PFCP_IE_QER_ID:
-		update_pdr->qer_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->qer_id, cp, size);
 		break;
 
 	case PFCP_IE_ACTIVATE_PREDEFINED_RULES:
-		update_pdr->activate_predefined_rules = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->activate_predefined_rules, cp, size);
 		break;
 
 	case PFCP_IE_DEACTIVATE_PREDEFINED_RULES:
-		update_pdr->deactivate_predefined_rules = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->deactivate_predefined_rules, cp, size);
 		break;
 
 	case PFCP_IE_ACTIVATION_TIME:
-		update_pdr->activation_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->activation_time, cp, size);
 		break;
 
 	case PFCP_IE_DEACTIVATION_TIME:
-		update_pdr->deactivation_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_pdr->deactivation_time, cp, size);
 		break;
 
 	default:
@@ -1817,43 +1832,43 @@ pfcp_parse_ie_update_fwd_params(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_DESTINATION_INTERFACE:
-		update_fwd_params->destination_interface = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->destination_interface, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		update_fwd_params->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_REDIRECT_INFORMATION:
-		update_fwd_params->redirect_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->redirect_information, cp, size);
 		break;
 
 	case PFCP_IE_OUTER_HEADER_CREATION:
-		update_fwd_params->outer_header_creation = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->outer_header_creation, cp, size);
 		break;
 
 	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
-		update_fwd_params->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->transport_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_FORWARDING_POLICY:
-		update_fwd_params->forwarding_policy = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->forwarding_policy, cp, size);
 		break;
 
 	case PFCP_IE_HEADER_ENRICHMENT:
-		update_fwd_params->header_enrichment = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->header_enrichment, cp, size);
 		break;
 
 	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
-		update_fwd_params->linked_traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->linked_traffic_endpoint_id, cp, size);
 		break;
 
 	case PFCP_IE_PFCPSMREQ_FLAGS:
-		update_fwd_params->pfcpsm_req_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->pfcpsm_req_flags, cp, size);
 		break;
 
 	case PFCP_IE_3GPP_INTERFACE_TYPE:
-		update_fwd_params->destination_interface_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_fwd_params->destination_interface_type, cp, size);
 		break;
 
 	default:
@@ -1874,19 +1889,19 @@ pfcp_parse_ie_update_dup_params(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_DESTINATION_INTERFACE:
-		update_dup_params->destination_interface = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_dup_params->destination_interface, cp, size);
 		break;
 
 	case PFCP_IE_OUTER_HEADER_CREATION:
-		update_dup_params->outer_header_creation = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_dup_params->outer_header_creation, cp, size);
 		break;
 
 	case PFCP_IE_TRANSPORT_LEVEL_MARKING:
-		update_dup_params->transport_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_dup_params->transport_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_FORWARDING_POLICY:
-		update_dup_params->forwarding_policy = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_dup_params->forwarding_policy, cp, size);
 		break;
 
 	default:
@@ -1907,11 +1922,11 @@ pfcp_parse_ie_update_far(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_FAR_ID:
-		update_far->far_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_far->far_id, cp, size);
 		break;
 
 	case PFCP_IE_APPLY_ACTION:
-		update_far->apply_action = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_far->apply_action, cp, size);
 		break;
 
 	case PFCP_IE_UPDATE_FORWARDING_PARAMETERS:
@@ -1925,7 +1940,7 @@ pfcp_parse_ie_update_far(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_BAR_ID:
-		update_far->bar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_far->bar_id, cp, size);
 		break;
 
 	default:
@@ -1946,99 +1961,99 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
-		update_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->urr_id, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_METHOD:
-		update_urr->measurement_method = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->measurement_method, cp, size);
 		break;
 
 	case PFCP_IE_REPORTING_TRIGGERS:
-		update_urr->reporting_triggers = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->reporting_triggers, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_PERIOD:
-		update_urr->measurement_period = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->measurement_period, cp, size);
 		break;
 
 	case PFCP_IE_VOLUME_THRESHOLD:
-		update_urr->volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->volume_threshold, cp, size);
 		break;
 
 	case PFCP_IE_VOLUME_QUOTA:
-		update_urr->volume_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->volume_quota, cp, size);
 		break;
 
 	case PFCP_IE_TIME_THRESHOLD:
-		update_urr->time_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->time_threshold, cp, size);
 		break;
 
 	case PFCP_IE_TIME_QUOTA:
-		update_urr->time_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->time_quota, cp, size);
 		break;
 
 	case PFCP_IE_EVENT_THRESHOLD:
-		update_urr->event_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->event_threshold, cp, size);
 		break;
 
 	case PFCP_IE_EVENT_QUOTA:
-		update_urr->event_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->event_quota, cp, size);
 		break;
 
 	case PFCP_IE_QUOTA_HOLDING_TIME:
-		update_urr->quota_holding_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->quota_holding_time, cp, size);
 		break;
 
 	case PFCP_IE_DROPPED_DL_TRAFFIC_THRESHOLD:
-		update_urr->dropped_dl_traffic_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->dropped_dl_traffic_threshold, cp, size);
 		break;
 
 	case PFCP_IE_QUOTA_VALIDITY_TIME:
-		update_urr->quota_validity_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->quota_validity_time, cp, size);
 		break;
 
 	case PFCP_IE_MONITORING_TIME:
-		update_urr->monitoring_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->monitoring_time, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_VOLUME_THRESHOLD:
-		update_urr->subsequent_volume_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->subsequent_volume_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_TIME_THRESHOLD:
-		update_urr->subsequent_time_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->subsequent_time_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_VOLUME_QUOTA:
-		update_urr->subsequent_volume_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->subsequent_volume_quota, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_TIME_QUOTA:
-		update_urr->subsequent_time_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->subsequent_time_quota, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_EVENT_THRESHOLD:
-		update_urr->subsequent_event_threshold = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->subsequent_event_threshold, cp, size);
 		break;
 
 	case PFCP_IE_SUBSEQUENT_EVENT_QUOTA:
-		update_urr->subsequent_event_quota = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->subsequent_event_quota, cp, size);
 		break;
 
 	case PFCP_IE_INACTIVITY_DETECTION_TIME:
-		update_urr->inactivity_detection_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->inactivity_detection_time, cp, size);
 		break;
 
 	case PFCP_IE_LINKED_URR_ID:
-		update_urr->linked_urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->linked_urr_id, cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_INFORMATION:
-		update_urr->measurement_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->measurement_information, cp, size);
 		break;
 
 	case PFCP_IE_TIME_QUOTA_MECHANISM:
-		update_urr->time_quota_mechanism = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->time_quota_mechanism, cp, size);
 		break;
 
 	case PFCP_IE_AGGREGATED_URRS:
@@ -2047,11 +2062,11 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_FAR_ID:
-		update_urr->far_id_for_quota_action = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->far_id_for_quota_action, cp, size);
 		break;
 
 	case PFCP_IE_ETHERNET_INACTIVITY_TIMER:
-		update_urr->ethernet_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->ethernet_inactivity_timer, cp, size);
 		break;
 
 	case PFCP_IE_ADDITIONAL_MONITORING_TIME:
@@ -2060,7 +2075,7 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_NUMBER_OF_REPORTS:
-		update_urr->number_of_reports = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->number_of_reports, cp, size);
 		break;
 
 	default:
@@ -2081,51 +2096,51 @@ pfcp_parse_ie_update_qer(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_QER_ID:
-		update_qer->qer_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->qer_id, cp, size);
 		break;
 
 	case PFCP_IE_QER_CORRELATION_ID:
-		update_qer->qer_correlation_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->qer_correlation_id, cp, size);
 		break;
 
 	case PFCP_IE_GATE_STATUS:
-		update_qer->gate_status = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->gate_status, cp, size);
 		break;
 
 	case PFCP_IE_MBR:
-		update_qer->maximum_bitrate = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->maximum_bitrate, cp, size);
 		break;
 
 	case PFCP_IE_GBR:
-		update_qer->guaranteed_bitrate = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->guaranteed_bitrate, cp, size);
 		break;
 
 	case PFCP_IE_PACKET_RATE:
-		update_qer->packet_rate = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->packet_rate, cp, size);
 		break;
 
 	case PFCP_IE_DL_FLOW_LEVEL_MARKING:
-		update_qer->dl_flow_level_marking = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->dl_flow_level_marking, cp, size);
 		break;
 
 	case PFCP_IE_QFI:
-		update_qer->qos_flow_identifier = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->qos_flow_identifier, cp, size);
 		break;
 
 	case PFCP_IE_RQI:
-		update_qer->reflective_qos = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->reflective_qos, cp, size);
 		break;
 
 	case PFCP_IE_PPI:
-		update_qer->paging_policy_indicator = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->paging_policy_indicator, cp, size);
 		break;
 
 	case PFCP_IE_AVERAGING_WINDOW:
-		update_qer->averaging_window = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->averaging_window, cp, size);
 		break;
 
 	case PFCP_IE_QER_CONTROL_INDICATIONS:
-		update_qer->qer_control_indications = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_qer->qer_control_indications, cp, size);
 		break;
 
 	default:
@@ -2146,15 +2161,15 @@ pfcp_parse_ie_update_bar(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_BAR_ID:
-		update_bar->bar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_bar->bar_id, cp, size);
 		break;
 
 	case PFCP_IE_DOWNLINK_DATA_NOTIFICATION_DELAY:
-		update_bar->downlink_data_notification_delay = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_bar->downlink_data_notification_delay, cp, size);
 		break;
 
 	case PFCP_IE_SUGGESTED_BUFFERING_PACKETS_COUNT:
-		update_bar->suggested_buffering_packets_count = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_bar->suggested_buffering_packets_count, cp, size);
 		break;
 
 	default:
@@ -2175,35 +2190,35 @@ pfcp_parse_ie_update_traffic_endpoint(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_TRAFFIC_ENDPOINT_ID:
-		update_traffic_endpoint->traffic_endpoint_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->traffic_endpoint_id, cp, size);
 		break;
 
 	case PFCP_IE_F_TEID:
-		update_traffic_endpoint->local_f_teid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->local_f_teid, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		update_traffic_endpoint->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_UE_IP_ADDRESS:
-		update_traffic_endpoint->ue_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->ue_ip_address, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_ROUTE:
-		update_traffic_endpoint->framed_route = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->framed_route, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_ROUTING:
-		update_traffic_endpoint->framed_routing = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->framed_routing, cp, size);
 		break;
 
 	case PFCP_IE_FRAMED_IPV6_ROUTE:
-		update_traffic_endpoint->framed_ipv6_route = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->framed_ipv6_route, cp, size);
 		break;
 
 	case PFCP_IE_QFI:
-		update_traffic_endpoint->qfi = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_traffic_endpoint->qfi, cp, size);
 		break;
 
 	default:
@@ -2224,15 +2239,15 @@ pfcp_parse_ie_update_mar(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_MAR_ID:
-		update_mar->mar_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_mar->mar_id, cp, size);
 		break;
 
 	case PFCP_IE_STEERING_FUNCTIONALITY:
-		update_mar->steering_functionality = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_mar->steering_functionality, cp, size);
 		break;
 
 	case PFCP_IE_STEERING_MODE:
-		update_mar->steering_mode = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_mar->steering_mode, cp, size);
 		break;
 
 	default:
@@ -2253,11 +2268,11 @@ pfcp_parse_ie_update_srr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SRR_ID:
-		update_srr->srr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_srr->srr_id, cp, size);
 		break;
 
 	case PFCP_IE_ACCESS_AVAILABILITY_INFORMATION:
-		update_srr->access_availability_control_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_srr->access_availability_control_information, cp, size);
 		break;
 
 	default:
@@ -2278,7 +2293,7 @@ pfcp_parse_ie_query_urr(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
-		query_urr->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&query_urr->urr_id, cp, size);
 		break;
 
 	default:
@@ -2305,7 +2320,7 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 
 	switch (ie_type) {
 	case PFCP_IE_F_SEID:
-		req->cp_f_seid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->cp_f_seid, cp, size);
 		break;
 
 	case PFCP_IE_REMOVE_PDR:
@@ -2399,7 +2414,7 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_PFCPSMREQ_FLAGS:
-		req->pfcpsmreq_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->pfcpsmreq_flags, cp, size);
 		break;
 
 	case PFCP_IE_QUERY_URR:
@@ -2409,27 +2424,27 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 
 	case PFCP_IE_FQ_CSID:
 		if (!req->pgw_c_fq_csid)
-			req->pgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->pgw_c_fq_csid, cp, size);
 		else if (!req->sgw_c_fq_csid)
-			req->sgw_c_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->sgw_c_fq_csid, cp, size);
 		else if (!req->mme_fq_csid)
-			req->mme_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->mme_fq_csid, cp, size);
 		else if (!req->epdg_fq_csid)
-			req->epdg_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->epdg_fq_csid, cp, size);
 		else if (!req->twan_fq_csid)
-			req->twan_fq_csid = mpool_memdup(&msg->mp, cp, size);
+			pfcp_msg_alloc_scheme(msg, (void **)&req->twan_fq_csid, cp, size);
 		break;
 
 	case PFCP_IE_USER_PLANE_INACTIVITY_TIMER:
-		req->user_plane_inactivity_timer = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->user_plane_inactivity_timer, cp, size);
 		break;
 
 	case PFCP_IE_QUERY_URR_REFERENCE:
-		req->query_urr_reference = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->query_urr_reference, cp, size);
 		break;
 
 	case PFCP_IE_TRACE_INFORMATION:
-		req->trace_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->trace_information, cp, size);
 		break;
 
 	case PFCP_IE_REMOVE_MAR:
@@ -2448,7 +2463,7 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		break;
 
 	case PFCP_IE_REMOVE_SRR:
@@ -2467,11 +2482,11 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_RAT_TYPE:
-		req->rat_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->rat_type, cp, size);
 		break;
 
 	case PFCP_IE_GROUP_ID:
-		req->group_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->group_id, cp, size);
 		break;
 
 	default:
@@ -2499,15 +2514,15 @@ pfcp_parse_session_deletion_request(struct pfcp_msg *msg, const uint8_t *cp, int
 
 	switch (ie_type) {
 	case PFCP_IE_TL_CONTAINER:
-		req->tl_container = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->tl_container, cp, size);
 		break;
 
 	case PFCP_IE_NODE_ID:
-		req->node_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
 		break;
 
 	case PFCP_IE_F_SEID:
-		req->cp_f_seid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->cp_f_seid, cp, size);
 		break;
 
 	default:
@@ -2529,11 +2544,11 @@ pfcp_parse_ie_downlink_data_report(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_PDR_ID:
-		report->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->pdr_id, cp, size);
 		break;
 
 	case PFCP_IE_DOWNLINK_DATA_SERVICE_INFORMATION:
-		report->downlink_data_service_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->downlink_data_service_information, cp, size);
 		break;
 
 	default:
@@ -2554,67 +2569,67 @@ pfcp_parse_ie_usage_report(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_URR_ID:
-		report->urr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->urr_id, cp, size);
 		break;
 
 	case PFCP_IE_UR_SEQN:
-		report->ur_seqn = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->ur_seqn, cp, size);
 		break;
 
 	case PFCP_IE_USAGE_REPORT_TRIGGER:
-		report->usage_report_trigger = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->usage_report_trigger, cp, size);
 		break;
 
 	case PFCP_IE_START_TIME:
-		report->start_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->start_time, cp, size);
 		break;
 
 	case PFCP_IE_END_TIME:
-		report->end_time = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->end_time, cp, size);
 		break;
 
 	case PFCP_IE_VOLUME_MEASUREMENT:
-		report->volume_measurement = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->volume_measurement, cp, size);
 		break;
 
 	case PFCP_IE_DURATION_MEASUREMENT:
-		report->duration_measurement = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->duration_measurement, cp, size);
 		break;
 #if 0
 	case PFCP_IE_APPLICATION_DETECTION_INFORMATION:
-		report->application_detection_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->application_detection_information, cp, size);
 		break;
 #endif
 	case PFCP_IE_UE_IP_ADDRESS:
-		report->ue_ip_address = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->ue_ip_address, cp, size);
 		break;
 
 	case PFCP_IE_NETWORK_INSTANCE:
-		report->network_instance = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->network_instance, cp, size);
 		break;
 
 	case PFCP_IE_TIME_OF_FIRST_PACKET:
-		report->time_of_first_packet = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->time_of_first_packet, cp, size);
 		break;
 
 	case PFCP_IE_TIME_OF_LAST_PACKET:
-		report->time_of_last_packet = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->time_of_last_packet, cp, size);
 		break;
 
 	case PFCP_IE_USAGE_INFORMATION:
-		report->usage_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->usage_information, cp, size);
 		break;
 
 	case PFCP_IE_QUERY_URR_REFERENCE:
-		report->query_urr_reference = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->query_urr_reference, cp, size);
 		break;
 
 	case PFCP_IE_TIME_STAMP:
-		report->event_time_stamp = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->event_time_stamp, cp, size);
 		break;
 #if 0
 	case PFCP_IE_ETHERNET_TRAFFIC_INFORMATION:
-		report->ethernet_traffic_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->ethernet_traffic_information, cp, size);
 		break;
 #endif
 	default:
@@ -2635,11 +2650,11 @@ pfcp_parse_ie_error_indication_report(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_F_TEID:
-		report->remote_f_teid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->remote_f_teid, cp, size);
 		break;
 
 	case PFCP_IE_PDR_ID:
-		report->pdr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->pdr_id, cp, size);
 		break;
 
 	default:
@@ -2660,11 +2675,11 @@ pfcp_parse_ie_load_control_information(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SEQUENCE_NUMBER:
-		info->load_control_sequence_number = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&info->load_control_sequence_number, cp, size);
 		break;
 
 	case PFCP_IE_METRIC:
-		info->load_metric = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&info->load_metric, cp, size);
 		break;
 
 	default:
@@ -2685,19 +2700,19 @@ pfcp_parse_ie_overload_control_information(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SEQUENCE_NUMBER:
-		info->overload_control_sequence_number = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&info->overload_control_sequence_number, cp, size);
 		break;
 
 	case PFCP_IE_METRIC:
-		info->overload_reduction_metric = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&info->overload_reduction_metric, cp, size);
 		break;
 
 	case PFCP_IE_TIMER:
-		info->period_of_validity = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&info->period_of_validity, cp, size);
 		break;
 
 	case PFCP_IE_OCI_FLAGS:
-		info->overload_control_information_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&info->overload_control_information_flags, cp, size);
 		break;
 
 	default:
@@ -2718,11 +2733,11 @@ pfcp_parse_ie_packet_rate_status_report(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_QER_ID:
-		report->qer_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->qer_id, cp, size);
 		break;
 
 	case PFCP_IE_PACKET_RATE_STATUS:
-		report->packet_rate_status = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->packet_rate_status, cp, size);
 		break;
 
 	default:
@@ -2743,15 +2758,15 @@ pfcp_parse_ie_session_report(void *m, void *n, const uint8_t *cp)
 
 	switch (ie_type) {
 	case PFCP_IE_SRR_ID:
-		report->srr_id = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->srr_id, cp, size);
 		break;
 
 	case PFCP_IE_ACCESS_AVAILABILITY_REPORT:
-		report->access_availability_report = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->access_availability_report, cp, size);
 		break;
 #if 0
 	case PFCP_IE_QOS_MONITORING_REPORT:
-		report->qos_monitoring_report = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&report->qos_monitoring_report, cp, size);
 		break;
 #endif
 	default:
@@ -2779,7 +2794,7 @@ pfcp_parse_session_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *
 
 	switch (ie_type) {
 	case PFCP_IE_REPORT_TYPE:
-		req->report_type = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->report_type, cp, size);
 		*mandatory |= (1 << 0);
 		break;
 
@@ -2812,15 +2827,15 @@ pfcp_parse_session_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *
 		break;
 
 	case PFCP_IE_ADDITIONAL_USAGE_REPORTS_INFORMATION:
-		req->additional_usage_reports_information = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->additional_usage_reports_information, cp, size);
 		break;
 
 	case PFCP_IE_PFCPSRREQ_FLAGS:
-		req->pfcpsrreq_flags = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->pfcpsrreq_flags, cp, size);
 		break;
 
 	case PFCP_IE_F_SEID:
-		req->old_cp_f_seid = mpool_memdup(&msg->mp, cp, size);
+		pfcp_msg_alloc_scheme(msg, (void **)&req->old_cp_f_seid, cp, size);
 		break;
 
 	case PFCP_IE_PACKET_RATE_STATUS_REPORT:
@@ -2929,13 +2944,14 @@ pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff)
 }
 
 struct pfcp_msg *
-pfcp_msg_alloc(void)
+pfcp_msg_alloc(int scheme)
 {
 	struct pfcp_msg *new;
 
 	new = mpool_new(sizeof(*new), MPOOL_DEFAULT_SIZE);
 	if (!new)
 		return NULL;
+	new->m_scheme = scheme;
 
 	return new;
 }

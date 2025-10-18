@@ -158,7 +158,7 @@ pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	struct pfcp_msg *msg;
 	int err;
 
-	msg = pfcp_msg_alloc();
+	msg = pfcp_msg_alloc(PFCP_MSG_MEM_ZEROCOPY);
 	if (!msg) {
 		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request (%s)"
 				    , __FUNCTION__
