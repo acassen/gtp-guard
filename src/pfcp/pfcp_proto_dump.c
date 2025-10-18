@@ -52,6 +52,62 @@ pfcp_recovery_ts_format(struct pfcp_ie_recovery_time_stamp *recovery_ts, char *b
 	return pos;
 }
 
+static size_t
+pfcp_node_id_format(struct pfcp_ie_node_id *node_id, char *buffer, size_t size)
+{
+	char addr_str[INET6_ADDRSTRLEN];
+	size_t pos = 0;
+
+	pos += scnprintf(buffer + pos, size - pos, "Node ID:\n");
+	pos += scnprintf(buffer + pos, size - pos, "  Type: %u\n", node_id->type);
+	switch (node_id->type) {
+	case PFCP_NODE_ID_TYPE_IPV4:
+		pos += scnprintf(buffer + pos, size - pos, "  IPv4: %d.%d.%d.%d\n",
+				 NIPQUAD(node_id->ipv4));
+		break;
+
+	case PFCP_NODE_ID_TYPE_IPV6:
+		if (inet_ntop(AF_INET6, &node_id->ipv6, addr_str, INET6_ADDRSTRLEN))
+			pos += scnprintf(buffer + pos, size - pos, "  IPv6: %s\n", addr_str);
+		break;
+
+	case PFCP_NODE_ID_TYPE_FQDN:
+		if (inet_fqdn2str(addr_str, INET6_ADDRSTRLEN, node_id->fqdn,
+				  ntohs(node_id->h.length) - 1))
+			pos += scnprintf(buffer + pos, size - pos, "  FQDN: %s\n", addr_str);
+		break;
+
+	default:
+		pos += scnprintf(buffer + pos, size - pos, "  !!!invalid type!!!\n");
+		break;
+	}
+
+	return pos;
+}
+
+static size_t
+pfcp_seid_format(struct pfcp_ie_f_seid *f_seid, char *buffer, size_t size)
+{
+	char addr_str[INET6_ADDRSTRLEN];
+	size_t pos = 0;
+
+	pos += scnprintf(buffer + pos, size - pos, "CP F-SEID:\n");
+	pos += scnprintf(buffer + pos, size - pos, "  SEID: 0x%.16lx\n",
+			 be64toh(f_seid->seid));
+
+	if (f_seid->v4) {
+		pos += scnprintf(buffer + pos, size - pos, "  IPv4: %d.%d.%d.%d\n",
+				 NIPQUAD(f_seid->ipv4));
+	}
+
+	if (f_seid->v6) {
+		if (inet_ntop(AF_INET6, &f_seid->ipv6, addr_str, INET6_ADDRSTRLEN))
+			pos += scnprintf(buffer + pos, size - pos, "  IPv6: %s\n", addr_str);
+	}
+
+	return pos;
+}
+
 
 /*
  *	PFCP Heartbeat Dump
@@ -93,42 +149,17 @@ static void
 pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t size)
 {
 	struct pfcp_session_establishment_request *req = msg->session_establishment_request;
-	char addr_str[INET6_ADDRSTRLEN];
 	size_t pos = 0;
 	int i;
 
 	if (!msg || !buffer || size == 0 || !req)
 		return;
 
-	if (req->node_id) {
-		pos += scnprintf(buffer + pos, size - pos, "Node ID:\n");
-		pos += scnprintf(buffer + pos, size - pos, "  Type: %u\n", req->node_id->type);
-		if (req->node_id->type == 0) {
-			pos += scnprintf(buffer + pos, size - pos, "  IPv4: %d.%d.%d.%d\n",
-					 NIPQUAD(req->node_id->ipv4));
-		} else if (req->node_id->type == 1) {
-			if (inet_ntop(AF_INET6, &req->node_id->ipv6, addr_str, INET6_ADDRSTRLEN))
-				pos += scnprintf(buffer + pos, size - pos, "  IPv6: %s\n", addr_str);
-		} else if (req->node_id->type == 2) {
-			if (inet_fqdn2str(addr_str, INET6_ADDRSTRLEN, req->node_id->fqdn,
-					  ntohs(req->node_id->h.length) - 1))
-				pos += scnprintf(buffer + pos, size - pos, "  FQDN: %s\n", addr_str);
-		}
-	}
+	if (req->node_id)
+		pos += pfcp_node_id_format(req->node_id, buffer + pos, size - pos);
 
-	if (req->cp_f_seid) {
-		pos += scnprintf(buffer + pos, size - pos, "CP F-SEID:\n");
-		pos += scnprintf(buffer + pos, size - pos, "  SEID: 0x%.16lx\n",
-				 be64toh(req->cp_f_seid->seid));
-		if (req->cp_f_seid->v4) {
-			pos += scnprintf(buffer + pos, size - pos, "  IPv4: %d.%d.%d.%d\n",
-					 NIPQUAD(req->cp_f_seid->ipv4));
-		}
-		if (req->cp_f_seid->v6) {
-			if (inet_ntop(AF_INET6, &req->cp_f_seid->ipv6, addr_str, INET6_ADDRSTRLEN))
-				pos += scnprintf(buffer + pos, size - pos, "  IPv6: %s\n", addr_str);
-		}
-	}
+	if (req->cp_f_seid)
+		pos += pfcp_seid_format(req->cp_f_seid, buffer + pos, size - pos);
 
 	if (req->pdn_type) {
 		pos += scnprintf(buffer + pos, size - pos, "PDN Type:\n");
@@ -156,21 +187,19 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 		pos += scnprintf(buffer + pos, size - pos, "Create PDR:\n");
 		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_pdr);
 		for (i = 0; i < req->nr_create_pdr; i++) {
-			if (req->create_pdr[i]) {
-				pos += scnprintf(buffer + pos, size - pos, "  PDR[%d]:\n", i);
-				if (req->create_pdr[i]->pdr_id)
-					pos += scnprintf(buffer + pos, size - pos,
-							 "    PDR ID: %u\n",
-							 ntohs(req->create_pdr[i]->pdr_id->rule_id));
-				if (req->create_pdr[i]->precedence)
-					pos += scnprintf(buffer + pos, size - pos,
-							 "    Precedence: %u\n",
-							 ntohl(req->create_pdr[i]->precedence->value));
-				if (req->create_pdr[i]->far_id)
-					pos += scnprintf(buffer + pos, size - pos,
-							 "    FAR ID: %u\n",
-							 ntohl(req->create_pdr[i]->far_id->far_id));
-			}
+			pos += scnprintf(buffer + pos, size - pos, "  PDR[%d]:\n", i);
+			if (req->create_pdr[i]->pdr_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    PDR ID: %u\n",
+						 ntohs(req->create_pdr[i]->pdr_id->rule_id));
+			if (req->create_pdr[i]->precedence)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    Precedence: %u\n",
+						 ntohl(req->create_pdr[i]->precedence->value));
+			if (req->create_pdr[i]->far_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    FAR ID: %u\n",
+						 ntohl(req->create_pdr[i]->far_id->far_id));
 		}
 	}
 
@@ -178,17 +207,15 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 		pos += scnprintf(buffer + pos, size - pos, "Create FAR:\n");
 		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_far);
 		for (i = 0; i < req->nr_create_far; i++) {
-			if (req->create_far[i]) {
-				pos += scnprintf(buffer + pos, size - pos, "  FAR[%d]:\n", i);
-				if (req->create_far[i]->far_id)
-					pos += scnprintf(buffer + pos, size - pos,
-							 "    FAR ID: %u\n",
-							 ntohl(req->create_far[i]->far_id->far_id));
-				if (req->create_far[i]->apply_action)
-					pos += scnprintf(buffer + pos, size - pos,
-							 "    Apply Action: 0x%02x\n",
-							 req->create_far[i]->apply_action->flags);
-			}
+			pos += scnprintf(buffer + pos, size - pos, "  FAR[%d]:\n", i);
+			if (req->create_far[i]->far_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    FAR ID: %u\n",
+						 ntohl(req->create_far[i]->far_id->far_id));
+			if (req->create_far[i]->apply_action)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    Apply Action: 0x%02x\n",
+						 req->create_far[i]->apply_action->flags);
 		}
 	}
 
@@ -196,12 +223,9 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 		pos += scnprintf(buffer + pos, size - pos, "Create URR:\n");
 		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_urr);
 		for (i = 0; i < req->nr_create_urr; i++) {
-			if (req->create_urr[i] && req->create_urr[i]->urr_id) {
-				pos += scnprintf(buffer + pos, size - pos, "  URR[%d]:\n", i);
-				pos += scnprintf(buffer + pos, size - pos,
-						 "    URR ID: %u\n",
-						 ntohl(req->create_urr[i]->urr_id->urr_id));
-			}
+			pos += scnprintf(buffer + pos, size - pos, "  URR[%d]:\n", i);
+			pos += scnprintf(buffer + pos, size - pos, "    URR ID: %u\n",
+					 ntohl(req->create_urr[i]->urr_id->urr_id));
 		}
 	}
 
@@ -209,12 +233,9 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 		pos += scnprintf(buffer + pos, size - pos, "Create QER:\n");
 		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_qer);
 		for (i = 0; i < req->nr_create_qer; i++) {
-			if (req->create_qer[i] && req->create_qer[i]->qer_id) {
-				pos += scnprintf(buffer + pos, size - pos, "  QER[%d]:\n", i);
-				pos += scnprintf(buffer + pos, size - pos,
-						 "    QER ID: %u\n",
-						 ntohl(req->create_qer[i]->qer_id->qer_id));
-			}
+			pos += scnprintf(buffer + pos, size - pos, "  QER[%d]:\n", i);
+			pos += scnprintf(buffer + pos, size - pos, "    QER ID: %u\n",
+					 ntohl(req->create_qer[i]->qer_id->qer_id));
 		}
 	}
 
@@ -293,6 +314,8 @@ pfcp_proto_buffer_format(struct sockaddr_storage *addr, struct pkt_buffer *pbuff
 	pos += hexdump_format("", (unsigned char *) buffer + pos, size - pos - 256,
 			      pbuff->head, pkt_buffer_len(pbuff));
 	pos += scnprintf(buffer + pos, size - pos, "\n");
+
+	/* Truncate ? */
 	if (pos >= size - 256) {
 		text_len = strlen(truncated);
 		padding_left = (width - text_len) / 2;
@@ -304,6 +327,8 @@ pfcp_proto_buffer_format(struct sockaddr_storage *addr, struct pkt_buffer *pbuff
 			pos += scnprintf(buffer + pos, size - pos, "─");
 		return;
 	}
+
+	/* Footer */
 	for (i = 0; i < width; i++)
 		pos += scnprintf(buffer + pos, size - pos, "─");
 }
