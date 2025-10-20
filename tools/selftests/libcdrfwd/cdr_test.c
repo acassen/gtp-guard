@@ -84,9 +84,9 @@ test_ticket_async(void)
 	e->cfc.remote = calloc(3, sizeof (union addr));
 	e->cfc.remote_n = 2;
 
-	addr_parse_const("127.0.0.1:1664", &e->cfc.remote[0]);
-	addr_parse_const("127.0.0.1:1665", &e->cfc.remote[1]);
-	addr_parse_const("127.0.0.1:1666", &e->cfc.remote[2]);
+	addr_parse("127.0.0.1:1664", &e->cfc.remote[0]);
+	addr_parse("127.0.0.1:1665", &e->cfc.remote[1]);
+	addr_parse("127.0.0.1:1666", &e->cfc.remote[2]);
 	e->ctx = cdr_fwd_ctx_create(&e->cfc);
 	assert(e->ctx != NULL);
 
@@ -212,7 +212,7 @@ fake_server(void)
 	int fd, r, i;
 	int on = 1;
 
-	addr_parse_const("127.0.0.1", &addr);
+	addr_parse("127.0.0.1", &addr);
 
 	for (i = 0; i < 3; i++) {
 		fd = socket(PF_INET, SOCK_STREAM, 0);

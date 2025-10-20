@@ -26,7 +26,6 @@
 
 #include <stdint.h>
 #include <netinet/if_ether.h>
-#include "inet_utils.h"
 #include "addr.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface_rule.h"
@@ -62,7 +61,7 @@ struct gtp_interface {
 	uint8_t			hw_addr_len;
 	uint16_t		vlan_id;
 	uint16_t		table_id;
-	struct ip_address	direct_tx_gw;
+	union addr		direct_tx_gw;
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
@@ -107,7 +106,7 @@ int gtp_interface_metrics_dump(FILE *);
 void gtp_interface_metrics_foreach(int (*hdl) (struct gtp_interface *, void *, const char *, int, __u8, __u8),
  				   void *, const char *, int, __u8, __u8);
 void gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *);
-void gtp_interface_update_direct_tx_lladdr(struct ip_address *, const uint8_t *);
+void gtp_interface_update_direct_tx_lladdr(const union addr *, const uint8_t *);
 struct gtp_interface *gtp_interface_get(const char *);
 struct gtp_interface *gtp_interface_get_by_ifindex(int);
 int gtp_interface_put(struct gtp_interface *);

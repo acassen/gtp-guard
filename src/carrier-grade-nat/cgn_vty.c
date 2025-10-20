@@ -396,7 +396,7 @@ DEFUN(show_cgn_user_flow,
 	union addr a;
 	uint32_t addr;
 
-	if (addr_parse_const(argv[0], &a))
+	if (addr_parse(argv[0], &a))
 		return CMD_WARNING;
 	addr = ntohl(a.sin.sin_addr.s_addr);
 

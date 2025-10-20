@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include "inet_utils.h"
 #include "gtp_interface.h"
 #include "gtp_data.h"
 #include "gtp_bpf.h"

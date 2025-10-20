@@ -27,6 +27,7 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
 #include "gtp_netlink.h"
+#include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
 #include "utils.h"
@@ -71,7 +72,8 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 			   , addr_str, sizeof (addr_str)), VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
-			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+			   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
+					       sizeof (addr_str))
 			   , ETHER_BYTES(iface->direct_tx_hw_addr)
 			   , VTY_NEWLINE);
 	for (i = 0; p && i < p->tpl_n; i++) {
@@ -194,7 +196,6 @@ DEFUN(interface_direct_tx_gw,
       "IPv6 Address\n")
 {
 	struct gtp_interface *iface = vty->index;
-	struct ip_address *ip_addr = &iface->direct_tx_gw;
 	int err;
 
 	if (argc < 1) {
@@ -202,10 +203,11 @@ DEFUN(interface_direct_tx_gw,
 		return CMD_WARNING;
 	}
 
-	err = inet_stoipaddress(argv[0], ip_addr);
+	err = addr_parse(argv[0], &iface->direct_tx_gw);
 	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		memset(ip_addr, 0, sizeof(struct ip_address));
+		addr_zero(&iface->direct_tx_gw);
+		__clear_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags);
 		return CMD_WARNING;
 	}
 
@@ -421,7 +423,8 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"
-				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+				   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
+						       sizeof (addr_str))
 				   , VTY_NEWLINE);
 #if 0
 		// XXX: add conf_writer callback

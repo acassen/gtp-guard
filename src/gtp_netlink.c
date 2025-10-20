@@ -362,7 +362,7 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 {
 	struct ndmsg *r = NLMSG_DATA(h);
 	struct rtattr *tb[NDA_MAX + 1];
-	struct ip_address *addr;
+	union addr addr;
 	int len = h->nlmsg_len;
 
 	if (h->nlmsg_type != RTM_NEWNEIGH && h->nlmsg_type != RTM_GETNEIGH)
@@ -378,19 +378,20 @@ netlink_neigh_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct nlm
 	if (!tb[NDA_DST] || !tb[NDA_LLADDR] || RTA_PAYLOAD(tb[NDA_LLADDR]) != ETH_ALEN)
 		return 0;
 
-	PMALLOC(addr);
-	addr->family = r->ndm_family;
+	addr_zero(&addr);
 	switch (r->ndm_family) {
 	case AF_INET:
-		addr->u.sin_addr.s_addr = *(uint32_t *) RTA_DATA(tb[NDA_DST]);
+		addr.sin.sin_addr.s_addr = *(uint32_t *) RTA_DATA(tb[NDA_DST]);
 		break;
 	case AF_INET6:
-		memcpy(&addr->u.sin6_addr, RTA_DATA(tb[NDA_DST]), RTA_PAYLOAD(tb[NDA_DST]));
+		memcpy(&addr.sin6.sin6_addr, RTA_DATA(tb[NDA_DST]), RTA_PAYLOAD(tb[NDA_DST]));
 		break;
+	default:
+		return 0;
 	}
+	addr.family = r->ndm_family;
 
-	gtp_interface_update_direct_tx_lladdr(addr, RTA_DATA(tb[NDA_LLADDR]));
-	FREE(addr);
+	gtp_interface_update_direct_tx_lladdr(&addr, RTA_DATA(tb[NDA_LLADDR]));
 	return 0;
 }
 

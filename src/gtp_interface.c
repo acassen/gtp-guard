@@ -70,43 +70,25 @@ gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *arg)
 }
 
 void
-gtp_interface_update_direct_tx_lladdr(struct ip_address *addr, const uint8_t *hw_addr)
+gtp_interface_update_direct_tx_lladdr(const union addr *addr, const uint8_t *hw_addr)
 {
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
-	struct ip_address *addr_iface;
+	const union addr *addr_iface;
 
 	list_for_each_entry(iface, l, next) {
 		addr_iface = &iface->direct_tx_gw;
-		if (!addr_iface->family)
-			continue;
+		if (addr_iface->family &&
+		    !addr_cmp_ip(addr, addr_iface) &&
+		    memcmp(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN)) {
+			memcpy(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN);
 
-		if (addr_iface->family != addr->family)
-			continue;
+			/* Update BPF prog accordingly */
+			gtp_bpf_rt_lladdr_update(iface);
 
-		switch (addr->family) {
-		case AF_INET:
-			if (__addr_ip4_equal(&addr_iface->u.sin_addr,
-					     &addr->u.sin_addr))
-				goto found;
-			break;
-		case AF_INET6:
-			if (__addr_ip6_equal(&addr_iface->u.sin6_addr,
-					     &addr->u.sin6_addr))
-				goto found;
-			break;
+			return;
 		}
 	}
-	return;
-
- found:
-	if (!memcmp(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN))
-		return;
-
-	memcpy(iface->direct_tx_hw_addr, hw_addr, ETH_ALEN);
-
-	/* Update BPF prog accordingly */
-	gtp_bpf_rt_lladdr_update(iface);
 }
 
 struct gtp_interface *
