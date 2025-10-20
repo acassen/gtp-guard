@@ -92,10 +92,28 @@
  *    mpool_release(&mp);
  * }
  *
+ * === reset:
+ * void foo4() {
+ *    struct mydata *d;
+ *
+ *    d = mpool_new(sizeof(*d), 8192);  // pre-allocated with a 8192 bytes chunk
+ *    d->type = 987;
+ *    for (int i = 0; i < 50; i++) {
+ *       for (int j = 0; j < 100; j++) {
+ *          char *str = mpool_strdup(&d->mp, "lalala");
+ *          [....]
+ *       }
+ *
+ *       // recycle mpool
+ *       mpool_reset(&d->mp);  // reset data
+ *    }
+ * }
+ *
  */
 
 #define CHUNK_FL_PREALLOC_AREA		0x01
 #define CHUNK_FL_IS_PREALLOCATED	0x02
+#define CHUNK_FL_NO_RESET		0x04
 
 struct mpool_chunk
 {
@@ -115,7 +133,7 @@ struct mpool_chunk_prealloc
 
 struct mpool_prealloc_area
 {
-	uint32_t		idx;
+	uint32_t		off;
 	uint32_t		_reserved;
 	uint8_t			data[0];
 };
@@ -123,7 +141,7 @@ struct mpool_prealloc_area
 
 
 static inline void *
-_mpool_alloc(struct mpool *mp, uint32_t size, bool zeromem)
+_mpool_alloc(struct mpool *mp, uint32_t size, bool zeromem, uint32_t extra_flags)
 {
 	struct mpool_prealloc_area *pa;
 	struct mpool_chunk_prealloc *pc;
@@ -143,11 +161,11 @@ _mpool_alloc(struct mpool *mp, uint32_t size, bool zeromem)
 	asize = ALIGN(size, 8);
 
 	/* enough place in prealloc area */
-	if (pa->idx + sizeof (*pc) + asize <= c->size) {
-		pc = (struct mpool_chunk_prealloc *)(pa->data + pa->idx);
+	if (pa->off + sizeof (*pc) + asize <= c->size) {
+		pc = (struct mpool_chunk_prealloc *)(pa->data + pa->off);
 		pc->size = size;
-		pc->flags = CHUNK_FL_IS_PREALLOCATED;
-		pa->idx += sizeof (*pc) + asize;
+		pc->flags = CHUNK_FL_IS_PREALLOCATED | extra_flags;
+		pa->off += sizeof (*pc) + asize;
 		if (zeromem)
 			memset(pc->data, 0x00, size);
 		return pc->data;
@@ -160,8 +178,8 @@ _mpool_alloc(struct mpool *mp, uint32_t size, bool zeromem)
 	pa = (struct mpool_prealloc_area *)c->data;
 	pc = (struct mpool_chunk_prealloc *)(pa->data);
 	pc->size = size;
-	pc->flags = CHUNK_FL_IS_PREALLOCATED;
-	pa->idx = sizeof (*pc) + asize;
+	pc->flags = CHUNK_FL_IS_PREALLOCATED | extra_flags;
+	pa->off = sizeof (*pc) + asize;
 	if (zeromem)
 		memset(pc->data, 0x00, size);
 	return pc->data;
@@ -174,7 +192,7 @@ _mpool_alloc(struct mpool *mp, uint32_t size, bool zeromem)
 	if (unlikely(c == NULL))
 		return NULL;
 	c->size = size;
-	c->flags = 0;
+	c->flags = extra_flags;
 	list_add_tail(&c->list, &mp->head);
 
 	return c->data;
@@ -183,13 +201,13 @@ _mpool_alloc(struct mpool *mp, uint32_t size, bool zeromem)
 void *
 mpool_malloc(struct mpool *mp, uint32_t size)
 {
-	return _mpool_alloc(mp, size, false);
+	return _mpool_alloc(mp, size, false, 0);
 }
 
 void *
 mpool_zalloc(struct mpool *mp, uint32_t size)
 {
-	return _mpool_alloc(mp, size, true);
+	return _mpool_alloc(mp, size, true, 0);
 }
 
 void *
@@ -199,7 +217,7 @@ mpool_realloc(struct mpool *mp, void *old_data, uint32_t size)
 	void *d;
 
 	if (old_data == NULL)
-		return _mpool_alloc(mp, size, false);
+		return _mpool_alloc(mp, size, false, 0);
 
 	oc = container_of(old_data, struct mpool_chunk, data);
 	if (unlikely(oc->flags & CHUNK_FL_PREALLOC_AREA))
@@ -207,7 +225,7 @@ mpool_realloc(struct mpool *mp, void *old_data, uint32_t size)
 	if (unlikely(oc->size >= size))
 		return oc->data;
 
-	d = _mpool_alloc(mp, size, false);
+	d = _mpool_alloc(mp, size, false, 0);
 	if (unlikely(d == NULL))
 		return NULL;
 	memcpy(d, oc->data, oc->size);
@@ -227,7 +245,7 @@ mpool_zrealloc(struct mpool *mp, void *old_data, uint32_t size)
 	void *d;
 
 	if (old_data == NULL)
-		return _mpool_alloc(mp, size, true);
+		return _mpool_alloc(mp, size, true, 0);
 
 	oc = container_of(old_data, struct mpool_chunk, data);
 	if (unlikely(oc->flags & CHUNK_FL_PREALLOC_AREA))
@@ -235,7 +253,7 @@ mpool_zrealloc(struct mpool *mp, void *old_data, uint32_t size)
 	if (unlikely(oc->size >= size))
 		return oc->data;
 
-	d = _mpool_alloc(mp, size, false);
+	d = _mpool_alloc(mp, size, false, 0);
 	if (unlikely(d == NULL))
 		return NULL;
 	memcpy(d, oc->data, oc->size);
@@ -266,7 +284,7 @@ mpool_memdup(struct mpool *mp, const void *src, uint32_t size)
 {
 	void *out;
 
-	out = _mpool_alloc(mp, size, false);
+	out = _mpool_alloc(mp, size, false, 0);
 	if (out)
 		memcpy(out, src, size);
 
@@ -279,7 +297,7 @@ mpool_strdup(struct mpool *mp, const char *src)
 	int l = strlen(src);
 	char *out;
 
-	out = _mpool_alloc(mp, l + 1, false);
+	out = _mpool_alloc(mp, l + 1, false, 0);
 	if (out) {
 		strcpy(out, src);
 		out[l] = 0;
@@ -304,7 +322,7 @@ mpool_asprintf(struct mpool *mp, const char *fmt, ...)
 void
 mpool_release(struct mpool *mp)
 {
-	struct mpool_chunk *b, *b_tmp;
+	struct mpool_chunk *c, *c_tmp;
 	struct list_head thead;
 
 	if (list_empty(&mp->head))
@@ -313,25 +331,47 @@ mpool_release(struct mpool *mp)
 	thead = mp->head;
 	thead.next->prev = &thead;
 	thead.prev->next = &thead;
-	list_for_each_entry_safe(b, b_tmp, &thead, list) {
-		free(b);
+	list_for_each_entry_safe(c, c_tmp, &thead, list) {
+		free(c);
+	}
+}
+
+void
+mpool_reset(struct mpool *mp)
+{
+	struct mpool_chunk *c, *c_tmp;
+	struct mpool_prealloc_area *pa;
+	struct mpool_chunk_prealloc *pc;
+
+	/* Reset prealloc areas and free regular chunks */
+	list_for_each_entry_safe(c, c_tmp, &mp->head, list) {
+		if (c->flags & CHUNK_FL_PREALLOC_AREA) {
+			pa = (struct mpool_prealloc_area *)c->data;
+			pc = (struct mpool_chunk_prealloc *)pa->data;
+			pa->off = (pc->flags & CHUNK_FL_NO_RESET) ?
+				sizeof (*pc) + ALIGN(pc->size, 8) : 0;
+
+		} else if (!(c->flags & CHUNK_FL_NO_RESET)) {
+			list_del(&c->list);
+			free(c);
+		}
 	}
 }
 
 int
 mpool_prealloc(struct mpool *mp, uint32_t size)
 {
-	struct mpool_prealloc_area *mpa;
+	struct mpool_prealloc_area *pa;
 	struct mpool_chunk *c;
 
 	size = ALIGN(size, 8);
-	c = malloc(sizeof (*c) + sizeof (*mpa) + size);
+	c = malloc(sizeof (*c) + sizeof (*pa) + size);
 	if (unlikely(c == NULL))
 		return -1;
 	c->size = size;
 	c->flags = CHUNK_FL_PREALLOC_AREA;
-	mpa = (struct mpool_prealloc_area *)c->data;
-	mpa->idx = 0;
+	pa = (struct mpool_prealloc_area *)c->data;
+	pa->off = 0;
 	list_add(&c->list, &mp->head);
 	return 0;
 }
@@ -349,7 +389,7 @@ mpool_new(uint32_t size, uint32_t prealloc_size)
 		if (unlikely(mpool_prealloc(&smp, prealloc_size) < 0))
 			return NULL;
 	}
-	mp = _mpool_alloc(&smp, size, true);
+	mp = _mpool_alloc(&smp, size, true, CHUNK_FL_NO_RESET);
 	if (unlikely(mp == NULL))
 		return NULL;
 	INIT_LIST_HEAD(&mp->head);

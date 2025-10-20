@@ -91,11 +91,24 @@ static struct thread_master *m;
 static struct thread *t1, *t2, *t3;
 static int sigint;
 
+static int
+list_size(struct list_head *l)
+{
+	struct list_head *pos;
+	int c = 0;
+
+	list_for_each(pos, l) {
+		c++;
+	}
+	return c;
+}
+
 static void
 test_mpool(void)
 {
 	struct mpool mp = MPOOL_INIT(mp);
 	uint8_t *d, *a[100];
+	int i;
 
 	d = mpool_malloc(&mp, 60);
 	d[0] = 'a';
@@ -127,12 +140,44 @@ test_mpool(void)
 
 	memset(a, 0x00, sizeof (a));
 	obj = mpool_new(sizeof (*obj), 1000);
-	for (int i = 10; i < 100; i++)
+	for (i = 10; i < 100; i++)
 		a[i] = mpool_malloc(&obj->mp, 50);
-	for (int i = 0; i < 90; i++)
+	for (i = 0; i < 90; i++)
 		a[i] = mpool_realloc(&obj->mp, a[i], 70);
-	for (int i = 50; i < 60; i++)
+	for (i = 50; i < 60; i++)
 		mpool_free(a[i]);
+	mpool_delete(obj);
+
+	/* reset, without prealloc */
+	memset(a, 0x00, sizeof (a));
+	obj = mpool_new(sizeof (*obj), 0);
+	mpool_reset(&obj->mp);
+	assert(list_size(&obj->mp.head) == 1);
+	for (i = 0; i < 60; i++)
+		a[i] = mpool_malloc(&obj->mp, 160);
+	mpool_free(a[8]);
+	mpool_free(a[59]);
+	mpool_reset(&obj->mp);
+	assert(list_size(&obj->mp.head) == 1);
+	for (i = 0; i < 20; i++)
+		a[i] = mpool_malloc(&obj->mp, 160);
+	mpool_free(a[0]);
+	mpool_delete(obj);
+
+	/* reset, with (a small) prealloc area */
+	memset(a, 0x00, sizeof (a));
+	obj = mpool_new(sizeof (*obj), 1000);
+	mpool_reset(&obj->mp);
+	assert(list_size(&obj->mp.head) == 1);
+	for (i = 0; i < 18; i++)
+		a[i] = mpool_malloc(&obj->mp, 80);
+	mpool_free(a[8]);
+	mpool_free(a[0]);
+	mpool_reset(&obj->mp);
+	assert(list_size(&obj->mp.head) == 2);
+	for (i = 0; i < 20; i++)
+		a[i] = mpool_malloc(&obj->mp, 160);
+	mpool_free(a[0]);
 	mpool_delete(obj);
 }
 
@@ -180,7 +225,6 @@ int main(int argc, char **argv)
 	int err;
 
 	test_mpool();
-	return 0;
 
 	m = thread_make_master(false);
 
