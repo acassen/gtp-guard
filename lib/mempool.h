@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <stdint.h>
 #include "list_head.h"
 
 #define MPOOL_DEFAULT_SIZE	8192
@@ -44,6 +45,7 @@ char *mpool_asprintf(struct mpool *mp, const char *fmt, ...)
 static void mpool_move(struct mpool *dst, struct mpool *src);
 static void mpool_init(struct mpool *mp);
 void mpool_release(struct mpool *mp);
+void mpool_reset(struct mpool *mp);
 int mpool_prealloc(struct mpool *mp, uint32_t size);
 void *mpool_new(uint32_t size, uint32_t prealloc_size);
 static void mpool_delete(void *data);
