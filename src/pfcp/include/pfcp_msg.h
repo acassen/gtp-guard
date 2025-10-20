@@ -368,9 +368,9 @@ struct pfcp_session_report_response {
 
 struct pfcp_msg {
 	struct mpool mp;
-	int m_scheme;
+	uint8_t m_scheme;
 
-	struct pfcp_hdr h;
+	struct pfcp_hdr *h;
 	union {
 		struct pfcp_heartbeat_request *heartbeat_request;
 		struct pfcp_heartbeat_response *heartbeat_response;

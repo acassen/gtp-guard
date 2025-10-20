@@ -114,6 +114,7 @@ pfcp_msg_alloc_scheme(struct pfcp_msg *msg, void **dst, const uint8_t *src, size
 	case PFCP_MSG_MEM_ZEROCOPY:
 		*dst = (void *)src;
 		break;
+
 	default:
 		break;
 	}
@@ -2904,6 +2905,13 @@ static const struct {
  * no need to waste time parsing something that is potentially not useful.
  * Parse recursion over set of IEs will be made during message handling.
  */
+static void
+pfcp_msg_reset(struct pfcp_msg *msg)
+{
+	mpool_reset(&msg->mp);
+	msg->heartbeat_request = NULL;
+}
+
 int
 pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff)
 {
@@ -2920,7 +2928,9 @@ pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff)
 	offset = pfcp_msg_hlen(pbuff);
 	if (pbuff->head + offset > pbuff->end)
 		return -1;
+	msg->h = pfcph;
 
+	pfcp_msg_reset(msg);
 	if (!*(pfcp_msg_decoder[pfcph->type].parse))
 		return -1;
 
@@ -2959,5 +2969,8 @@ pfcp_msg_alloc(int scheme)
 void
 pfcp_msg_free(struct pfcp_msg *msg)
 {
+	if (!msg)
+		return;
+
 	mpool_delete(msg);
 }

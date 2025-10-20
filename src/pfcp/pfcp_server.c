@@ -69,8 +69,18 @@ pfcp_server_init(struct pfcp_server *s, void *ctx,
 	struct sockaddr_storage *addr = &srv->addr;
 	int err;
 
-	/* Init inet server */
+	/* Init pfcp server */
 	s->ctx = ctx;
+	s->msg = pfcp_msg_alloc(PFCP_MSG_MEM_ZEROCOPY);
+	if (!s->msg) {
+		log_message(LOG_INFO, "%s(): Error allocating PFCP msg for [%s]:%d"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , ntohs(inet_sockaddrport(addr)));
+		return -1;
+	}
+
+	/* Init inet server */
 	srv->ctx = s;
 	srv->init = init;
 	srv->process = process;
@@ -80,10 +90,11 @@ pfcp_server_init(struct pfcp_server *s, void *ctx,
 	/* Create UDP Listener */
 	err = inet_server_init(srv, SOCK_DGRAM);
 	if (err) {
-		log_message(LOG_INFO, "%s(): Error creating GTP on [%s]:%d"
+		log_message(LOG_INFO, "%s(): Error creating PFCP listener on [%s]:%d"
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
+		pfcp_msg_free(s->msg);
 		return -1;
 	}
 
@@ -96,5 +107,6 @@ pfcp_server_init(struct pfcp_server *s, void *ctx,
 int
 pfcp_server_destroy(struct pfcp_server *s)
 {
+	pfcp_msg_free(s->msg);
 	return inet_server_destroy(&s->s);
 }

@@ -155,17 +155,8 @@ pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	struct pfcp_router *c = srv->ctx;
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_msg *msg;
+	struct pfcp_msg *msg = srv->msg;
 	int err;
-
-	msg = pfcp_msg_alloc(PFCP_MSG_MEM_ZEROCOPY);
-	if (!msg) {
-		log_message(LOG_INFO, "%s(): Error while parsing [%s] Request (%s)"
-				    , __FUNCTION__
-				    , pfcp_msgtype2str(pfcph->type)
-				    , strerror(ENOMEM));
-		return -1;
-	}
 
 	err = pfcp_msg_parse(msg, srv->s.pbuff);
 	if (err) {
@@ -192,6 +183,5 @@ pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
 		pfcp_proto_dump(srv, NULL, addr, PFCP_DIRECTION_EGRESS);
 
 end:
-	pfcp_msg_free(msg);
 	return err;
 }

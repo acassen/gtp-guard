@@ -21,6 +21,7 @@
 #pragma once
 
 #include "inet_server.h"
+#include "pfcp_msg.h"
 #include "pfcp_metrics.h"
 
 enum pfcp_server_flags {
@@ -30,6 +31,7 @@ enum pfcp_server_flags {
 /* PFCP Server context */
 struct pfcp_server {
 	struct inet_server	s;
+	struct pfcp_msg		*msg;
 	void			*ctx;	/* context back-pointer */
 
 	/* metrics */
