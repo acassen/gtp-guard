@@ -33,9 +33,10 @@
 #include "libbpf.h"
 #include "inet_server.h"
 #include "inet_utils.h"
+#include "list_head.h"
 #include "tools.h"
 #include "utils.h"
-#include "list_head.h"
+#include "command.h"
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
@@ -185,7 +186,8 @@ cgn_ctx_iface_event_cb(struct gtp_interface *iface,
 			c->bind_pub = false;
 		break;
 
-	case GTP_INTERFACE_EV_CONFIG_WRITE:
+	case GTP_INTERFACE_EV_VTY_SHOW:
+	case GTP_INTERFACE_EV_VTY_WRITE:
 	{
 		struct vty *vty = arg;
 		if (iface == c->priv)

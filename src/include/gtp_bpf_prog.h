@@ -21,7 +21,6 @@
 #pragma once
 
 #include <stdint.h>
-#include "vty.h"
 #include "list_head.h"
 #include "libbpf.h"
 #include "gtp_stddef.h"
@@ -50,8 +49,6 @@ struct gtp_bpf_prog_tpl {
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
-
-	void (*vty_iface_show)(struct gtp_bpf_prog *, struct gtp_interface *, struct vty *);
 
 	struct list_head		next;
 };

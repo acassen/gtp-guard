@@ -25,6 +25,7 @@
 
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
+#include "gtp_bpf_rt.h"
 #include "gtp_interface.h"
 #include "gtp_netlink.h"
 #include "inet_utils.h"
@@ -46,7 +47,6 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	struct gtp_bpf_prog *p = iface->bpf_prog;
 	struct vty *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
-	int i;
 
 	vty_out(vty, "interface %s%s"
 		   , iface->ifname
@@ -76,10 +76,10 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 					       sizeof (addr_str))
 			   , ETHER_BYTES(iface->direct_tx_hw_addr)
 			   , VTY_NEWLINE);
-	for (i = 0; p && i < p->tpl_n; i++) {
-		if (p->tpl[i]->vty_iface_show)
-			p->tpl[i]->vty_iface_show(p, iface, vty);
-	}
+
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_VTY_SHOW, vty);
+
+	gtp_bpf_rt_stats_vty(p, iface, vty);
 
 	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
@@ -427,7 +427,7 @@ interface_config_write(struct vty *vty)
 						       sizeof (addr_str))
 				   , VTY_NEWLINE);
 
-		gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_CONFIG_WRITE, vty);
+		gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_VTY_WRITE, vty);
 
 		if (iface->table_id)
 			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);

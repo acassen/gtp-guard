@@ -55,7 +55,6 @@ int gtp_fwd_main(struct xdp_md *ctx)
 		return XDP_DROP;
 
 	return if_rule_rewrite_pkt(ctx, &d);
-
 }
 
 const char _mode[] = "if_rules,gtp_fwd-ifr";

@@ -173,6 +173,9 @@ gtp_bpf_rt_metrics_dump(struct gtp_bpf_prog *p,
 	size_t sz;
 	int err, i;
 
+	if (!p || !pr)
+		return -1;
+
 	mkey.ifindex = ifindex;
 	mkey.type = type;
 	mkey.direction = direction;
@@ -229,9 +232,12 @@ gtp_bpf_rt_metrics_show(void *arg, __u8 type, __u8 direction, struct metrics *m)
 	return 0;
 }
 
-static void
+void
 gtp_bpf_rt_stats_vty(struct gtp_bpf_prog *p, struct gtp_interface *iface, struct vty *vty)
 {
+	if (p == NULL || gtp_bpf_prog_tpl_data_get(p, "gtp_route") == NULL)
+		return;
+
 	gtp_bpf_rt_stats_dump(p, iface->ifindex, IF_METRICS_GTP
 			       , gtp_bpf_rt_metrics_show
 			       , vty);
@@ -242,7 +248,6 @@ gtp_bpf_rt_stats_vty(struct gtp_bpf_prog *p, struct gtp_interface *iface, struct
 			       , gtp_bpf_rt_metrics_show
 			       , vty);
 }
-
 
 
 
@@ -762,7 +767,6 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_rt = {
 	.description = "gtp-route",
 	.udata_alloc_size = sizeof (struct gtp_bpf_rt),
 	.loaded = gtp_bpf_rt_load_maps,
-	.vty_iface_show = gtp_bpf_rt_stats_vty,
 };
 
 static void __attribute__((constructor))
