@@ -34,12 +34,14 @@
 enum gtp_interface_event {
 	GTP_INTERFACE_EV_PRG_BIND,
 	GTP_INTERFACE_EV_PRG_UNBIND,
+	GTP_INTERFACE_EV_CONFIG_WRITE,
 	GTP_INTERFACE_EV_DESTROYING,
 };
 
 typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
 					 enum gtp_interface_event,
-					 void *user_data);
+					 void *user_data,
+					 void *arg);
 struct gtp_interface_event_storage;
 
 
@@ -116,7 +118,7 @@ void gtp_interface_register_event(struct gtp_interface *, gtp_interface_event_cb
 				  void *);
 void gtp_interface_unregister_event(struct gtp_interface *, gtp_interface_event_cb_t);
 void gtp_interface_trigger_event(struct gtp_interface *iface,
-				 enum gtp_interface_event type);
+				 enum gtp_interface_event type, void *arg);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
 void gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);

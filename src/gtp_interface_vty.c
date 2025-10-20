@@ -426,17 +426,9 @@ interface_config_write(struct vty *vty)
 				   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
 						       sizeof (addr_str))
 				   , VTY_NEWLINE);
-#if 0
-		// XXX: add conf_writer callback
-		if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags))
-			vty_out(vty, " carrier-grade-nat %s side network-in%s"
-				   , iface->cgn_name
-				   , VTY_NEWLINE);
-		else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags))
-			vty_out(vty, " carrier-grade-nat %s side network-out%s"
-				   , iface->cgn_name
-				   , VTY_NEWLINE);
-#endif
+
+		gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_CONFIG_WRITE, vty);
+
 		if (iface->table_id)
 			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))

@@ -151,11 +151,11 @@ gtp_interface_start(struct gtp_interface *iface)
 		return -1;
 
 	/* Trigger event on this iface and all sub-interfaces */
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_BIND);
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_BIND, p);
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->link_iface == iface)
 			gtp_interface_trigger_event(if_child,
-						    GTP_INTERFACE_EV_PRG_BIND);
+						    GTP_INTERFACE_EV_PRG_BIND, p);
 	}
 
 	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
@@ -199,11 +199,13 @@ gtp_interface_stop(struct gtp_interface *iface)
 	gtp_bpf_prog_detach(iface->bpf_prog, iface);
 
 	/* Trigger event on this iface and all sub-interfaces */
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_UNBIND);
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_UNBIND,
+				    iface->bpf_prog);
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->link_iface == iface)
 			gtp_interface_trigger_event(if_child,
-						    GTP_INTERFACE_EV_PRG_UNBIND);
+						    GTP_INTERFACE_EV_PRG_UNBIND,
+						    iface->bpf_prog);
 	}
 }
 
@@ -243,12 +245,13 @@ gtp_interface_unregister_event(struct gtp_interface *iface,
 
 void
 gtp_interface_trigger_event(struct gtp_interface *iface,
-			    enum gtp_interface_event type)
+			    enum gtp_interface_event type,
+			    void *arg)
 {
 	int i;
 
 	for (i = 0; i < iface->ev_n; i++)
-		iface->ev[i].cb(iface, type, iface->ev[i].cb_ud);
+		iface->ev[i].cb(iface, type, iface->ev[i].cb_ud, arg);
 }
 
 
@@ -282,7 +285,7 @@ gtp_interface_destroy(struct gtp_interface *iface)
 
 	log_message(LOG_INFO, "gtp_interface: deleting '%s'", iface->ifname);
 
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_DESTROYING);
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_DESTROYING, NULL);
 
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->link_iface == iface)

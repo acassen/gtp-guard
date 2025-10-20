@@ -165,7 +165,7 @@ cgn_ctx_set_rules(struct cgn_ctx *c)
 static void
 cgn_ctx_iface_event_cb(struct gtp_interface *iface,
 		       enum gtp_interface_event type,
-		       void *ud)
+		       void *ud, void *arg)
 {
 	struct cgn_ctx *c = ud;
 
@@ -184,6 +184,18 @@ cgn_ctx_iface_event_cb(struct gtp_interface *iface,
 		if (iface == c->pub)
 			c->bind_pub = false;
 		break;
+
+	case GTP_INTERFACE_EV_CONFIG_WRITE:
+	{
+		struct vty *vty = arg;
+		if (iface == c->priv)
+			vty_out(vty, " carrier-grade-nat %s side network-in\n",
+				c->name);
+		if (iface == c->pub)
+			vty_out(vty, " carrier-grade-nat %s side network-out\n",
+				c->name);
+		break;
+	}
 	}
 
 	cgn_ctx_set_rules(c);
@@ -221,7 +233,7 @@ cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
 void
 cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface)
 {
-	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c);
+	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c, NULL);
 	gtp_interface_unregister_event(iface, cgn_ctx_iface_event_cb);
 }
 
