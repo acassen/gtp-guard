@@ -19,8 +19,11 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <net/if.h>
+
 #include "gtp_data.h"
 #include "gtp_interface.h"
+#include "gtp_netlink.h"
 #include "gtp_bpf_rt.h"
 #include "addr.h"
 #include "memory.h"
@@ -92,16 +95,26 @@ gtp_interface_update_direct_tx_lladdr(const union addr *addr, const uint8_t *hw_
 }
 
 struct gtp_interface *
-gtp_interface_get(const char *name)
+gtp_interface_get(const char *name, bool alloc)
 {
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
+	int ifindex;
 
 	list_for_each_entry(iface, l, next) {
 		if (!strncmp(iface->ifname, name, strlen(name))) {
 			__sync_add_and_fetch(&iface->refcnt, 1);
 			return iface;
 		}
+	}
+
+	/* use netlink to get this link, along with necessary data (eth addr).
+	 * it will alloc the gtp_interface data */
+	if (alloc) {
+		ifindex = if_nametoindex(name);
+		if (ifindex >= 0 &&
+		    !gtp_netlink_if_lookup(ifindex))
+			return gtp_interface_get(name, false);
 	}
 
 	return NULL;
@@ -134,7 +147,6 @@ int
 gtp_interface_start(struct gtp_interface *iface)
 {
 	struct gtp_bpf_prog *p = iface->bpf_prog;
-	struct gtp_interface *if_child;
 	int err;
 
 	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ||
@@ -150,13 +162,7 @@ gtp_interface_start(struct gtp_interface *iface)
 	if (gtp_bpf_prog_attach(p, iface) < 0)
 		return -1;
 
-	/* Trigger event on this iface and all sub-interfaces */
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_BIND, p);
-	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
-		if (if_child->link_iface == iface)
-			gtp_interface_trigger_event(if_child,
-						    GTP_INTERFACE_EV_PRG_BIND, p);
-	}
+	gtp_interface_trigger_event_wide(iface, GTP_INTERFACE_EV_PRG_BIND, p);
 
 	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
 			    , p->name, iface->ifname);
@@ -184,8 +190,6 @@ gtp_interface_start(struct gtp_interface *iface)
 void
 gtp_interface_stop(struct gtp_interface *iface)
 {
-	struct gtp_interface *if_child;
-
 	if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ||
 	    !__test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
 		return;
@@ -195,26 +199,47 @@ gtp_interface_stop(struct gtp_interface *iface)
 	if (iface->bpf_prog == NULL)
 		return;
 
-	/* Detach program */
 	gtp_bpf_prog_detach(iface->bpf_prog, iface);
 
-	/* Trigger event on this iface and all sub-interfaces */
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_UNBIND,
-				    iface->bpf_prog);
-	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
-		if (if_child->link_iface == iface)
-			gtp_interface_trigger_event(if_child,
-						    GTP_INTERFACE_EV_PRG_UNBIND,
-						    iface->bpf_prog);
-	}
+	gtp_interface_trigger_event_wide(iface, GTP_INTERFACE_EV_PRG_UNBIND,
+					 iface->bpf_prog);
 }
 
+/* add 'slave' as a sub-interface of 'master' */
+void
+gtp_interface_link(struct gtp_interface *master, struct gtp_interface *slave)
+{
+	struct gtp_interface *sub;
+
+	if (master->link_iface != NULL) {
+		/* master is itself a slave of another interface.
+		 * point to its master... */
+		sub = master;
+		master = master->link_iface;
+
+		/* ... but doing so, 'sub' interface informations are lost.
+		 * copy important parameters to slave.
+		 * note: we could also keep whole relationship, used when
+		 *   builing if_rule keys. this way is easier for now. */
+		if (!slave->vlan_id)
+			slave->vlan_id = sub->vlan_id;
+		if (!slave->tunnel_mode && sub->tunnel_mode) {
+			slave->tunnel_mode = sub->tunnel_mode;
+			slave->tunnel_local = sub->tunnel_local;
+			slave->tunnel_remote = sub->tunnel_remote;
+		}
+	}
+
+	slave->link_iface = master;
+}
 
 void
 gtp_interface_register_event(struct gtp_interface *iface,
 			     gtp_interface_event_cb_t cb,
 			     void *ud)
 {
+	struct gtp_bpf_prog *p;
+
 	if (iface->ev_n >= iface->ev_msize) {
 		iface->ev_msize = !iface->ev_msize ? 8 : iface->ev_msize * 2;
 		iface->ev = realloc(iface->ev, iface->ev_msize * sizeof (*iface->ev));
@@ -224,6 +249,11 @@ gtp_interface_register_event(struct gtp_interface *iface,
 	iface->ev[iface->ev_n].cb = cb;
 	iface->ev[iface->ev_n].cb_ud = ud;
 	++iface->ev_n;
+
+	/* send PRG_BIND if iface bpf is already started */
+	p = iface->link_iface ? iface->link_iface->bpf_prog : iface->bpf_prog;
+	if (p && gtp_bpf_prog_is_attached(p, iface))
+		gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_PRG_BIND, p);
 }
 
 void
@@ -252,6 +282,21 @@ gtp_interface_trigger_event(struct gtp_interface *iface,
 
 	for (i = 0; i < iface->ev_n; i++)
 		iface->ev[i].cb(iface, type, iface->ev[i].cb_ud, arg);
+}
+
+/* trigger on iface, all its sub-interfaces */
+void
+gtp_interface_trigger_event_wide(struct gtp_interface *iface,
+				 enum gtp_interface_event type,
+				 void *arg)
+{
+	struct gtp_interface *if_child;
+
+	gtp_interface_trigger_event(iface, type, arg);
+	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
+		if (if_child->link_iface == iface)
+			gtp_interface_trigger_event(if_child, type, arg);
+	}
 }
 
 

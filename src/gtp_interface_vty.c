@@ -19,7 +19,6 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <net/if.h>
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
@@ -27,7 +26,6 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_bpf_rt.h"
 #include "gtp_interface.h"
-#include "gtp_netlink.h"
 #include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
@@ -47,11 +45,12 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	struct gtp_bpf_prog *p = iface->bpf_prog;
 	struct vty *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
+	char addr2_str[INET6_ADDRSTRLEN];
 
 	vty_out(vty, "interface %s%s"
 		   , iface->ifname
 		   , VTY_NEWLINE);
-	vty_out(vty, " ifindex: %d%s"
+	vty_out(vty, " ifindex:%d%s"
 		   , iface->ifindex
 		   , VTY_NEWLINE);
 	vty_out(vty, " ll_addr:" ETHER_FMT "%s"
@@ -66,10 +65,14 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	if (iface->link_iface)
 		vty_out(vty, " link-iface:%s%s"
 			   , iface->link_iface->ifname, VTY_NEWLINE);
-	if (addr_len(&iface->tunnel_remote))
-		vty_out(vty, " tunnel-remote:%s%s"
+	if (iface->tunnel_mode)
+		vty_out(vty, " tunnel-%s: local:%s remote:%s%s"
+			   , iface->tunnel_mode == 1 ? "gre" : "ipip"
+			   , addr_stringify(&iface->tunnel_local
+					    , addr_str, sizeof (addr_str))
 			   , addr_stringify(&iface->tunnel_remote
-			   , addr_str, sizeof (addr_str)), VTY_NEWLINE);
+					    , addr2_str, sizeof (addr2_str))
+			   , VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
 			   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
@@ -96,32 +99,14 @@ DEFUN(interface,
       "Local system interface name\n")
 {
 	struct gtp_interface *new;
-	int ifindex;
 
-	new = gtp_interface_get(argv[0]);
-	if (new)
-		goto end;
-
-	ifindex = if_nametoindex(argv[0]);
-	if (!ifindex) {
-		vty_out(vty, "%% interface %s not found on local system%s"
-			   , argv[0], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* use netlink to get this link, along with necessary data (eth addr).
-	 * it will alloc the gtp_interface data */
-	if (gtp_netlink_if_lookup(ifindex) < 0)
-		return CMD_WARNING;
-
-	new = gtp_interface_get(argv[0]);
+	new = gtp_interface_get(argv[0], true);
 	if (!new) {
 		vty_out(vty, "%% cannot get interface %s%s"
 			   , argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
- end:
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
 	gtp_interface_put(new);
@@ -136,12 +121,7 @@ DEFUN(no_interface,
 {
 	struct gtp_interface *iface;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	iface = gtp_interface_get(argv[0]);
+	iface = gtp_interface_get(argv[0], false);
 	if (!iface) {
 		vty_out(vty, "%% unknown interface:'%s'%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
@@ -391,7 +371,7 @@ DEFUN(show_interface,
 	struct gtp_interface *iface = NULL;
 
 	if (argc >= 1) {
-		iface = gtp_interface_get(argv[0]);
+		iface = gtp_interface_get(argv[0], false);
 		if (!iface) {
 			vty_out(vty, "%% Unknown interface:'%s'%s", argv[0], VTY_NEWLINE);
 			return CMD_WARNING;
@@ -495,7 +475,7 @@ static struct cmd_ext cmd_ext_interface = {
 };
 
 static void __attribute__((constructor))
-gtp_vty_init(void)
+gtp_interface_vty_init(void)
 {
 	cmd_ext_register(&cmd_ext_interface);
 }
