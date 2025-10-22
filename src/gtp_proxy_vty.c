@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <net/if.h>
@@ -48,11 +48,6 @@ DEFUN(gtp_proxy,
 {
 	struct gtp_proxy *new;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	/* Already existing ? */
 	new = gtp_proxy_get(argv[0]);
 	new = (new) ? : gtp_proxy_init(argv[0]);
@@ -75,11 +70,6 @@ DEFUN(no_gtp_proxy,
 {
 	struct gtp_proxy *ctx;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	/* Already existing ? */
 	ctx = gtp_proxy_get(argv[0]);
 	if (!ctx) {
@@ -89,7 +79,6 @@ DEFUN(no_gtp_proxy,
 
 	gtp_proxy_ctx_server_destroy(ctx);
 	gtp_proxy_ctx_destroy(ctx);
-	FREE(ctx);
 
 	return CMD_SUCCESS;
 }
@@ -103,11 +92,6 @@ DEFUN(gtp_proxy_bpf_program,
 	struct gtp_proxy *ctx = vty->index;
 	struct gtp_bpf_prog *p;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	p = gtp_bpf_prog_get(argv[0]);
 	if (!p) {
 		vty_out(vty, "%% unknown bpf-program '%s'%s"
@@ -116,6 +100,8 @@ DEFUN(gtp_proxy_bpf_program,
 	}
 
 	ctx->bpf_prog = p;
+	ctx->bpf_data = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
+
 	return CMD_SUCCESS;
 }
 
@@ -243,101 +229,6 @@ DEFUN(gtpc_proxy_egress_tunnel_endpoint,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_proxy_tunnel_endpoint,
-      gtpu_proxy_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
-      "GTP Userplane channel tunnel endpoint\n"
-      "Bind IPv4 Address\n"
-      "Bind IPv6 Address\n"
-      "listening UDP Port (default = 2152)\n"
-      "Number\n")
-{
-	struct gtp_proxy *ctx = vty->index;
-	struct gtp_server *srv = &ctx->gtpu;
-	struct sockaddr_storage *addr = &srv->s.addr;
-	int port = 2152, err = 0;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (__test_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags)) {
-		vty_out(vty, "%% GTP-U already configured!%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (argc == 2)
-		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-
-	err = inet_stosockaddr(argv[0], port, addr);
-	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		memset(addr, 0, sizeof(struct sockaddr_storage));
-		return CMD_WARNING;
-	}
-
-	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
-	__set_bit(GTP_FL_GTPU_INGRESS_BIT, &srv->flags);
-	err = gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
-	if (err) {
-		vty_out(vty, "%% Error initializing Ingress GTP-U Proxy listener on [%s]:%d%s"
-			   , argv[0], port, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(gtpu_proxy_egress_tunnel_endpoint,
-      gtpu_proxy_egress_tunnel_endpoint_cmd,
-      "gtpu-egress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
-      "GTP Userplane channel tunnel endpoint\n"
-      "Bind IPv4 Address\n"
-      "Bind IPv6 Address\n"
-      "listening UDP Port (default = 2152)\n"
-      "Number\n")
-{
-	struct gtp_proxy *ctx = vty->index;
-	struct gtp_server *srv = &ctx->gtpu_egress;
-	struct sockaddr_storage *addr = &srv->s.addr;
-	int port = 2152, err = 0;
-
-	/* TODO: split Ingress / Egress at GTP-U and GTP-C */
-	vty_out(vty, "%% feature not implemented... ignoring%s", VTY_NEWLINE);
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (__test_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags)) {
-		vty_out(vty, "%% GTPu already configured!%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	if (argc == 2)
-		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
-
-	err = inet_stosockaddr(argv[0], port, addr);
-	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		memset(addr, 0, sizeof(struct sockaddr_storage));
-		return CMD_WARNING;
-	}
-
-	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
-	__set_bit(GTP_FL_GTPU_EGRESS_BIT, &srv->flags);
-	err = gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
-	if (err) {
-		vty_out(vty, "%% Error initializing Egress GTP-U Proxy listener on [%s]:%d%s"
-			   , argv[0], port, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	return CMD_SUCCESS;
-}
-
 DEFUN(gtpc_force_pgw_selection,
       gtpc_force_pgw_selection_cmd,
       "force-pgw-selection (A.B.C.D|X:X:X:X)",
@@ -365,72 +256,118 @@ DEFUN(gtpc_force_pgw_selection,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_ipip,
-      gtpu_ipip_cmd,
-      "gtpu-ipip traffic-selector (A.B.C.D|X:X:X:X) local (A.B.C.D|X:X:X:X) remote (A.B.C.D|X:X:X:X) [vlan <1-4095>]",
-      "GTP Userplane IPIP tunnel\n"
-      "GTP-U local L3 destination address\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "Local Address\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "Remote Address\n"
-      "IPv4 Address\n"
-      "IPv6 Address\n"
-      "Vlan ID\n"
+DEFUN(gtpu_proxy_tunnel_endpoint,
+      gtpu_proxy_tunnel_endpoint_cmd,
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) (ingress|egress|both-side) interface IFACE [port <1024-65535>]",
+      "GTP Userplane channel tunnel endpoint\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "ingress side\n"
+      "egress side\n"
+      "tun side\n"
+      "Use interface\n"
+      "Interface name\n"
+      "listening UDP Port (default = 2152)\n"
       "Number\n")
 {
 	struct gtp_proxy *ctx = vty->index;
-	struct gtp_iptnl *t = &ctx->iptnl;
-	uint32_t saddr, laddr, raddr;
-	int ret = 0, vlan = 0;
+	struct gtp_interface *iface;
+	struct gtp_server *srv;
+	union addr bind_addr;
+	const char *side = argv[1];
+	const char *ifname = argv[2];
+	char buf[100];
+	uint32_t port = 2152, fl = 0;
+	int err = 0;
 
-	if (!ctx->bpf_prog) {
-		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
+	iface = gtp_interface_get(ifname, true);
+	if (iface == NULL) {
+		vty_out(vty, "%% cannot find interface %s\n", ifname);
 		return CMD_WARNING;
 	}
 
-	if (argc < 3) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+	/* build bind-address for gtp-u socket */
+	addr_parse(argv[0], &bind_addr);
+	if (argc >= 5)
+		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[4], 1024, 65535);
+	addr_set_port(&bind_addr, port);
+
+	if (!strcmp(side, "ingress")) {
+		if (ctx->iface_ingress) {
+			vty_out(vty, "%% gtpu endpoint ingress already set\n");
+			return CMD_WARNING;
+		}
+		ctx->iface_ingress = iface;
+		srv = &ctx->gtpu;
+		fl = GTP_FL_GTPU_INGRESS_BIT;
+
+	} else if (!strcmp(side, "egress")) {
+		if (ctx->iface_egress) {
+			vty_out(vty, "%% gtpu endpoint egress already set\n");
+			return CMD_WARNING;
+		}
+		ctx->iface_egress = iface;
+		srv = &ctx->gtpu_egress;
+		fl = GTP_FL_GTPU_EGRESS_BIT;
+
+	} else if (!strcmp(side, "both-side")) {
+		if (ctx->iface_ingress || ctx->iface_egress) {
+			vty_out(vty, "%% gtpu endpoints already set\n");
+			return CMD_WARNING;
+		}
+		ctx->iface_ingress = iface;
+		ctx->iface_egress = iface;
+		srv = &ctx->gtpu;
+		fl = GTP_FL_GTPU_INGRESS_BIT | GTP_FL_GTPU_EGRESS_BIT;
+
+	} else {
 		return CMD_WARNING;
 	}
 
-	ret = inet_ston(argv[0], &saddr);
-	if (!ret) {
-		vty_out(vty, "%% malformed Local IP address %s%s", argv[0], VTY_NEWLINE);
+	/* receive events for selected interface */
+	gtp_interface_register_event(iface, gtp_proxy_iface_event_cb, ctx);
+
+	srv->s.addr = bind_addr.ss;
+	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
+	__set_bit(fl, &srv->flags);
+	err = gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
+	if (err) {
+		vty_out(vty, "%% Error initializing %s GTP-U Proxy listener on %s\n",
+			argv[1], addr_stringify(&bind_addr, buf, sizeof (buf)));
 		return CMD_WARNING;
 	}
 
-	ret = inet_ston(argv[1], &laddr);
-	if (!ret) {
-		vty_out(vty, "%% malformed Local IP address %s%s", argv[1], VTY_NEWLINE);
+	return CMD_SUCCESS;
+}
+
+DEFUN(gtpu_ipip,
+      gtpu_ipip_cmd,
+      "gtpu-ipip interface IFACE view (ingress|egress)",
+      "GTP Userplane IPIP tunnel\n")
+{
+	struct gtp_proxy *ctx = vty->index;
+	struct gtp_interface *iface;
+
+	iface = gtp_interface_get(argv[0], true);
+	if (iface == NULL) {
+		vty_out(vty, "%% cannot find interface %s\n", argv[0]);
 		return CMD_WARNING;
 	}
 
-	ret = inet_ston(argv[2], &raddr);
-	if (!ret) {
-		vty_out(vty, "%% malformed Remote IP address %s%s", argv[2], VTY_NEWLINE);
+	if (ctx->ipip_iface) {
+		vty_out(vty, "%% gtpu endpoint ipip already set\n");
 		return CMD_WARNING;
 	}
 
-	if (argc == 5) {
-		VTY_GET_INTEGER_RANGE("Vlan ID", vlan, argv[4], 1, 4095);
-		if (vlan) {} ; /* dummy test */
+	if (!strcmp(argv[1], "ingress")) {
+		ctx->ipip_xlat = 1;
+	} else if (!strcmp(argv[1], "egress")) {
+		ctx->ipip_xlat = 2;
 	}
 
-	t->selector_addr = saddr;
-	t->local_addr = laddr;
-	t->remote_addr = raddr;
-	t->encap_vlan_id = vlan;
-	ret = gtp_bpf_fwd_iptnl_action(RULE_ADD, &ctx->iptnl, ctx->bpf_prog);
-	if (ret < 0) {
-		vty_out(vty, "%% Unable to create XDP IPIP-Tunnel%s", VTY_NEWLINE);
-		memset(t, 0, sizeof(struct gtp_iptnl));
-		return CMD_WARNING;
-	}
+	ctx->ipip_iface = iface;
+	gtp_interface_register_event(iface, gtp_proxy_iface_tun_event_cb, ctx);
 
-	__set_bit(GTP_FL_IPTNL_BIT, &ctx->flags);
 
 	return CMD_SUCCESS;
 }
@@ -514,6 +451,31 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	return CMD_SUCCESS;
 }
 
+DEFUN(gtpu_ipip_debug_set_teid,
+      gtpu_ipip_debug_set_teid_cmd,
+      "gtpu-ipip debug teid (add|del) VTEID TEID ENDPTADDR (egress|ingress)",
+      "GTP Userplane IPIP tunnel\n"
+      "Debug command\n")
+{
+	struct gtp_proxy *ctx = vty->index;
+	int action = !strcmp(argv[0], "add") ? RULE_ADD : RULE_DEL;
+	struct gtp_teid t = {};
+	union addr a;
+
+	t.vid = atoi(argv[1]);
+	t.id = htonl(atoi(argv[2]));
+	addr_parse(argv[3], &a);
+	t.ipv4 = a.sin.sin_addr.s_addr;
+	__set_bit(!strcmp(argv[4], "ingress") ?
+		  GTP_TEID_FL_INGRESS : GTP_TEID_FL_EGRESS, &t.flags);
+
+	gtp_bpf_teid_action(ctx, action, &t);
+
+	return CMD_SUCCESS;
+}
+
+
+#if 0
 DEFUN(gtpu_ipip_transparent_ingress_encap,
       gtpu_ipip_transparent_ingress_encap_cmd,
       "gtpu-ipip transparent-ingress-encap",
@@ -543,7 +505,9 @@ DEFUN(gtpu_ipip_transparent_ingress_encap,
 
 	return CMD_SUCCESS;
 }
+#endif
 
+#if 0
 DEFUN(gtpu_ipip_transparent_egress_encap,
       gtpu_ipip_transparent_egress_encap_cmd,
       "gtpu-ipip transparent-egress-encap",
@@ -551,9 +515,8 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
       "GTP-U Transparent egress encapsulation mode\n")
 {
 	struct gtp_proxy *ctx = vty->index;
-	struct gtp_iptnl *t = &ctx->iptnl;
-	int ret;
 
+	struct gtp_iptnl *t = &ctx->iptnl;
 	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -564,16 +527,11 @@ DEFUN(gtpu_ipip_transparent_egress_encap,
 		return CMD_WARNING;
 	}
 
-	t->flags |= IPTNL_FL_TRANSPARENT_EGRESS_ENCAP;
-	ret = gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &ctx->iptnl, ctx->bpf_prog);
-	if (ret < 0) {
-		vty_out(vty, "%% Unable to update XDP IPIP-Tunnel%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	return CMD_SUCCESS;
 }
+#endif
 
+#if 0
 DEFUN(gtpu_ipip_decap_untag_vlan,
       gtpu_ipip_decap_untag_vlan_cmd,
       "gtpu-ipip decap-untag-vlan",
@@ -642,6 +600,7 @@ DEFUN(gtpu_ipip_decap_tag_vlan,
 
 	return CMD_SUCCESS;
 }
+#endif
 
 /* Show */
 DEFUN(show_bpf_forwarding,
@@ -651,16 +610,6 @@ DEFUN(show_bpf_forwarding,
       "BPF GTP Fowarding Dataplane ruleset\n")
 {
 	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, "gtp_fwd");
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_bpf_forwarding_iptnl,
-      show_bpf_forwarding_iptnl_cmd,
-      "show bpf forwarding iptunnel",
-      SHOW_STR
-      "BPF GTP Forwarding IPIP Tunnel ruleset\n")
-{
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_iptnl_vty, vty, "gtp_fwd");
 	return CMD_SUCCESS;
 }
 
@@ -754,7 +703,7 @@ gtp_config_write(struct vty *vty)
 int
 cmd_ext_gtp_proxy_install(void)
 {
-	/* Install PDN commands. */
+	/* Install gtp-proxy commands. */
 	install_element(CONFIG_NODE, &gtp_proxy_cmd);
 	install_element(CONFIG_NODE, &no_gtp_proxy_cmd);
 
@@ -764,21 +713,21 @@ cmd_ext_gtp_proxy_install(void)
 	install_element(GTP_PROXY_NODE, &gtp_proxy_session_expiration_timeout_delete_cmd);
 	install_element(GTP_PROXY_NODE, &gtpc_proxy_tunnel_endpoint_cmd);
 	install_element(GTP_PROXY_NODE, &gtpc_proxy_egress_tunnel_endpoint_cmd);
-	install_element(GTP_PROXY_NODE, &gtpu_proxy_tunnel_endpoint_cmd);
-	install_element(GTP_PROXY_NODE, &gtpu_proxy_egress_tunnel_endpoint_cmd);
 	install_element(GTP_PROXY_NODE, &gtpc_force_pgw_selection_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_proxy_tunnel_endpoint_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_dead_peer_detection_cmd);
-	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_debug_set_teid_cmd);
+#if 0
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_egress_encap_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_ipip_transparent_ingress_encap_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_untag_vlan_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_decap_tag_vlan_cmd);
+#endif
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_bpf_forwarding_cmd);
-	install_element(VIEW_NODE, &show_bpf_forwarding_iptnl_cmd);
 	install_element(ENABLE_NODE, &show_bpf_forwarding_cmd);
-	install_element(ENABLE_NODE, &show_bpf_forwarding_iptnl_cmd);
 
 	return 0;
 }

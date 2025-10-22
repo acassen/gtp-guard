@@ -112,7 +112,7 @@ void gtp_interface_metrics_foreach(int (*hdl) (struct gtp_interface *, void *, c
 void gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *);
 void gtp_interface_update_direct_tx_lladdr(const union addr *, const uint8_t *);
 struct gtp_interface *gtp_interface_get(const char *, bool);
-struct gtp_interface *gtp_interface_get_by_ifindex(int);
+struct gtp_interface *gtp_interface_get_by_ifindex(int, bool);
 int gtp_interface_put(struct gtp_interface *);
 int gtp_interface_start(struct gtp_interface *);
 void gtp_interface_stop(struct gtp_interface *);

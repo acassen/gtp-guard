@@ -131,6 +131,7 @@ gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 }
 
 
+
 /*
  *	VTY command
  */
@@ -268,6 +269,32 @@ DEFUN(show_bpf_prog,
 	return CMD_SUCCESS;
 }
 
+DEFUN(show_bpf_interface_rule,
+      show_bpf_interface_rule_cmd,
+      "show interface-rules [BPFPROG]",
+      SHOW_STR
+      "Interface rules\n"
+      "Specific bpf program\n")
+{
+	struct gtp_bpf_prog *p = NULL;
+
+	if (argc >= 1) {
+		p = gtp_bpf_prog_get(argv[0]);
+		if (!p) {
+			vty_out(vty, "%% Unknown bpf-prog:'%s'%s", argv[0], VTY_NEWLINE);
+			return CMD_WARNING;
+		}
+
+		gtp_interface_rule_show(p, vty);
+		return CMD_SUCCESS;
+	}
+
+	gtp_bpf_prog_foreach_prog(gtp_interface_rule_show, vty, "if_rules");
+
+	return CMD_SUCCESS;
+}
+
+
 DEFUN(bpf_prog_shutdown,
       bpf_prog_shutdown_cmd,
       "shutdown",
@@ -354,6 +381,8 @@ cmd_ext_bpf_prog_install(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_bpf_prog_cmd);
 	install_element(ENABLE_NODE, &show_bpf_prog_cmd);
+	install_element(VIEW_NODE, &show_bpf_interface_rule_cmd);
+	install_element(ENABLE_NODE, &show_bpf_interface_rule_cmd);
 
 	return 0;
 }

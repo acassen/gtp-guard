@@ -16,6 +16,26 @@
 #include "tools.h"
 #include "if_rule-def.h"
 
+/*
+ * this is an optional way to add custom data to if_rule key: define
+ * if_rule_key, IF_RULE_CUSTOM_KEY, and add a parser function to
+ * if_rule_data.
+ */
+#ifndef IF_RULE_CUSTOM_KEY
+
+struct if_rule_key
+{
+	struct if_rule_key_base b;
+} __attribute__((packed));
+typedef void *rule_selector_t;
+
+#else /* ifdef IF_RULE_CUSTOM_KEY */
+
+struct if_rule_data;
+typedef int (*rule_selector_t)(struct if_rule_data *d, struct iphdr *iph);
+
+#endif
+
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 512);
@@ -24,6 +44,7 @@ struct {
 } if_rule SEC(".maps");
 
 #define IF_RULE_FL_XDP_ADJUSTED		0x01
+
 
 struct if_rule_data
 {
@@ -37,18 +58,26 @@ struct if_rule_data
 
 
 
-static inline int
-_acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
+static __always_inline int
+_acl_ipv4(struct if_rule_data *d, rule_selector_t rscb, struct iphdr *iph)
 {
-	bpf_printk("acl: searching if:%d vlan:%d gre:%x",
-		   k->ifindex, k->vlan_id, k->gre_remote);
+	struct if_rule_key_base *k = &d->k.b;
 
-	d->r = bpf_map_lookup_elem(&if_rule, k);
+	bpf_printk("acl: searching if:%d vlan:%d tun:%x|%x",
+		   k->ifindex, k->vlan_id, k->tun_local, k->tun_remote);
+
+#ifdef IF_RULE_CUSTOM_KEY
+	int ret;
+	if ((ret = rscb(d, iph)) >= 0)
+		return ret;
+#endif
+
+	d->r = bpf_map_lookup_elem(&if_rule, &d->k);
 	if (d->r == NULL)
 		return XDP_PASS;
 
 	bpf_printk("got the rule ! table:%d vlan:%d gre_r:%x action:%d iface:%d",
-		   d->r->table, d->r->vlan_id, d->r->gre_remote,
+		   d->r->table, d->r->vlan_id, d->r->tun_remote,
 		   d->r->action, d->r->ifindex);
 
 	return d->r->action;
@@ -72,13 +101,14 @@ _acl_ipv4(struct if_rule_key *k, struct if_rule_data *d)
  *   - returns XDP_DROP on invalid packets
  */
 static __attribute__((noinline)) int
-if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
+if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 {
+	struct xdp_md *ctx = d->ctx;
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
 	struct ethhdr *ethh = data;
 	struct vlan_hdr *vlanh;
-	struct iphdr *ip4h;
+	struct iphdr *ip4h, *ip4h_in;
 	__u16 offset;
 	__u16 eth_type;
 	int ret;
@@ -94,14 +124,14 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		vlanh = (struct vlan_hdr *)(ethh + 1);
 		if ((void *)(vlanh + 1) > data_end)
 			return XDP_DROP;
-		d->k.vlan_id = bpf_ntohs(vlanh->vlan_tci) & 0x0fff;
+		d->k.b.vlan_id = bpf_ntohs(vlanh->vlan_tci) & 0x0fff;
 		eth_type = vlanh->next_proto;
 		offset = sizeof (*ethh) + sizeof (*vlanh);
 	} else {
 		offset = sizeof (*ethh);
 	}
 
-	d->k.ifindex = ctx->ingress_ifindex;
+	d->k.b.ifindex = ctx->ingress_ifindex;
 
 	switch (eth_type) {
 	case __constant_htons(ETH_P_IP):
@@ -111,6 +141,21 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		ip4h = data + offset;
 		if ((void *)(ip4h + 1) > data_end)
 			return XDP_DROP;
+
+		/* may be an ipip tunnel */
+		if (ip4h->version == 4 &&
+		    ip4h->ihl == 5 &&
+		    ip4h->protocol == IPPROTO_IPIP) {
+			d->k.b.tun_local = ip4h->daddr;
+			d->k.b.tun_remote = ip4h->saddr;
+
+			offset += sizeof (*ip4h);
+			ip4h_in = (struct iphdr *)(data + offset);
+			if ((void *)(ip4h_in + 1) > data_end)
+				return XDP_DROP;
+			d->pl_off = offset;
+			return _acl_ipv4(d, rscb, ip4h_in);
+		}
 
 		/* may be a gre tunnel */
 		if (ip4h->version == 4 &&
@@ -122,16 +167,17 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 				return 1;
 			if (GRE_VERSION(gre) == GRE_VERSION_1701 && gre->flags == 0) {
 				/* is a basic gre tunnel */
-				d->k.gre_remote = ip4h->saddr;
+				d->k.b.tun_local = ip4h->daddr;
+				d->k.b.tun_remote = ip4h->saddr;
 
 				offset += sizeof (*gre);
-				ip4h = (struct iphdr *)(data + offset);
-				if ((void *)(ip4h + 1) > data_end)
+				ip4h_in = (struct iphdr *)(data + offset);
+				if ((void *)(ip4h_in + 1) > data_end)
 					return XDP_DROP;
 				d->pl_off = offset;
 				switch (gre->proto) {
 				case __constant_htons(ETH_P_IP):
-					return _acl_ipv4(&d->k, d);
+					return _acl_ipv4(d, rscb, ip4h_in);
 				default:
 					return XDP_PASS;
 				}
@@ -140,7 +186,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 
 		/* handle this ipv4 payload */
 		d->pl_off = offset;
-		return _acl_ipv4(&d->k, d);
+		return _acl_ipv4(d, rscb, ip4h);
 
 	case __constant_htons(ETH_P_IPV6):
 		/* XXX: todo */
@@ -149,8 +195,6 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	default:
 		return XDP_PASS;
 	}
-
-	return 10;
 }
 
 /*
@@ -163,6 +207,7 @@ if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 static __attribute__((noinline)) int
 if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 {
+	const struct if_rule_key_base *k = &d->k.b;
 	void *data, *data_end, *payload;
 	struct ethhdr *ethh;
 	int adjust_sz = 0;
@@ -174,11 +219,11 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	fibp.family = AF_INET;
 
 	__u32 flags = BPF_FIB_LOOKUP_DIRECT;
-	if (d->r->gre_remote) {
+	if (d->r->tun_remote) {
 		flags |= BPF_FIB_LOOKUP_SRC;
-		fibp.ipv4_dst = d->r->gre_remote;
+		fibp.ipv4_dst = d->r->tun_remote;
 	} else {
-		fibp.ipv4_dst = bpf_ntohl(d->dst_addr);
+		fibp.ipv4_dst = d->dst_addr;
 	}
 	if (d->r->table) {
 		flags |= BPF_FIB_LOOKUP_TBID;
@@ -199,15 +244,19 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		return XDP_DROP;
 
 	/* compute how much we need to shrink/expand pkt */
-	if (!d->k.vlan_id && d->r->vlan_id) {
+	if (!k->vlan_id && d->r->vlan_id) {
 		adjust_sz -= sizeof (struct vlan_hdr);
-	} else if (d->k.vlan_id && !d->r->vlan_id) {
+	} else if (k->vlan_id && !d->r->vlan_id) {
 		adjust_sz += sizeof (struct vlan_hdr);
 	}
-	if (!d->k.gre_remote && d->r->gre_remote) {
-		adjust_sz -= sizeof (struct gre_hdr) + sizeof (struct iphdr);
-	} else if (d->k.gre_remote && !d->r->gre_remote) {
-		adjust_sz += sizeof (struct gre_hdr) + sizeof (struct iphdr);
+	if (!k->tun_remote && d->r->tun_remote) {
+		adjust_sz -= sizeof (struct iphdr);
+		if (d->r->flags & IF_RULE_FL_TUNNEL_GRE)
+			adjust_sz -= sizeof (struct gre_hdr);
+	} else if (k->tun_remote && !d->r->tun_remote) {
+		adjust_sz += sizeof (struct iphdr);
+		if (d->r->flags & IF_RULE_FL_TUNNEL_GRE)
+			adjust_sz += sizeof (struct gre_hdr);
 	}
 
 	/* and adjust it */
@@ -222,7 +271,7 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	ethh = data = (void *)(long)ctx->data;
 	data_end = (void *)(long)ctx->data_end;
 
-	if (d->r->vlan_id && (d->k.vlan_id != d->r->vlan_id || adjust_sz)) {
+	if (d->r->vlan_id && (k->vlan_id != d->r->vlan_id || adjust_sz)) {
 		/* need to set/modify vlan hdr */
 		struct vlan_hdr *vlanh = (struct vlan_hdr *)(ethh + 1);
 		if ((void *)(vlanh + 1) > data_end)
@@ -238,20 +287,16 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			return XDP_DROP;
 
 		/* remove vlan header */
-		if ((d->k.vlan_id && !d->r->vlan_id) || adjust_sz)
+		if ((k->vlan_id && !d->r->vlan_id) || adjust_sz)
 			ethh->h_proto = __constant_htons(ETH_P_IP);
 
 		payload = ethh + 1;
 	}
 
-	/* add gre tunnel if necessary */
-	if (d->r->gre_remote) {
+	/* add ipip/gre tunnel if necessary */
+	if (d->r->tun_remote) {
 		struct iphdr *ip4h = payload;
 		if ((void *)(ip4h + 1) > data_end)
-			return XDP_DROP;
-
-		struct gre_hdr *gre = (struct gre_hdr *)(ip4h + 1);
-		if ((void *)(gre + 1) > data_end)
 			return XDP_DROP;
 
 		__u32 csum = 0;
@@ -263,15 +308,24 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		ip4h->id = 0;
 		ip4h->frag_off = 0;
 		ip4h->ttl = 64;
-		ip4h->protocol = IPPROTO_GRE;
 		ip4h->check = 0;
 		ip4h->saddr = fibp.ipv4_src;
-		ip4h->daddr = d->r->gre_remote;
+		ip4h->daddr = d->r->tun_remote;
+
+		if (d->r->flags & IF_RULE_FL_TUNNEL_GRE) {
+			ip4h->protocol = IPPROTO_GRE;
+			struct gre_hdr *gre = (struct gre_hdr *)(ip4h + 1);
+			if ((void *)(gre + 1) > data_end)
+				return XDP_DROP;
+			gre->flags = 0;
+			gre->version = GRE_VERSION_1701;
+			gre->proto = __constant_htons(ETH_P_IP);
+		} else {
+			ip4h->protocol = IPPROTO_IPIP;
+		}
+
 		csum_ipv4(ip4h, sizeof(struct iphdr), &csum);
 		ip4h->check = csum;
-		gre->flags = 0;
-		gre->version = GRE_VERSION_1701;
-		gre->proto = __constant_htons(ETH_P_IP);
 	}
 
 	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);

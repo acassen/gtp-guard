@@ -52,7 +52,7 @@ enum gtp_teid_flags {
 /* GTP Connection tracking */
 struct gtp_teid {
 	uint8_t			version;	/* GTPv1 or GTPv2 */
-	uint8_t			type;		/* User or Contrlo plane */
+	uint8_t			type;		/* User or Control plane */
 	uint32_t		id;		/* Remote TEID */
 	uint32_t		vid;		/* Local Virtual TEID */
 	uint32_t		ipv4;		/* Remote IPv4 */

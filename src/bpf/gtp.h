@@ -40,8 +40,8 @@ const volatile int nr_cpus;
  *      @h_vlan_encapsulated_proto: packet type ID or len
  */
 struct _vlan_hdr {
-        __be16		hvlan_TCI;
-        __be16		h_vlan_encapsulated_proto;
+	__be16		hvlan_TCI;
+	__be16		h_vlan_encapsulated_proto;
 };
 
 struct pppoehdr {
@@ -56,10 +56,10 @@ struct pppoehdr {
 #define PPP_IPV6		0x0057		/* Internet Protocol v6 */
 
 struct gtphdr {
-        __u8		flags;
-        __u8		type;
-        __be16		length;
-        __be32		teid;
+	__u8		flags;
+	__u8		type;
+	__be16		length;
+	__be32		teid;
 } __attribute__ ((__packed__));
 #define GTPU_TPDU		0xff
 #define GTPU_FLAGS		0x30
@@ -78,6 +78,7 @@ struct gtp_teid_rule {
 	__be32		vteid;
 	__be32		teid;
 	__be32		dst_addr;
+	__be32		src_addr;
 
 	/* Some stats */
 	__u64 		packets;

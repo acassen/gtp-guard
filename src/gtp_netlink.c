@@ -439,7 +439,7 @@ netlink_if_link_del(struct nlmsghdr *h)
 	if (len < 0)
 		return -1;
 
-	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
+	iface = gtp_interface_get_by_ifindex(ifi->ifi_index, false);
 	if (!iface)
 		return 0;
 
@@ -512,6 +512,7 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 {
 	struct rtattr *linkinfo[IFLA_INFO_MAX + 1];
 	struct rtattr *linkdata;
+	struct gtp_interface *l_iface;
 	const char *kind;
 
 	if (!tb)
@@ -540,7 +541,6 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 
 	} else if (!strcmp(kind, "gre")) {
 		struct rtattr *attr[IFLA_GRE_MAX + 1];
-		struct gtp_interface *link_iface;
 		int link_ifindex;
 
 		parse_rtattr(attr, IFLA_GRE_MAX, RTA_DATA(linkdata),
@@ -569,7 +569,6 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 
 	} else if (!strcmp(kind, "ipip")) {
 		struct rtattr *attr[IFLA_IPTUN_MAX + 1];
-		struct gtp_interface *link_iface;
 		int link_ifindex;
 
 		parse_rtattr(attr, IFLA_IPTUN_MAX, RTA_DATA(linkdata),
@@ -620,7 +619,7 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 
 	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), len, 0);
 
-	iface = gtp_interface_get_by_ifindex(ifi->ifi_index);
+	iface = gtp_interface_get_by_ifindex(ifi->ifi_index, false);
 	if (!iface) {
 		/* do not create interface when updating stats */
 		if (!create)

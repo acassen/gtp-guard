@@ -102,7 +102,7 @@ gtp_interface_get(const char *name, bool alloc)
 	int ifindex;
 
 	list_for_each_entry(iface, l, next) {
-		if (!strncmp(iface->ifname, name, strlen(name))) {
+		if (!strcmp(iface->ifname, name)) {
 			__sync_add_and_fetch(&iface->refcnt, 1);
 			return iface;
 		}
@@ -121,7 +121,7 @@ gtp_interface_get(const char *name, bool alloc)
 }
 
 struct gtp_interface *
-gtp_interface_get_by_ifindex(int ifindex)
+gtp_interface_get_by_ifindex(int ifindex, bool alloc)
 {
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
@@ -132,6 +132,9 @@ gtp_interface_get_by_ifindex(int ifindex)
 			return iface;
 		}
 	}
+
+	if (alloc && !gtp_netlink_if_lookup(ifindex))
+		return gtp_interface_get_by_ifindex(ifindex, false);
 
 	return NULL;
 }

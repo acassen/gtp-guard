@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "if_rule.h"
-
 /*
  *	MAPs
  */
@@ -42,68 +40,14 @@ struct {
 	__type(value, struct gtp_teid_frag);		/* dst_addr linked */
 } ip_frag SEC(".maps");
 
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-	__uint(max_entries, MAX_IPTNL_ENTRIES);
-	__type(key, __be32);
-	__type(value, struct gtp_iptnl_rule);
-} iptnl_info SEC(".maps");
-
-
-
-static __always_inline int
-gtpu_ipip_encap(struct if_rule_data *d, struct gtp_iptnl_rule *iptnl_rule)
-{
-	struct xdp_md *ctx = d->ctx;
-	void *data, *data_end;
-	struct iphdr *iph;
-	__u16 payload_len;
-	__u32 csum = 0;
-
-	iph = data + d->pl_off;
-	if (iph + 1 > data_end)
-		return XDP_DROP;
-	payload_len = bpf_ntohs(iph->tot_len);
-
-	/* expand headroom */
-	if (bpf_xdp_adjust_head(ctx, -(int)(sizeof (struct iphdr))))
-		return XDP_DROP;
-
-	data = (void *) (long) ctx->data;
-	data_end = (void *) (long) ctx->data_end;
-
-	iph = data + d->pl_off;
-	if (iph + 1 > data_end)
-		return XDP_DROP;
-
-	/* Fill IPIP Encap header */
-	iph->version = 4;
-	iph->ihl = sizeof(*iph) >> 2;
-	iph->frag_off =	0;
-	iph->protocol = IPPROTO_IPIP;
-	iph->check = 0;
-	iph->tos = 0;
-	iph->tot_len = bpf_htons(payload_len + sizeof(*iph));
-	iph->saddr = iptnl_rule->local_addr;
-	iph->daddr = iptnl_rule->remote_addr;
-	iph->ttl = 64;
-	csum_ipv4(iph, sizeof(struct iphdr), &csum);
-	iph->check = csum;
-
-	/* if_rule will do fib_lookup and set eth [vlan] [gre] headers */
-	d->dst_addr = iptnl_rule->remote_addr;
-	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
-
-	return 0;
-}
 
 static __always_inline void
-gtpu_xlat_iph(struct iphdr *iph, __be32 daddr)
+gtpu_xlat_iph(struct iphdr *iph, __be32 saddr, __be32 daddr)
 {
 	__u32 csum = 0;
 
 	/* Phase 1 : rewrite IP header */
-	iph->saddr = iph->daddr;
+	iph->saddr = saddr ?: iph->daddr;
 	iph->daddr = daddr;
 	--iph->ttl;
 	iph->check = 0;
@@ -112,10 +56,16 @@ gtpu_xlat_iph(struct iphdr *iph, __be32 daddr)
 }
 
 static __always_inline void
-gtpu_xlat_header(struct gtp_teid_rule *rule, struct iphdr *iph, struct gtphdr *gtph)
+gtpu_xlat_header(struct gtp_teid_rule *rule, struct iphdr *iph, struct udphdr *udph,
+		 struct gtphdr *gtph)
 {
 	/* Phase 1 : rewrite IP header */
-	gtpu_xlat_iph(iph, rule->dst_addr);
+	gtpu_xlat_iph(iph, rule->src_addr, rule->dst_addr);
+
+	// XXX Should also update udp checksum, if set
+	if (udph->check) {
+		udph->check = 0;
+	}
 
 	/* Phase 2 : we are into transparent mode
 	 * so just forward ingress src port.
@@ -125,7 +75,7 @@ gtpu_xlat_header(struct gtp_teid_rule *rule, struct iphdr *iph, struct gtphdr *g
 	 * src_port... crappy
 	 */
 
-	/* Phase 3 : rewrite GTP */
+	/* Phase 3 : rewrite GTP TEID */
 	gtph->teid = rule->teid;
 
 	/* Phase 4 : Stats counter update */
@@ -155,122 +105,6 @@ gtpu_teid_frag_get(struct iphdr *iph, __u16 *frag_off, __u16 *ipfl)
 	}
 
 	return gtpf;
-}
-
-static __always_inline int
-gtpu_ipip_decap(struct if_rule_data *d, struct gtp_iptnl_rule *iptnl_rule, struct gtp_teid_frag *gtpf)
-{
-	struct xdp_md *ctx = d->ctx;
-	void *data = (void *) (long) ctx->data;
-	void *data_end = (void *) (long) ctx->data_end;
-	struct gtp_teid_rule *rule;
-	struct iphdr *iph;
-	struct udphdr *udph;
-	struct gtphdr *gtph = NULL;
-	__be16 vlan_id = 0;
-	int err, headroom, offset;
-	__be32 daddr;
-
-	/* Destination resolution */
-	if (gtpf && (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)) {
-		d->dst_addr = gtpf->dst_addr;
-	} else if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
-		gtph = data + d->pl_off
-			    + 2 * sizeof(struct iphdr)
-			    + sizeof(struct udphdr);
-		if (d->pl_off > 256 || gtph + 1 > data_end)
-			return XDP_DROP;
-
-		rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
-		if (rule)
-			d->dst_addr = rule->dst_addr;
-	}
-
-	/* Shrink headroom */
-	if (bpf_xdp_adjust_head(ctx, sizeof(struct iphdr)))
-		return XDP_DROP;
-
-	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
-	data = (void *) (long) ctx->data;
-	data_end = (void *) (long) ctx->data_end;
-
-	/* IP */
-	offset = d->pl_off;
-	iph = data + offset;
-	if (offset > 256 || iph + 1 > data_end)
-		return XDP_DROP;
-
-	/* Fragmentation handling */
-	if (gtpf) {
-		if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
-			gtpu_xlat_iph(iph, gtpf->dst_addr);
-
-		return 0;
-	}
-
-	offset += sizeof(struct iphdr);
-	udph = data + offset;
-	if (udph + 1 > data_end)
-		return XDP_DROP;
-
-	/* Perform xlat if needed */
-	offset += sizeof(struct udphdr);
-	gtph = data + offset;
-	if (gtph + 1 > data_end)
-		return XDP_DROP;
-
-	if (iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP) {
-		rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
-		if (rule)
-			gtpu_xlat_header(rule, iph, gtph);
-	}
-
-	return 0;
-}
-
-static __always_inline int
-gtpu_xlat(struct if_rule_data *d, struct iphdr *iph, struct udphdr *udph,
-	  struct gtphdr *gtph, struct gtp_teid_rule *rule)
-{
-	struct gtp_iptnl_rule *iptnl_rule;
-
-	/* Phase 0 : IPIP tunneling if needed
-	 * Traffic selector is based on original IP header
-	 * destination address */
-	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph->daddr);
-	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD) &&
-	    iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP &&
-	    rule->flags & GTP_FWD_FL_INGRESS)
-		return gtpu_ipip_encap(d, iptnl_rule);
-
-	gtpu_xlat_header(rule, iph, gtph);
-
-	/* Phase 5 : Tunnel apply in not transparent mode */
-	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
-		return gtpu_ipip_encap(d, iptnl_rule);
-
-	/* if_rule will reencap packet */
-	d->dst_addr = iph->daddr;
-	return 0;
-}
-
-static __always_inline int
-gtpu_xlat_frag(struct if_rule_data *d, struct iphdr *iph, __be32 daddr)
-{
-	struct gtp_iptnl_rule *iptnl_rule;
-
-	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph->daddr);
-	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD) &&
-	    iptnl_rule->flags & IPTNL_FL_TRANSPARENT_EGRESS_ENCAP)
-		return gtpu_ipip_encap(d, iptnl_rule);
-
-	gtpu_xlat_iph(iph, daddr);
-
-	if (iptnl_rule && !(iptnl_rule->flags & IPTNL_FL_DEAD))
-		return gtpu_ipip_encap(d, iptnl_rule);
-
-	d->dst_addr = iph->daddr;
-	return 0;
 }
 
 
@@ -308,57 +142,41 @@ gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
 }
 
 
+/*
+ *	IPIP traffic selector
+ */
 static __always_inline int
 gtpu_ipip_traffic_selector(struct if_rule_data *d)
 {
-	struct xdp_md *ctx = d->ctx;
-	void *data = (void *) (long) ctx->data;
-	void *data_end = (void *) (long) ctx->data_end;
-	struct gtp_iptnl_rule *iptnl_rule;
+	void *data = (void *) (long)d->ctx->data;
+	void *data_end = (void *) (long)d->ctx->data_end;
 	struct gtp_teid_frag *gtpf = NULL;
-	struct iphdr *iph_outer, *iph_inner;
+	struct gtp_teid_rule *rule;
+	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
 	int offset = d->pl_off;
 	__u16 frag_off = 0, ipfl = 0;
 
-	iph_outer = data + offset;
-	if (iph_outer + 1 > data_end)
+	/* --- ip layer --- */
+	iph = data + offset;
+	if (d->pl_off > 256 || iph + 1 > data_end)
 		return XDP_PASS;
-
-	offset += sizeof(struct iphdr);
-	iph_inner = data + offset;
-	if (iph_inner + 1 > data_end)
-		return XDP_PASS;
-
-	/* A bit more complicated here since we need to
-	 * deduce if it is ingress or egress
-	 */
-	iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph_inner->daddr);
-	if (!iptnl_rule) {
-		iptnl_rule = bpf_map_lookup_elem(&iptnl_info, &iph_inner->saddr);
-		if (!iptnl_rule) {
-			return XDP_PASS;
-		}
-	}
-
-	/* sender is trusted ? */
-	if (iph_outer->saddr != iptnl_rule->remote_addr)
-		return XDP_DROP;
 
 	/* Drop everything but UDP datagram */
-	if (iph_inner->protocol != IPPROTO_UDP)
+	if (iph->protocol != IPPROTO_UDP)
 		return XDP_DROP;
 
-	d->dst_addr = iph_inner->daddr;
-
 	/* Fragmentation handling */
-	if (iph_inner->frag_off & bpf_htons(IP_MF | IP_OFFSET)) {
-		gtpf = gtpu_teid_frag_get(iph_inner, &frag_off, &ipfl);
-		if (gtpf)
-			return gtpu_ipip_decap(d, iptnl_rule, gtpf);
+	if (iph->frag_off & bpf_htons(IP_MF | IP_OFFSET)) {
+		d->dst_addr = gtpf->dst_addr;
+		gtpf = gtpu_teid_frag_get(iph, &frag_off, &ipfl);
+		if (gtpf && d->r->action == 13)
+			gtpu_xlat_iph(iph, 0, gtpf->dst_addr);
+		return 0;
 	}
 
+	/* --- udp layer --- */
 	offset += sizeof(struct iphdr);
 	udph = data + offset;
 	if (udph + 1 > data_end)
@@ -368,7 +186,7 @@ gtpu_ipip_traffic_selector(struct if_rule_data *d)
 	if (udph->dest != bpf_htons(GTPU_PORT))
 		return XDP_DROP;
 
-	/* Perform xlat if needed */
+	/* --- gtp-u layer --- */
 	offset += sizeof(struct udphdr);
 	gtph = data + offset;
 	if (gtph + 1 > data_end)
@@ -378,7 +196,22 @@ gtpu_ipip_traffic_selector(struct if_rule_data *d)
 	if (gtph->type == GTPU_ECHO_REQ_TYPE)
 		return XDP_PASS;
 
-	return gtpu_ipip_decap(d, iptnl_rule, NULL);
+	/* Perform xlat if needed */
+	if (d->r->action == 13) {
+		rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
+		if (!rule) {
+			bpf_printk("ipip no rule teid 0x%08x", gtph->teid);
+			return XDP_DROP;
+		}
+		gtpu_xlat_header(rule, iph, udph, gtph);
+		d->dst_addr = rule->dst_addr;
+		bpf_printk("ipip xlat now, dst=%x", d->dst_addr);
+	} else {
+		d->dst_addr = iph->daddr;
+		bpf_printk("ipip no translation, dst=%x", d->dst_addr);
+	}
+
+	return 0;
 }
 
 /*
@@ -387,9 +220,8 @@ gtpu_ipip_traffic_selector(struct if_rule_data *d)
 static __always_inline int
 gtpu_traffic_selector(struct if_rule_data *d)
 {
-	struct xdp_md *ctx = d->ctx;
-	void *data = (void *)(long)ctx->data;
-	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)d->ctx->data;
+	void *data_end = (void *)(long)d->ctx->data_end;
 	struct gtp_teid_rule *rule = NULL;
 	struct iphdr *iph;
 	struct udphdr *udph;
@@ -401,25 +233,25 @@ gtpu_traffic_selector(struct if_rule_data *d)
 	__u16 offset = d->pl_off;
 	long ret;
 
-	iph = data + offset;
+	/* --- ip layer --- */
+	iph = (struct iphdr *)(data + offset);
 	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
 		return XDP_PASS;
 
-	switch (iph->protocol) {
-	case IPPROTO_IPIP:
-		return gtpu_ipip_traffic_selector(d);
-	case IPPROTO_UDP:
-		break;
-	default:
+	if (iph->protocol != IPPROTO_UDP)
 		return XDP_PASS;
-	}
 
 	/* Fragmentation handling. If we are detecting
 	 * first fragment then track related daddr */
 	if (iph->frag_off & bpf_htons(IP_MF | IP_OFFSET)) {
 		gtpf = gtpu_teid_frag_get(iph, &frag_off, &ipfl);
-		if (gtpf)
-			return gtpu_xlat_frag(d, iph, gtpf->dst_addr);
+		if (gtpf) {
+			if (d->r->action == 11) {
+				gtpu_xlat_iph(iph, 0, gtpf->dst_addr);
+				d->dst_addr = gtpf->dst_addr;
+			}
+			return 0;
+		}
 
 		/* MISS but fragment offset present, this is an ordering issue.
 		 * We simply drop to not flood kernel with unsollicited ip_frag.
@@ -428,27 +260,30 @@ gtpu_traffic_selector(struct if_rule_data *d)
 			return XDP_DROP;
 	}
 
+	/* --- udp layer --- */
 	offset += sizeof(struct iphdr);
-	udph = data + offset;
+	udph = (struct udphdr *)(data + offset);
 	if (udph + 1 > data_end)
 		return XDP_DROP;
 
 	if (udph->dest != bpf_htons(GTPU_PORT))
 		return XDP_PASS;
 
+	/* --- gtp layer --- */
 	offset += sizeof(struct udphdr);
-	gtph = data + offset;
+	gtph = (struct gtphdr *)(data + offset);
 	if (gtph + 1 > data_end)
 		return XDP_DROP;
 
 	/* That is a nice feature of XDP here:
 	 * punt to linux kernel stack path-management message.
-	 * We get it back into userland where things are easier
-	 */
+	 * We get it back into userland where things are easier,
+	 * a socket is opened and ready to recv() */
 	if (gtph->type != 0xff)
 		return XDP_PASS;
 
 	rule = bpf_map_lookup_elem(&teid_xlat, &gtph->teid);
+	bpf_printk("process gtp-u data teid: 0x%x rule %p", gtph->teid, rule);
 	/* Prevent from GTP-U netstack flooding */
 	if (!rule)
 		return XDP_DROP;
@@ -471,5 +306,11 @@ gtpu_traffic_selector(struct if_rule_data *d)
 		gtpu_ip_frag_timer_set(&frag_key);
 	}
 
-	return gtpu_xlat(d, iph, udph, gtph, rule);
+	/* Perform xlat if needed */
+	if (d->r->action == 11) {
+		gtpu_xlat_header(rule, iph, udph, gtph);
+		d->dst_addr = rule->dst_addr;
+		bpf_printk("gtpu xlat header! dst=%x", rule->dst_addr);
+	}
+	return 0;
 }

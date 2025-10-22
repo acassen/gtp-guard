@@ -148,8 +148,21 @@ cgn_ctx_set_rules(struct cgn_ctx *c)
 	if (!c->rules_set &&
 	    c->priv != NULL && c->bind_priv &&
 	    c->pub != NULL && c->bind_pub) {
-		gtp_interface_rule_add(c->priv, c->pub, 10, 100);
-		gtp_interface_rule_add(c->pub, c->priv, 11, 500);
+		struct if_rule_key_base k;
+		struct gtp_if_rule ifr = {
+			.from = c->priv,
+			.to = c->pub,
+			.key = &k,
+			.key_size = sizeof (k),
+			.action = 10,
+			.prio = 100,
+		};
+		gtp_interface_rule_add(&ifr);
+		ifr.from = c->pub;
+		ifr.to = c->priv;
+		ifr.action = 11;
+		ifr.prio = 500;
+		gtp_interface_rule_add(&ifr);
 		c->rules_set = true;
 		return;
 	}
@@ -157,8 +170,8 @@ cgn_ctx_set_rules(struct cgn_ctx *c)
 	/* something not configured/binded anymore, unset traffic rules */
 	if (c->rules_set && (!c->bind_priv || !c->bind_pub)) {
 		assert(c->priv && c->pub);
-		gtp_interface_rule_del(c->priv);
-		gtp_interface_rule_del(c->pub);
+		gtp_interface_rule_del_iface(c->priv);
+		gtp_interface_rule_del_iface(c->pub);
 		c->rules_set = false;
 	}
 }
@@ -221,13 +234,7 @@ cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
 		return -1;
 	}
 	*piface = iface;
-
-	if (gtp_bpf_prog_is_attached(c->prg, iface))
-		*(is_priv ? &c->bind_priv : &c->bind_pub) = true;
-
 	gtp_interface_register_event(iface, cgn_ctx_iface_event_cb, c);
-
-	cgn_ctx_set_rules(c);
 
 	return 0;
 }

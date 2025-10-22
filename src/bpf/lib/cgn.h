@@ -1324,6 +1324,6 @@ cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 		ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, payload, cp->dst_addr, cp->dst_port);
 	}
 
-	d->dst_addr = cp->dst_addr;
+	d->dst_addr = bpf_htonl(cp->dst_addr);
 	return ret;
 }

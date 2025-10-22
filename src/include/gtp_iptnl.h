@@ -35,13 +35,6 @@
 #define IPTNL_FL_UNTAG_VLAN			(1 << 5)
 #define IPTNL_FL_TAG_VLAN			(1 << 6)
 
-struct pfx_vlan {
-	struct prefix		pfx;
-	uint16_t		vlan_id;
-
-	struct list_head	next;
-};
-
 struct gtp_iptnl {
 	/* Dead-Peer-Detection */
 	int			fd_in;
@@ -67,9 +60,3 @@ struct gtp_iptnl {
 
 	uint8_t			flags;
 };
-
-
-/* Prototypes */
-struct pfx_vlan *pfx_vlan_alloc(void);
-int pfx_vlan_add(struct gtp_iptnl *, struct pfx_vlan *);
-int pfx_vlan_free(struct pfx_vlan *);

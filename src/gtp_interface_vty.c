@@ -386,7 +386,6 @@ DEFUN(show_interface,
 	return CMD_SUCCESS;
 }
 
-
 /* Configuration writer */
 static int
 interface_config_write(struct vty *vty)
