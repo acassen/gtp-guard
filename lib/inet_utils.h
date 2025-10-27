@@ -75,6 +75,7 @@ struct ip_address {
 uint16_t in_csum(uint16_t *addr, int, uint16_t csum);
 uint16_t udp_csum(const void *buffer, size_t len,
 		  uint32_t src_addr, uint32_t dst_addr);
+ssize_t inet_str2fqdn(uint8_t *dst, size_t dsize, const char *src);
 char *inet_fqdn2str(char *dst, size_t dsize, const uint8_t *fqdn, size_t fsize);
 char *inet_ntop2(uint32_t addr);
 char *inet_ntoa2(uint32_t addr, char *buffer);

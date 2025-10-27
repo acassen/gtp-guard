@@ -34,7 +34,7 @@
  *	PFCP Protocol helpers
  */
 static int
-pfcp_heartbeat_response(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -57,7 +57,7 @@ pfcp_heartbeat_response(struct pfcp_msg *msg, struct pfcp_server *srv, struct so
 }
 
 static int
-pfcp_pfd_management_response(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -70,7 +70,7 @@ pfcp_pfd_management_response(struct pfcp_msg *msg, struct pfcp_server *srv, stru
 
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
-	err = (err) ? : pfcp_ie_put_node_id(pbuff, c->node_id, strlen(c->node_id));
+	err = (err) ? : pfcp_ie_put_node_id(pbuff, c->node_id, c->node_id_len);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
@@ -81,7 +81,7 @@ pfcp_pfd_management_response(struct pfcp_msg *msg, struct pfcp_server *srv, stru
 }
 
 static int
-pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -113,7 +113,7 @@ pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv, struct 
 	pfcph->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
 
 	/* Append IEs */
-	err = pfcp_ie_put_node_id(pbuff, c->node_id, strlen(c->node_id));
+	err = pfcp_ie_put_node_id(pbuff, c->node_id, c->node_id_len);
 	err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
 	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, c->recovery_ts);
 	if (err) {
@@ -125,6 +125,47 @@ pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv, struct 
 	return 0;
 }
 
+static int
+pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+{
+	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
+	struct pfcp_router *c = srv->ctx;
+	struct pfcp_assoc *assoc;
+	struct pfcp_session_establishment_request *req;
+	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
+	int err;
+
+	req = msg->session_establishment_request;
+
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	pfcph->type = PFCP_SESSION_ESTABLISHMENT_RESPONSE;
+
+	assoc = pfcp_assoc_get_by_ie(req->node_id);
+	if (!assoc) {
+		cause = PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION;
+
+		/* Append IEs */
+		err = pfcp_ie_put_node_id(pbuff, c->node_id, c->node_id_len);
+		err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
+		if (err) {
+			log_message(LOG_INFO, "%s(): Error while Appending IEs"
+					    , __FUNCTION__);
+			return -1;
+		}
+
+		return 0;
+	}
+
+
+
+
+
+
+	return -1;
+}
+
 
 /*
  *	PFCP FSM
@@ -133,9 +174,9 @@ static const struct {
 	int (*fsm) (struct pfcp_msg *, struct pfcp_server *, struct sockaddr_storage *);
 } pfcp_fsm_msg[1 << 8] = {
 	/* PFCP Node related */
-	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_response },
-	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_response },
-	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { pfcp_assoc_setup_response },
+	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_request },
+	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_request },
+	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { pfcp_assoc_setup_request },
 	[PFCP_ASSOCIATION_UPDATE_REQUEST]	= { NULL },
 	[PFCP_ASSOCIATION_RELEASE_REQUEST]	= { NULL },
 	[PFCP_NODE_REPORT_REQUEST]		= { NULL },
@@ -143,7 +184,7 @@ static const struct {
 	[PFCP_SESSION_SET_MODIFICATION_REQUEST]	= { NULL },
 
 	/* PFCP Session related */
-	[PFCP_SESSION_ESTABLISHMENT_REQUEST]	= { NULL },
+	[PFCP_SESSION_ESTABLISHMENT_REQUEST]	= { pfcp_session_establishment_request },
 	[PFCP_SESSION_MODIFICATION_REQUEST]	= { NULL },
 	[PFCP_SESSION_DELETION_REQUEST]		= { NULL },
 	[PFCP_SESSION_REPORT_REQUEST]		= { NULL },

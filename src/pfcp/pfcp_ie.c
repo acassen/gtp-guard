@@ -106,17 +106,17 @@ pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause)
 }
 
 int
-pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const char *buffer, size_t bsize)
+pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize)
 {
 	struct pfcp_ie_node_id *ie;
-	unsigned int length = sizeof(struct pfcp_ie) + 1 + bsize;
+	unsigned int length = sizeof(struct pfcp_ie) + 1 + nsize;
 
 	if (pfcp_ie_put(pbuff, PFCP_IE_NODE_ID, length) < 0)
 		return -1;
 
 	ie = (struct pfcp_ie_node_id *) pbuff->data;
 	ie->node_id_type = PFCP_NODE_ID_TYPE_FQDN;
-	memcpy(ie->fqdn, buffer, (bsize > PFCP_NODE_ID_FQDN_MAX_LEN) ? PFCP_NODE_ID_FQDN_MAX_LEN - 1 : bsize);
+	memcpy(ie->fqdn, node_id, (nsize > PFCP_NODE_ID_FQDN_MAX_LEN) ? PFCP_NODE_ID_FQDN_MAX_LEN - 1 : nsize);
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);

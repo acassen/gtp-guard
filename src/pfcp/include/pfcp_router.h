@@ -42,7 +42,8 @@ struct pfcp_router {
 	struct pfcp_server	s;
 	unsigned long		debug;
 
-	char			node_id[GTP_NAME_MAX_LEN];
+	uint8_t			node_id[GTP_STR_MAX_LEN];
+	uint8_t			node_id_len;
 	uint32_t		recovery_ts;
 
 	unsigned long		flags;

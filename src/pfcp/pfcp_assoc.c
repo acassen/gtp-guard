@@ -91,8 +91,7 @@ pfcp_assoc_hashkey(struct pfcp_node_id *node_id)
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		hkey = fnv1a_hash(node_id->fqdn,
-				  strlen((char *)node_id->fqdn));
+		hkey = fnv1a_hash(node_id->fqdn, node_id->length);
 		break;
 
 	default:
@@ -120,9 +119,9 @@ pfcp_assoc_cmp(struct pfcp_node_id *a, struct pfcp_node_id *b)
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		if (strlen((char *)a->fqdn) != strlen((char *)b->fqdn))
+		if (a->length != b->length)
 			return -1;
-		if (!memcmp(a->fqdn, b->fqdn, strlen((char *)a->fqdn)))
+		if (!memcmp(a->fqdn, b->fqdn, a->length))
 			return 0;
 		break;
 
@@ -169,8 +168,8 @@ pfcp_assoc_get_by_ie(struct pfcp_ie_node_id *ie)
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		inet_fqdn2str((char *)n.fqdn, GTP_NAME_MAX_LEN,
-			      ie->fqdn, ntohs(ie->h.length) - 1);
+		n.length = ntohs(ie->h.length) - 1;
+		memcpy(n.fqdn, ie->fqdn, n.length);
 		break;
 
 	default:
@@ -224,7 +223,7 @@ pfcp_assoc_stringify(struct pfcp_assoc *c, char *buf, size_t bsize)
 		return (b) ? : "!!!invalid_ipv6!!!";
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		bsd_strlcpy(buf, (const char *) c->node_id.fqdn, bsize);
+		inet_fqdn2str(buf, bsize, c->node_id.fqdn, c->node_id.length);
 		return buf;
 	}
 
@@ -305,8 +304,8 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 		break;
 
 	case PFCP_NODE_ID_TYPE_FQDN:
-		inet_fqdn2str((char *)new->node_id.fqdn, GTP_NAME_MAX_LEN,
-			      node_id->fqdn, ntohs(node_id->h.length) - 1);
+		new->node_id.length = ntohs(node_id->h.length) - 1;
+		memcpy(new->node_id.fqdn, node_id->fqdn, new->node_id.length);
 		break;
 
 	default:

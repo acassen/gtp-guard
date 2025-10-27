@@ -107,6 +107,25 @@ DEFUN(pfcp_router_desciption,
 	return CMD_SUCCESS;
 }
 
+DEFUN(pfcp_node_id,
+      pfcp_node_id_cmd,
+      "node-id STRING",
+      "Set PFCP Router Node-ID\n"
+      "Node-ID FQDN\n")
+{
+	struct pfcp_router *c = vty->index;
+	ssize_t len;
+
+	len = inet_str2fqdn(c->node_id, GTP_STR_MAX_LEN, argv[0]);
+	if (len < 0) {
+		vty_out(vty, "%% invalid Node-ID%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	c->node_id_len = len;
+	return CMD_SUCCESS;
+}
+
 DEFUN(pfcp_router_bpf_prog,
       pfcp_router_bpf_prog_cmd,
       "bpf-program WORD",
@@ -307,6 +326,7 @@ static int
 config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
+	char node_id[GTP_STR_MAX_LEN];
 	struct pfcp_router *c;
 	struct pfcp_server *srv;
 
@@ -316,6 +336,11 @@ config_pfcp_router_write(struct vty *vty)
 		if (c->description[0])
 			vty_out(vty, " description %s%s"
 				   , c->description, VTY_NEWLINE);
+		if (c->node_id_len)
+			vty_out(vty, " node-id %s%s"
+				   , inet_fqdn2str(node_id, GTP_STR_MAX_LEN,
+						   c->node_id, c->node_id_len)
+				   , VTY_NEWLINE);
 		if (c->bpf_prog)
 			vty_out(vty, " bpf-program %s%s"
 				   , c->bpf_prog->name, VTY_NEWLINE);
@@ -344,6 +369,7 @@ cmd_ext_pfcp_router_install(void)
 
 	install_default(PFCP_ROUTER_NODE);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_description_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_node_id_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_bpf_prog_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_cmd);

@@ -952,7 +952,7 @@ struct pfcp_ie_f_seid {
 #define PFCP_NODE_ID_TYPE_IPV4		0
 #define PFCP_NODE_ID_TYPE_IPV6		1
 #define PFCP_NODE_ID_TYPE_FQDN		2
-#define PFCP_NODE_ID_FQDN_MAX_LEN	64
+#define PFCP_NODE_ID_FQDN_MAX_LEN	128
 struct pfcp_ie_node_id {
 	struct pfcp_ie h;
 	union {
@@ -3476,4 +3476,4 @@ int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
 int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
-int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const char *buffer, size_t bsize);
+int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize);

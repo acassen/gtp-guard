@@ -40,6 +40,7 @@ enum conn_flags {
 
 struct pfcp_node_id {
 	uint8_t	type;
+	uint8_t length;
 	union {
 		struct in_addr ipv4;
 		struct in6_addr ipv6;

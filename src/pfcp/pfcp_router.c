@@ -120,7 +120,6 @@ pfcp_router_alloc(const char *name)
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 
 	/* by default same as instance name */
-	bsd_strlcpy(new->node_id, name, GTP_NAME_MAX_LEN - 1);
 	new->recovery_ts = time_now_to_ntp();
 
 	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);

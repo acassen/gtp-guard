@@ -108,12 +108,45 @@ udp_csum(const void *buffer, size_t len, uint32_t src_addr, uint32_t dest_addr)
 	return (uint16_t)~sum;
 }
 
+/* string to FQDN formating */
+ssize_t
+inet_str2fqdn(uint8_t *dst, size_t dsize, const char *src)
+{
+	const char *cp, *end = src + strlen(src) + 1;
+	uint8_t *fqdn = dst + 1, *dend = dst + dsize;
+	uint8_t *label_len = dst;
+
+	if (!src || !dst || dsize < 2)
+		return -1;
+
+	for (cp = src; cp < end && fqdn < dend; cp++, fqdn++) {
+		if (*cp == '.' || *cp == '\0') {
+			*label_len = fqdn - label_len - 1;
+			label_len = fqdn;
+			if (*cp == '\0')
+				break;
+			continue;
+		}
+
+		*fqdn = *cp;
+	}
+
+	/* truncate if needed */
+	if (fqdn >= dend)
+		*label_len = fqdn - label_len - 1;
+
+	return fqdn - dst;
+}
+
 /* FQDN to string formating */
 char *
 inet_fqdn2str(char *dst, size_t dsize, const uint8_t *fqdn, size_t fsize)
 {
 	const uint8_t *cp, *end = fqdn + fsize;
 	size_t offset = 0;
+
+	if (!dst || !fqdn)
+		return NULL;
 
 	for (cp = fqdn; cp < end; cp += *cp + 1) {
 		if (offset + *cp > dsize - 1)
