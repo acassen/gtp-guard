@@ -3,12 +3,11 @@
 fs = import('fs')
 
 bpf_sources = files(
-  'gtp_fwd-prevgen.c',
+  'gtp_fwd.c',
   'gtp_route.c',
   'gtp_mirror.c',
   'cgn.c',
   'test_cgn.c',
-  'gtp_fwd.c',
 )
 
 clang_bpf_flags = [

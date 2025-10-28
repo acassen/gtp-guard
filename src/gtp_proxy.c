@@ -29,7 +29,7 @@
 #include "gtp_proxy.h"
 #include "gtp_dpd.h"
 #include "gtp_sqn.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_proxy_hdl.h"
 #include "bitops.h"
 #include "memory.h"

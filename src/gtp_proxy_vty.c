@@ -24,7 +24,7 @@
 #include "gtp_data.h"
 #include "gtp_proxy.h"
 #include "gtp_dpd.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_bpf_fwd.h"
 #include "command.h"
 #include "memory.h"

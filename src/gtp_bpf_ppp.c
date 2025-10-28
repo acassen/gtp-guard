@@ -23,7 +23,6 @@
 #include <stdio.h>
 
 #include "gtp_data.h"
-#include "gtp_bpf.h"
 #include "gtp_bpf_ppp.h"
 #include "gtp_bpf_rt.h"
 #include "gtp_bpf_utils.h"

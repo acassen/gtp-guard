@@ -22,7 +22,6 @@
 #include "inet_utils.h"
 #include "gtp_interface.h"
 #include "gtp_data.h"
-#include "gtp_bpf.h"
 #include "gtp_bpf_fwd.h"
 #include "gtp_bpf_utils.h"
 #include "gtp_session.h"
@@ -255,7 +254,7 @@ gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 	struct gtp_bpf_fwd_data *pf = udata;
 
 	/* MAP ref for faster access */
-	pf->teid_xlat = gtp_bpf_load_map(p->load.obj, "teid_xlat");
+	pf->teid_xlat = gtp_bpf_prog_load_map(p->load.obj, "teid_xlat");
 	if (!pf->teid_xlat)
 		return -1;
 

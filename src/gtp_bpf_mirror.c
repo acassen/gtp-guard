@@ -22,7 +22,7 @@
 #include <net/if.h>
 
 #include "gtp_data.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_bpf_mirror.h"
 #include "gtp_mirror.h"
 #include "bitops.h"
@@ -47,7 +47,7 @@ gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 	struct gtp_bpf_mirror *pm = udata;
 
 	/* MAP ref for faster access */
-	pm->mrules = gtp_bpf_load_map(p->load.obj, "mirror_rules");
+	pm->mrules = gtp_bpf_prog_load_map(p->load.obj, "mirror_rules");
 	if (!pm->mrules)
 		return -1;
 

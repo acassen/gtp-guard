@@ -23,6 +23,15 @@
 #include <stdlib.h>
 #include <libbpf.h> /* libbpf_num_possible_cpus */
 
+enum {
+	RULE_ADD = 0,
+	RULE_UPDATE,
+	RULE_DEL,
+	RULE_LIST
+};
+
+#define GTP_XDP_STRERR_BUFSIZE	128
+
 static inline unsigned int bpf_num_possible_cpus(void)
 {
 	int possible_cpus = libbpf_num_possible_cpus();

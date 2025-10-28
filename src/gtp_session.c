@@ -25,7 +25,7 @@
 #include "gtp_utils.h"
 #include "gtp_bpf_fwd.h"
 #include "gtp_bpf_rt.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "logger.h"
 #include "bitops.h"
 #include "memory.h"

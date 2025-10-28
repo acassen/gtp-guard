@@ -23,7 +23,6 @@
 #include <stdlib.h>
 
 #include "gtp_data.h"
-#include "gtp_bpf.h"
 #include "gtp_bpf_iptnl.h"
 #include "gtp_bpf_utils.h"
 #include "bitops.h"
@@ -191,5 +190,5 @@ gtp_bpf_iptnl_vty(struct vty *vty, struct bpf_map *map)
 	vty_out(vty, "+------------------+------------------+------------------+-------+----+----+%s"
 		   , VTY_NEWLINE);
 	free(r);
-        return 0;
+	return 0;
 }

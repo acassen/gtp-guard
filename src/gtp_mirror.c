@@ -21,7 +21,7 @@
 
 #include "gtp_data.h"
 #include "gtp_mirror.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_bpf_mirror.h"
 #include "addr.h"
 #include "memory.h"

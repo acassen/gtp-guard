@@ -22,7 +22,7 @@
 #include "gtp_data.h"
 #include "gtp_vrf.h"
 #include "gtp_bpf_rt.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "command.h"
 #include "memory.h"
 #include "bitops.h"
@@ -366,7 +366,7 @@ gtp_config_write(struct vty *vty)
 	struct pppoe_bundle *bundle;
 	struct ip_vrf *vrf;
 
-        list_for_each_entry(vrf, l, next) {
+	list_for_each_entry(vrf, l, next) {
 		vty_out(vty, "ip vrf %s%s", vrf->name, VTY_NEWLINE);
 		if (vrf->description[0])
 			vty_out(vty, " description %s%s", vrf->description, VTY_NEWLINE);

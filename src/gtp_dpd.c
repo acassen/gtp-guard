@@ -28,7 +28,7 @@
 
 #include "gtp.h"
 #include "gtp_dpd.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_mirror.h"
 #include "inet_utils.h"
 #include "logger.h"

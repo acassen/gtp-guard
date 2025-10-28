@@ -98,12 +98,6 @@ struct gtp_interface {
 	unsigned long		flags;
 };
 
-/* BPF interface attributes */
-struct ll_attr {
-	__u16		vlan_id;
-	__u16		flags;
-} __attribute__ ((__aligned__(8)));
-
 
 /* Prototypes */
 int gtp_interface_metrics_dump(FILE *);

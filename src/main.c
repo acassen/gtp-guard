@@ -28,7 +28,7 @@
 #include "gtp_conn.h"
 #include "gtp_teid.h"
 #include "gtp_session.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "command.h"
 #include "bitops.h"
 #include "signals.h"
@@ -85,7 +85,6 @@ start_gtp(void)
 	cmd_init();
 	vty_init();
 	sort_node();
-	gtp_bpf_init();
 	gtp_conn_init();
 	gtp_teid_init();
 	gtp_sessions_init();
@@ -225,7 +224,7 @@ parse_cmdline(int argc, char **argv)
 			exit(EXIT_FAILURE);
 			break;
 		}
-                curind = optind;
+		curind = optind;
 	}
 
 
