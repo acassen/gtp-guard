@@ -77,10 +77,9 @@ struct gtp_conn *
 gtp_conn_get_by_imsi(uint64_t imsi)
 {
 	struct hlist_head *head = gtp_conn_hashkey(imsi);
-	struct hlist_node *n;
 	struct gtp_conn *c;
 
-	hlist_for_each_entry(c, n, head, hlist) {
+	hlist_for_each_entry(c, head, hlist) {
 		if (c->imsi == imsi) {
 			__sync_add_and_fetch(&c->refcnt, 1);
 			return c;
@@ -122,7 +121,6 @@ gtp_conn_unhash(struct gtp_conn *c)
 int
 gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t imsi)
 {
-	struct hlist_node *n;
 	struct gtp_conn *c;
 	int i;
 
@@ -138,7 +136,7 @@ gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *),
 
 	/* Iterate */
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
-		hlist_for_each_entry(c, n, &gtp_conn_tab[i], hlist) {
+		hlist_for_each_entry(c, &gtp_conn_tab[i], hlist) {
 			gtp_conn_get(c);
 			(*vty_conn) (vty, c);
 			gtp_conn_put(c);
@@ -181,12 +179,12 @@ gtp_conn_init(void)
 int
 gtp_conn_destroy(void)
 {
-	struct hlist_node *n, *n2;
+	struct hlist_node *n;
 	struct gtp_conn *c;
 	int i;
 
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
-		hlist_for_each_entry_safe(c, n, n2, &gtp_conn_tab[i], hlist) {
+		hlist_for_each_entry_safe(c, n, &gtp_conn_tab[i], hlist) {
 			gtp_sessions_free(c);
 			FREE(c);
 		}

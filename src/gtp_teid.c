@@ -109,10 +109,9 @@ static struct gtp_teid *
 __gtp_teid_get(struct hlist_head *h, uint32_t id, uint32_t ipv4)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, id, ipv4);
-	struct hlist_node *n;
 	struct gtp_teid *t;
 
-	hlist_for_each_entry(t, n, head, hlist_teid) {
+	hlist_for_each_entry(t, head, hlist_teid) {
 		if (t->id == id && t->ipv4 == ipv4) {
 			__sync_add_and_fetch(&t->refcnt, 1);
 			return t;
@@ -349,10 +348,9 @@ struct gtp_teid *
 gtp_vteid_get(struct hlist_head *h, uint32_t id)
 {
 	struct hlist_head *head = gtp_teid_hashkey(h, id, 0);
-	struct hlist_node *n;
 	struct gtp_teid *t;
 
-	hlist_for_each_entry(t, n, head, hlist_vteid) {
+	hlist_for_each_entry(t, head, hlist_vteid) {
 		if (t->vid == id) {
 			__sync_add_and_fetch(&t->refcnt, 1);
 			return t;

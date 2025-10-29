@@ -60,10 +60,9 @@ static struct spppoe *
 __spppoe_get_by_unique(struct hlist_head *h, uint32_t id)
 {
 	struct hlist_head *head = spppoe_unique_hashkey(h, id);
-	struct hlist_node *n;
 	struct spppoe *s;
 
-	hlist_for_each_entry(s, n, head, h_unique) {
+	hlist_for_each_entry(s, head, h_unique) {
 		if (s->unique == id) {
 			__sync_add_and_fetch(&s->refcnt, 1);
 			return s;
@@ -146,10 +145,9 @@ static struct spppoe *
 __spppoe_get_by_session(struct hlist_head *h, struct ether_addr *hw_addr, uint16_t id)
 {
 	struct hlist_head *head = spppoe_session_hashkey(h, hw_addr, id);
-	struct hlist_node *n;
 	struct spppoe *s;
 
-	hlist_for_each_entry(s, n, head, h_session) {
+	hlist_for_each_entry(s, head, h_session) {
 		if (s->session_id == id && !memcmp(&s->hw_src, hw_addr, ETH_ALEN)) {
 			__sync_add_and_fetch(&s->refcnt, 1);
 			return s;
@@ -200,12 +198,12 @@ spppoe_session_unhash(struct hlist_head *h, struct spppoe *s)
 int
 spppoe_sessions_destroy(struct hlist_head *h)
 {
-	struct hlist_node *n, *_n;
+	struct hlist_node *n;
 	struct spppoe *s;
 	int i;
 
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
-		hlist_for_each_entry_safe(s, n, _n, &h[i], h_session) {
+		hlist_for_each_entry_safe(s, n, &h[i], h_session) {
 			spppoe_free(s);
 		}
 	}
