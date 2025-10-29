@@ -265,6 +265,9 @@ gtp_interface_unregister_event(struct gtp_interface *iface,
 {
 	int i;
 
+	if (!iface)
+		return;
+
 	for (i = 0; i < iface->ev_n; i++) {
 		if (iface->ev[i].cb == cb) {
 			if (iface->ev_n > 1)

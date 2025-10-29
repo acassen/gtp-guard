@@ -530,7 +530,7 @@ int main(int argc, char **argv)
 	 *    => Dynamically vty_out each line formatted to skip the need
 	 *       to use intermediate buffer
 	 */
-	table_vty_out(vty, tbl);
+	table_vty_out(tbl, vty);
 
 	/* Destroy table context */
 	table_destroy(tbl);

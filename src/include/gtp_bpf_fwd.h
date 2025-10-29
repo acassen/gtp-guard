@@ -32,10 +32,6 @@ struct gtp_bpf_fwd_data
 	struct bpf_map		*teid_xlat;
 };
 
-#define GTP_FWD_FL_INGRESS	(1 << 0)
-#define GTP_FWD_FL_EGRESS	(1 << 1)
-#define GTP_FWD_FL_DIRECT_TX	(1 << 2)
-
 struct gtp_teid_rule {
 	__be32	vteid;
 	__be32	teid;
@@ -45,12 +41,11 @@ struct gtp_teid_rule {
 	/* Some stats */
 	__u64	packets;
 	__u64	bytes;
-	__u8	flags;
 } __attribute__ ((__aligned__(8)));
 
 
 /* Prototypes */
-int gtp_bpf_teid_action(struct gtp_proxy *p, int action, struct gtp_teid *t);
+int gtp_bpf_teid_action(struct gtp_proxy *, int action, struct gtp_teid *t);
 int gtp_bpf_fwd_teid_action(int, struct gtp_teid *);
 int gtp_bpf_fwd_teid_vty(struct vty *, struct gtp_teid *);
 int gtp_bpf_fwd_vty(struct gtp_bpf_prog *, void *);

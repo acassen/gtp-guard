@@ -30,6 +30,13 @@ expect {
   -re "sut(.*)# "
 }
 EOF
+	elif [ "$1" == "conf_nofail" ]; then
+	    cat >> $tmp/exp_cmd <<EOF
+send "$l\n"
+expect {
+  -re "sut(.*)# "
+}
+EOF
 	else
 	    cat >> $tmp/exp_cmd <<EOF
 send "$l\n"
@@ -37,9 +44,13 @@ expect "sut# "
 EOF
 	fi
     done
-    if [ "$1" == "conf" ]; then
-	echo "send \"exit\\n\"; expect \"sut(config)\" " >> $tmp/exp_cmd
-    fi
+    cat >> $tmp/exp_cmd <<EOF
+send "exit\n"
+expect {
+  -re "sut(.*)# " { send "exit\n"; exp_continue }
+  "sut# " { send "exit\n"; expect eof }
+}
+EOF
     unset IFS
 }
 
@@ -47,18 +58,16 @@ EOF
 _gtpg_cmd() {
 	cat <<EOF > $tmp/exp_cmd
 set timeout 4
-spawn telnet localhost 1664 
+spawn telnet 127.0.0.1 1664
 expect "sut> " { send "enable\n"; send "terminal length 0\n" }
 EOF
-    if [ "$1" == "conf" ]; then
+    if [ "$1" == "conf" -o "$1" == "conf_nofail" ]; then
 	cat <<EOF >> $tmp/exp_cmd
 expect "sut# " { send "conf t\n" }
 expect "sut(config)# "
 EOF
     fi
     gtpgc_conf "$1" "$2"
-
-    echo 'send "exit\n"; send "exit\n"; expect eof' >> $tmp/exp_cmd
 
     expect $tmp/exp_cmd >$tmp/exp_log 2>&1
     rc=$?
@@ -100,6 +109,10 @@ start_gtpguard() {
 echo "*** WAITING that gtp-guard($gtpguard_pid) stops. CTRL-C do to so...."
 wait $gtpguard_pid
 EOF
+}
+
+gtpg_conf_nofail() {
+    _gtpg_cmd "conf_nofail" "$*"
 }
 
 gtpg_conf() {

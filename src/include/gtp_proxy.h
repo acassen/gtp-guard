@@ -29,10 +29,11 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_bpf_fwd.h"
 
-struct gtp_proxy_ipip_addr {
-	uint32_t	*addr;
-	int		n;
-	int		msize;
+#define GTP_PROXY_REMOTE_ADDR_HSIZE	1000
+
+struct gtp_proxy_remote_addr {
+	uint32_t		addr;
+	struct hlist_node	hlist;
 };
 
 /* GTP Proxy context */
@@ -50,8 +51,8 @@ struct gtp_proxy {
 	bool			ipip_bind;
 	int			ipip_xlat;
 	bool			ipip_dead;
-	struct gtp_proxy_ipip_addr ipip_ingress;
-	struct gtp_proxy_ipip_addr ipip_egress;
+	struct hlist_head	*ipip_ingress;
+	struct hlist_head	*ipip_egress;
 	int			rules_set;
 
 	struct gtp_server	gtpc;
@@ -90,13 +91,13 @@ void gtp_proxy_iface_event_cb(struct gtp_interface *iface,
 void gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 				  enum gtp_interface_event type,
 				  void *ud, void *arg);
-void gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, uint32_t addr,
+int gtp_proxy_rules_remote_exists(struct gtp_proxy *ctx,
+				  __be32 addr, bool *egress);
+void gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, __be32 addr,
 				int action, bool egress);
 void gtp_proxy_rules_set(struct gtp_proxy *ctx);
 struct gtp_proxy *gtp_proxy_get(const char *name);
-struct gtp_proxy *gtp_proxy_init(const char *name);
-int gtp_proxy_ctx_server_destroy(struct gtp_proxy *ctx);
-int gtp_proxy_ctx_destroy(struct gtp_proxy *ctx);
-int gtp_proxy_server_destroy(void);
-int gtp_proxy_destroy(void);
-int gtp_proxy_vty_init(void);
+struct gtp_proxy *gtp_proxy_alloc(const char *name);
+void gtp_proxy_ctx_destroy(struct gtp_proxy *ctx);
+void gtp_proxy_server_stop(void);
+void gtp_proxy_destroy(void);

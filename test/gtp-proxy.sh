@@ -27,28 +27,41 @@ setup_combined()
     ip netns exec cloud sysctl -q net.ipv4.conf.veth0.forwarding=1
     sysctl -q net.ipv4.conf.gtpp.forwarding=1
 
-    # pgw & sgw
-    ip -n cloud addr add 192.168.61.1/30 dev veth0
-    ip addr add 192.168.61.2/30 dev gtpp
+    ip -n cloud addr add 192.168.61.193/27 dev veth0
 
-    # data
-    ip -n cloud addr add 192.168.61.4/30 dev veth0
-    ip -n cloud addr add 192.168.61.5/30 dev veth0
-    ip addr add 192.168.61.6/30 dev gtpp
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	# gtp-c
+	ip addr add 192.168.61.$((i+194))/27 dev gtpp
+
+	# gtp-u
+	ip -n cloud addr add 192.168.61.$((i*8+2))/25 dev veth0
+	ip -n cloud addr add 192.168.61.$((i*8+3))/25 dev veth0
+	ip addr add 192.168.61.$((i*8+1))/25 dev gtpp
+	arp -s 192.168.61.$((i*8+2)) d2:ad:ca:fe:aa:01
+	arp -s 192.168.61.$((i*8+3)) d2:ad:ca:fe:aa:01
+    done
 
     # tun
-    ip -n cloud addr add 192.168.61.9/30 dev veth0
-    ip -n cloud tunnel add ptun mode ipip local 192.168.61.9 remote 192.168.61.10
+    ns_tun_dev=veth0
+    if [ $tun_vlan -ne 0 ]; then
+	ns_tun_dev=veth0.$tun_vlan
+	ip -n cloud link add link veth0 name $ns_tun_dev type vlan id $tun_vlan
+	ip -n cloud link set $ns_tun_dev up
+    fi
+    ip -n cloud addr add 192.168.61.129/30 dev $ns_tun_dev
+    ip -n cloud tunnel add ptun mode ipip local 192.168.61.129 remote 192.168.61.130
     ip -n cloud link set ptun up
-    ip addr add 192.168.61.10/30 dev gtpp
-    ip tunnel add ptun mode ipip local 192.168.61.10 remote 192.168.61.9 dev gtpp
-    ip link set ptun up
 
-    # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
-    # so add static entries
-    arp -s 192.168.61.4 d2:ad:ca:fe:aa:01
-    arp -s 192.168.61.5 d2:ad:ca:fe:aa:01
-    arp -s 192.168.61.9 d2:ad:ca:fe:aa:01
+    tun_dev=gtpp
+    if [ $tun_vlan -ne 0 ]; then
+	tun_dev=gtpp.$tun_vlan
+	ip link add link gtpp name $tun_dev type vlan id $tun_vlan
+	ip link set $tun_dev up
+    fi
+    ip addr add 192.168.61.130/30 dev $tun_dev
+    ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129 dev $tun_dev
+    ip link set ptun up
+    arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
 
     ip netns exec cloud ethtool -K veth0 gro on
 }
@@ -88,8 +101,8 @@ setup_split() {
 	ip -n cloud link add link veth0 name $ns_tun_dev type vlan id $tun_vlan
 	ip -n cloud link set $ns_tun_dev up
     fi
-    ip -n cloud addr add 192.168.61.9/30 dev $ns_tun_dev
-    ip -n cloud tunnel add ptun mode ipip local 192.168.61.9 remote 192.168.61.10
+    ip -n cloud addr add 192.168.61.129/30 dev $ns_tun_dev
+    ip -n cloud tunnel add ptun mode ipip local 192.168.61.129 remote 192.168.61.130
     ip -n cloud link set ptun up
     ip netns exec cloud sysctl -q net.ipv4.conf.veth0.forwarding=1
 
@@ -100,8 +113,8 @@ setup_split() {
 	ip link add link gtpptun name $tun_dev type vlan id $tun_vlan
 	ip link set $tun_dev up
     fi
-    ip addr add 192.168.61.10/30 dev $tun_dev
-    ip tunnel add ptun mode ipip local 192.168.61.10 remote 192.168.61.9 dev $tun_dev
+    ip addr add 192.168.61.130/30 dev $tun_dev
+    ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129 dev $tun_dev
     ip link set ptun up
     sysctl -q net.ipv4.conf.gtpptun.forwarding=1
 
@@ -109,7 +122,7 @@ setup_split() {
     # so add static entries
     arp -s 192.168.61.1 d2:ad:ca:fe:b4:01
     arp -s 192.168.61.5 d2:ad:ca:fe:b4:02
-    arp -s 192.168.61.9 d2:ad:ca:fe:b4:03
+    arp -s 192.168.61.129 d2:ad:ca:fe:b4:03
 
     # fix weird thing with packet checksum sent from a
     # classic socket (eg SOCK_DGRAM).
@@ -135,16 +148,15 @@ run_combined() {
     # start gtp-guard if not yet started
     start_gtpguard
 
+    gtpg_conf_nofail "
+no bpf-program fwd-1
+no gtp-proxy all
+"
+
     gtpg_conf "
 bpf-program fwd-1
  path bin/gtp_fwd.bpf
  no shutdown
-
-gtp-proxy gtpp-undertest
- bpf-program fwd-1
- gtpc-tunnel-endpoint 192.168.61.2 port 2123
- gtpu-tunnel-endpoint 192.168.61.6 both-side interface gtpp
- gtpu-ipip interface ptun view egress
 
 interface gtpp
  bpf-program fwd-1
@@ -152,12 +164,22 @@ interface gtpp
 
 interface ptun
  no shutdown
+" || fail "cannot execute vty commands"
 
-gtp-proxy gtpp-undertest
- gtpu-ipip debug teid add 257 1 192.168.61.5 ingress
- gtpu-ipip debug teid add 258 2 192.168.61.4 egress
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	gtpg_conf "
+gtp-proxy gtpp-undertest-$i
+ bpf-program fwd-1
+ gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
+ gtpu-tunnel-endpoint 192.168.61.$((i*8+1)) both-side interface gtpp
+ gtpu-ipip interface ptun view egress
+ gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+3)) ingress
+ gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+2)) egress
+# gtpu-ipip debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+5)) ingress
+# gtpu-ipip debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+4)) egress
 
 " || fail "cannot execute vty commands"
+    done
 
     gtpg_show "
 show interface
@@ -216,6 +238,10 @@ show interface-rules
 #  ingress -> egress -> ingress
 #
 pkt() {
+    # gtp-proxy instance number to use
+    inst=${1:-0}
+    echo "run instance $inst"
+
     if [ "$type" == "split" ]; then
 	ingress_ns=sgw
 	ingress_ip=192.168.61.5
@@ -223,18 +249,19 @@ pkt() {
 	egress_ip=192.168.61.1
     elif [ "$type" == "combined" ]; then
 	ingress_ns=cloud
-	ingress_ip=192.168.61.4
+	ingress_ip=192.168.61.$((inst*8+2))
 	egress_ns=cloud
-	egress_ip=192.168.61.5
+	egress_ip=192.168.61.$((inst*8+3))
     else
 	return
     fi
 
-    (
+    if [ $inst -eq 0 ]; then
+	(
 ip netns exec cloud python3 - <<EOF
 from scapy.all import *
 def receive(p):
-  if IP in p and p[IP].proto == 4 and p[IP].dst == "192.168.61.9":
+  if IP in p and p[IP].proto == 4 and p[IP].dst == "192.168.61.129":
     # switch eth mac, ipip address, and send back
     tmp = p[IP].src
     p[IP].src = p[IP].dst
@@ -245,11 +272,13 @@ def receive(p):
     #print("tun sending packet back src:%s dst:%s" % (p[IP].dst, p[IP].src))
     #print(p.summary())
     sendp(p, iface="veth0", verbose=0)
-p = sniff(count=8, iface="veth0", filter=f"ip proto 4", prn=receive)
+p = sniff(count=100, iface="veth0", filter=f"ip proto 4", prn=receive)
 print("tun forwarder done")
 EOF
-    ) &
-    python_pid=$!
+	) &
+	python_pid=$!
+	echo "kill $python_pid 2> /dev/null" >> $tmp/cleanup.sh
+    fi
 
     (
 ip netns exec $egress_ns python3 - <<EOF
@@ -259,8 +288,10 @@ fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 fd.bind(('$egress_ip', 2152))
 data, remote = fd.recvfrom(1024)
 data = bytearray(data)
-print('PGW: receive data, teid is 0x%08x' % struct.unpack('!I', data[4:8]))
-data[4:8] = struct.pack('!I', 258)
+teid = struct.unpack('!I', data[4:8])[0]
+rteid = (teid + 1) + 256
+print('PGW: receive data, teid is 0x%08x, send back 0x%08x' % (teid,rteid))
+data[4:8] = struct.pack('!I', rteid)
 data = bytes(data)
 fd.sendto(data, remote)
 fd.close()
@@ -283,21 +314,20 @@ EOF
     python3_pid=$!
 
     cat >> $tmp/cleanup.sh <<EOF
-kill $python_pid 2> /dev/null
 kill $python2_pid 2> /dev/null
 kill $python3_pid 2> /dev/null
 EOF
     sleep 1
 
-    
+
     if [ "$type" == "combined" ]; then
-	send_py_pkt cloud veth0 '
-p = [Ether(src="d2:ad:ca:fe:aa:01", dst="d2:f0:0c:ba:bb:01") /
-  IP(src="192.168.61.4", dst="192.168.61.6") /
+	send_py_pkt cloud veth0 "
+p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
+  IP(src='$ingress_ip', dst='192.168.61.$((inst*8+1))') /
   UDP(sport=2152, dport=2152) /
-  GTP_U_Header(teid=257, gtp_type=255) /
-  Raw("DATADATA")]
-'
+  GTP_U_Header(teid=$((inst*10+257)), gtp_type=255) /
+  Raw('DATADATA')]
+"
     else
 	send_py_pkt sgw sgw '
 p = [Ether(dst="d2:f0:0c:ba:a5:06", src="d2:ad:ca:fe:b4:02") /
@@ -309,13 +339,24 @@ p = [Ether(dst="d2:f0:0c:ba:a5:06", src="d2:ad:ca:fe:b4:02") /
     fi
 
     sleep 2
-    echo "done, exit"
+    echo "done"
+}
 
+# send a gtp-u packet on all instances
+pkt_all() {
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	pkt $i
+    done
 }
 
 action=${1:-setup}
 type=${2:-combined}
-tun_vlan=200
+tun_vlan=${3:-0}
+gtp_proxy_count=${4:-1}
+
+if [ $gtp_proxy_count -gt 16 ]; then
+    gtp_proxy_count=16
+fi
 
 case $action in
     setup)
@@ -331,6 +372,8 @@ case $action in
 	run_$type ;;
     pkt)
 	pkt ;;
+    pktall)
+	pkt_all ;;
 
     *) fail "action '$action' not recognized" ;;
 esac

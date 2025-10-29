@@ -19,6 +19,8 @@
  * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <arpa/inet.h>
+
 /* local includes */
 #include "gtp_interface.h"
 #include "vty.h"
@@ -32,6 +34,7 @@ struct gtp_bpf_interface_rule
 	struct bpf_map		*acl;
 	int			key_size;
 	key_stringify_cb_t	key_stringify_cb;
+	bool			rule_list_sorted;
 	struct list_head	rule_list;
 };
 
@@ -54,6 +57,21 @@ _get_ir(struct gtp_interface *iface, int *ifindex)
 	return iface->rules && iface->rules->acl ? iface->rules : NULL;
 }
 
+static int
+_rule_sort_cb(struct list_head *al, struct list_head *bl)
+{
+	struct stored_rule *a = container_of(al, struct stored_rule, list);
+	struct stored_rule *b = container_of(bl, struct stored_rule, list);
+	struct if_rule_key_base *ka = a->r.key;
+	struct if_rule_key_base *kb = b->r.key;
+
+	if (ka->ifindex < kb->ifindex)
+		return -1;
+	if (ka->ifindex > kb->ifindex)
+		return 1;
+	return strcmp(a->r.from->ifname, b->r.from->ifname);
+}
+
 struct stored_rule *
 _rule_find(struct gtp_bpf_interface_rule *ir, const struct gtp_if_rule *r,
 	   bool exact)
@@ -64,7 +82,7 @@ _rule_find(struct gtp_bpf_interface_rule *ir, const struct gtp_if_rule *r,
 		if (sr->r.from == r->from &&
 		    !memcmp(sr->r.key, r->key, r->key_size) &&
 		    (!exact || (sr->r.to == r->to &&
-				sr->r.prio == r->prio) )) {
+				sr->r.prio == r->prio))) {
 			return sr;
 		}
 	}
@@ -81,6 +99,7 @@ _rule_store(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r)
 	sr->r.key = sr + 1;
 	memcpy(sr + 1, r->key, r->key_size);
 	list_add(&sr->list, &ir->rule_list);
+	ir->rule_list_sorted = false;
 	return sr;
 }
 
@@ -92,12 +111,15 @@ _rule_del(struct stored_rule *sr)
 }
 
 static int
-_rule_install(struct gtp_bpf_interface_rule *ir, int ifindex, struct gtp_if_rule *r,
-	      bool overwrite)
+_rule_set_key_base(struct gtp_bpf_interface_rule *ir, int ifindex, struct gtp_if_rule *r)
 {
 	struct if_rule_key_base *k = r->key;
-	struct if_rule ar = {};
-	int ret;
+
+	if (ir->key_size != r->key_size) {
+		log_message(LOG_INFO, "interface_rule: key size mismatch (%d != %d)",
+			    ir->key_size, r->key_size);
+		return -1;
+	}
 
 	/* set up key */
 	k->ifindex = ifindex;
@@ -108,6 +130,17 @@ _rule_install(struct gtp_bpf_interface_rule *ir, int ifindex, struct gtp_if_rule
 		k->tun_local = addr_toip4(&r->from->tunnel_local);
 		k->tun_remote = addr_toip4(&r->from->tunnel_remote);
 	}
+
+	return 0;
+}
+
+static int
+_rule_install(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r,
+	      bool overwrite)
+{
+	struct if_rule_key_base *k = r->key;
+	struct if_rule ar = {};
+	int ret;
 
 	/* set up rule */
 	ar.action = r->action;
@@ -136,24 +169,22 @@ _rule_install(struct gtp_bpf_interface_rule *ir, int ifindex, struct gtp_if_rule
 				   &ar, sizeof (ar),
 				   overwrite ? 0 : BPF_NOEXIST);
 	if (ret) {
-		printf("cannot add / update rule! (%d / %m)\n", ret);
+		printf("cannot %s rule! (%d / %m)\n",
+		       overwrite ? "update" : "add", ret);
 		return -1;
 	}
 
 	return 0;
 }
 
-static int
+static void
 _rule_uninstall(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r)
 {
 	int ret;
 
 	ret = bpf_map__delete_elem(ir->acl, r->key, r->key_size, 0);
-	if (ret) {
+	if (ret)
 		printf("cannot delete rule! (%d / %m)\n", ret);
-		return -1;
-	}
-	return 0;
 }
 
 int
@@ -161,29 +192,26 @@ gtp_interface_rule_add(struct gtp_if_rule *r)
 {
 	struct gtp_bpf_interface_rule *ir;
 	struct stored_rule *sr;
-	int ifindex, ret;
+	int ifindex, ret = -1;
 
 	/* retrieve 'physical' interface. we will install rules on it */
 	ir = _get_ir(r->from, &ifindex);
 	if (ir == NULL)
 		return -1;
 
-	if (ir->key_size != r->key_size) {
-		log_message(LOG_INFO, "interface_rule: key size mismatch (%d != %d)",
-			    ir->key_size, r->key_size);
+	if (_rule_set_key_base(ir, ifindex, r) < 0)
 		return -1;
-	}
-
 	sr = _rule_find(ir, r, false);
 	if (sr == NULL || r->prio > sr->r.prio) {
-		ret = _rule_install(ir, ifindex, r, sr != NULL);
+		/* install new rule or with higher priority */
+		ret = _rule_install(ir, r, sr != NULL);
 		if (ret < 0)
 			return -1;
 		if (sr != NULL)
 			sr->installed = false;
 	}
 	sr = _rule_store(ir, r);
-	sr->installed = true;
+	sr->installed = ret == 0;
 
 	return 0;
 }
@@ -194,17 +222,23 @@ gtp_interface_rule_del(struct gtp_if_rule *r)
 {
 	struct gtp_bpf_interface_rule *ir;
 	struct stored_rule *sr;
+	int ifindex;
 
-	ir = _get_ir(r->from, NULL);
+	ir = _get_ir(r->from, &ifindex);
 	if (ir == NULL)
 		return;
 
+	if (_rule_set_key_base(ir, ifindex, r) < 0)
+		return;
 	sr = _rule_find(ir, r, true);
-	if (sr != NULL && sr->installed) {
-		if (_rule_uninstall(ir, &sr->r) < 0)
-			return;
+	if (sr != NULL) {
+		if (sr->installed)
+			_rule_uninstall(ir, &sr->r);
+		_rule_del(sr);
+	} else {
+		printf("DID NOT FIND rule to delete: %s=>%s\n",
+		       r->from->ifname, r->to->ifname);
 	}
-	_rule_del(sr);
 }
 
 void
@@ -243,27 +277,68 @@ int
 gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 {
 	struct gtp_bpf_interface_rule *r = gtp_bpf_prog_tpl_data_get(p, "if_rules");
+	struct gtp_interface *from = NULL, *to;
 	struct if_rule_key_base *k;
 	struct stored_rule *sr;
 	struct vty *vty = arg;
-	char buf[200];
+	char buf[200], b1[60], b2[60];
 
 	if (r == NULL || r->acl == NULL)
 		return 0;
+
+	if (!r->rule_list_sorted) {
+		list_sort(&r->rule_list, _rule_sort_cb);
+		r->rule_list_sorted = true;
+	}
 
 	list_for_each_entry(sr, &r->rule_list, list) {
 		if (r->key_stringify_cb != NULL && sr->r.key_size > sizeof (*k))
 			r->key_stringify_cb(&sr->r, buf, sizeof (buf));
 		k = sr->r.key;
-		vty_out(vty, "%c %s => %s ifindex:%d vlan:%d tun local:%x remote:%x %s\n",
-			sr->installed ? '*' : ' ',
-			sr->r.from->ifname,
-			sr->r.to->ifname,
-			k->ifindex,
-			k->vlan_id,
-			k->tun_local,
-			k->tun_remote,
-			buf);
+
+		if (sr->r.from != from) {
+			if (from != NULL)
+				vty_out(vty, "%s", VTY_NEWLINE);
+			from = sr->r.from;
+			vty_out(vty, "=== from %s (if:%d) ===\n",
+				from->ifname, k->ifindex);
+		}
+		to = sr->r.to;
+
+		vty_out(vty, "%c match", sr->installed ? '*' : '-');
+		if (k->vlan_id)
+			vty_out(vty, " vlan:%d", k->vlan_id);
+		if (k->vlan_id != from->vlan_id)
+			vty_out(vty, " XXX vlan mismatch XXX");
+		if (from->tunnel_mode)
+			vty_out(vty, " %s local:%s remote:%s",
+				from->tunnel_mode == 1 ? "gre" : "ipip",
+				inet_ntop(AF_INET, &k->tun_local, b1, sizeof (b1)),
+				inet_ntop(AF_INET, &k->tun_remote, b2, sizeof (b2)));
+		if (*buf) {
+			if (from->tunnel_mode)
+				vty_out(vty, "%s    and", VTY_NEWLINE);
+			vty_out(vty, " %s", buf);
+		}
+		if (!k->vlan_id && !from->tunnel_mode && !*buf)
+			vty_out(vty, " all");
+		vty_out(vty, "%s", VTY_NEWLINE);
+		vty_out(vty, "  -> action %d", sr->r.action);
+		if (from->table_id)
+			vty_out(vty, " table-id:%d", from->table_id);
+		if (to->vlan_id || to->tunnel_mode)
+			vty_out(vty, " encap");
+		if (to->vlan_id)
+			vty_out(vty, " vlan:%d", to->vlan_id);
+		if (to->tunnel_mode)
+			vty_out(vty, " %s:%s",
+				to->tunnel_mode == 1 ? "gre" : "ipip",
+				addr_stringify(&to->tunnel_remote, b1, sizeof (b1)));
+		vty_out(vty, " to %s", to->ifname);
+		if (to->link_iface)
+			vty_out(vty, " (if:%d)", to->link_iface->ifindex);
+
+		vty_out(vty, "%s", VTY_NEWLINE);
 	}
 
 	return 0;
