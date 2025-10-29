@@ -178,7 +178,7 @@ DEFUN(cdr_bind_addr,
 		return CMD_WARNING;
 	}
 
-	if (addr_parse_const(argv[0], &e->cfc.addr_ip_bound))
+	if (addr_parse(argv[0], &e->cfc.addr_ip_bound))
 		return CMD_WARNING;
 
 	return CMD_SUCCESS;
@@ -202,7 +202,7 @@ DEFUN(cdr_remote_addr,
 		return CMD_WARNING;
 	}
 
-	if (addr_parse_const(argv[0], &a) || !addr_get_port(&a)) {
+	if (addr_parse(argv[0], &a) || !addr_get_port(&a)) {
 		vty_out(vty, "%% cannot parse remote '%s', must be ipv4/ipv6 "
 			"address with port\n", argv[0]);
 		return CMD_WARNING;

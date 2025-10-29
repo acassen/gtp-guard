@@ -35,7 +35,7 @@ extern struct thread_master *master;
  *	Worker
  */
 static int
-gtp_server_snd(struct inet_server *srv, ssize_t nbytes) 
+gtp_server_snd(struct inet_server *srv, ssize_t nbytes)
 {
 	struct gtp_server *s = srv->ctx;
 	struct pkt_buffer *pbuff = srv->pbuff;

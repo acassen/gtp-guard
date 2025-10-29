@@ -25,7 +25,7 @@
 #include "gtp_sqn.h"
 #include "gtp_utils.h"
 #include "gtp_utils_uli.h"
-#include "gtp_bpf.h"
+#include "gtp_proxy_hdl.h"
 #include "gtp.h"
 #include "ppp_session.h"
 #include "bitops.h"

@@ -8,7 +8,6 @@ bpf_sources = files(
   'gtp_mirror.c',
   'cgn.c',
   'test_cgn.c',
-  'gtp_fwd-ifr.c',
 )
 
 clang_bpf_flags = [

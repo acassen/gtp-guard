@@ -340,24 +340,16 @@ cgn_vty(struct vty *vty, struct cgn_ctx *c)
 
 DEFUN(show_cgn,
       show_cgn_cmd,
-      "show carrier-grade-nat [STRING]",
+      "show carrier-grade-nat config [INSTANCE]",
       SHOW_STR
       "Carrier Grade NAT\n"
       "Instance name")
 {
+	const char *name = argc == 1 ? argv[0] : NULL;
 	struct cgn_ctx *c;
-	const char *name = NULL;
-
-	if (list_empty(&daemon_data->cgn)) {
-		vty_out(vty, "%% No carrier-grade-nat instance configured...\n");
-		return CMD_SUCCESS;
-	}
-
-	if (argc == 1)
-		name = argv[0];
 
 	list_for_each_entry(c, &daemon_data->cgn, next) {
-		if (name != NULL && strncmp(c->name, name, GTP_NAME_MAX_LEN))
+		if (name != NULL && strcmp(c->name, name))
 			continue;
 
 		cgn_vty(vty, c);
@@ -365,6 +357,61 @@ DEFUN(show_cgn,
 
 	return CMD_SUCCESS;
 }
+
+DEFUN(show_cgn_block_alloc,
+      show_cgn_block_alloc_cmd,
+      "show carrier-grade-nat block-alloc [INSTANCE]",
+      SHOW_STR
+      "Carrier Grade NAT\n"
+      "Show block allocation\n"
+      "Instance name")
+{
+	const char *name = argc == 1 ? argv[0] : NULL;
+	char buf[50000];
+	struct cgn_ctx *c;
+
+	list_for_each_entry(c, &daemon_data->cgn, next) {
+		if (name != NULL && strcmp(c->name, name))
+			continue;
+
+		cgn_bpf_block_alloc_dump(c, buf, sizeof (buf));
+		vty_out(vty, "%s", buf);
+	}
+
+	return CMD_SUCCESS;
+}
+
+
+DEFUN(show_cgn_user_flow,
+      show_cgn_user_flow_cmd,
+      "show carrier-grade-nat flows A.B.C.D [INSTANCE]",
+      SHOW_STR
+      "Carrier Grade NAT\n"
+      "Show block allocation\n"
+      "Instance name")
+{
+	const char *name = argc == 2 ? argv[1] : NULL;
+	struct cgn_ctx *c;
+	char buf[50000];
+	union addr a;
+	uint32_t addr;
+
+	if (addr_parse(argv[0], &a))
+		return CMD_WARNING;
+	addr = ntohl(a.sin.sin_addr.s_addr);
+
+	list_for_each_entry(c, &daemon_data->cgn, next) {
+		if (name != NULL && strcmp(c->name, name))
+			continue;
+
+		cgn_bpf_user_full_dump(c, addr, buf, sizeof (buf));
+		vty_out(vty, "%s", buf);
+	}
+
+	return CMD_SUCCESS;
+}
+
+
 
 /*
  *	Configuration writer
@@ -444,6 +491,8 @@ cmd_ext_cgn_install(void)
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cgn_cmd);
 	install_element(ENABLE_NODE, &show_cgn_cmd);
+	install_element(ENABLE_NODE, &show_cgn_block_alloc_cmd);
+	install_element(ENABLE_NODE, &show_cgn_user_flow_cmd);
 
 	return 0;
 }

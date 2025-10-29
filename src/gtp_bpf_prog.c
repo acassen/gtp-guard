@@ -26,7 +26,7 @@
 #include <linux/if_link.h>
 
 #include "gtp_data.h"
-#include "gtp_bpf.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
 #include "bitops.h"
@@ -261,6 +261,25 @@ gtp_bpf_prog_obj_get_mode_list(struct bpf_object *obj, char **out_buf, char **tp
  *	BPF helpers
  */
 
+struct bpf_map *
+gtp_bpf_prog_load_map(struct bpf_object *obj, const char *map_name)
+{
+	struct bpf_map *map = NULL;
+	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+
+	map = bpf_object__find_map_by_name(obj, map_name);
+	if (!map) {
+		libbpf_strerror(errno, errmsg, GTP_XDP_STRERR_BUFSIZE);
+		log_message(LOG_INFO, "%s(): XDP: error mapping tab:%s err:%d (%s)"
+				    , __FUNCTION__
+				    , map_name
+				    , errno, errmsg);
+		return NULL;
+	}
+
+	return map;
+}
+
 
 static inline int
 _assign_program(struct gtp_bpf_prog *p, struct bpf_program *prg,
@@ -483,14 +502,15 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 	if (!p->load.tc && !p->load.xdp)
 		goto err;
 
+	struct bpf_object *run_obj = p->run.obj;
+
 	for (i = 0; i < p->tpl_n; i++) {
 		if (p->tpl[i]->loaded != NULL &&
-		    p->tpl[i]->loaded(p, p->tpl_data[i]))
+		    p->tpl[i]->loaded(p, p->tpl_data[i], run_obj != NULL))
 			goto err;
 	}
 
 	/* program is now loaded, set to running */
-	struct bpf_object *run_obj = p->run.obj;
 	memcpy(&p->run, &p->load, sizeof (p->run));
 	p->load.obj = NULL;
 	p->load.tc = NULL;
@@ -620,18 +640,26 @@ gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 {
 	int i;
 
+	p->run.tc = NULL;
+	p->run.xdp = NULL;
+	if (p->run.obj != NULL) {
+		for (i = 0; i < p->tpl_n; i++) {
+			if (p->tpl[i]->closed != NULL)
+				p->tpl[i]->closed(p, p->tpl_data[i]);
+		}
+
+		bpf_object__close(p->run.obj);
+	}
+	p->run.obj = NULL;
+
+	if (p->load.obj != NULL)
+		bpf_object__close(p->load.obj);
+	p->load.obj = NULL;
+
 	for (i = 0; i < p->tpl_n; i++) {
 		if (p->tpl[i]->udata_alloc_size)
 			free(p->tpl_data[i]);
 	}
-	p->run.tc = NULL;
-	p->run.xdp = NULL;
-	if (p->run.obj != NULL)
-		bpf_object__close(p->run.obj);
-	p->run.obj = NULL;
-	if (p->load.obj != NULL)
-		bpf_object__close(p->load.obj);
-	p->load.obj = NULL;
 	p->tpl_n = 0;
 }
 
@@ -944,10 +972,22 @@ gtp_bpf_prog_alloc(const char *name)
 	return new;
 }
 
+static int
+gtp_bpf_log_message(enum libbpf_print_level level, const char *format, va_list args)
+{
+	if (level == LIBBPF_DEBUG && !(debug & 16))
+		return 0;
+
+	log_message_va(LOG_INFO, format, args);
+	return 0;
+}
+
 int
 gtp_bpf_progs_init(void)
 {
 	int ifd;
+
+	libbpf_set_print(gtp_bpf_log_message);
 
 	ifd = inotify_init();
 	if (ifd < 0) {

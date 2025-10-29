@@ -3,7 +3,7 @@
 #pragma once
 
 #include "tools.h"
-
+#include "if_rule-def.h"
 
 /*
  * ipv4 block allocation.
@@ -12,6 +12,7 @@
 struct cgn_v4_block {
 	__u64			refcnt;		/* used flow */
 	__u64			cgn_port_next;
+	__u64			alloc_time;
 	__u32			ipbl_idx;	/* idx in map 'blocks' */
 	__u32			bl_idx;		/* ipbl->b[@idx] */
 	__u32			cgn_port_start;	/* fixed */
@@ -33,21 +34,21 @@ struct cgn_v4_ipblock {
 /* log entry sent to userspace  */
 struct cgn_v4_block_log
 {
-	char		prefix[32];	/* log prefix */
-	__u32		cgn_addr;	/* allocated ip (v4) */
-	__u32		priv_addr;	/* private ip */
-	__u32		duration;	/* in seconds */
-	__u16		port_start;
-	__u16		port_size;
-	__u8		flag;
-	__u8		pad[3];
+	char			prefix[32];	/* log prefix */
+	__u32			cgn_addr;	/* allocated ip (v4) */
+	__u32			priv_addr;	/* private ip */
+	__u32			duration;	/* in seconds */
+	__u16			port_start;
+	__u16			port_size;
+	__u8			flag;
+	__u8			pad[3];
 } __attribute__((packed));
 
 
 /* global lock for ipv4 block allocation */
 struct cgn_v4_block_lock
 {
-	struct bpf_spin_lock l;
+	struct bpf_spin_lock	l;
 };
 
 
@@ -89,7 +90,7 @@ struct cgn_v4_flow_priv {
 	__u8			proto_state;	/* tcp state */
 };
 
-/* todo */
+/* to reuse same cgn port (for eg. STUN) */
 struct cgn_v4_flow_priv_hairpin_key {
 	__u32			priv_addr;
 	__u16			priv_port;
@@ -127,6 +128,7 @@ struct cgn_user {
 /* all address/port in cpu order */
 struct cgn_packet
 {
+	struct xdp_md	*ctx;
 	__u32		src_addr;
 	__u32		dst_addr;
 	__u32		cgn_addr;

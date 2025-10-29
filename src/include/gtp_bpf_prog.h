@@ -21,7 +21,6 @@
 #pragma once
 
 #include <stdint.h>
-#include "vty.h"
 #include "list_head.h"
 #include "libbpf.h"
 #include "gtp_stddef.h"
@@ -45,12 +44,11 @@ struct gtp_bpf_prog_tpl {
 	size_t			udata_alloc_size;
 
 	int (*prepare)(struct gtp_bpf_prog *, void *);
-	int (*loaded)(struct gtp_bpf_prog *, void *);
+	int (*loaded)(struct gtp_bpf_prog *, void *, bool);
+	void (*closed)(struct gtp_bpf_prog *, void *);
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
-
-	void (*vty_iface_show)(struct gtp_bpf_prog *, struct gtp_interface *, struct vty *);
 
 	struct list_head		next;
 };
@@ -94,6 +92,7 @@ struct gtp_bpf_prog {
 /* Prototypes */
 int gtp_bpf_prog_obj_update_var(struct bpf_object *,
  			       const struct gtp_bpf_prog_var *);
+struct bpf_map *gtp_bpf_prog_load_map(struct bpf_object *, const char *);
 int gtp_bpf_prog_load(struct gtp_bpf_prog *p);
 int gtp_bpf_prog_attach(struct gtp_bpf_prog *, struct gtp_interface *);
 bool gtp_bpf_prog_is_attached(struct gtp_bpf_prog *, struct gtp_interface *);

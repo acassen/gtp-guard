@@ -115,6 +115,25 @@ cleanup() {
     rm -rf -- "$tmp"
 }
 
+send_py_pkt() {
+    ns=$1
+    port=$2
+    script_head="
+#!/usr/bin/env python3
+from scapy.all import *
+from scapy.contrib.gtp import *
+"
+    script_tail="
+[ sendp(i, iface=\"$port\", verbose=0) for i in p ]
+"
+    if [ -n "$ns" ]; then
+	ip netns exec $ns python3 -c "$script_head $3 $script_tail"
+    else
+	python3 -c "$script_head $3 $script_tail"
+    fi
+}
+
+
 tmp=$(mktemp -d)
 echo > $tmp/cleanup.sh
 trap cleanup EXIT

@@ -7,11 +7,11 @@
 SEC("xdp")
 int cgn_entry(struct xdp_md *ctx)
 {
-	struct if_rule_data d = {};
+	struct if_rule_data d = { .ctx = ctx };
 	int action, ret;
 
 	/* phase 1: parse interface encap */
-	action = if_rule_parse_pkt(ctx, &d);
+	action = if_rule_parse_pkt(&d, NULL);
 	if (action <= XDP_REDIRECT)
 		return action;
 

@@ -26,12 +26,35 @@
 #include "gtp_resolv.h"
 #include "gtp_iptnl.h"
 #include "gtp_teid.h"
+#include "gtp_interface.h"
 #include "gtp_bpf_prog.h"
+#include "gtp_bpf_fwd.h"
+
+struct gtp_proxy_ipip_addr {
+	uint32_t	*addr;
+	int		n;
+	int		msize;
+};
 
 /* GTP Proxy context */
 struct gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];
 	struct gtp_bpf_prog	*bpf_prog;
+	struct gtp_bpf_fwd_data *bpf_data;
+
+	/* datapath/if_rule */
+	struct gtp_interface	*iface_ingress;
+	struct gtp_interface	*iface_egress;
+	bool			bind_ingress;
+	bool			bind_egress;
+	struct gtp_interface	*ipip_iface;
+	bool			ipip_bind;
+	int			ipip_xlat;
+	bool			ipip_dead;
+	struct gtp_proxy_ipip_addr ipip_ingress;
+	struct gtp_proxy_ipip_addr ipip_egress;
+	int			rules_set;
+
 	struct gtp_server	gtpc;
 	struct gtp_server	gtpc_egress;
 	struct gtp_server	gtpu;
@@ -62,6 +85,15 @@ int gtp_proxy_gtpu_teid_destroy(struct gtp_teid *teid);
 int gtp_proxy_ingress_init(struct inet_server *srv);
 int gtp_proxy_ingress_process(struct inet_server *srv,
 			      struct sockaddr_storage *addr_from);
+void gtp_proxy_iface_event_cb(struct gtp_interface *iface,
+			      enum gtp_interface_event type,
+			      void *ud, void *arg);
+void gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
+				  enum gtp_interface_event type,
+				  void *ud, void *arg);
+void gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, uint32_t addr,
+				int action, bool egress);
+void gtp_proxy_rules_set(struct gtp_proxy *ctx);
 struct gtp_proxy *gtp_proxy_get(const char *name);
 struct gtp_proxy *gtp_proxy_init(const char *name);
 int gtp_proxy_ctx_server_destroy(struct gtp_proxy *ctx);

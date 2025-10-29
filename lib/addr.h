@@ -36,8 +36,7 @@ bool addr_is_unicast(const union addr *a);
 char *addr_stringify(const union addr *a, char *buf, size_t buf_size);
 char *addr_stringify_ip(const union addr *a, char *buf, size_t buf_size);
 char *addr_stringify_port(const union addr *a, char *buf, size_t buf_size);
-int addr_parse(char *paddr, union addr *a);
-int addr_parse_const(const char *paddr, union addr *a);
+int addr_parse(const char *paddr, union addr *a);
 int addr_parse_ip(const char *paddr, union addr *a, uint32_t *out_netmask,
 		  uint64_t *out_count, bool first_ip);
 int addr_parse_iface(const char *iface_name, union addr *a);

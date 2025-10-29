@@ -26,7 +26,6 @@
 #include "gtp_request.h"
 #include "gtp_conn.h"
 #include "gtp_session.h"
-#include "gtp_bpf.h"
 #include "gtp_mirror.h"
 #include "gtp_interface.h"
 #include "cgn.h"
@@ -75,16 +74,15 @@ free_daemon_data(void)
 	gtp_metrics_destroy();
 	pppoe_bundle_destroy();
 	pppoe_destroy();
+	gtp_interfaces_destroy();
+	gtp_bpf_progs_destroy();
 	gtp_conn_destroy();
 	gtp_sessions_destroy();
 	gtp_proxy_destroy();
 	gtp_router_destroy();
-	gtp_bpf_destroy();
 	gtp_teid_destroy();
 	gtp_vrf_destroy();
 	gtp_mirrors_destroy();
-	gtp_interfaces_destroy();
-	gtp_bpf_progs_destroy();
 	gtp_cdr_spool_destroy(NULL);
 	gtp_apn_destroy();
 	cgn_destroy();

@@ -122,82 +122,32 @@ cgn_blog_send(struct cgn_ctx *c, const struct cgn_v4_block_log *e)
 			    sizeof (*hdr) + be16toh(hdr->size));
 }
 
-
-
 static void
-handle_event(void *uctx, int cpu, void *data, __u32 data_size)
+cgn_pb_timer_cb(struct thread *t)
 {
-	struct cgn_ctx *c = uctx;
+	struct cgn_ctx *c = THREAD_ARG(t);
+	struct cgn_v4_block_log e;
+	int i, ret;
 
-	fprintf(stderr, "got perf event cpu: %d data: %p, size: %d\n",
-		cpu, data, data_size);
+	c->blog_timer = thread_add_timer(master, cgn_pb_timer_cb, c, TIMER_HZ / 5);
 
-	if (data_size != sizeof (struct cgn_v4_block_log)) {
-		log_message(LOG_WARNING, "block_log event of wrong size: "
-			    "userapp:%ld != bpf:%d",
-			    sizeof (struct cgn_v4_block_log), data_size);
-		return;
+	for (i = 0; i < 10000; i++) {
+		memset(&e, 0x00, sizeof (e));
+		ret = bpf_map__lookup_and_delete_elem(c->blog_queue, NULL, 0, &e, sizeof (e), 0);
+		if (ret < 0) {
+			if (errno != ENOENT)
+				log_message(LOG_INFO, "cgn_blog: map__lookup_and_delete: %m\n");
+			return;
+		}
+		cgn_blog_send(c, &e);
 	}
 
-	cgn_blog_send(c, data);
-}
-
-static void
-handle_missed_events(void *, int cpu, __u64 lost_cnt)
-{
-	log_message(LOG_INFO, "Lost %llu events on CPU %d\n", lost_cnt, cpu);
-}
-
-/* callback called by thread, when there is something to read on perf buffer's fd.
- * libbpf will handle data and then will call handle_event. */
-static void
-cgn_pb_io_read(struct thread *t)
-{
-	struct cgn_blog_pb *pb = THREAD_ARG(t);
-	int err;
-
-	err = perf_buffer__consume_buffer(pb->pb, pb->cpu);
-	if (err)
-		log_message(LOG_INFO, "perf consume buffer: %m");
-
-	pb->t = thread_add_read(master, cgn_pb_io_read, pb, t->u.f.fd,
-				TIMER_NEVER, 0);
 }
 
 int
 cgn_blog_init(struct cgn_ctx *c)
 {
-	struct cgn_blog_pb *pb;
-	int map_fd, fd;
-	uint64_t cpu;
-
-	if (c->blog_pb != NULL) {
-		printf("skip %s, already done\n", __func__);
-		return 0;
-	}
-
-	map_fd = bpf_map__fd(c->blog_event);
-	c->blog_pb = perf_buffer__new(map_fd, PERF_BUFFER_PAGES,
-				      handle_event, handle_missed_events, c, NULL);
-	if (c->blog_pb == NULL) {
-		log_message(LOG_ERR, "Failed to open perf buffer: %m");
-		return -errno;
-	}
-
-	c->blog_apb = calloc(perf_buffer__buffer_cnt(c->blog_pb),
-			     sizeof (*c->blog_apb));
-	for (cpu = 0; cpu < perf_buffer__buffer_cnt(c->blog_pb); cpu++) {
-		fd = perf_buffer__buffer_fd(c->blog_pb, cpu);
-		if (fd < 0)
-			return fd;
-
-		pb = calloc(1, sizeof (*pb));
-		pb->pb = c->blog_pb;
-		pb->cpu = cpu;
-		pb->t = thread_add_read(master, cgn_pb_io_read, pb, fd,
-					TIMER_NEVER, 0);
-		c->blog_apb[cpu] = pb;
-	}
+	c->blog_timer = thread_add_timer(master, cgn_pb_timer_cb, c, TIMER_HZ / 5);
 
 	return 0;
 }
@@ -205,14 +155,6 @@ cgn_blog_init(struct cgn_ctx *c)
 void
 cgn_blog_release(struct cgn_ctx *c)
 {
-	struct cgn_blog_pb *pb;
-	uint64_t cpu;
-
-	for (cpu = 0; cpu < perf_buffer__buffer_cnt(c->blog_pb); cpu++) {
-		pb = c->blog_apb[cpu];
-		thread_del(pb->t);
-		free(pb);
-	}
-	free(c->blog_apb);
-	perf_buffer__free(c->blog_pb);
+	thread_del(c->blog_timer);
+	c->blog_timer = NULL;
 }

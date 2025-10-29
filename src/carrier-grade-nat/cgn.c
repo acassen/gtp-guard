@@ -33,9 +33,10 @@
 #include "libbpf.h"
 #include "inet_server.h"
 #include "inet_utils.h"
+#include "list_head.h"
 #include "tools.h"
 #include "utils.h"
-#include "list_head.h"
+#include "command.h"
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
@@ -147,8 +148,21 @@ cgn_ctx_set_rules(struct cgn_ctx *c)
 	if (!c->rules_set &&
 	    c->priv != NULL && c->bind_priv &&
 	    c->pub != NULL && c->bind_pub) {
-		gtp_interface_rule_add(c->priv, c->pub, 10, 100);
-		gtp_interface_rule_add(c->pub, c->priv, 11, 500);
+		struct if_rule_key_base k;
+		struct gtp_if_rule ifr = {
+			.from = c->priv,
+			.to = c->pub,
+			.key = &k,
+			.key_size = sizeof (k),
+			.action = 10,
+			.prio = 100,
+		};
+		gtp_interface_rule_add(&ifr);
+		ifr.from = c->pub;
+		ifr.to = c->priv;
+		ifr.action = 11;
+		ifr.prio = 500;
+		gtp_interface_rule_add(&ifr);
 		c->rules_set = true;
 		return;
 	}
@@ -156,8 +170,8 @@ cgn_ctx_set_rules(struct cgn_ctx *c)
 	/* something not configured/binded anymore, unset traffic rules */
 	if (c->rules_set && (!c->bind_priv || !c->bind_pub)) {
 		assert(c->priv && c->pub);
-		gtp_interface_rule_del(c->priv);
-		gtp_interface_rule_del(c->pub);
+		gtp_interface_rule_del_iface(c->priv);
+		gtp_interface_rule_del_iface(c->pub);
 		c->rules_set = false;
 	}
 }
@@ -165,7 +179,7 @@ cgn_ctx_set_rules(struct cgn_ctx *c)
 static void
 cgn_ctx_iface_event_cb(struct gtp_interface *iface,
 		       enum gtp_interface_event type,
-		       void *ud)
+		       void *ud, void *arg)
 {
 	struct cgn_ctx *c = ud;
 
@@ -184,6 +198,19 @@ cgn_ctx_iface_event_cb(struct gtp_interface *iface,
 		if (iface == c->pub)
 			c->bind_pub = false;
 		break;
+
+	case GTP_INTERFACE_EV_VTY_SHOW:
+	case GTP_INTERFACE_EV_VTY_WRITE:
+	{
+		struct vty *vty = arg;
+		if (iface == c->priv)
+			vty_out(vty, " carrier-grade-nat %s side network-in\n",
+				c->name);
+		if (iface == c->pub)
+			vty_out(vty, " carrier-grade-nat %s side network-out\n",
+				c->name);
+		break;
+	}
 	}
 
 	cgn_ctx_set_rules(c);
@@ -207,13 +234,7 @@ cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
 		return -1;
 	}
 	*piface = iface;
-
-	if (gtp_bpf_prog_is_attached(c->prg, iface))
-		*(is_priv ? &c->bind_priv : &c->bind_pub) = true;
-
 	gtp_interface_register_event(iface, cgn_ctx_iface_event_cb, c);
-
-	cgn_ctx_set_rules(c);
 
 	return 0;
 }
@@ -221,7 +242,7 @@ cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
 void
 cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface)
 {
-	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c);
+	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c, NULL);
 	gtp_interface_unregister_event(iface, cgn_ctx_iface_event_cb);
 }
 
@@ -288,8 +309,7 @@ cgn_ctx_release(struct cgn_ctx *c)
 {
 	if (c->blog_cdr_fwd != NULL)
 		--c->blog_cdr_fwd->refcount;
-	if (c->blog_pb != NULL)
-		cgn_blog_release(c);
+	cgn_blog_release(c);
 	free(c->cgn_addr);
 	list_del(&c->next);
 	free(c);

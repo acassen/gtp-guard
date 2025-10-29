@@ -44,6 +44,11 @@ gtp_bpf_rt_metrics_init(struct gtp_bpf_prog *p, int a, int b)
 	return 0;
 }
 
+int
+gtp_netlink_if_lookup(int)
+{
+	return -1;
+}
 
 /* Local data */
 struct data *daemon_data;

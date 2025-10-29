@@ -271,12 +271,16 @@ addr_stringify_port(const union addr *a, char *buf, size_t buf_size)
  * parse ipv4:port or [ipv6]:port
  */
 int
-addr_parse(char *paddr, union addr *a)
+addr_parse(const char *str, union addr *a)
 {
 	struct addrinfo *res, hints;
+	char buf[strlen(str) + 1];
 	unsigned int port;
-	char *pport, *end;
+	char *paddr, *pport, *end;
 	int ret;
+
+	strcpy(buf, str);
+	paddr = buf;
 
 	memset(&hints, 0, sizeof (hints));
 	hints.ai_socktype = SOCK_DGRAM;
@@ -327,15 +331,6 @@ addr_parse(char *paddr, union addr *a)
 	}
 
 	return 0;
-}
-
-int
-addr_parse_const(const char *paddr, union addr *a)
-{
-	char buf[strlen(paddr) + 1];
-
-	strcpy(buf, paddr);
-	return addr_parse(buf, a);
 }
 
 int

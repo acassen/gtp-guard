@@ -22,6 +22,22 @@
 
 struct gtp_bpf_interface_rule;
 
+struct gtp_if_rule
+{
+	struct gtp_interface *from;
+	struct gtp_interface *to;
+	void *key;
+	int key_size;
+	int action;
+	int prio;
+};
+
+typedef int (*key_stringify_cb_t)(const struct gtp_if_rule *, char *, int);
+
 /* Prototypes */
-void gtp_interface_rule_add(struct gtp_interface *, struct gtp_interface *, int, int);
-void gtp_interface_rule_del(struct gtp_interface *);
+int gtp_interface_rule_add(struct gtp_if_rule *);
+void gtp_interface_rule_del(struct gtp_if_rule *);
+void gtp_interface_rule_del_iface(struct gtp_interface *);
+int gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg);
+void gtp_interface_rule_set_custom_key_stringify(struct gtp_bpf_prog *p,
+						 key_stringify_cb_t cb);

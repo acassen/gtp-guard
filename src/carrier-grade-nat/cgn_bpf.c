@@ -34,6 +34,7 @@
 
 /* local includes */
 #include "tools.h"
+#include "utils.h"
 #include "inet_server.h"
 #include "inet_utils.h"
 #include "list_head.h"
@@ -52,6 +53,247 @@
 /*
  *	BPF stuff
  */
+
+static const char *
+proto_to_str(uint8_t proto)
+{
+	switch (proto) {
+	case IPPROTO_ICMP:
+		return "icmp";
+	case IPPROTO_TCP:
+		return "tcp";
+	case IPPROTO_UDP:
+		return "udp";
+	case IPPROTO_ICMPV6:
+		return "icmp6";
+	default:
+		return "???";
+	}
+}
+
+
+/* compute flow timeout, from bpf/lib/flow.h */
+static inline uint64_t
+_flow_timeout_ns(struct cgn_ctx *c, uint8_t proto, uint16_t port, uint8_t state)
+{
+	switch (proto) {
+	case IPPROTO_UDP:
+		return (uint64_t)(c->timeout_by_port[port].udp ?: c->timeout.udp)
+			* NSEC_PER_SEC;
+	case IPPROTO_TCP:
+		if (state == 1)
+			return (uint64_t)(c->timeout_by_port[port].tcp_est ?:
+					  c->timeout.tcp_est) * NSEC_PER_SEC;
+		return (uint64_t)(c->timeout_by_port[port].tcp_synfin ?:
+				  c->timeout.tcp_synfin) * NSEC_PER_SEC;
+	case IPPROTO_ICMP:
+		return (uint64_t)c->timeout_icmp * NSEC_PER_SEC;
+	default:
+		return FLOW_DEFAULT_TIMEOUT;
+	}
+}
+
+struct cgn_stats
+{
+	uint32_t bl_total;
+	uint32_t bl_used;
+	uint32_t *bl;		/* details per ipaddr */
+	uint32_t bl_n;
+
+	uint32_t p_total;
+	uint32_t f_total;
+	uint32_t f_used;
+	uint32_t *f;		/* details per block */
+	uint32_t f_n;
+};
+
+static void
+make_block_stats(struct cgn_ctx *c, struct cgn_stats *st)
+{
+	struct cgn_v4_ipblock *ipbl;
+	void *data;
+	uint32_t i, j;
+	int ret;
+
+	if (c->v4_blocks == NULL || !c->v4_block_size)
+		return;
+
+	st->bl_n = c->block_count + 1;
+	st->bl = calloc(st->bl_n, sizeof (uint32_t));
+	ipbl = data = malloc(c->v4_block_size);
+
+	st->f_n = (c->flow_per_user / c->block_per_user) + 1;
+	st->f = calloc(st->f_n, sizeof (uint32_t));
+
+	for (i = 0; i < c->cgn_addr_n; i++) {
+		ret = bpf_map__lookup_elem(c->v4_blocks,
+					   &i, sizeof (i),
+					   data, c->v4_block_size,
+					   0);
+		if (ret < 0) {
+			log_message(LOG_INFO, "map_lookup{v4_block[%d]}: %m",
+				    i);
+			goto exit;
+		}
+		assert(ipbl->used <= st->bl_n);
+		++st->bl[ipbl->used];
+		st->bl_used += ipbl->used;
+		st->bl_total += c->block_count;
+
+		for (j = 0; j < c->block_count; j++) {
+			struct cgn_v4_block *b = &ipbl->b[j];
+			st->p_total += c->block_size;
+			st->f_total += st->f_n - 1;
+			st->f_used += b->refcnt;
+			++st->f[b->refcnt];
+		}
+	}
+
+ exit:
+	free(data);
+}
+
+
+void
+cgn_bpf_block_alloc_dump(struct cgn_ctx *c, char *b, size_t s)
+{
+	struct cgn_stats st = {};
+	uint32_t k = 0, i;
+
+	make_block_stats(c, &st);
+
+	k += scnprintf(b + k, s - k, "ipaddr total       : "
+		       "%d\n", c->cgn_addr_n);
+	k += scnprintf(b + k, s - k, "block used         : "
+		       "%d / %d (%.2f%%)\n", st.bl_used, st.bl_total,
+		       (double)st.bl_used / (st.bl_total ?: 1));
+	k += scnprintf(b + k, s - k, "block distribution : \n");
+	for (i = 0; i < st.bl_n; i++) {
+		if (st.bl[i])
+			k += scnprintf(b + k, s - k, "  %d / %d blocks for %d ipaddr\n",
+				       i, c->block_count, st.bl[i]);
+	}
+	k += scnprintf(b + k, s - k, "flow used          : "
+		       "%d / %d (%.2f%%)\n", st.f_used, st.f_total,
+		       (double)st.f_used / (st.f_total ?: 1));
+	k += scnprintf(b + k, s - k, "ports total        : "
+		       "%d\n", st.p_total);
+
+	free(st.bl);
+	free(st.f);
+}
+
+static int
+_flow_print(struct cgn_ctx *c, char *buf, size_t s,
+	    const struct cgn_v4_flow_priv_key *fk)
+{
+	struct cgn_v4_flow_priv f;
+	char spriv[100], scgn[100], spub[100];
+	uint64_t now_ns, timeout;
+	struct timespec ts;
+	int ret, k = 0;
+	uint32_t a;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	now_ns = ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+
+	ret = bpf_map__lookup_elem(c->v4_priv_flows,
+				   fk, sizeof (*fk),
+				   &f, sizeof (f),
+				   0);
+	if (ret < 0) {
+		log_message(LOG_INFO, "cannot lookup flow");
+		return 0;
+	}
+
+	timeout = _flow_timeout_ns(c, fk->proto, fk->pub_port, f.proto_state);
+	k += scnprintf(buf + k, s - k, "   %4s  %4lld  ",
+		       proto_to_str(fk->proto),
+		       (f.updated + timeout - now_ns) / NSEC_PER_SEC);
+
+	a = ntohl(fk->priv_addr);
+	inet_ntop(AF_INET, &a, spriv, sizeof (spriv));
+	a = ntohl(f.cgn_addr);
+	inet_ntop(AF_INET, &a, scgn, sizeof (scgn));
+	a = ntohl(fk->pub_addr);
+	inet_ntop(AF_INET, &a, spub, sizeof (spub));
+	k += scnprintf(buf + k, s - k, "%s:%-5d  %s:%-5d  %s:%d\n",
+		       spriv, fk->priv_port, scgn, f.cgn_port, spub, fk->pub_port);
+
+	return k;
+}
+
+void
+cgn_bpf_user_full_dump(struct cgn_ctx *c, uint32_t addr, char *buf, size_t s)
+{
+	const uint32_t bl_flow_max = c->flow_per_user / c->block_per_user;
+	struct cgn_user u;
+	char spriv[100], scgn[100];
+	uint32_t a;
+	int ret, i;
+	int k = 0;
+
+	buf[0] = 0;
+
+	ret = bpf_map__lookup_elem(c->users,
+				   &addr, sizeof (addr),
+				   &u, sizeof (u),
+				   0);
+	if (ret < 0)
+		return;
+
+	a = htonl(addr);
+	inet_ntop(AF_INET, &a, spriv, sizeof (spriv));
+	k += scnprintf(buf + k, s - k, "user:\n private addr        : "
+		       "%s\n", spriv);
+
+	uint32_t ipbl_idx = u.ipblock_idx;
+	struct cgn_v4_ipblock *ipbl = malloc(c->v4_block_size);
+	ret = bpf_map__lookup_elem(c->v4_blocks,
+				   &ipbl_idx, sizeof (ipbl_idx),
+				   ipbl, c->v4_block_size,
+				   0);
+	if (ret < 0) {
+		log_message(LOG_INFO, "cannot lookup ipblock_idx %d",
+			    ipbl_idx);
+		goto exit;
+	}
+
+	a = htonl(ipbl->cgn_addr);
+	inet_ntop(AF_INET, &a, scgn, sizeof (scgn));
+	k += scnprintf(buf + k, s - k, " pub address        : %s\n",
+		       scgn);
+
+	k += scnprintf(buf + k, s - k, " allocated blocks   : %d / %d\n",
+		       u.block_n, c->block_per_user);
+
+	for (i = 0; i < u.block_n; i++) {
+		uint32_t bl_idx = u.block_idx[i];
+		struct cgn_v4_block *bl = &ipbl->b[bl_idx];
+		assert(bl->bl_idx == bl_idx);
+		assert(bl->ipbl_idx == ipbl_idx);
+
+		k += scnprintf(buf + k, s - k,
+			       " bl[%d] used flows  : %lld / %d [%d-%d]\n",
+			       i, bl->refcnt, bl_flow_max, bl->cgn_port_start,
+			       bl->cgn_port_start + c->block_size);
+	}
+
+	k += scnprintf(buf + k, s - k, "user flows:\n");
+	k += scnprintf(buf + k, s - k, "   prot  tim     "
+		       "priv                    cgn      "
+		       "        ext_pub\n");
+
+	/* we do not have flow index by user, so walk on all flows */
+	struct cgn_v4_flow_priv_key sk = {}, *pk = &sk;
+	while (!bpf_map__get_next_key(c->v4_priv_flows, pk, pk, sizeof (sk))) {
+		if (pk->priv_addr == addr)
+			k += _flow_print(c, buf + k, s - k, pk);
+	}
+
+ exit:
+	free(ipbl);
+}
 
 /*
  * Modify map 'value' size. This allow something like, in bpf:
@@ -81,7 +323,7 @@
  * It modifies map attribute _and_ BTF associated to this map, to keep
  * libbpf/verifier happy.
  */
-static int
+static size_t
 _dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
 		uint32_t new_array_size)
 {
@@ -136,11 +378,8 @@ _dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
 				return -1;
 
 			a = btf_array(t);
-			if (a->nelems == new_array_size) {
-				printf("ARRAY IN STRUCT IS ALREADY SIZE %d, do nothing\n",
-				       a->nelems);
-				return 0;
-			}
+			if (a->nelems == new_array_size)
+				return st_t->size;
 			new_size = st_t->size
 				- a->nelems * btf__resolve_size(btf, a->type)
 				+ new_array_size * btf__resolve_size(btf, a->type);
@@ -152,12 +391,9 @@ _dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
 
 		case BTF_KIND_ARRAY:
 			a = btf_array(t);
-			if (a->nelems == new_array_size) {
-				printf("ARRAY IS ALREADY SIZE %d, do nothing\n",
-				       a->nelems);
-				return 0;
-			}
 			new_size = new_array_size * btf__resolve_size(btf, a->type);
+			if (a->nelems == new_array_size)
+				return new_size;
 			a->nelems = new_array_size;
 			break;
 
@@ -177,7 +413,7 @@ _dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
 			    bpf_map__name(m));
 		return -1;
 	}
-	return 0;
+	return new_size;
 }
 
 
@@ -185,10 +421,12 @@ static int
 cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 {
 	struct bpf_object *obj = p->load.obj;
-	const struct cgn_ctx *c = udata;
+	struct cgn_ctx *c = udata;
 	struct bpf_map *m;
 	uint64_t icmp_to;
 
+	/* bpf program is not yet attached to cgn block configuration.
+	 * this is not an error, but stop loading. */
 	if (c == NULL)
 		return 1;
 
@@ -220,7 +458,7 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 		log_message(LOG_INFO, "set v4_blocks.max_entries failed");
 		return -1;
 	}
-	if (_dyn_map_resize(obj, m, c->block_count) < 0)
+	if ((c->v4_block_size_tmp = _dyn_map_resize(obj, m, c->block_count)) < 0)
 		return -1;
 
 	m = bpf_object__find_map_by_name(obj, "v4_free_blocks");
@@ -238,7 +476,7 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 
 
 static int
-cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
+cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 {
 	struct bpf_object *obj = p->load.obj;
 	struct cgn_ctx *c = udata;
@@ -257,11 +495,20 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 	c->v4_free_blocks = bpf_object__find_map_by_name(obj, "v4_free_blocks");
 	c->users = bpf_object__find_map_by_name(obj, "users");
 	c->flow_port_timeouts = bpf_object__find_map_by_name(obj, "flow_port_timeouts");
-	c->blog_event = bpf_object__find_map_by_name(obj, "block_log_event");
+	c->blog_queue = bpf_object__find_map_by_name(obj, "v4_block_log_queue");
+	c->v4_priv_flows = bpf_object__find_map_by_name(obj, "v4_priv_flows");
 
 	if (!c->v4_blocks || !c->v4_free_blocks || !c->users ||
-	    !c->flow_port_timeouts || !c->blog_event)
-		return 1;
+	    !c->flow_port_timeouts || !c->blog_queue) {
+		log_message(LOG_ERR, "%s: a mandatory bpf map is missing",
+			    p->name);
+		return -1;
+	}
+
+	c->v4_block_size = c->v4_block_size_tmp;
+
+	if (reloading)
+		return 0;
 
 	/* prepare memory to be copied to maps */
 	free_cnt = free_area = malloc(fmsize);
@@ -316,11 +563,20 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata)
 	return cgn_blog_init(c);
 }
 
+static void
+cgn_bpf_closed(struct gtp_bpf_prog *p, void *udata)
+{
+	struct cgn_ctx *c = udata;
+
+	cgn_blog_release(c);
+}
+
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.name = "cgn",
 	.description = "carrier-grade-nat",
 	.prepare = cgn_bpf_prepare,
 	.loaded = cgn_bpf_loaded,
+	.closed = cgn_bpf_closed,
 };
 
 static void __attribute__((constructor))

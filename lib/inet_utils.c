@@ -218,50 +218,6 @@ inet_stor(char *str)
 	return 0;
 }
 
-/* IP string to struct ip_address */
-int
-inet_stoipaddress(const char *str, struct ip_address *addr)
-{
-	void *addr_ip;
-	int family = (strchr(str, ':')) ? AF_INET6 : AF_INET;
-
-	switch (family) {
-	case AF_INET6:
-		addr_ip = &addr->u.sin6_addr;
-		break;
-	case AF_INET:
-		addr_ip = &addr->u.sin_addr;
-		break;
-	}
-
-	if (!inet_pton(family, str, addr_ip))
-		return -1;
-
-	addr->family = family;
-	return 0;
-}
-
-char *
-inet_ipaddresstos(struct ip_address *addr, char *str)
-{
-	void *addr_ip;
-
-	switch (addr->family) {
-	case AF_INET:
-		addr_ip = &addr->u.sin_addr;
-		break;
-	case AF_INET6:
-		addr_ip = &addr->u.sin6_addr;
-		break;
-	default:
-		return NULL;
-	}
-
-	if (!inet_ntop(addr->family, addr_ip, str, INET6_ADDRSTRLEN))
-		return NULL;
-
-	return str;
-}
 
 /* IP string to sockaddr_storage */
 int
@@ -363,7 +319,7 @@ inet_sockaddrip4(struct sockaddr_storage *addr)
 {
 	if (addr->ss_family != AF_INET)
 		return -1;
-	
+
 	return ((struct sockaddr_in *) addr)->sin_addr.s_addr;
 }
 
@@ -372,7 +328,7 @@ inet_sockaddrip6(struct sockaddr_storage *addr, struct in6_addr *ip6)
 {
 	if (addr->ss_family != AF_INET6)
 		return -1;
-	
+
 	*ip6 = ((struct sockaddr_in6 *) addr)->sin6_addr;
 	return 0;
 }

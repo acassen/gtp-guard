@@ -6,7 +6,7 @@
 #define NSEC_PER_SEC		1000000000ULL
 #endif
 
-#define FLOW_DEFAULT_TIMEOUT	(120 * NSEC_PER_SEC)
+#define FLOW_DEFAULT_TIMEOUT	(120ULL * NSEC_PER_SEC)
 
 union flow_timeout_config
 {

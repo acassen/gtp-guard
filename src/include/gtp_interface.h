@@ -26,7 +26,6 @@
 
 #include <stdint.h>
 #include <netinet/if_ether.h>
-#include "inet_utils.h"
 #include "addr.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface_rule.h"
@@ -35,12 +34,15 @@
 enum gtp_interface_event {
 	GTP_INTERFACE_EV_PRG_BIND,
 	GTP_INTERFACE_EV_PRG_UNBIND,
+	GTP_INTERFACE_EV_VTY_SHOW,
+	GTP_INTERFACE_EV_VTY_WRITE,
 	GTP_INTERFACE_EV_DESTROYING,
 };
 
 typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
 					 enum gtp_interface_event,
-					 void *user_data);
+					 void *user_data,
+					 void *arg);
 struct gtp_interface_event_storage;
 
 
@@ -62,7 +64,7 @@ struct gtp_interface {
 	uint8_t			hw_addr_len;
 	uint16_t		vlan_id;
 	uint16_t		table_id;
-	struct ip_address	direct_tx_gw;
+	union addr		direct_tx_gw;
 	uint8_t			direct_tx_hw_addr[ETH_ALEN];
 	int			ifindex;
 	char			description[GTP_STR_MAX_LEN];
@@ -87,6 +89,7 @@ struct gtp_interface {
 
 	/* tunnel info */
 	int			tunnel_mode; /* 0:none, 1:gre, 2:ipip */
+	union addr		tunnel_local;
 	union addr		tunnel_remote;
 
 	struct list_head	next;
@@ -95,29 +98,26 @@ struct gtp_interface {
 	unsigned long		flags;
 };
 
-/* BPF interface attributes */
-struct ll_attr {
-	__u16		vlan_id;
-	__u16		flags;
-} __attribute__ ((__aligned__(8)));
-
 
 /* Prototypes */
 int gtp_interface_metrics_dump(FILE *);
 void gtp_interface_metrics_foreach(int (*hdl) (struct gtp_interface *, void *, const char *, int, __u8, __u8),
  				   void *, const char *, int, __u8, __u8);
 void gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *);
-void gtp_interface_update_direct_tx_lladdr(struct ip_address *, const uint8_t *);
-struct gtp_interface *gtp_interface_get(const char *);
-struct gtp_interface *gtp_interface_get_by_ifindex(int);
+void gtp_interface_update_direct_tx_lladdr(const union addr *, const uint8_t *);
+struct gtp_interface *gtp_interface_get(const char *, bool);
+struct gtp_interface *gtp_interface_get_by_ifindex(int, bool);
 int gtp_interface_put(struct gtp_interface *);
 int gtp_interface_start(struct gtp_interface *);
 void gtp_interface_stop(struct gtp_interface *);
+void gtp_interface_link(struct gtp_interface *, struct gtp_interface *);
 void gtp_interface_register_event(struct gtp_interface *, gtp_interface_event_cb_t,
 				  void *);
 void gtp_interface_unregister_event(struct gtp_interface *, gtp_interface_event_cb_t);
 void gtp_interface_trigger_event(struct gtp_interface *iface,
-				 enum gtp_interface_event type);
+				 enum gtp_interface_event type, void *arg);
+void gtp_interface_trigger_event_wide(struct gtp_interface *iface,
+				      enum gtp_interface_event type, void *arg);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
 void gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);

@@ -25,6 +25,9 @@
 #include "gtp_teid.h"
 #include "gtp_session.h"
 
+#define GTP_INGRESS	0
+#define GTP_EGRESS	1
+
 /* Prototypes */
 struct gtp_session *gtpc_retransmit_detected(struct gtp_server *);
 struct gtp_teid *gtpu_proxy_handle(struct gtp_server *, struct sockaddr_storage *);

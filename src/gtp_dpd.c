@@ -28,8 +28,7 @@
 
 #include "gtp.h"
 #include "gtp_dpd.h"
-#include "gtp_bpf.h"
-#include "gtp_bpf_fwd.h"
+#include "gtp_bpf_utils.h"
 #include "gtp_mirror.h"
 #include "inet_utils.h"
 #include "logger.h"
@@ -200,7 +199,8 @@ gtp_dpd_timer_thread(struct thread *thread)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags &= ~IPTNL_FL_DEAD;
-		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &p->iptnl, p->bpf_prog);
+		p->ipip_dead = false;
+		gtp_proxy_rules_set(p);
 		gtp_mirror_brd_action(RULE_ADD, t->ifindex);
 		goto end;
 	}
@@ -213,7 +213,8 @@ gtp_dpd_timer_thread(struct thread *thread)
 				    , NIPQUAD(t->local_addr)
 				    , NIPQUAD(t->remote_addr));
 		t->flags |= IPTNL_FL_DEAD;
-		gtp_bpf_fwd_iptnl_action(RULE_UPDATE, &p->iptnl, p->bpf_prog);
+		p->ipip_dead = true;
+		gtp_proxy_rules_set(p);
 		gtp_mirror_brd_action(RULE_DEL, t->ifindex);
 	}
 

@@ -19,14 +19,14 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <net/if.h>
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
+#include "gtp_bpf_rt.h"
 #include "gtp_interface.h"
-#include "gtp_netlink.h"
+#include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
 #include "utils.h"
@@ -45,12 +45,12 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	struct gtp_bpf_prog *p = iface->bpf_prog;
 	struct vty *vty = arg;
 	char addr_str[INET6_ADDRSTRLEN];
-	int i;
+	char addr2_str[INET6_ADDRSTRLEN];
 
 	vty_out(vty, "interface %s%s"
 		   , iface->ifname
 		   , VTY_NEWLINE);
-	vty_out(vty, " ifindex: %d%s"
+	vty_out(vty, " ifindex:%d%s"
 		   , iface->ifindex
 		   , VTY_NEWLINE);
 	vty_out(vty, " ll_addr:" ETHER_FMT "%s"
@@ -65,19 +65,24 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	if (iface->link_iface)
 		vty_out(vty, " link-iface:%s%s"
 			   , iface->link_iface->ifname, VTY_NEWLINE);
-	if (addr_len(&iface->tunnel_remote))
-		vty_out(vty, " tunnel-remote:%s%s"
+	if (iface->tunnel_mode)
+		vty_out(vty, " tunnel-%s: local:%s remote:%s%s"
+			   , iface->tunnel_mode == 1 ? "gre" : "ipip"
+			   , addr_stringify(&iface->tunnel_local
+					    , addr_str, sizeof (addr_str))
 			   , addr_stringify(&iface->tunnel_remote
-			   , addr_str, sizeof (addr_str)), VTY_NEWLINE);
+					    , addr2_str, sizeof (addr2_str))
+			   , VTY_NEWLINE);
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
-			   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+			   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
+					       sizeof (addr_str))
 			   , ETHER_BYTES(iface->direct_tx_hw_addr)
 			   , VTY_NEWLINE);
-	for (i = 0; p && i < p->tpl_n; i++) {
-		if (p->tpl[i]->vty_iface_show)
-			p->tpl[i]->vty_iface_show(p, iface, vty);
-	}
+
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_VTY_SHOW, vty);
+
+	gtp_bpf_rt_stats_vty(p, iface, vty);
 
 	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
@@ -94,32 +99,14 @@ DEFUN(interface,
       "Local system interface name\n")
 {
 	struct gtp_interface *new;
-	int ifindex;
 
-	new = gtp_interface_get(argv[0]);
-	if (new)
-		goto end;
-
-	ifindex = if_nametoindex(argv[0]);
-	if (!ifindex) {
-		vty_out(vty, "%% interface %s not found on local system%s"
-			   , argv[0], VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* use netlink to get this link, along with necessary data (eth addr).
-	 * it will alloc the gtp_interface data */
-	if (gtp_netlink_if_lookup(ifindex) < 0)
-		return CMD_WARNING;
-
-	new = gtp_interface_get(argv[0]);
+	new = gtp_interface_get(argv[0], true);
 	if (!new) {
 		vty_out(vty, "%% cannot get interface %s%s"
 			   , argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
- end:
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
 	gtp_interface_put(new);
@@ -134,12 +121,7 @@ DEFUN(no_interface,
 {
 	struct gtp_interface *iface;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	iface = gtp_interface_get(argv[0]);
+	iface = gtp_interface_get(argv[0], false);
 	if (!iface) {
 		vty_out(vty, "%% unknown interface:'%s'%s", argv[0], VTY_NEWLINE);
 		return CMD_WARNING;
@@ -194,7 +176,6 @@ DEFUN(interface_direct_tx_gw,
       "IPv6 Address\n")
 {
 	struct gtp_interface *iface = vty->index;
-	struct ip_address *ip_addr = &iface->direct_tx_gw;
 	int err;
 
 	if (argc < 1) {
@@ -202,10 +183,11 @@ DEFUN(interface_direct_tx_gw,
 		return CMD_WARNING;
 	}
 
-	err = inet_stoipaddress(argv[0], ip_addr);
+	err = addr_parse(argv[0], &iface->direct_tx_gw);
 	if (err) {
 		vty_out(vty, "%% malformed IP address %s%s", argv[0], VTY_NEWLINE);
-		memset(ip_addr, 0, sizeof(struct ip_address));
+		addr_zero(&iface->direct_tx_gw);
+		__clear_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags);
 		return CMD_WARNING;
 	}
 
@@ -389,7 +371,7 @@ DEFUN(show_interface,
 	struct gtp_interface *iface = NULL;
 
 	if (argc >= 1) {
-		iface = gtp_interface_get(argv[0]);
+		iface = gtp_interface_get(argv[0], false);
 		if (!iface) {
 			vty_out(vty, "%% Unknown interface:'%s'%s", argv[0], VTY_NEWLINE);
 			return CMD_WARNING;
@@ -403,7 +385,6 @@ DEFUN(show_interface,
 	gtp_interface_foreach(gtp_interface_show, vty);
 	return CMD_SUCCESS;
 }
-
 
 /* Configuration writer */
 static int
@@ -421,19 +402,12 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"
-				   , inet_ipaddresstos(&iface->direct_tx_gw, addr_str)
+				   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
+						       sizeof (addr_str))
 				   , VTY_NEWLINE);
-#if 0
-		// XXX: add conf_writer callback
-		if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_IN_BIT, &iface->flags))
-			vty_out(vty, " carrier-grade-nat %s side network-in%s"
-				   , iface->cgn_name
-				   , VTY_NEWLINE);
-		else if (__test_bit(GTP_INTERFACE_FL_CGNAT_NET_OUT_BIT, &iface->flags))
-			vty_out(vty, " carrier-grade-nat %s side network-out%s"
-				   , iface->cgn_name
-				   , VTY_NEWLINE);
-#endif
+
+		gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_VTY_WRITE, vty);
+
 		if (iface->table_id)
 			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))
@@ -500,7 +474,7 @@ static struct cmd_ext cmd_ext_interface = {
 };
 
 static void __attribute__((constructor))
-gtp_vty_init(void)
+gtp_interface_vty_init(void)
 {
 	cmd_ext_register(&cmd_ext_interface);
 }

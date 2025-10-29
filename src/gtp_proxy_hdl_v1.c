@@ -26,7 +26,6 @@
 #include "gtp_utils.h"
 #include "gtp_utils_uli.h"
 #include "gtp_sched.h"
-#include "gtp_bpf.h"
 #include "gtp_sqn.h"
 #include "bitops.h"
 #include "logger.h"
