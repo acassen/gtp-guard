@@ -136,10 +136,9 @@ struct pfcp_assoc *
 pfcp_assoc_get_by_node_id(struct pfcp_node_id *node_id)
 {
 	struct hlist_head *head = pfcp_assoc_hashkey(node_id);
-	struct hlist_node *n;
 	struct pfcp_assoc *a;
 
-	hlist_for_each_entry(a, n, head, hlist) {
+	hlist_for_each_entry(a, head, hlist) {
 		if (!pfcp_assoc_cmp(&a->node_id, node_id)) {
 			__sync_add_and_fetch(&a->refcnt, 1);
 			return a;
@@ -250,7 +249,6 @@ pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
 int
 pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id)
 {
-	struct hlist_node *n;
 	struct pfcp_assoc *a;
 	char buf[4096];
 	int i;
@@ -268,7 +266,7 @@ pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id)
 
 	/* Iterate */
 	for (i = 0; i < ASSOC_HASHTAB_SIZE; i++) {
-		hlist_for_each_entry(a, n, &pfcp_assoc_tab[i], hlist) {
+		hlist_for_each_entry(a, &pfcp_assoc_tab[i], hlist) {
 			pfcp_assoc_get(a);
 			pfcp_assoc_dump(a, buf, sizeof(buf));
 			vty_out(vty, "%s", buf);
@@ -333,12 +331,12 @@ pfcp_assoc_init(void)
 int
 pfcp_assoc_destroy(void)
 {
-	struct hlist_node *n, *n2;
+	struct hlist_node *n;
 	struct pfcp_assoc *a;
 	int i;
 
 	for (i = 0; i < ASSOC_HASHTAB_SIZE; i++) {
-		hlist_for_each_entry_safe(a, n, n2, &pfcp_assoc_tab[i], hlist) {
+		hlist_for_each_entry_safe(a, n, &pfcp_assoc_tab[i], hlist) {
 			FREE(a);
 		}
 	}

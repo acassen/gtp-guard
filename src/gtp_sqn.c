@@ -41,10 +41,9 @@ struct gtp_teid *
 gtp_vsqn_get(struct hlist_head *h, uint32_t sqn)
 {
 	struct hlist_head *head = gtp_sqn_hashkey(h, sqn);
-	struct hlist_node *n;
 	struct gtp_teid *t;
 
-	hlist_for_each_entry(t, n, head, hlist_vsqn) {
+	hlist_for_each_entry(t, head, hlist_vsqn) {
 		if (t->vsqn == sqn) {
 			__sync_add_and_fetch(&t->refcnt, 1);
 			return t;
