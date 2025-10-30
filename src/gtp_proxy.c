@@ -51,9 +51,9 @@ gtp_proxy_gtpc_teid_destroy(struct gtp_teid *teid)
 	struct gtp_server *srv = s->srv;
 	struct gtp_proxy *ctx = srv->ctx;
 
-	gtp_vteid_unhash(&ctx->vteid_tab, teid);
-	gtp_teid_unhash(&ctx->gtpc_teid_tab, teid);
-	gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
+	gtp_vteid_unhash(ctx->vteid_tab, teid);
+	gtp_teid_unhash(ctx->gtpc_teid_tab, teid);
+	gtp_vsqn_unhash(ctx->vsqn_tab, teid);
 	return 0;
 }
 
@@ -64,8 +64,8 @@ gtp_proxy_gtpu_teid_destroy(struct gtp_teid *teid)
 	struct gtp_server *srv = s->srv;
 	struct gtp_proxy *ctx = srv->ctx;
 
-	gtp_vteid_unhash(&ctx->vteid_tab, teid);
-	gtp_teid_unhash(&ctx->gtpu_teid_tab, teid);
+	gtp_vteid_unhash(ctx->vteid_tab, teid);
+	gtp_teid_unhash(ctx->gtpu_teid_tab, teid);
 	return 0;
 }
 
@@ -454,10 +454,10 @@ gtp_proxy_init(const char *name)
 	list_add_tail(&new->next, &daemon_data->gtp_proxy_ctx);
 
 	/* Init hashtab */
-	gtp_htab_init(&new->gtpc_teid_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&new->gtpu_teid_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&new->vteid_tab, CONN_HASHTAB_SIZE);
-	gtp_htab_init(&new->vsqn_tab, CONN_HASHTAB_SIZE);
+	new->gtpc_teid_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
+	new->gtpu_teid_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
+	new->vteid_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
+	new->vsqn_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
 
 	return new;
 }
@@ -476,10 +476,10 @@ gtp_proxy_ctx_server_destroy(struct gtp_proxy *ctx)
 int
 gtp_proxy_ctx_destroy(struct gtp_proxy *ctx)
 {
-	gtp_htab_destroy(&ctx->gtpc_teid_tab);
-	gtp_htab_destroy(&ctx->gtpu_teid_tab);
-	gtp_htab_destroy(&ctx->vteid_tab);
-	gtp_htab_destroy(&ctx->vsqn_tab);
+	free(ctx->gtpc_teid_tab);
+	free(ctx->gtpu_teid_tab);
+	free(ctx->vteid_tab);
+	free(ctx->vsqn_tab);
 	list_head_del(&ctx->next);
 	FREE(ctx);
 	return 0;

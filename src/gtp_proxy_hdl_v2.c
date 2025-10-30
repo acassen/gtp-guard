@@ -56,7 +56,7 @@ gtp_update_bearer_id(struct gtp_teid *teid, struct gtp_ie_eps_bearer_id *bearer_
 }
 static struct gtp_teid *
 gtp_create_teid(uint8_t type, int direction, struct gtp_server *srv,
-		struct gtp_htab *h, struct gtp_htab *vh, struct gtp_f_teid *f_teid,
+		struct hlist_head *h, struct hlist_head *vh, struct gtp_f_teid *f_teid,
 		struct gtp_session *s, struct gtp_ie_eps_bearer_id *bearer_id)
 {
 	struct gtp_teid *teid;
@@ -71,7 +71,7 @@ gtp_create_teid(uint8_t type, int direction, struct gtp_server *srv,
 	 * create a new VTEID */
 	if ((*f_teid->ipv4 == ((struct sockaddr_in *) &srv_gtpc_ingress->s.addr)->sin_addr.s_addr) ||
 	    (*f_teid->ipv4 == ((struct sockaddr_in *) &srv_gtpc_egress->s.addr)->sin_addr.s_addr)) {
-		teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(*f_teid->teid_grekey));
+		teid = gtp_vteid_get(ctx->vteid_tab, ntohl(*f_teid->teid_grekey));
 		if (!teid)
 			return NULL;
 
@@ -130,8 +130,8 @@ gtp_append_gtpu(struct gtp_server *srv, struct gtp_session *s, int direction, vo
 	f_teid.ipv4 = (uint32_t *) (ie_buffer + offsetof(struct gtp_ie_f_teid, ipv4));
 
 	return gtp_create_teid(GTP_TEID_U, direction, srv
-					 , &ctx->gtpu_teid_tab
-					 , &ctx->vteid_tab
+					 , ctx->gtpu_teid_tab
+					 , ctx->vteid_tab
 					 , &f_teid, s, bearer_id);
 }
 
@@ -168,8 +168,8 @@ gtpc_session_xlat(struct gtp_server *srv, struct gtp_session *s, int direction)
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(struct gtp_ie_f_teid, teid_grekey));
 		f_teid.ipv4 = (uint32_t *) (cp + offsetof(struct gtp_ie_f_teid, ipv4));
 		teid = gtp_create_teid(GTP_TEID_C, direction, srv
-						 , &ctx->gtpc_teid_tab
-						 , &ctx->vteid_tab
+						 , ctx->gtpc_teid_tab
+						 , ctx->vteid_tab
 						 , &f_teid, s, NULL);
 	}
 
@@ -401,10 +401,10 @@ gtpc_create_session_response_hdl(struct gtp_server *srv, struct sockaddr_storage
 	struct gtp_teid *teid = NULL, *t, *teid_u, *t_u;
 	uint8_t *cp;
 
-	t = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	t = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!t) {
 		/* No TEID present try by SQN */
-		t = gtp_vsqn_get(&ctx->vsqn_tab, ntohl(h->sqn));
+		t = gtp_vsqn_get(ctx->vsqn_tab, ntohl(h->sqn));
 		if (!t) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.8x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -498,7 +498,7 @@ gtpc_delete_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	struct gtp_teid *teid, *t;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -548,10 +548,10 @@ gtpc_delete_session_response_hdl(struct gtp_server *srv, struct sockaddr_storage
 	struct gtp_teid *teid;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(ctx->vsqn_tab, ntohl(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.8x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -620,7 +620,7 @@ gtpc_modify_bearer_request_hdl(struct gtp_server *srv, struct sockaddr_storage *
 	uint8_t *cp;
 	int err;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -719,10 +719,10 @@ gtpc_modify_bearer_response_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(ctx->vsqn_tab, ntohl(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.8x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -808,7 +808,7 @@ gtpc_delete_bearer_request_hdl(struct gtp_server *srv, struct sockaddr_storage *
 	struct gtp_ie_eps_bearer_id *bearer_id = NULL;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -863,10 +863,10 @@ gtpc_delete_bearer_response_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	struct gtp_session *s;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(ctx->vsqn_tab, ntohl(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.8x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -945,7 +945,7 @@ gtpc_generic_xlat_request_hdl(struct gtp_server *srv, struct sockaddr_storage *a
 	uint32_t sqn;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -964,7 +964,7 @@ gtpc_generic_xlat_request_hdl(struct gtp_server *srv, struct sockaddr_storage *a
 	 * a previous Command message otherwise update SQN */
 	sqn = (h->teid_presence) ? ntohl(h->sqn) : ntohl(h->sqn_only);
 	if (sqn & (1 << 31)) {
-		t = gtp_vsqn_get(&ctx->vsqn_tab, sqn);
+		t = gtp_vsqn_get(ctx->vsqn_tab, sqn);
 		if (t) {
 			gtp_sqn_restore(srv, t);
 		}
@@ -1001,7 +1001,7 @@ gtpc_generic_xlat_command_hdl(struct gtp_server *srv, struct sockaddr_storage *a
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -1051,10 +1051,10 @@ gtpc_generic_xlat_response_hdl(struct gtp_server *srv, struct sockaddr_storage *
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohl(h->sqn));
+		teid = gtp_vsqn_get(ctx->vsqn_tab, ntohl(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.8x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -1108,7 +1108,7 @@ gtpc_generic_xlat_hdl(struct gtp_server *srv, struct sockaddr_storage *addr, int
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__

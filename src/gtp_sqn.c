@@ -20,7 +20,6 @@
  */
 
 #include "gtp_teid.h"
-#include "gtp_htab.h"
 #include "gtp_conn.h"
 #include "gtp_proxy.h"
 #include "gtp.h"
@@ -33,13 +32,13 @@
  *	Virtual sqn hashtab
  */
 static struct hlist_head *
-gtp_sqn_hashkey(struct gtp_htab *h, uint32_t id)
+gtp_sqn_hashkey(struct hlist_head *h, uint32_t id)
 {
-	return h->htab + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
+	return h + (jhash_1word(id, 0) & CONN_HASHTAB_MASK);
 }
 
 struct gtp_teid *
-gtp_vsqn_get(struct gtp_htab *h, uint32_t sqn)
+gtp_vsqn_get(struct hlist_head *h, uint32_t sqn)
 {
 	struct hlist_head *head = gtp_sqn_hashkey(h, sqn);
 	struct hlist_node *n;
@@ -56,7 +55,7 @@ gtp_vsqn_get(struct gtp_htab *h, uint32_t sqn)
 }
 
 int
-gtp_vsqn_hash(struct gtp_htab *h, struct gtp_teid *t, uint32_t sqn)
+gtp_vsqn_hash(struct hlist_head *h, struct gtp_teid *t, uint32_t sqn)
 {
 	struct hlist_head *head;
 
@@ -74,7 +73,7 @@ gtp_vsqn_hash(struct gtp_htab *h, struct gtp_teid *t, uint32_t sqn)
 }
 
 int
-gtp_vsqn_unhash(struct gtp_htab *h, struct gtp_teid *t)
+gtp_vsqn_unhash(struct hlist_head *h, struct gtp_teid *t)
 {
 	if (!t->vsqn)
 		return -1;
@@ -111,8 +110,8 @@ gtp_vsqn_alloc(struct gtp_server *s, struct gtp_teid *teid, bool set_msb)
 
 	/* Hash it */
 	if (__test_bit(GTP_TEID_FL_VSQN_HASHED, &teid->flags))
-		gtp_vsqn_unhash(&ctx->vsqn_tab, teid);
-	gtp_vsqn_hash(&ctx->vsqn_tab, teid, vsqn);
+		gtp_vsqn_unhash(ctx->vsqn_tab, teid);
+	gtp_vsqn_hash(ctx->vsqn_tab, teid, vsqn);
 
 	return 0;
 }

@@ -21,7 +21,6 @@
 #pragma once
 
 #include <stdint.h>
-#include "gtp_htab.h"
 #include "gtp_server.h"
 #include "gtp_resolv.h"
 #include "gtp_iptnl.h"
@@ -61,10 +60,10 @@ struct gtp_proxy {
 	struct gtp_server	gtpu_egress;
 	int			session_delete_to;
 
-	struct gtp_htab		gtpc_teid_tab;	/* GTP-C teid hashtab */
-	struct gtp_htab		gtpu_teid_tab;	/* GTP-U teid hashtab */
-	struct gtp_htab		vteid_tab;	/* virtual teid hashtab */
-	struct gtp_htab		vsqn_tab;	/* virtual Seqnum hashtab */
+	struct hlist_head	*gtpc_teid_tab;	/* GTP-C teid hashtab */
+	struct hlist_head	*gtpu_teid_tab;	/* GTP-U teid hashtab */
+	struct hlist_head	*vteid_tab;	/* virtual teid hashtab */
+	struct hlist_head	*vsqn_tab;	/* virtual Seqnum hashtab */
 	uint32_t		seqnum;		/* Global context Seqnum */
 
 	struct gtp_naptr	*pgw;

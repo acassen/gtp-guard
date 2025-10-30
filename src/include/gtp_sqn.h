@@ -22,11 +22,10 @@
 
 #include "gtp_server.h"
 #include "gtp_teid.h"
-#include "gtp_htab.h"
 
 /* Prototypes */
-struct gtp_teid *gtp_vsqn_get(struct gtp_htab *, uint32_t);
-int gtp_vsqn_unhash(struct gtp_htab *, struct gtp_teid *);
+struct gtp_teid *gtp_vsqn_get(struct hlist_head *, uint32_t);
+int gtp_vsqn_unhash(struct hlist_head *, struct gtp_teid *);
 int gtp_vsqn_alloc(struct gtp_server *, struct gtp_teid *, bool);
 int gtp_sqn_update(struct gtp_server *, struct gtp_teid *);
 int gtp_sqn_masq(struct gtp_server *, struct gtp_teid *);

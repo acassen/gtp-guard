@@ -53,7 +53,6 @@ struct gtp_conn {
 	int			refcnt;
 };
 
-
 /* Prototypes */
 int gtp_conn_count_read(void);
 int gtp_conn_get(struct gtp_conn *);

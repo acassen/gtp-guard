@@ -497,13 +497,13 @@ void list_sort(struct list_head *head,
  * You lose the ability to access the tail in O(1).
  */
 
-typedef struct hlist_head {
+struct hlist_head {
 	struct hlist_node *first;
-} hlist_head_t;
+};
 
-typedef struct hlist_node {
+struct hlist_node {
 	struct hlist_node *next, **pprev;
-} hlist_node_t;
+};
 
 #define HLIST_HEAD_INIT { .first = NULL }
 #define HLIST_HEAD(name) struct hlist_head name = {  .first = NULL }

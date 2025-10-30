@@ -174,8 +174,7 @@ gtp_conn_alloc(uint64_t imsi)
 int
 gtp_conn_init(void)
 {
-	gtp_conn_tab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) *
-						    CONN_HASHTAB_SIZE);
+	gtp_conn_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
 	return 0;
 }
 
@@ -193,6 +192,6 @@ gtp_conn_destroy(void)
 		}
 	}
 
-	FREE(gtp_conn_tab);
+	free(gtp_conn_tab);
 	return 0;
 }

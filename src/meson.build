@@ -26,7 +26,6 @@ src += files(
   'gtp_data.c',
   'gtp_disk.c',
   'gtp_dpd.c',
-  'gtp_htab.c',
   'gtp_interface.c',
   'gtp_interface_metrics.c',
   'gtp_interface_rule.c',

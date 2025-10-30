@@ -85,8 +85,8 @@ gtp1_gsn_address_masq(struct gtp_server *srv, int direction)
 }
 
 static struct gtp_teid *
-gtp1_create_teid(uint8_t type, int direction, struct gtp_server *srv, struct gtp_htab *h,
-		 struct gtp_htab *vh, struct gtp_f_teid *f_teid, struct gtp_session *s)
+gtp1_create_teid(uint8_t type, int direction, struct gtp_server *srv, struct hlist_head *h,
+		 struct hlist_head *vh, struct gtp_f_teid *f_teid, struct gtp_session *s)
 {
 	struct gtp_teid *teid;
 	struct gtp_server *ssrv = srv;
@@ -100,7 +100,7 @@ gtp1_create_teid(uint8_t type, int direction, struct gtp_server *srv, struct gtp
 	 * create a new VTEID */
 	if ((*f_teid->ipv4 == ((struct sockaddr_in *) &srv_gtpc_ingress->s.addr)->sin_addr.s_addr) ||
 	    (*f_teid->ipv4 == ((struct sockaddr_in *) &srv_gtpc_egress->s.addr)->sin_addr.s_addr)) {
-		teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(*f_teid->teid_grekey));
+		teid = gtp_vteid_get(ctx->vteid_tab, ntohl(*f_teid->teid_grekey));
 		if (!teid)
 			return NULL;
 
@@ -192,8 +192,8 @@ gtp1_session_xlat(struct gtp_server *srv, struct gtp_session *s, int direction)
 	if (teid_c && gsn_address_c) {
 		f_teid_c.ipv4 = gsn_address_c;
 		teid = gtp1_create_teid(GTP_TEID_C, direction, srv
-						  , &ctx->gtpc_teid_tab
-						  , &ctx->vteid_tab
+						  , ctx->gtpc_teid_tab
+						  , ctx->vteid_tab
 						  , &f_teid_c, s);
 	}
 
@@ -201,8 +201,8 @@ gtp1_session_xlat(struct gtp_server *srv, struct gtp_session *s, int direction)
 	if (teid_u && gsn_address_u) {
 		f_teid_u.ipv4 = gsn_address_u;
 		gtp1_create_teid(GTP_TEID_U, direction, srv
-					   , &ctx->gtpu_teid_tab
-					   , &ctx->vteid_tab
+					   , ctx->gtpu_teid_tab
+					   , ctx->vteid_tab
 					   , &f_teid_u, s);
 	}
 
@@ -394,7 +394,7 @@ gtp1_create_pdp_response_hdl(struct gtp_server *srv, struct sockaddr_storage *ad
 	struct gtp_teid *teid = NULL, *t, *teid_u, *t_u;
 	uint8_t *cp;
 
-	t = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	t = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!t) {
 		if (!h->seq) {
 			log_message(LOG_INFO, "%s(): No seqnum provided for TEID:0x%.8x from gtp header. ignoring..."
@@ -404,7 +404,7 @@ gtp1_create_pdp_response_hdl(struct gtp_server *srv, struct sockaddr_storage *ad
 		}
 
 		/* No TEID present try by SQN */
-		t = gtp_vsqn_get(&ctx->vsqn_tab, ntohs(h->sqn));
+		t = gtp_vsqn_get(ctx->vsqn_tab, ntohs(h->sqn));
 		if (!t) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -522,7 +522,7 @@ gtp1_update_pdp_request_hdl(struct gtp_server *srv, struct sockaddr_storage *add
 	uint8_t *cp;
 	int err;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -643,7 +643,7 @@ gtp1_update_pdp_response_hdl(struct gtp_server *srv, struct sockaddr_storage *ad
 	uint8_t *cp;
 
 	/* Virtual TEID mapping */
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		if (!h->seq) {
 			log_message(LOG_INFO, "%s(): No seqnum provided for TEID:0x%.8x from gtp header. ignoring..."
@@ -653,7 +653,7 @@ gtp1_update_pdp_response_hdl(struct gtp_server *srv, struct sockaddr_storage *ad
 		}
 
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohs(h->sqn));
+		teid = gtp_vsqn_get(ctx->vsqn_tab, ntohs(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__
@@ -728,7 +728,7 @@ gtp1_delete_pdp_request_hdl(struct gtp_server *srv, struct sockaddr_storage *add
 	struct gtp_proxy *ctx = srv->ctx;
 	struct gtp_teid *teid;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x from gtp header. ignoring..."
 				    , __FUNCTION__
@@ -771,7 +771,7 @@ gtp1_delete_pdp_response_hdl(struct gtp_server *srv, struct sockaddr_storage *ad
 	struct gtp_teid *teid;
 	uint8_t *cp;
 
-	teid = gtp_vteid_get(&ctx->vteid_tab, ntohl(h->teid));
+	teid = gtp_vteid_get(ctx->vteid_tab, ntohl(h->teid));
 	if (!teid) {
 		if (!h->seq) {
 			log_message(LOG_INFO, "%s(): No seqnum provided for TEID:0x%.8x from gtp header. ignoring..."
@@ -781,7 +781,7 @@ gtp1_delete_pdp_response_hdl(struct gtp_server *srv, struct sockaddr_storage *ad
 		}
 
 		/* No TEID present try by SQN */
-		teid = gtp_vsqn_get(&ctx->vsqn_tab, ntohs(h->sqn));
+		teid = gtp_vsqn_get(ctx->vsqn_tab, ntohs(h->sqn));
 		if (!teid) {
 			log_message(LOG_INFO, "%s(): unknown SQN:0x%.4x or TEID:0x%.8x from gtp header. ignoring..."
 					    , __FUNCTION__

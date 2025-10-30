@@ -53,7 +53,7 @@ gtpc_retransmit_detected(struct gtp_server *srv)
 			return NULL;
 		f_teid.teid_grekey = (uint32_t *) (cp + offsetof(struct gtp_ie_f_teid, teid_grekey));
 		f_teid.ipv4 = (uint32_t *) (cp + offsetof(struct gtp_ie_f_teid, ipv4));
-		teid = gtp_teid_get(&ctx->gtpc_teid_tab, &f_teid);
+		teid = gtp_teid_get(ctx->gtpc_teid_tab, &f_teid);
 		if (!teid)
 			return NULL;
 
@@ -75,7 +75,7 @@ gtpc_retransmit_detected(struct gtp_server *srv)
 	if (!cp)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(struct gtp1_ie));
-	teid = gtp_teid_get(&ctx->gtpc_teid_tab, &f_teid);
+	teid = gtp_teid_get(ctx->gtpc_teid_tab, &f_teid);
 	if (!teid)
 		return NULL;
 
@@ -182,7 +182,7 @@ gtpu_error_indication_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 		return NULL;
 	f_teid.ipv4 = (uint32_t *) (cp + sizeof(struct gtp1_ie));
 
-	teid = gtp_teid_get(&ctx->gtpu_teid_tab, &f_teid);
+	teid = gtp_teid_get(ctx->gtpu_teid_tab, &f_teid);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x. Ignoring"
 				    , __FUNCTION__
@@ -223,7 +223,7 @@ gtpu_end_marker_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 	f_teid.teid_grekey = &field;
 	f_teid.ipv4 = &((struct sockaddr_in *) addr)->sin_addr.s_addr;
 
-	teid = gtp_teid_get(&ctx->gtpu_teid_tab, &f_teid);
+	teid = gtp_teid_get(ctx->gtpu_teid_tab, &f_teid);
 	if (!teid) {
 		log_message(LOG_INFO, "%s(): unknown TEID:0x%.8x. Ignoring"
 				    , __FUNCTION__

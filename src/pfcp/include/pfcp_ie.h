@@ -349,16 +349,21 @@ struct pfcp_ie_f_teid {
 #endif
 		} __attribute__((packed));
 	};
-	uint32_t teid;
 	union {
-		struct in_addr v4;
-		struct in6_addr v6;
 		struct {
-			struct in_addr v4;
-			struct in6_addr v6;
-		} both;
-	} ip_address;
-	uint8_t choose_id;
+			uint32_t teid;
+			union {
+				struct in_addr v4;
+				struct in6_addr v6;
+				struct {
+					struct in_addr v4;
+					struct in6_addr v6;
+				} both;
+			} ip;
+			uint8_t choose_id;
+		} s;
+		uint8_t choose_id;
+	};
 } __attribute__((packed));
 
 /* Network Instance IE */

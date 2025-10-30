@@ -24,7 +24,6 @@
 #include <netinet/in.h>
 #include "list_head.h"
 #include "gtp.h"
-#include "gtp_htab.h"
 
 /* Tunnel type */
 enum {
@@ -95,19 +94,20 @@ int gtp_teid_destroy(void);
 void gtp_teid_free(struct gtp_teid *);
 int gtp_teid_unuse_queue_size(void);
 int gtp_teid_put(struct gtp_teid *);
-struct gtp_teid *gtp_teid_get(struct gtp_htab *, struct gtp_f_teid *);
+struct gtp_teid *gtp_teid_get(struct hlist_head *, struct gtp_f_teid *);
 struct gtp_teid *gtpc_teid_get(struct gtp_f_teid *);
 struct gtp_teid *gtpu_teid_get(struct gtp_f_teid *);
-struct gtp_teid *gtp_teid_alloc_peer(struct gtp_htab *, struct gtp_teid *, uint32_t,
+struct gtp_teid *gtp_teid_alloc_peer(struct hlist_head *, struct gtp_teid *, uint32_t,
 				     struct gtp_ie_eps_bearer_id *, unsigned int *);
 struct gtp_teid *gtpc_teid_alloc_peer(struct gtp_teid *, uint32_t,
 				      struct gtp_ie_eps_bearer_id *, unsigned int *);
 struct gtp_teid *gtpu_teid_alloc_peer(struct gtp_teid *, uint32_t,
 				      struct gtp_ie_eps_bearer_id *, unsigned int *);
-struct gtp_teid *gtp_teid_alloc(struct gtp_htab *, struct gtp_f_teid *, struct gtp_ie_eps_bearer_id *);
+struct gtp_teid *gtp_teid_alloc(struct hlist_head *, struct gtp_f_teid *,
+				struct gtp_ie_eps_bearer_id *);
 struct gtp_teid *gtpc_teid_alloc(struct gtp_f_teid *, struct gtp_ie_eps_bearer_id *);
 struct gtp_teid *gtpu_teid_alloc(struct gtp_f_teid *, struct gtp_ie_eps_bearer_id *);
-int gtp_teid_unhash(struct gtp_htab *, struct gtp_teid *);
+int gtp_teid_unhash(struct hlist_head *, struct gtp_teid *);
 int gtpc_teid_unhash(struct gtp_teid *);
 int gtpu_teid_unhash(struct gtp_teid *);
 void gtp_teid_bind(struct gtp_teid *, struct gtp_teid *);
@@ -116,6 +116,6 @@ int gtp_teid_restore(struct gtp_teid *, struct gtp_f_teid *);
 int gtp_teid_update_sgw(struct gtp_teid *, struct sockaddr_storage *);
 int gtp_teid_update_pgw(struct gtp_teid *, struct sockaddr_storage *);
 void gtp_teid_dump(struct gtp_teid *);
-int gtp_vteid_alloc(struct gtp_htab *, struct gtp_teid *, unsigned int *);
-int gtp_vteid_unhash(struct gtp_htab *, struct gtp_teid *);
-struct gtp_teid *gtp_vteid_get(struct gtp_htab *, uint32_t);
+int gtp_vteid_alloc(struct hlist_head *, struct gtp_teid *, unsigned int *);
+int gtp_vteid_unhash(struct hlist_head *, struct gtp_teid *);
+struct gtp_teid *gtp_vteid_get(struct hlist_head *, uint32_t);
