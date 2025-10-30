@@ -323,8 +323,7 @@ pfcp_assoc_alloc(struct pfcp_ie_node_id *node_id,
 int
 pfcp_assoc_init(void)
 {
-	pfcp_assoc_tab = (struct hlist_head *) MALLOC(sizeof(struct hlist_head) *
-					 	      ASSOC_HASHTAB_SIZE);
+	pfcp_assoc_tab = calloc(ASSOC_HASHTAB_SIZE, sizeof(struct hlist_head));
 	return 0;
 }
 
@@ -341,6 +340,6 @@ pfcp_assoc_destroy(void)
 		}
 	}
 
-	FREE(pfcp_assoc_tab);
+	free(pfcp_assoc_tab);
 	return 0;
 }

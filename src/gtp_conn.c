@@ -159,6 +159,7 @@ gtp_conn_alloc(uint64_t imsi)
 	new->ts = time(NULL);
 	INIT_LIST_HEAD(&new->gtp_sessions);
 	INIT_LIST_HEAD(&new->pppoe_sessions);
+	INIT_LIST_HEAD(&new->pfcp_sessions);
 
 	gtp_conn_hash(new);
 

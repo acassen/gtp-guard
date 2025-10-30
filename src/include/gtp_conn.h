@@ -44,6 +44,8 @@ struct gtp_conn {
 	struct list_head	gtp_sessions;
 	struct list_head	pppoe_sessions;
 	int			pppoe_cnt;
+	struct list_head	pfcp_sessions;
+	int			pfcp_cnt;
 	time_t			ts;
 
 	/* hash stuff */

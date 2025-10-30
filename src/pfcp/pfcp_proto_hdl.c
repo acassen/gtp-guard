@@ -171,8 +171,8 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
  *	PFCP FSM
  */
 static const struct {
-	int (*fsm) (struct pfcp_msg *, struct pfcp_server *, struct sockaddr_storage *);
-} pfcp_fsm_msg[1 << 8] = {
+	int (*hdl) (struct pfcp_msg *, struct pfcp_server *, struct sockaddr_storage *);
+} pfcp_msg_hdl[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_request },
 	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_request },
@@ -191,7 +191,7 @@ static const struct {
 };
 
 int
-pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
 	struct pfcp_router *c = srv->ctx;
 	struct pkt_buffer *pbuff = srv->s.pbuff;
@@ -211,14 +211,14 @@ pfcp_proto_fsm(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG_BIT, &c->debug))
 		pfcp_proto_dump(srv, msg, addr, PFCP_DIRECTION_INGRESS);
 
-	if (!*(pfcp_fsm_msg[pfcph->type].fsm)) {
+	if (!*(pfcp_msg_hdl[pfcph->type].hdl)) {
 		pfcp_metrics_rx_notsup(&srv->msg_metrics, pfcph->type);
 		err = -1;
 		goto end;
 	}
 
 	pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
-	err = (*(pfcp_fsm_msg[pfcph->type].fsm)) (msg, srv, addr);
+	err = (*(pfcp_msg_hdl[pfcph->type].hdl)) (msg, srv, addr);
 
 	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG_BIT, &c->debug))
 		pfcp_proto_dump(srv, NULL, addr, PFCP_DIRECTION_EGRESS);

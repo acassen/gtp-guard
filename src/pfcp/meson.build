@@ -7,7 +7,7 @@ src += files(
   'pfcp_metrics.c',
   'pfcp_msg.c',
   'pfcp_router.c',
-  'pfcp_proto_fsm.c',
+  'pfcp_proto_hdl.c',
   'pfcp_proto_dump.c',
   'pfcp_router_vty.c',
   'pfcp_server.c',
