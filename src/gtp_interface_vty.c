@@ -47,9 +47,12 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 	char addr_str[INET6_ADDRSTRLEN];
 	char addr2_str[INET6_ADDRSTRLEN];
 
-	vty_out(vty, "interface %s%s"
+	vty_out(vty, "interface %s {%s%s }\n"
 		   , iface->ifname
-		   , VTY_NEWLINE);
+		   , __test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ?
+		   " shutdown" : ""
+		   , __test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags) ?
+		   " running" : "");
 	vty_out(vty, " ifindex:%d%s"
 		   , iface->ifindex
 		   , VTY_NEWLINE);
@@ -140,11 +143,6 @@ DEFUN(interface_bpf_prog,
 {
 	struct gtp_interface *iface = vty->index;
 	struct gtp_bpf_prog *p;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	p = gtp_bpf_prog_get(argv[0]);
 	if (!p) {
@@ -347,7 +345,8 @@ DEFUN(interface_no_shutdown,
 {
 	struct gtp_interface *iface = vty->index;
 
-	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags)) {
+	if (!__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) &&
+	    __test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags)) {
 		vty_out(vty, "%% interface:'%s' is already running%s"
 			   , iface->ifname
 			   , VTY_NEWLINE);

@@ -29,6 +29,7 @@ struct gtp_proxy;
 
 struct gtp_bpf_fwd_data
 {
+	struct list_head	gtp_proxy_list;
 	struct bpf_map		*teid_xlat;
 };
 

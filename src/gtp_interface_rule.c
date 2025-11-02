@@ -235,9 +235,6 @@ gtp_interface_rule_del(struct gtp_if_rule *r)
 		if (sr->installed)
 			_rule_uninstall(ir, &sr->r);
 		_rule_del(sr);
-	} else {
-		printf("DID NOT FIND rule to delete: %s=>%s\n",
-		       r->from->ifname, r->to->ifname);
 	}
 }
 
@@ -286,7 +283,7 @@ gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 	if (r == NULL || r->acl == NULL)
 		return 0;
 
-	if (!r->rule_list_sorted) {
+	if (!list_empty(&r->rule_list) && !r->rule_list_sorted) {
 		list_sort(&r->rule_list, _rule_sort_cb);
 		r->rule_list_sorted = true;
 	}
@@ -379,6 +376,7 @@ gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *i
 static void
 gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
+	gtp_interface_rule_del_iface(iface);
 	iface->rules = NULL;
 }
 

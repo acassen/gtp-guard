@@ -4,8 +4,7 @@
 
 . $(dirname $0)/_gtpg_cmd.sh
 
-clean()
-{
+clean() {
     ip tunnel del ptun 2>/dev/null && true
     ip link del ptun 2>/dev/null && true
     ip link del gtpp 2>/dev/null && true
@@ -13,8 +12,7 @@ clean()
 }
 
 # everyone on the same interface
-setup_combined()
-{
+setup_combined() {
     setup_netns "cloud"
     sleep 0.5
 
@@ -71,26 +69,38 @@ setup_split() {
     setup_netns "sgw" "pgw" "cloud"
     sleep 0.5
 
-    # sgw side
-    ip link add dev sgw netns sgw address d2:ad:ca:fe:b4:02 type veth \
-       peer name sgw address d2:f0:0c:ba:a5:06
-    ip -n sgw link set dev sgw up
-    ip -n sgw link set dev lo up
-    ip -n sgw addr add 192.168.61.5/30 dev sgw
-    ip link set dev sgw up
-    ip addr add 192.168.61.6/30 dev sgw
-
     # pgw side
     ip link add dev pgw netns pgw address d2:ad:ca:fe:b4:01 type veth \
        peer name pgw address d2:f0:0c:ba:a5:02
     ip -n pgw link set dev pgw up
     ip -n pgw link set dev lo up
-    ip -n pgw addr add 192.168.61.1/30 dev pgw
-    ip -n pgw route add default via 192.168.61.2 dev pgw
     ip link set dev pgw up
-    ip addr add 192.168.61.2/30 dev pgw
+    ip -n pgw addr add 192.168.61.193/28 dev pgw
 
-    # ptun side
+    # sgw side
+    ip link add dev sgw netns sgw address d2:ad:ca:fe:b4:02 type veth \
+       peer name sgw address d2:f0:0c:ba:a5:06
+    ip -n sgw link set dev sgw up
+    ip -n sgw link set dev lo up
+    ip link set dev sgw up
+    ip -n sgw addr add 192.168.61.209/28 dev sgw
+
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	# gtp-c
+	ip addr add 192.168.61.$((i+194))/28 dev pgw
+	ip addr add 192.168.61.$((i+210))/28 dev sgw
+
+	# gtp-u
+	ip -n pgw addr add 192.168.61.$((i*4+2))/27 dev pgw
+	ip addr add 192.168.61.$((i*4+1))/27 dev pgw
+	ip -n sgw addr add 192.168.61.$((64+i*4+2))/27 dev sgw
+	ip addr add 192.168.61.$((64+i*4+1))/27 dev sgw
+
+	arp -s 192.168.61.$((i*4+2)) d2:ad:ca:fe:b4:01
+	arp -s 192.168.61.$((64+i*4+2)) d2:ad:ca:fe:b4:02
+    done
+
+    # tun side
     ip link add dev veth0 netns cloud address d2:ad:ca:fe:b4:03 type veth \
        peer name gtpptun address d2:f0:0c:ba:05:02
     ip -n cloud link set dev lo up
@@ -120,8 +130,6 @@ setup_split() {
 
     # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
     # so add static entries
-    arp -s 192.168.61.1 d2:ad:ca:fe:b4:01
-    arp -s 192.168.61.5 d2:ad:ca:fe:b4:02
     arp -s 192.168.61.129 d2:ad:ca:fe:b4:03
 
     # fix weird thing with packet checksum sent from a
@@ -191,18 +199,15 @@ show interface-rules
 run_split() {
     start_gtpguard
 
+    gtpg_conf_nofail "
+no bpf-program fwd-1
+no gtp-proxy all
+"
+
     gtpg_conf "
 bpf-program fwd-1
  path bin/gtp_fwd.bpf
  no shutdown
-
-gtp-proxy gtpp-undertest
- bpf-program fwd-1
- gtpc-tunnel-endpoint 192.168.61.6 port 2123
- gtpc-egress-tunnel-endpoint 192.168.61.2 port 2123
- gtpu-tunnel-endpoint 192.168.61.6 ingress interface sgw
- gtpu-tunnel-endpoint 192.168.61.2 egress interface pgw
- gtpu-ipip interface ptun view egress
 
 interface sgw
  bpf-program fwd-1
@@ -218,12 +223,22 @@ interface gtpptun
 
 interface ptun
  no shutdown
+" || fail "cannot execute vty commands"
 
-gtp-proxy gtpp-undertest
- gtpu-ipip debug teid add 257 1 192.168.61.1 ingress
- gtpu-ipip debug teid add 258 2 192.168.61.5 egress
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	gtpg_conf "
+gtp-proxy gtpp-undertest-$i
+ bpf-program fwd-1
+ gtpc-tunnel-endpoint 192.168.61.$((i+210)) port 2123
+ gtpc-egress-tunnel-endpoint 192.168.61.$((i+194)) port 2123
+ gtpu-tunnel-endpoint 192.168.61.$((64+i*4+1)) ingress interface sgw
+ gtpu-tunnel-endpoint 192.168.61.$((i*4+1)) egress interface pgw
+ gtpu-ipip interface ptun view egress
+ gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*4+2)) ingress
+ gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((64+i*4+2)) egress
 
 " || fail "cannot execute vty commands"
+    done
 
     gtpg_show "
 show interface
@@ -244,9 +259,9 @@ pkt() {
 
     if [ "$type" == "split" ]; then
 	ingress_ns=sgw
-	ingress_ip=192.168.61.5
+	ingress_ip=192.168.61.$((64+inst*4+2))
 	egress_ns=pgw
-	egress_ip=192.168.61.1
+	egress_ip=192.168.61.$((inst*4+2))
     elif [ "$type" == "combined" ]; then
 	ingress_ns=cloud
 	ingress_ip=192.168.61.$((inst*8+2))
@@ -329,13 +344,13 @@ p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   Raw('DATADATA')]
 "
     else
-	send_py_pkt sgw sgw '
-p = [Ether(dst="d2:f0:0c:ba:a5:06", src="d2:ad:ca:fe:b4:02") /
-  IP(src="192.168.61.5", dst="192.168.61.6") /
+	send_py_pkt sgw sgw "
+p = [Ether(dst='d2:f0:0c:ba:a5:06', src='d2:ad:ca:fe:b4:02') /
+  IP(src='$ingress_ip', dst='192.168.61.$((64+inst*4+1))') /
   UDP(sport=2152, dport=2152) /
-  GTP_U_Header(teid=257, gtp_type=255) /
-  Raw("DATADATA")]
-'
+  GTP_U_Header(teid=$((inst*10+257)), gtp_type=255) /
+  Raw('DATADATA')]
+"
     fi
 
     sleep 2
@@ -359,20 +374,17 @@ if [ $gtp_proxy_count -gt 16 ]; then
 fi
 
 case $action in
+    clean)
+	clean ;;
     setup)
 	clean
 	sleep 0.5
 	setup_$type ;;
-    clean)
-	clean ;;
     run)
-	clean
-	sleep 0.5
-	setup_$type
 	run_$type ;;
     pkt)
 	pkt ;;
-    pktall)
+    pkt_all)
 	pkt_all ;;
 
     *) fail "action '$action' not recognized" ;;

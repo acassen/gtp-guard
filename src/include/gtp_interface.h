@@ -34,9 +34,9 @@
 enum gtp_interface_event {
 	GTP_INTERFACE_EV_PRG_BIND,
 	GTP_INTERFACE_EV_PRG_UNBIND,
+	GTP_INTERFACE_EV_DESTROYING,
 	GTP_INTERFACE_EV_VTY_SHOW,
 	GTP_INTERFACE_EV_VTY_WRITE,
-	GTP_INTERFACE_EV_DESTROYING,
 };
 
 typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,

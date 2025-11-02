@@ -175,12 +175,6 @@ DEFUN(no_bpf_prog,
       "Program name\n")
 {
 	struct gtp_bpf_prog *p;
-	int err;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	p = gtp_bpf_prog_get(argv[0]);
 	if (!p) {
@@ -189,12 +183,7 @@ DEFUN(no_bpf_prog,
 	}
 
 	gtp_bpf_prog_put(p);
-	err = gtp_bpf_prog_destroy(p);
-	if (err) {
-		vty_out(vty, "%% bpf-program:'%s' is used by at least one interface%s"
-			   , p->name, VTY_NEWLINE);
-		return CMD_WARNING;
-	}
+	gtp_bpf_prog_destroy(p);
 
 	return CMD_SUCCESS;
 }
@@ -207,12 +196,7 @@ DEFUN(bpf_prog_description,
 {
 	struct gtp_bpf_prog *p = vty->index;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	bsd_strlcpy(p->description, argv[0], GTP_STR_MAX_LEN - 1);
+	snprintf(p->description, sizeof (p->description), "%s", argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -224,7 +208,7 @@ DEFUN(bpf_prog_path,
 {
 	struct gtp_bpf_prog *p = vty->index;
 
-	bsd_strlcpy(p->path, argv[0], GTP_PATH_MAX_LEN - 1);
+	snprintf(p->path, sizeof (p->path), "%s", argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -302,12 +286,8 @@ DEFUN(bpf_prog_shutdown,
 {
 	struct gtp_bpf_prog *p = vty->index;
 
-	if (__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags)) {
-		vty_out(vty, "%% bpf-program:'%s' is already shutdown%s"
-			   , p->name
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
+	if (__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags))
+		return CMD_SUCCESS;
 
 	gtp_bpf_prog_unload(p);
 	__set_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);

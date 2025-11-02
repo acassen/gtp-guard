@@ -112,6 +112,7 @@ DEFUN(gtp_proxy_bpf_program,
 
 	ctx->bpf_prog = p;
 	ctx->bpf_data = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
+	list_add(&ctx->bpf_list, &ctx->bpf_data->gtp_proxy_list);
 
 	return CMD_SUCCESS;
 }
@@ -338,6 +339,20 @@ DEFUN(gtpu_proxy_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
+	return CMD_SUCCESS;
+}
+
+DEFUN(gtpu_debug,
+      gtpu_debug_cmd,
+      "gtpu debug (on|off)",
+      "GTP Userplane\n"
+      "Be more verbose in log messages\n"
+      "On\n"
+      "Off\n")
+{
+	struct gtp_proxy *ctx = vty->index;
+
+	ctx->debug = !strcmp(argv[0], "on");
 	return CMD_SUCCESS;
 }
 
@@ -585,6 +600,7 @@ cmd_ext_gtp_proxy_install(void)
 	install_element(GTP_PROXY_NODE, &gtpc_proxy_egress_tunnel_endpoint_cmd);
 	install_element(GTP_PROXY_NODE, &gtpc_force_pgw_selection_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_proxy_tunnel_endpoint_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_debug_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_dead_peer_detection_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_debug_set_teid_cmd);

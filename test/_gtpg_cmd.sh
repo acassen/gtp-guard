@@ -26,6 +26,7 @@ gtpgc_conf() {
 	    cat >> $tmp/exp_cmd <<EOF
 send "$l\n"
 expect {
+  -re "% interface:.* is already running" {}
   -re "% .*" { exit 13 }
   -re "sut(.*)# "
 }

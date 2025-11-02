@@ -243,6 +243,18 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 
 
 
+static void *
+gtp_bpf_fwd_alloc(struct gtp_bpf_prog *p)
+{
+	struct gtp_bpf_fwd_data *pf;
+
+	pf = calloc(1, sizeof (*pf));
+	if (pf == NULL)
+		return NULL;
+
+	INIT_LIST_HEAD(&pf->gtp_proxy_list);
+	return pf;
+}
 
 static int
 gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
@@ -257,11 +269,26 @@ gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 	return 0;
 }
 
+static void
+gtp_bpf_fwd_release(struct gtp_bpf_prog *p, void *udata)
+{
+	struct gtp_bpf_fwd_data *pf = udata;
+	struct gtp_proxy *proxy, *tmp;
+
+	list_for_each_entry_safe(proxy, tmp, &pf->gtp_proxy_list, bpf_list) {
+		proxy->bpf_prog = NULL;
+		proxy->bpf_data = NULL;
+		list_del_init(&proxy->bpf_list);
+	}
+	free(pf);
+}
+
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_fwd = {
 	.name = "gtp_fwd",
 	.description = "gtp-forward for gtp-proxy",
-	.udata_alloc_size = sizeof (struct gtp_bpf_fwd_data),
+	.alloc = gtp_bpf_fwd_alloc,
 	.loaded = gtp_bpf_fwd_load_maps,
+	.release = gtp_bpf_fwd_release,
 };
 
 static void __attribute__((constructor))

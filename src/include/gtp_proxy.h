@@ -41,6 +41,7 @@ struct gtp_proxy {
 	char			name[GTP_NAME_MAX_LEN];
 	struct gtp_bpf_prog	*bpf_prog;
 	struct gtp_bpf_fwd_data *bpf_data;
+	struct list_head	bpf_list;
 
 	/* datapath/if_rule */
 	struct gtp_interface	*iface_ingress;
@@ -51,9 +52,10 @@ struct gtp_proxy {
 	bool			ipip_bind;
 	int			ipip_xlat;
 	bool			ipip_dead;
-	struct hlist_head	*ipip_ingress;
-	struct hlist_head	*ipip_egress;
+	struct hlist_head	*ipip_ingress_tab;
+	struct hlist_head	*ipip_egress_tab;
 	int			rules_set;
+	bool			debug;
 
 	struct gtp_server	gtpc;
 	struct gtp_server	gtpc_egress;

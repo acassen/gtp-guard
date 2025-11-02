@@ -35,6 +35,7 @@
 #include "memory.h"
 #include "inet_utils.h"
 #include "utils.h"
+#include "logger.h"
 #include "jhash.h"
 #include "bpf/lib/gtp_fwd-def.h"
 
@@ -256,14 +257,14 @@ _set_tun_rules(struct gtp_proxy *ctx, uint32_t addr, bool egress, bool add)
 			gtp_interface_rule_del(&ifr);
 	}
 
-	printf("%s tun rule %s local %x dst %x, xlat:%d xlat_before:%d after:%d "
-	       "| to ipip:%d\n",
-	       add ? "add" : "del",
-	       egress ? "egress" : "ingress",
-	       local, addr,
-	       ctx->ipip_xlat,
-	       xlat_before, xlat_after,
-	       ifr.action);
+	if (ctx->debug) {
+		log_message(LOG_DEBUG, "gtp_proxy_rules: %s tun rule %s "
+			    "local %x dst %x, xlat{conf:%d before:%d after:%d} ",
+			    add ? "add" : "del",
+			    egress ? "egress" : "ingress",
+			    local, addr,
+			    ctx->ipip_xlat, xlat_before, xlat_after);
+	}
 }
 
 static void
@@ -273,10 +274,10 @@ _set_all_tun_rules(struct gtp_proxy *ctx, bool add)
 	int i;
 
 	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++)
-		hlist_for_each_entry(a, &ctx->ipip_ingress[i], hlist)
+		hlist_for_each_entry(a, &ctx->ipip_ingress_tab[i], hlist)
 			_set_tun_rules(ctx, a->addr, false, add);
 	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++)
-		hlist_for_each_entry(a, &ctx->ipip_egress[i], hlist)
+		hlist_for_each_entry(a, &ctx->ipip_egress_tab[i], hlist)
 			_set_tun_rules(ctx, a->addr, true, add);
 }
 
@@ -308,8 +309,9 @@ gtp_proxy_rules_set(struct gtp_proxy *ctx)
 		ctx->rules_set = 0;
 	}
 
-	if (rule_set != ctx->rules_set)
-		printf("set rule: %d => %d\n", rule_set, ctx->rules_set);
+	if (rule_set != ctx->rules_set && ctx->debug)
+		log_message(LOG_DEBUG, "gtp_proxy_rules: set rules %d => %d\n",
+			    rule_set, ctx->rules_set);
 }
 
 int
@@ -319,13 +321,13 @@ gtp_proxy_rules_remote_exists(struct gtp_proxy *ctx, __be32 addr, bool *egress)
 	uint32_t h;
 
 	h = jhash_1word(addr, 0) % GTP_PROXY_REMOTE_ADDR_HSIZE;
-	hlist_for_each_entry(a, &ctx->ipip_ingress[h], hlist) {
+	hlist_for_each_entry(a, &ctx->ipip_ingress_tab[h], hlist) {
 		if (a->addr == addr) {
 			*egress = false;
 			return 0;
 		}
 	}
-	hlist_for_each_entry(a, &ctx->ipip_egress[h], hlist) {
+	hlist_for_each_entry(a, &ctx->ipip_egress_tab[h], hlist) {
 		if (a->addr == addr) {
 			*egress = true;
 			return 0;
@@ -343,13 +345,15 @@ gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, __be32 addr,
 	struct hlist_head *head;
 	uint32_t h;
 
-	printf("%s %s addr: 0x%x\n",
-	       action == RULE_ADD ? "add" : "del",
-	       egress ? "pgw" : "sgw",
-	       addr);
+	if (ctx->debug) {
+		log_message(LOG_DEBUG, "gtp_proxy: %s %s addr: 0x%x\n",
+			    action == RULE_ADD ? "add" : "del",
+			    egress ? "egress" : "ingress",
+			    addr);
+	}
 
 	h = jhash_1word(addr, 0) % GTP_PROXY_REMOTE_ADDR_HSIZE;
-	head = egress ? &ctx->ipip_egress[h] : &ctx->ipip_ingress[h];
+	head = egress ? &ctx->ipip_egress_tab[h] : &ctx->ipip_ingress_tab[h];
 	hlist_for_each_entry(a, head, hlist) {
 		if (a->addr == addr) {
 			if (action == RULE_DEL) {
@@ -380,7 +384,9 @@ gtp_proxy_iface_event_cb(struct gtp_interface *iface,
 {
 	struct gtp_proxy *ctx = ud;
 
-	printf("iface:%s event %d\n", iface->ifname, type);
+	if (ctx->debug)
+		log_message(LOG_DEBUG, "iface:%s event %d\n",
+			    iface->ifname, type);
 
 	switch (type) {
 	case GTP_INTERFACE_EV_PRG_BIND:
@@ -407,10 +413,10 @@ gtp_proxy_iface_event_cb(struct gtp_interface *iface,
 		if (iface == ctx->iface_egress)
 			vty_out(vty, " gtp-proxy:%s side gtpu-egress\n",
 				ctx->name);
-		break;
+		return;
 	}
 	default:
-		break;
+		return;
 	}
 
 	gtp_proxy_rules_set(ctx);
@@ -430,7 +436,9 @@ gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 {
 	struct gtp_proxy *ctx = ud;
 
-	printf("iface:%s event %d\n", iface->ifname, type);
+	if (ctx->debug)
+		log_message(LOG_DEBUG, "iface:%s event %d\n",
+			    iface->ifname, type);
 
 	switch (type) {
 	case GTP_INTERFACE_EV_PRG_BIND:
@@ -444,10 +452,10 @@ gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 	{
 		struct vty *vty = arg;
 		vty_out(vty, " gtp-proxy:%s gtpu-ipip\n", ctx->name);
-		break;
+		return;
 	}
 	default:
-		break;
+		return;
 	}
 
 	gtp_proxy_rules_set(ctx);
@@ -492,10 +500,10 @@ gtp_proxy_alloc(const char *name)
 	ctx->vteid_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
 	ctx->vsqn_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
 
-	ctx->ipip_ingress = calloc(GTP_PROXY_REMOTE_ADDR_HSIZE,
-				   sizeof (struct hlist_head));
-	ctx->ipip_egress = calloc(GTP_PROXY_REMOTE_ADDR_HSIZE,
-				  sizeof (struct hlist_head));
+	ctx->ipip_ingress_tab = calloc(GTP_PROXY_REMOTE_ADDR_HSIZE,
+				       sizeof (struct hlist_head));
+	ctx->ipip_egress_tab = calloc(GTP_PROXY_REMOTE_ADDR_HSIZE,
+				      sizeof (struct hlist_head));
 
 	return ctx;
 }
@@ -528,12 +536,19 @@ gtp_proxy_ctx_server_stop(struct gtp_proxy *ctx)
 					 GTP_INTERFACE_EV_DESTROYING,
 					 ctx, NULL);
 	}
+
+	if (ctx->bpf_prog != NULL) {
+		ctx->bpf_prog = NULL;
+		ctx->bpf_data = NULL;
+		list_del(&ctx->bpf_list);
+	}
+
 	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++) {
-		hlist_for_each_entry_safe(a, tmp, &ctx->ipip_ingress[i], hlist) {
+		hlist_for_each_entry_safe(a, tmp, &ctx->ipip_ingress_tab[i], hlist) {
 			hlist_del(&a->hlist);
 			free(a);
 		}
-		hlist_for_each_entry_safe(a, tmp, &ctx->ipip_egress[i], hlist) {
+		hlist_for_each_entry_safe(a, tmp, &ctx->ipip_egress_tab[i], hlist) {
 			hlist_del(&a->hlist);
 			free(a);
 		}
@@ -550,8 +565,8 @@ void
 gtp_proxy_ctx_destroy(struct gtp_proxy *ctx)
 {
 	gtp_proxy_ctx_server_stop(ctx);
-	free(ctx->ipip_ingress);
-	free(ctx->ipip_egress);
+	free(ctx->ipip_ingress_tab);
+	free(ctx->ipip_egress_tab);
 	free(ctx->gtpc_teid_tab);
 	free(ctx->gtpu_teid_tab);
 	free(ctx->vteid_tab);

@@ -398,8 +398,11 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 				break;
 			}
 		if (j == p->tpl_n) {
-			if (tpl->udata_alloc_size)
-				p->tpl_data[p->tpl_n] = MALLOC(tpl->udata_alloc_size);
+			if (tpl->alloc != NULL)
+				p->tpl_data[p->tpl_n] = tpl->alloc(p);
+			else if (tpl->udata_alloc_size)
+				p->tpl_data[p->tpl_n] =
+					calloc(1, tpl->udata_alloc_size);
 			p->tpl[p->tpl_n++] = tpl;
 		}
 	}
@@ -638,7 +641,11 @@ gtp_bpf_prog_detach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 void
 gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 {
+	struct gtp_interface *iface;
 	int i;
+
+	list_for_each_entry(iface, &p->iface_bind_list, bpf_prog_list)
+		gtp_interface_stop(iface);
 
 	p->run.tc = NULL;
 	p->run.xdp = NULL;
@@ -657,7 +664,9 @@ gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 	p->load.obj = NULL;
 
 	for (i = 0; i < p->tpl_n; i++) {
-		if (p->tpl[i]->udata_alloc_size)
+		if (p->tpl[i]->release != NULL)
+			p->tpl[i]->release(p, p->tpl_data[i]);
+		else if (p->tpl[i]->udata_alloc_size)
 			free(p->tpl_data[i]);
 	}
 	p->tpl_n = 0;
@@ -666,9 +675,17 @@ gtp_bpf_prog_unload(struct gtp_bpf_prog *p)
 int
 gtp_bpf_prog_destroy(struct gtp_bpf_prog *p)
 {
+	struct gtp_interface *iface, *tmp;
+
+	gtp_bpf_prog_unload(p);
+
+	list_for_each_entry_safe(iface, tmp, &p->iface_bind_list, bpf_prog_list) {
+		list_del_init(&iface->bpf_prog_list);
+		iface->bpf_prog = NULL;
+	}
+
 	if (p->watch_id > 0 && inotify_th)
 		inotify_rm_watch(inotify_th->u.f.fd, p->watch_id);
-	gtp_bpf_prog_unload(p);
 	list_head_del(&p->next);
 	FREE(p->log_buf);
 	FREE(p);
@@ -806,18 +823,16 @@ gtp_bpf_prog_soft_reload(struct gtp_bpf_prog *p)
 		return;
 	}
 
+	/* (re)-attach interfaces */
 	list_for_each_entry(iface, &p->iface_bind_list, bpf_prog_list) {
 		++st_if_t;
-		/* skip down interfaces */
-		if (__test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags))
-			continue;
-
-		/* reattach interfaces */
-		if (__test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
+		if (__test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags)) {
 			_update_running_bpf_prog(p, iface);
-		else
-			gtp_interface_start(iface);
-		++st_if_r;
+			++st_if_r;
+		} else {
+			if (!gtp_interface_start(iface))
+				++st_if_r;
+		}
 	}
 	log_message(LOG_INFO, "%s: soft-reload successful, new program is loaded "
 		    "on %d/%d interfaces", p->name, st_if_r, st_if_t);
