@@ -24,11 +24,12 @@
 #include <arpa/inet.h>
 
 #include "pfcp_ie.h"
+#include "gtp_utils.h"
 #include "pfcp.h"
 
 
 /*
- *	PFCP Pkt IE Factory
+ *	PFCP Pkt IE Utils
  */
 int
 pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
@@ -55,6 +56,57 @@ pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
 	return 0;
 }
 
+static int
+pfcp_ie_decode_bcd_field(const uint8_t **cp, const uint8_t *end, uint64_t *output)
+{
+	uint8_t len;
+
+	/* init, NULL argument supported */
+	if (!*output)
+		return 0;
+	*output = 0;
+
+	/* bound checking */
+	if (*cp >= end)
+		return -1;
+
+	len = *(*cp)++;
+	if (len > 10)  /* Max 20 digits, 8 bytes BCD */
+		return -1;
+
+	/* bound checking */
+	if (*cp + len > end)
+		return -1;
+
+	if (output)
+		*output = bcd_to_int64(*cp, len);
+
+	*cp += len;
+	return 0;
+}
+
+int
+pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi, uint64_t *imei, uint64_t *msisdn)
+{
+	const uint8_t *end = (const uint8_t *)uid + sizeof(struct pfcp_ie) + ntohs(uid->h.length);
+	const uint8_t *cp = uid->value;
+
+	if (uid->imsif && pfcp_ie_decode_bcd_field(&cp, end, imsi))
+		return -1;
+
+	if (uid->imeif && pfcp_ie_decode_bcd_field(&cp, end, imei))
+		return -1;
+
+	if (uid->msisdnf && pfcp_ie_decode_bcd_field(&cp, end, msisdn))
+		return -1;
+
+	return 0;
+}
+
+
+/*
+ *	PFCP Pkt IE Factory
+ */
 int
 pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length)
 {

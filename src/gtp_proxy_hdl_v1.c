@@ -304,7 +304,7 @@ gtp1_create_pdp_request_hdl(struct gtp_server *srv, struct sockaddr_storage *add
 	imsi = bcd_to_int64(ie_imsi->imsi, sizeof(ie_imsi->imsi));
 	c = gtp_conn_get_by_imsi(imsi);
 	if (!c) {
-		c = gtp_conn_alloc(imsi);
+		c = gtp_conn_alloc(imsi, 0, 0);
 	}
 
 	/* Rewrite IMSI if needed */

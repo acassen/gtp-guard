@@ -1,4 +1,7 @@
 # make and build files
+.cache
+compile_commands.json
+libbpf
 bin
 build
 subprojects/libbpf

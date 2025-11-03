@@ -25,6 +25,7 @@
 #include "pfcp_msg.h"
 #include "pfcp_proto_dump.h"
 #include "pfcp_utils.h"
+#include "gtp_conn.h"
 #include "pkt_buffer.h"
 #include "bitops.h"
 #include "logger.h"
@@ -38,7 +39,7 @@ pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct soc
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_router *c = srv->ctx;
+	struct pfcp_router *ctx = srv->ctx;
 	int err;
 
 	/* Recycle header and reset length */
@@ -46,7 +47,7 @@ pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct soc
 	pfcph->type = PFCP_HEARTBEAT_RESPONSE;
 
 	/* Append mandatory IE */
-	err = pfcp_ie_put_recovery_ts(pbuff, c->recovery_ts);
+	err = pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Cant append recovery_ts IE"
 				    , __FUNCTION__);
@@ -61,7 +62,7 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struc
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_router *c = srv->ctx;
+	struct pfcp_router *ctx = srv->ctx;
 	int err;
 
 	/* Recycle header and reset length */
@@ -70,7 +71,7 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struc
 
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
-	err = (err) ? : pfcp_ie_put_node_id(pbuff, c->node_id, c->node_id_len);
+	err = (err) ? : pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
@@ -85,7 +86,7 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct s
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_router *c = srv->ctx;
+	struct pfcp_router *ctx = srv->ctx;
 	struct pfcp_assoc *assoc;
 	struct pfcp_association_setup_request *req;
 	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
@@ -113,9 +114,9 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct s
 	pfcph->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
 
 	/* Append IEs */
-	err = pfcp_ie_put_node_id(pbuff, c->node_id, c->node_id_len);
+	err = pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
 	err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
-	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, c->recovery_ts);
+	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
@@ -130,10 +131,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
-	struct pfcp_router *c = srv->ctx;
+	struct pfcp_router *ctx = srv->ctx;
 	struct pfcp_assoc *assoc;
+	struct gtp_conn *c;
 	struct pfcp_session_establishment_request *req;
 	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
+	uint64_t imsi, imei, msisdn;
 	int err;
 
 	req = msg->session_establishment_request;
@@ -147,7 +150,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 		cause = PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION;
 
 		/* Append IEs */
-		err = pfcp_ie_put_node_id(pbuff, c->node_id, c->node_id_len);
+		err = pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
 		err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
 		if (err) {
 			log_message(LOG_INFO, "%s(): Error while Appending IEs"
@@ -158,7 +161,23 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 		return 0;
 	}
 
+	/* User infos */
+	if (!req->user_id) {
+		log_message(LOG_INFO, "%s(): IE User-ID not present... dropping..."
+				    , __FUNCTION__);
+		return -1;
+	}
 
+	err = pfcp_ie_decode_user_id(req->user_id, &imsi, &imei, &msisdn);
+	if (err) {
+		log_message(LOG_INFO, "%s(): malformed IE User-ID... dropping..."
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	c = gtp_conn_get_by_imsi(imsi);
+	if (!c)
+		c = gtp_conn_alloc(imsi, imei, msisdn);
 
 
 

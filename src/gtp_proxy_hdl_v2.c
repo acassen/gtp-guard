@@ -296,7 +296,7 @@ gtpc_create_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	imsi = bcd_to_int64(ie_imsi->imsi, ntohs(ie_imsi->h.length));
 	c = gtp_conn_get_by_imsi(imsi);
 	if (!c) {
-		c = gtp_conn_alloc(imsi);
+		c = gtp_conn_alloc(imsi, 0, 0);
 	}
 
 	/* Rewrite IMSI if needed */

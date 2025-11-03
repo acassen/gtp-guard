@@ -26,9 +26,6 @@
 #include <arpa/inet.h>
 
 #include "pfcp_msg.h"
-#include "include/pfcp.h"
-#include "include/pfcp_ie.h"
-#include "include/pfcp_ie_group.h"
 #include "pkt_buffer.h"
 #include "mempool.h"
 

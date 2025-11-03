@@ -32,12 +32,16 @@
 
 /* Connection flags */
 enum conn_flags {
-	GTP_CONN_F_HASHED,
+	GTP_CONN_F_IMSI_HASHED = 0,
+	GTP_CONN_F_IMEI_HASHED,
+	GTP_CONN_F_MSISDN_HASHED,
 	GTP_CONN_F_DEBUG,
 };
 
 struct gtp_conn {
         uint64_t                imsi;
+        uint64_t                imei;
+        uint64_t                msisdn;
 	struct sockaddr_in	sgw_addr;
 
 	/* FIXME: maybe use a global dlock here */
@@ -49,7 +53,9 @@ struct gtp_conn {
 	time_t			ts;
 
 	/* hash stuff */
-        struct hlist_node       hlist;
+        struct hlist_node       h_imsi;
+        struct hlist_node       h_imei;
+        struct hlist_node       h_msisdn;
 
 	unsigned long		flags;
 	int			refcnt;
@@ -57,12 +63,14 @@ struct gtp_conn {
 
 /* Prototypes */
 int gtp_conn_count_read(void);
-int gtp_conn_get(struct gtp_conn *);
-int gtp_conn_put(struct gtp_conn *);
-struct gtp_conn *gtp_conn_alloc(uint64_t);
-struct gtp_conn *gtp_conn_get_by_imsi(uint64_t);
-int gtp_conn_hash(struct gtp_conn *);
-int gtp_conn_unhash(struct gtp_conn *);
-int gtp_conn_vty(struct vty *, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t);
+int gtp_conn_get(struct gtp_conn *c);
+int gtp_conn_put(struct gtp_conn *c);
+struct gtp_conn *gtp_conn_get_by_imsi(uint64_t imsi);
+struct gtp_conn *gtp_conn_get_by_imei(uint64_t imei);
+struct gtp_conn *gtp_conn_get_by_msisdn(uint64_t msisdn);
+struct gtp_conn *gtp_conn_alloc(uint64_t imsi, uint64_t imei, uint64_t msisdn);
+int gtp_conn_hash(struct gtp_conn *c);
+int gtp_conn_unhash(struct gtp_conn *c);
+int gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t imsi);
 int gtp_conn_init(void);
 int gtp_conn_destroy(void);

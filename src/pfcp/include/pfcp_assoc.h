@@ -33,7 +33,7 @@
 #define ASSOC_HASHTAB_MASK  (ASSOC_HASHTAB_SIZE - 1)
 
 /* Connection flags */
-enum conn_flags {
+enum assoc_flags {
 	PFCP_ASSOC_F_HASHED,
 	PFCP_ASSOC_F_DEBUG,
 };

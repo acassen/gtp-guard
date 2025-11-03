@@ -963,7 +963,7 @@ gtpc_create_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	imsi = bcd_to_int64(msg_ie->data, ntohs(msg_ie->h->length));
 	c = gtp_conn_get_by_imsi(imsi);
 	if (!c)
-		c = gtp_conn_alloc(imsi);
+		c = gtp_conn_alloc(imsi, 0, 0);
 
 	/* APN */
 	msg_ie = gtp_msg_ie_get(msg, GTP_IE_APN_TYPE);
