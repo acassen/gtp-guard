@@ -421,8 +421,8 @@ DEFUN(apn_oi_match,
 		return CMD_WARNING;
 	}
 
-	match_label_cnt = gtp_ie_apn_labels_cnt(argv[0], strlen(argv[0]));
-	rewrite_label_cnt = gtp_ie_apn_labels_cnt(argv[1], strlen(argv[1]));
+	match_label_cnt = gtp_apn_labels_cnt(argv[0], strlen(argv[0]));
+	rewrite_label_cnt = gtp_apn_labels_cnt(argv[1], strlen(argv[1]));
 	if (match_label_cnt != rewrite_label_cnt) {
 		vty_out(vty, "%% match and rewrite MUST have the same label count%s", VTY_NEWLINE);
 		return CMD_WARNING;

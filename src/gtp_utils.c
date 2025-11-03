@@ -430,7 +430,7 @@ gtp_ie_imsi_rewrite(struct gtp_apn *apn, uint8_t *buffer)
 
 /* APN related */
 int
-gtp_apn_extract_ni(char *apn, size_t apn_size, char *buffer, size_t size)
+gtp_apn_extract_str_ni(char *apn, size_t apn_size, char *buffer, size_t size)
 {
 	char *cp, *end = apn + apn_size;
 	int labels_cnt = 0;
@@ -448,7 +448,7 @@ gtp_apn_extract_ni(char *apn, size_t apn_size, char *buffer, size_t size)
 }
 
 int
-gtp_ie_apn_labels_cnt(const char *buffer, size_t size)
+gtp_apn_labels_cnt(const char *buffer, size_t size)
 {
 	const char *end = buffer + size;
 	const char *cp;
@@ -461,28 +461,34 @@ gtp_ie_apn_labels_cnt(const char *buffer, size_t size)
 }
 
 int
-gtp_ie_apn_extract_ni(struct gtp_ie_apn *apn, char *buffer, size_t size)
+gtp_apn_extract_ni(const uint8_t *apn, size_t asize, char *dst, size_t dsize)
 {
-	uint8_t *cp, *end = apn->apn + ntohs(apn->h.length);
+	const uint8_t *cp, *end = apn + asize;
 	int labels_cnt = 0;
 	size_t offset = 0;
 
 	/* Phase 1 : find out labels nb */
-	labels_cnt = gtp_ie_apn_labels_cnt((char *)apn->apn, ntohs(apn->h.length));
+	labels_cnt = gtp_apn_labels_cnt((char *)apn, asize);
 
 	/* Phase 2 : copy labels */
-	for (cp = apn->apn; cp < end && labels_cnt-- > 3; cp+=*cp+1) {
-		if (offset + *cp > size)
+	for (cp = apn; cp < end && labels_cnt-- > 3; cp += *cp+1) {
+		if (offset + *cp > dsize)
 			return -1;
 
-		memcpy(buffer+offset, cp+1, *cp);
+		memcpy(dst+offset, cp+1, *cp);
 		offset += *cp;
-		buffer[offset++] = '.';
+		dst[offset++] = '.';
 	}
 
-	buffer[offset - 1] = 0;
+	dst[offset - 1] = 0;
 
 	return 0;
+}
+
+int
+gtp_ie_apn_extract_ni(struct gtp_ie_apn *apn, char *dst, size_t dsize)
+{
+	return gtp_apn_extract_ni(apn->apn, ntohs(apn->h.length), dst, dsize);
 }
 
 static int
@@ -493,7 +499,7 @@ gtp_ie_apn_extract_labels(struct gtp_ie_apn *apn, int until_label, char *buffer,
 	size_t offset = 0;
 
 	/* Phase 1 : find out labels nb */
-	labels_cnt = gtp_ie_apn_labels_cnt((char *)apn->apn, ntohs(apn->h.length));
+	labels_cnt = gtp_apn_labels_cnt((char *)apn->apn, ntohs(apn->h.length));
 
 	/* Phase 2 : skip NI */
 	for (cp = apn->apn; cp < end && labels_cnt-- > 3; cp+=*cp+1) ;

@@ -103,6 +103,11 @@ pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi, uint64_t *im
 	return 0;
 }
 
+int
+pfcp_ie_decode_apn_dnn_ni(struct pfcp_ie_apn_dnn *apn, char *dst, size_t dsize)
+{
+	return gtp_apn_extract_ni(apn->apn_dnn, ntohs(apn->h.length), dst, dsize);
+}
 
 /*
  *	PFCP Pkt IE Factory
@@ -173,6 +178,13 @@ pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsi
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
+}
+
+int
+pfcp_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize, uint8_t cause)
+{
+	int err = pfcp_ie_put_node_id(pbuff, node_id, nsize);
+	return (err) ? : pfcp_ie_put_cause(pbuff, cause);
 }
 
 

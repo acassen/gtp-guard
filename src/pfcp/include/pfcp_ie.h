@@ -3479,8 +3479,11 @@ int pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
 		    void *arg1, void *arg2);
 int pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi,
 			   uint64_t *imei, uint64_t *msisdn);
+int pfcp_ie_decode_apn_dnn_ni(struct pfcp_ie_apn_dnn *apn, char *dst, size_t dsize);
 int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
 int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
 int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize);
+int pfcp_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize,
+			 uint8_t cause);

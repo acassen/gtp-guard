@@ -233,6 +233,17 @@ DEFUN(no_pfcp_debug,
 	return CMD_SUCCESS;
 }
 
+DEFUN(pfcp_strict_apn,
+      pfcp_strict_apn_cmd,
+      "strict-apn",
+      "Use Strict APN binding for Session Establishment\n")
+{
+	struct pfcp_router *c = vty->index;
+
+	__set_bit(PFCP_ROUTER_FL_STRICT_APN_BIT, &c->flags);
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	Show commands
@@ -350,6 +361,8 @@ config_pfcp_router_write(struct vty *vty)
 				   , inet_sockaddrtos(&srv->s.addr)
 				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
+		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN_BIT, &c->flags))
+			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
 		vty_out(vty, "!\n");
 	}
 
@@ -374,6 +387,7 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &no_pfcp_debug_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_strict_apn_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

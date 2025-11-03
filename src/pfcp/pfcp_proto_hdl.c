@@ -26,6 +26,7 @@
 #include "pfcp_proto_dump.h"
 #include "pfcp_utils.h"
 #include "gtp_conn.h"
+#include "gtp_apn.h"
 #include "pkt_buffer.h"
 #include "bitops.h"
 #include "logger.h"
@@ -34,6 +35,8 @@
 /*
  *	PFCP Protocol helpers
  */
+
+/* Heartbeat */
 static int
 pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
@@ -57,6 +60,8 @@ pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct soc
 	return 0;
 }
 
+
+/* pfd management */
 static int
 pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
@@ -70,8 +75,8 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struc
 	pfcph->type = PFCP_PFD_MANAGEMENT_RESPONSE;
 
 	/* Append IEs */
-	err = pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_ACCEPTED);
-	err = (err) ? : pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
+	err = pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+				   PFCP_CAUSE_REQUEST_ACCEPTED);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
@@ -81,6 +86,8 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struc
 	return 0;
 }
 
+
+/* Association setup */
 static int
 pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
@@ -114,8 +121,7 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct s
 	pfcph->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
 
 	/* Append IEs */
-	err = pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
-	err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
+	err = pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len, cause);
 	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
@@ -126,6 +132,35 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct s
 	return 0;
 }
 
+
+/* Session Establishment */
+static struct gtp_apn *
+pfcp_session_get_apn(struct pfcp_ie_apn_dnn *apn_dnn)
+{
+	struct gtp_apn *apn;
+	char apn_str[64];
+	int err;
+
+	if (!apn_dnn)
+		return NULL;
+
+	err = pfcp_ie_decode_apn_dnn_ni(apn_dnn, apn_str, sizeof(apn_str) - 1);
+	if (err) {
+		log_message(LOG_INFO, "%s(): malformed IE APN-DNN... rejecting..."
+				    , __FUNCTION__);
+		return NULL;
+	}
+
+	apn = gtp_apn_get(apn_str);
+	if (!apn) {
+		log_message(LOG_INFO, "%s(): Unknown Access-Point-Name:'%s'. rejecting..."
+				    , __FUNCTION__, apn_str);
+		return NULL;
+	}
+
+	return apn;
+}
+
 static int
 pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
 {
@@ -134,8 +169,8 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	struct pfcp_router *ctx = srv->ctx;
 	struct pfcp_assoc *assoc;
 	struct gtp_conn *c;
+	struct gtp_apn *apn = NULL;
 	struct pfcp_session_establishment_request *req;
-	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 	uint64_t imsi, imei, msisdn;
 	int err;
 
@@ -146,33 +181,32 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	pfcph->type = PFCP_SESSION_ESTABLISHMENT_RESPONSE;
 
 	assoc = pfcp_assoc_get_by_ie(req->node_id);
-	if (!assoc) {
-		cause = PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION;
+	if (!assoc)
+		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					    PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION);
 
-		/* Append IEs */
-		err = pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
-		err = (err) ? : pfcp_ie_put_cause(pbuff, cause);
-		if (err) {
-			log_message(LOG_INFO, "%s(): Error while Appending IEs"
-					    , __FUNCTION__);
-			return -1;
-		}
-
-		return 0;
+	/* APN selection */
+	if (__test_bit(PFCP_ROUTER_FL_STRICT_APN_BIT, &ctx->flags)) {
+		apn = pfcp_session_get_apn(req->apn_dnn);
+		if (!apn)
+			return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+						    PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	/* User infos */
 	if (!req->user_id) {
-		log_message(LOG_INFO, "%s(): IE User-ID not present... dropping..."
+		log_message(LOG_INFO, "%s(): IE User-ID not present... rejecting..."
 				    , __FUNCTION__);
-		return -1;
+		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					    PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	err = pfcp_ie_decode_user_id(req->user_id, &imsi, &imei, &msisdn);
 	if (err) {
-		log_message(LOG_INFO, "%s(): malformed IE User-ID... dropping..."
+		log_message(LOG_INFO, "%s(): malformed IE User-ID... rejecting..."
 				    , __FUNCTION__);
-		return -1;
+		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					    PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	c = gtp_conn_get_by_imsi(imsi);

@@ -28,6 +28,7 @@
 
 enum pfcp_flags {
 	PFCP_ROUTER_FL_LISTEN_BIT,
+	PFCP_ROUTER_FL_STRICT_APN_BIT,
 };
 
 enum pfcp_debug_flags {
