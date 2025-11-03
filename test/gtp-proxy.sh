@@ -65,6 +65,7 @@ setup_combined() {
     arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
 
     ip netns exec cloud ethtool -K veth0 gro on
+    ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
 # everyone on its own interface
@@ -135,8 +136,8 @@ setup_split() {
     # so add static entries
     arp -s 192.168.61.129 d2:ad:ca:fe:b4:03
 
-    # fix weird thing with packet checksum sent from a
-    # classic socket (eg SOCK_DGRAM).
+    # tx-checksumming on means it is offloaded on nic.
+    # on veth, it is done on the RX side, but after xdp hook. disable it.
     ip netns exec cloud ethtool -K $ns_tun_dev tx-checksumming off >/dev/null
     ip netns exec sgw ethtool -K sgw tx-checksumming off >/dev/null
     ip netns exec pgw ethtool -K pgw tx-checksumming off >/dev/null

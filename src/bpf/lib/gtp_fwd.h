@@ -47,7 +47,7 @@ gtpu_xlat_iph(struct iphdr *iph, __be32 saddr, __be32 daddr)
 	__u32 csum = 0;
 
 	/* Phase 1 : rewrite IP header */
-	iph->saddr = saddr ?: iph->daddr;
+	iph->saddr = saddr;
 	iph->daddr = daddr;
 	--iph->ttl;
 	iph->check = 0;
@@ -59,13 +59,16 @@ static __always_inline void
 gtpu_xlat_header(struct gtp_teid_rule *rule, struct iphdr *iph, struct udphdr *udph,
 		 struct gtphdr *gtph)
 {
+	/* Phase 0 : update udp checksum, if set */
+	if (udph->check) {
+		__u32 sum = csum_diff32(0, iph->saddr, rule->src_addr);
+		sum = csum_diff32(sum, iph->daddr, rule->dst_addr);
+		__u16 nsum = csum_replace(udph->check, sum - 1);
+		udph->check = nsum ?: 0xffff;
+	}
+
 	/* Phase 1 : rewrite IP header */
 	gtpu_xlat_iph(iph, rule->src_addr, rule->dst_addr);
-
-	// XXX Should also update udp checksum, if set
-	if (udph->check) {
-		udph->check = 0;
-	}
 
 	/* Phase 2 : we are into transparent mode
 	 * so just forward ingress src port.
