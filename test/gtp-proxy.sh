@@ -37,6 +37,9 @@ setup_combined() {
 	ip addr add 192.168.61.$((i*8+1))/25 dev gtpp
 	arp -s 192.168.61.$((i*8+2)) d2:ad:ca:fe:aa:01
 	arp -s 192.168.61.$((i*8+3)) d2:ad:ca:fe:aa:01
+
+	# for ipfrag test, when replying
+	ip -n cloud route add 192.168.61.$((i*8+1)) dev veth0 mtu 1480
     done
 
     # tun
@@ -255,7 +258,9 @@ show interface-rules
 pkt() {
     # gtp-proxy instance number to use
     inst=${1:-0}
-    echo "run instance $inst"
+    data=${2:-'Raw("DATADATA")]'}
+
+    echo "run instance $inst, mode $type"
 
     if [ "$type" == "split" ]; then
 	ingress_ns=sgw
@@ -301,11 +306,12 @@ import socket
 import struct
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 fd.bind(('$egress_ip', 2152))
-data, remote = fd.recvfrom(1024)
+data, remote = fd.recvfrom(8096)
 data = bytearray(data)
 teid = struct.unpack('!I', data[4:8])[0]
 rteid = (teid + 1) + 256
-print('PGW: receive data, teid is 0x%08x, send back 0x%08x' % (teid,rteid))
+print('PGW: receive data len:%d, teid is 0x%08x, send back 0x%08x' %
+      (len(data),teid,rteid))
 data[4:8] = struct.pack('!I', rteid)
 data = bytes(data)
 fd.sendto(data, remote)
@@ -341,7 +347,7 @@ p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   IP(src='$ingress_ip', dst='192.168.61.$((inst*8+1))') /
   UDP(sport=2152, dport=2152) /
   GTP_U_Header(teid=$((inst*10+257)), gtp_type=255) /
-  Raw('DATADATA')]
+  $data
 "
     else
 	send_py_pkt sgw sgw "
@@ -349,7 +355,7 @@ p = [Ether(dst='d2:f0:0c:ba:a5:06', src='d2:ad:ca:fe:b4:02') /
   IP(src='$ingress_ip', dst='192.168.61.$((64+inst*4+1))') /
   UDP(sport=2152, dport=2152) /
   GTP_U_Header(teid=$((inst*10+257)), gtp_type=255) /
-  Raw('DATADATA')]
+  $data
 "
     fi
 
@@ -362,6 +368,16 @@ pkt_all() {
     for i in `seq 0 $((gtp_proxy_count-1))`; do
 	pkt $i
     done
+}
+
+# send a fragmented gtp-u packet
+pkt_frag() {
+    pkt 0 '
+  Raw("B" + "a" * 1800 + "E") ]
+p = fragment(p, fragsize=1460)
+# to send out of order
+#p.insert(0, p.pop(1))
+'
 }
 
 action=${1:-setup}
@@ -386,6 +402,8 @@ case $action in
 	pkt ;;
     pkt_all)
 	pkt_all ;;
+    pkt_frag)
+	pkt_frag ;;
 
     *) fail "action '$action' not recognized" ;;
 esac

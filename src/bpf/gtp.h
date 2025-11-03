@@ -100,6 +100,7 @@ struct ip_frag_key {
 };
 
 struct gtp_teid_frag {
+	__be32		src_addr;
 	__be32		dst_addr;
 	struct bpf_timer timer;
 };
