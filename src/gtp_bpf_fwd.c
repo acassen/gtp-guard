@@ -197,19 +197,21 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 	struct table *tbl;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_teid_rule r[nr_cpus];
-	size_t sz = nr_cpus * sizeof(struct gtp_teid_rule);
+	struct gtp_proxy *proxy;
+	const char *dir_str;
 	char addr_ip[16];
 	uint32_t key = 0;
+	bool egress;
 	int err = 0, i;
 
 	if (!pf || !pf->teid_xlat)
 		return -1;
 
-	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
+	tbl = table_init(6, STYLE_SINGLE_LINE_ROUNDED);
 	table_set_column(tbl, "VTEID", "TEID", "Endpoint Address",
-			 "Packets", "Bytes");
+			 "Direction", "Packets", "Bytes");
 	table_set_header_align(tbl, ALIGN_CENTER, ALIGN_CENTER, ALIGN_CENTER,
-			       ALIGN_CENTER, ALIGN_CENTER);
+			       ALIGN_CENTER, ALIGN_CENTER, ALIGN_CENTER);
 
 	vty_out(vty, "bpf-program '%s'\n", p->name);
 
@@ -217,11 +219,20 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 	memset(r, 0x00, sizeof(r));
 	while (!bpf_map__get_next_key(pf->teid_xlat, &key, &key, sizeof(uint32_t))) {
 		err = bpf_map__lookup_elem(pf->teid_xlat, &key, sizeof(uint32_t),
-					   r, sz, 0);
+					   r, sizeof (r), 0);
 		if (err) {
 			vty_out(vty, "%% error fetching value for "
 				"teid_key:0x%.8x (%m)\n", key);
 			break;
+		}
+
+		dir_str = "Unknown";
+		list_for_each_entry(proxy, &pf->gtp_proxy_list, bpf_list) {
+			if (!gtp_proxy_rules_remote_exists(proxy, r[0].dst_addr,
+							   &egress)) {
+				dir_str = egress ? "Egress" : "Ingress";
+				break;
+			}
 		}
 
 		for (i = 1; i < nr_cpus; i++) {
@@ -229,10 +240,10 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 			r[0].bytes += r[i].bytes;
 		}
 
-		table_add_row_fmt(tbl, "0x%.8x|0x%.8x|%s|%lld|%lld",
+		table_add_row_fmt(tbl, "0x%.8x|0x%.8x|%s|%s|%lld|%lld",
 				  r[0].vteid, ntohl(r[0].teid),
 				  inet_ntoa2(r[0].dst_addr, addr_ip),
-				  r[0].packets, r[0].bytes);
+				  dir_str, r[0].packets, r[0].bytes);
 	}
 
 	table_vty_out(tbl, vty);
