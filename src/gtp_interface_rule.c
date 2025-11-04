@@ -23,8 +23,11 @@
 
 /* local includes */
 #include "gtp_interface.h"
+#include "gtp_bpf_utils.h"
+#include "utils.h"
 #include "vty.h"
 #include "addr.h"
+#include "table.h"
 #include "logger.h"
 #include "bpf/lib/if_rule-def.h"
 
@@ -79,9 +82,9 @@ _rule_find(struct gtp_bpf_interface_rule *ir, const struct gtp_if_rule *r,
 	struct stored_rule *sr;
 
 	list_for_each_entry(sr, &ir->rule_list, list) {
-		if (sr->r.from == r->from &&
-		    !memcmp(sr->r.key, r->key, r->key_size) &&
-		    (!exact || (sr->r.to == r->to &&
+		if (!memcmp(sr->r.key, r->key, r->key_size) &&
+		    (!exact || (sr->r.from == r->from &&
+				sr->r.to == r->to &&
 				sr->r.prio == r->prio))) {
 			return sr;
 		}
@@ -138,35 +141,42 @@ static int
 _rule_install(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r,
 	      bool overwrite)
 {
+	uint32_t nr_cpus = bpf_num_possible_cpus();
 	struct if_rule_key_base *k = r->key;
-	struct if_rule ar = {};
-	int ret;
+	struct if_rule aar[nr_cpus];
+	struct if_rule *ar = &aar[0];
+	int i, ret;
+
+	memset(aar, 0x00, sizeof (aar));
 
 	/* set up rule */
-	ar.action = r->action;
-	ar.table = r->from->table_id;
+	ar->action = r->action;
+	ar->table = r->from->table_id;
 	if (r->to != NULL) {
-		ar.vlan_id = r->to->vlan_id;
+		ar->vlan_id = r->to->vlan_id;
 		if (r->to->tunnel_mode == 1) {
-			ar.tun_remote = addr_toip4(&r->to->tunnel_remote);
-			ar.flags |= IF_RULE_FL_TUNNEL_GRE;
+			ar->tun_remote = addr_toip4(&r->to->tunnel_remote);
+			ar->flags |= IF_RULE_FL_TUNNEL_GRE;
 		} else if (r->to->tunnel_mode == 2) {
-			ar.tun_remote = addr_toip4(&r->to->tunnel_remote);
-			ar.flags |= IF_RULE_FL_TUNNEL_IPIP;
+			ar->tun_remote = addr_toip4(&r->to->tunnel_remote);
+			ar->flags |= IF_RULE_FL_TUNNEL_IPIP;
 		}
 
 		/* when output interface is a sub-interface, we force output
 		 * ifindex to it (otherwise bpf_fib_lookup will send from it) */
 		if (r->to->link_iface)
-			ar.ifindex = r->to->link_iface->ifindex;
+			ar->ifindex = r->to->link_iface->ifindex;
 	}
 
 	printf("add acl if:%d vlan:%d ip-table:%d tun:%d/%x/%x sizeof:%d\n",
-	       k->ifindex, k->vlan_id, ar.table,
+	       k->ifindex, k->vlan_id, ar->table,
 	       r->from->tunnel_mode, k->tun_local, k->tun_remote, r->key_size);
 
+	for (i = 1; i < nr_cpus; i++)
+		aar[i] = aar[0];
+
 	ret = bpf_map__update_elem(ir->acl, k, r->key_size,
-				   &ar, sizeof (ar),
+				   ar, sizeof (aar),
 				   overwrite ? 0 : BPF_NOEXIST);
 	if (ret) {
 		printf("cannot %s rule! (%d / %m)\n",
@@ -271,7 +281,7 @@ gtp_interface_rule_set_custom_key_stringify(struct gtp_bpf_prog *p, key_stringif
 }
 
 int
-gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
+gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg)
 {
 	struct gtp_bpf_interface_rule *r = gtp_bpf_prog_tpl_data_get(p, "if_rules");
 	struct gtp_interface *from = NULL, *to;
@@ -289,8 +299,9 @@ gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 	}
 
 	list_for_each_entry(sr, &r->rule_list, list) {
+		*buf = 0;
 		if (r->key_stringify_cb != NULL && sr->r.key_size > sizeof (*k))
-			r->key_stringify_cb(&sr->r, buf, sizeof (buf));
+			r->key_stringify_cb(&sr->r, buf, sizeof (buf), false);
 		k = sr->r.key;
 
 		if (sr->r.from != from) {
@@ -340,6 +351,88 @@ gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 
 	return 0;
 }
+
+int
+gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
+{
+	struct gtp_bpf_interface_rule *r = gtp_bpf_prog_tpl_data_get(p, "if_rules");
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct if_rule aar[nr_cpus];
+	struct if_rule *ar = &aar[0];
+	struct gtp_if_rule gr = {};
+	struct if_rule_key_base *k;
+	struct stored_rule *sr;
+	struct table *tbl;
+	struct vty *vty = arg;
+	char match[50], iface_buf[50], buf[200], b2[60];
+	void *key = NULL;
+	int i, l, err;
+
+	if (r == NULL || r->acl == NULL)
+		return 0;
+
+	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "iface", "match", "pkt in", "bytes in", "pkt fwd");
+
+	/* Walk hashtab */
+	uint8_t key_stor[r->key_size];
+	gr.key_size = r->key_size;
+	memset(aar, 0x00, sizeof (aar));
+	while (!bpf_map__get_next_key(r->acl, key, &key_stor, r->key_size)) {
+		key = key_stor;
+		err = bpf_map__lookup_elem(r->acl, key, r->key_size,
+					   ar, sizeof (aar), 0);
+		if (err) {
+			vty_out(vty, "%% error fetching value from table (%m)\n");
+			break;
+		}
+
+		gr.key = key;
+		sr = _rule_find(r, &gr, false);
+		if (sr == NULL) {
+			vty_out(vty, "%% sync failure: bpf key not in userapp\n");
+			continue;
+		}
+		k = sr->r.key;
+
+		/* build iface string */
+		snprintf(iface_buf, sizeof (iface_buf), "%s -> %s",
+			 sr->r.from->ifname, sr->r.to->ifname);
+
+		/* build match string */
+		l = 0;
+		*buf = 0;
+		if (r->key_stringify_cb != NULL && sr->r.key_size > sizeof (*k))
+			r->key_stringify_cb(&sr->r, buf, sizeof (buf), true);
+		if (k->vlan_id)
+			l += scnprintf(match + l, sizeof (match) - l, "vlan:%d ",
+				       k->vlan_id);
+		if (sr->r.from->tunnel_mode)
+			l += scnprintf(match + l, sizeof (match) - l, "%s:%s ",
+				sr->r.from->tunnel_mode == 1 ? "gre" : "ipip",
+				inet_ntop(AF_INET, &k->tun_remote, b2, sizeof (b2)));
+		if (*buf)
+			l += scnprintf(match + l, sizeof (match) - l, "%s ", buf);
+		match[l ? l - 1 : 0] = 0;
+
+
+		/* compute metrics */
+		for (i = 1; i < nr_cpus; i++) {
+			ar->pkt_in += aar[i].pkt_in;
+			ar->pkt_fwd += aar[i].pkt_fwd;
+			ar->bytes_in += aar[i].bytes_in;
+		}
+
+		table_add_row_fmt(tbl, "%s|%s|%lld|%lld|%lld",
+				  iface_buf, match,
+				  ar->pkt_in, ar->bytes_in, ar->pkt_fwd);
+	}
+
+	table_vty_out(tbl, vty);
+	table_destroy(tbl);
+	return 0;
+}
+
 
 
 /*

@@ -136,7 +136,7 @@ gtp_proxy_ingress_process(struct inet_server *srv, struct sockaddr_storage *addr
 }
 
 static int
-_show_key(const struct gtp_if_rule *r, char *buf, int size)
+_show_key(const struct gtp_if_rule *r, char *buf, int size, bool short_out)
 {
 	const struct if_rule_key *k = r->key;
 	char sb[128], db[128];
@@ -145,6 +145,9 @@ _show_key(const struct gtp_if_rule *r, char *buf, int size)
 		*buf = 0;
 		return 0;
 	}
+	if (short_out)
+		return scnprintf(buf, size, "daddr:%s",
+				 inet_ntop(AF_INET, &k->daddr, db, sizeof (db)));
 	return scnprintf(buf, size, "src_addr:%s dst_addr:%s",
 			 inet_ntop(AF_INET, &k->saddr, sb, sizeof (sb)),
 			 inet_ntop(AF_INET, &k->daddr, db, sizeof (db)));

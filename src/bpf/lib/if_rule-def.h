@@ -22,4 +22,10 @@ struct if_rule
 	__u32 tun_remote;
 	__u16 vlan_id;
 	__u16 flags;
+	__u32 _pad;
+
+	/* metrics */
+	__u64 pkt_in;
+	__u64 bytes_in;
+	__u64 pkt_fwd;
 } __attribute__((packed));

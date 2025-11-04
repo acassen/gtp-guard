@@ -196,7 +196,8 @@ gtp-proxy gtpp-undertest-$i
     gtpg_show "
 show interface
 show bpf forwarding
-show interface-rules
+show interface-rule all
+show interface-rule installed
 "
 }
 
@@ -247,7 +248,8 @@ gtp-proxy gtpp-undertest-$i
     gtpg_show "
 show interface
 show bpf forwarding
-show interface-rules
+show interface-rule all
+show interface-rule installed
 "
 }
 
