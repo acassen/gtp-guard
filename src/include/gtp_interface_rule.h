@@ -32,12 +32,13 @@ struct gtp_if_rule
 	int prio;
 };
 
-typedef int (*key_stringify_cb_t)(const struct gtp_if_rule *, char *, int);
+typedef int (*key_stringify_cb_t)(const struct gtp_if_rule *, char *, int, bool);
 
 /* Prototypes */
 int gtp_interface_rule_add(struct gtp_if_rule *);
 void gtp_interface_rule_del(struct gtp_if_rule *);
 void gtp_interface_rule_del_iface(struct gtp_interface *);
+int gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg);
 int gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg);
 void gtp_interface_rule_set_custom_key_stringify(struct gtp_bpf_prog *p,
 						 key_stringify_cb_t cb);

@@ -112,7 +112,7 @@ gtp_interface_get(const char *name, bool alloc)
 	 * it will alloc the gtp_interface data */
 	if (alloc) {
 		ifindex = if_nametoindex(name);
-		if (ifindex >= 0 &&
+		if (ifindex > 0 &&
 		    !gtp_netlink_if_lookup(ifindex))
 			return gtp_interface_get(name, false);
 	}
@@ -156,6 +156,7 @@ gtp_interface_start(struct gtp_interface *iface)
 	    __test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
 		return 0;
 
+	/* run without bpf program */
 	if (!p) {
 		__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
 		return 0;
@@ -264,6 +265,9 @@ gtp_interface_unregister_event(struct gtp_interface *iface,
 			       gtp_interface_event_cb_t cb)
 {
 	int i;
+
+	if (!iface)
+		return;
 
 	for (i = 0; i < iface->ev_n; i++) {
 		if (iface->ev[i].cb == cb) {

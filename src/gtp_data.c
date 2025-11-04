@@ -68,7 +68,7 @@ alloc_daemon_data(void)
 void
 free_daemon_data(void)
 {
-	gtp_proxy_server_destroy();
+	gtp_proxy_server_stop();
 	gtp_router_server_destroy();
 	gtp_request_destroy();
 	gtp_metrics_destroy();

@@ -16,6 +16,7 @@
 #include "tools.h"
 #include "if_rule-def.h"
 
+
 /*
  * this is an optional way to add custom data to if_rule key: define
  * if_rule_key, IF_RULE_CUSTOM_KEY, and add a parser function to
@@ -37,14 +38,15 @@ typedef int (*rule_selector_t)(struct if_rule_data *d, struct iphdr *iph);
 #endif
 
 struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 512);
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(max_entries, IF_RULE_MAX_RULE);
 	__type(key, struct if_rule_key);
 	__type(value, struct if_rule);
 } if_rule SEC(".maps");
 
-#define IF_RULE_FL_XDP_ADJUSTED		0x01
 
+
+#define IF_RULE_FL_XDP_ADJUSTED		0x01
 
 struct if_rule_data
 {
@@ -62,23 +64,26 @@ static __always_inline int
 _acl_ipv4(struct if_rule_data *d, rule_selector_t rscb, struct iphdr *iph)
 {
 	struct if_rule_key_base *k = &d->k.b;
+	int action = XDP_PASS;
 
 	bpf_printk("acl: searching if:%d vlan:%d tun:%x|%x",
 		   k->ifindex, k->vlan_id, k->tun_local, k->tun_remote);
 
 #ifdef IF_RULE_CUSTOM_KEY
-	int ret;
-	if ((ret = rscb(d, iph)) >= 0)
-		return ret;
+	action = rscb(d, iph);
+#else
+	d->r = bpf_map_lookup_elem(&if_rule, &d->k);
 #endif
 
-	d->r = bpf_map_lookup_elem(&if_rule, &d->k);
 	if (d->r == NULL)
-		return XDP_PASS;
+		return action;
 
 	bpf_printk("got the rule ! table:%d vlan:%d gre_r:%x action:%d iface:%d",
 		   d->r->table, d->r->vlan_id, d->r->tun_remote,
 		   d->r->action, d->r->ifindex);
+
+	d->r->pkt_in++;
+	d->r->bytes_in += d->ctx->data_end - d->ctx->data;
 
 	return d->r->action;
 }
@@ -111,7 +116,6 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 	struct iphdr *ip4h, *ip4h_in;
 	__u16 offset;
 	__u16 eth_type;
-	int ret;
 
 	if ((void *)(ethh + 1) > data_end)
 		return XDP_DROP;
@@ -327,6 +331,9 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		csum_ipv4(ip4h, sizeof(struct iphdr), &csum);
 		ip4h->check = csum;
 	}
+
+	/* metrics */
+	d->r->pkt_fwd++;
 
 	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);

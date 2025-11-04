@@ -76,7 +76,7 @@ int gtp_fwd_main(struct xdp_md *ctx)
 	else
 		ret = gtpu_traffic_selector(&d);
 
-	if (ret == 0)
+	if (ret == 10)
 		return if_rule_rewrite_pkt(ctx, &d);
 
 	return ret;

@@ -240,7 +240,7 @@ int64_to_bcd(const uint64_t value, uint8_t *buffer, size_t size)
 uint8_t
 hex_to_bcd(uint8_t data)
 {
-        return ((data / 10) << 4) + (data % 10);
+	return ((data / 10) << 4) + (data % 10);
 }
 
 
@@ -715,12 +715,9 @@ static const char *gtp_flags_strs[] = {
 	[GTP_FL_UPF_BIT] = "GTP_FL_UPF_BIT",
 	[GTP_FL_FORCE_PGW_BIT] = "GTP_FL_FORCE_PGW_BIT",
 	[GTP_FL_IPTNL_BIT] = "GTP_FL_IPTNL_BIT",
-	[GTP_FL_DIRECT_TX_BIT] = "GTP_FL_DIRECT_TX_BIT",
 	[GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT] = "GTP_FL_SESSION_EXPIRATION_DELETE_TO_BIT",
 	[GTP_FL_GTPC_INGRESS_BIT] = "GTP_FL_GTPC_INGRESS_BIT",
 	[GTP_FL_GTPC_EGRESS_BIT] = "GTP_FL_GTPC_EGRESS_BIT",
-	[GTP_FL_GTPU_INGRESS_BIT] = "GTP_FL_GTPU_INGRESS_BIT",
-	[GTP_FL_GTPU_EGRESS_BIT] = "GTP_FL_GTPU_EGRESS_BIT",
 };
 
 char *
