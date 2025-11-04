@@ -25,6 +25,7 @@
 #include "gtp_interface.h"
 #include "gtp_bpf_utils.h"
 #include "utils.h"
+#include "jhash.h"
 #include "vty.h"
 #include "addr.h"
 #include "table.h"
@@ -39,6 +40,7 @@ struct gtp_bpf_interface_rule
 	key_stringify_cb_t	key_stringify_cb;
 	bool			rule_list_sorted;
 	struct list_head	rule_list;
+	struct hlist_head	rule_hlist[IF_RULE_MAX_RULE];
 };
 
 
@@ -47,6 +49,7 @@ struct stored_rule
 	struct gtp_if_rule	r;
 	bool			installed;
 	struct list_head	list;
+	struct hlist_node	hlist;
 };
 
 static inline struct gtp_bpf_interface_rule *
@@ -80,8 +83,9 @@ _rule_find(struct gtp_bpf_interface_rule *ir, const struct gtp_if_rule *r,
 	   bool exact)
 {
 	struct stored_rule *sr;
+	uint32_t h = jhash(r->key, r->key_size, 0) % IF_RULE_MAX_RULE;
 
-	list_for_each_entry(sr, &ir->rule_list, list) {
+	hlist_for_each_entry(sr, &ir->rule_hlist[h], hlist) {
 		if (!memcmp(sr->r.key, r->key, r->key_size) &&
 		    (!exact || (sr->r.from == r->from &&
 				sr->r.to == r->to &&
@@ -95,6 +99,7 @@ _rule_find(struct gtp_bpf_interface_rule *ir, const struct gtp_if_rule *r,
 static struct stored_rule *
 _rule_store(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r)
 {
+	uint32_t h = jhash(r->key, r->key_size, 0) % IF_RULE_MAX_RULE;
 	struct stored_rule *sr;
 
 	sr = calloc(1, sizeof (*sr) + r->key_size);
@@ -102,6 +107,7 @@ _rule_store(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r)
 	sr->r.key = sr + 1;
 	memcpy(sr + 1, r->key, r->key_size);
 	list_add(&sr->list, &ir->rule_list);
+	hlist_add_head(&sr->hlist, &ir->rule_hlist[h]);
 	ir->rule_list_sorted = false;
 	return sr;
 }
@@ -110,6 +116,7 @@ static void
 _rule_del(struct stored_rule *sr)
 {
 	list_del(&sr->list);
+	hlist_del(&sr->hlist);
 	free(sr);
 }
 

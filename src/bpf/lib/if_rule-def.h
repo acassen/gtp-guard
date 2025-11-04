@@ -2,9 +2,11 @@
 
 #pragma once
 
+#define IF_RULE_MAX_RULE	2048
+
+
 #define IF_RULE_FL_TUNNEL_IPIP	0x0001
 #define IF_RULE_FL_TUNNEL_GRE	0x0002
-
 
 struct if_rule_key_base
 {

@@ -16,6 +16,7 @@
 #include "tools.h"
 #include "if_rule-def.h"
 
+
 /*
  * this is an optional way to add custom data to if_rule key: define
  * if_rule_key, IF_RULE_CUSTOM_KEY, and add a parser function to
@@ -38,13 +39,14 @@ typedef int (*rule_selector_t)(struct if_rule_data *d, struct iphdr *iph);
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-	__uint(max_entries, 2048);
+	__uint(max_entries, IF_RULE_MAX_RULE);
 	__type(key, struct if_rule_key);
 	__type(value, struct if_rule);
 } if_rule SEC(".maps");
 
-#define IF_RULE_FL_XDP_ADJUSTED		0x01
 
+
+#define IF_RULE_FL_XDP_ADJUSTED		0x01
 
 struct if_rule_data
 {
