@@ -200,14 +200,13 @@ cgn_ctx_iface_event_cb(struct gtp_interface *iface,
 		break;
 
 	case GTP_INTERFACE_EV_VTY_SHOW:
-	case GTP_INTERFACE_EV_VTY_WRITE:
 	{
 		struct vty *vty = arg;
 		if (iface == c->priv)
-			vty_out(vty, " carrier-grade-nat %s side network-in\n",
+			vty_out(vty, " carrier-grade-nat:%s side ingress\n",
 				c->name);
 		if (iface == c->pub)
-			vty_out(vty, " carrier-grade-nat %s side network-out\n",
+			vty_out(vty, " carrier-grade-nat:%s side egress\n",
 				c->name);
 		break;
 	}

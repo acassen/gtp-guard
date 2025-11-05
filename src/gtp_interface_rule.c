@@ -134,11 +134,15 @@ _rule_set_key_base(struct gtp_bpf_interface_rule *ir, int ifindex, struct gtp_if
 	/* set up key */
 	k->ifindex = ifindex;
 	k->vlan_id = r->from->vlan_id;
-	k->tun_local = 0;
-	k->tun_remote = 0;
 	if (r->from->tunnel_mode > 0) {
 		k->tun_local = addr_toip4(&r->from->tunnel_local);
 		k->tun_remote = addr_toip4(&r->from->tunnel_remote);
+		k->flags = r->from->tunnel_mode == 1 ?
+			IF_RULE_FL_TUNNEL_GRE :	IF_RULE_FL_TUNNEL_IPIP;
+	} else {
+		k->tun_local = 0;
+		k->tun_remote = 0;
+		k->flags = 0;
 	}
 
 	return 0;
@@ -176,7 +180,7 @@ _rule_install(struct gtp_bpf_interface_rule *ir, struct gtp_if_rule *r,
 	}
 
 	printf("add acl if:%d vlan:%d ip-table:%d tun:%d/%x/%x sizeof:%d\n",
-	       k->ifindex, k->vlan_id, ar->table,
+	       k->ifindex, k->vlan_id, r->from->table_id,
 	       r->from->tunnel_mode, k->tun_local, k->tun_remote, r->key_size);
 
 	for (i = 1; i < nr_cpus; i++)
@@ -266,14 +270,14 @@ gtp_interface_rule_del_iface(struct gtp_interface *iface)
 		return;
 
 	list_for_each_entry_safe(sr, sr_tmp, &ir->rule_list, list) {
-		if (sr->r.from == iface || sr->r.to == iface) {
+		if (sr->r.from == iface || sr->r.from->link_iface == iface ||
+		    sr->r.to == iface || sr->r.to->link_iface == iface) {
 			if (sr->installed)
 				_rule_uninstall(ir, &sr->r);
 			_rule_del(sr);
 		}
 	}
 }
-
 
 /*
  *	vty dump
@@ -420,7 +424,10 @@ gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 				inet_ntop(AF_INET, &k->tun_remote, b2, sizeof (b2)));
 		if (*buf)
 			l += scnprintf(match + l, sizeof (match) - l, "%s ", buf);
-		match[l ? l - 1 : 0] = 0;
+		if (!l)
+			snprintf(match, sizeof (match), "all");
+		else
+			match[l - 1] = 0;
 
 
 		/* compute metrics */

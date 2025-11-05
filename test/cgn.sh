@@ -486,22 +486,22 @@ bpf-program cgn-ng-1
  path bin/cgn.bpf
  no shutdown
 
-interface priv
- bpf-program cgn-ng-1
- no shutdown
-
 interface priv.20
  description priv_itf
  ip route table-id 1310
  no shutdown
 
-interface pub
+interface priv
  bpf-program cgn-ng-1
  no shutdown
 
 interface pub.10
  description pub_itf
  ip route table-id 1320
+ no shutdown
+
+interface pub
+ bpf-program cgn-ng-1
  no shutdown
 " || fail "cannot execute vty commands"
 
@@ -537,10 +537,6 @@ carrier-grade-nat cgn-ng-1
  interface priv.20 side ingress
  interface pub.10 side egress
 
-interface virt-eth0
- bpf-program cgn-ng-1
- no shutdown
-
 interface priv.20
  description priv_itf
  ip route table-id 1310
@@ -550,6 +546,10 @@ interface pub.10
  description pub_itf
  ip route table-id 1320
  no shutdown
+
+interface virt-eth0
+ bpf-program cgn-ng-1
+ no shutdown
 " || fail "cannot execute vty commands"
 
     sudo ip netns exec router-priv ping -c 1 -W 2 -I 10.0.0.1 8.8.8.8
@@ -557,6 +557,7 @@ interface pub.10
     gtpg_show "
 show interface
 show carrier-grade-nat flows 10.0.0.1
+show interface-rule all
 "
 }
 
@@ -582,15 +583,16 @@ carrier-grade-nat cgn-ng-1
  interface gre-priv side ingress
  interface virt-eth0 side egress
 
+# XXX do not work if declared after virt-eth0
+interface gre-priv
+ description priv_itf_on_gre_tunnel
+ ip route table-id 1310
+ no shutdown
+
 interface virt-eth0
  description internet_connection
  bpf-program cgn-ng-1
  ip route table-id 1320
- no shutdown
-
-interface gre-priv
- description priv_itf_on_gre_tunnel
- ip route table-id 1310
  no shutdown
 " || fail "cannot execute vty commands"
 
