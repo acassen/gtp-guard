@@ -267,19 +267,6 @@ gtp_bpf_fwd_alloc(struct gtp_bpf_prog *p)
 	return pf;
 }
 
-static int
-gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
-{
-	struct gtp_bpf_fwd_data *pf = udata;
-
-	/* MAP ref for faster access */
-	pf->teid_xlat = gtp_bpf_prog_load_map(p->load.obj, "teid_xlat");
-	if (!pf->teid_xlat)
-		return -1;
-
-	return 0;
-}
-
 static void
 gtp_bpf_fwd_release(struct gtp_bpf_prog *p, void *udata)
 {
@@ -294,12 +281,25 @@ gtp_bpf_fwd_release(struct gtp_bpf_prog *p, void *udata)
 	free(pf);
 }
 
+static int
+gtp_bpf_fwd_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
+{
+	struct gtp_bpf_fwd_data *pf = udata;
+
+	/* MAP ref for faster access */
+	pf->teid_xlat = gtp_bpf_prog_load_map(p->load.obj, "teid_xlat");
+	if (!pf->teid_xlat)
+		return -1;
+
+	return 0;
+}
+
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_fwd = {
 	.name = "gtp_fwd",
 	.description = "gtp-forward for gtp-proxy",
 	.alloc = gtp_bpf_fwd_alloc,
-	.loaded = gtp_bpf_fwd_load_maps,
 	.release = gtp_bpf_fwd_release,
+	.loaded = gtp_bpf_fwd_load_maps,
 };
 
 static void __attribute__((constructor))

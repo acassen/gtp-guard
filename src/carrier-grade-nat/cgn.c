@@ -279,13 +279,10 @@ cgn_ctx_alloc(const char *name)
 	if (c == NULL)
 		return NULL;
 
-	/* attach to bpf-prog */
-	if (gtp_bpf_prog_tpl_data_set(p, "cgn", c)) {
-		free(c);
-		return NULL;
-	}
-
 	c->prg = p;
+	c->bpf_data = gtp_bpf_prog_tpl_data_get(p, "cgn");
+	if (c->bpf_data)
+		*c->bpf_data = c;
 	c->port_start = 1500;
 	c->port_end = 65535;
 	c->block_size = 500;
@@ -307,6 +304,12 @@ cgn_ctx_alloc(const char *name)
 void
 cgn_ctx_release(struct cgn_ctx *c)
 {
+	if (c->priv != NULL)
+		cgn_ctx_detach_interface(c, c->priv);
+	if (c->pub != NULL)
+		cgn_ctx_detach_interface(c, c->pub);
+	if (c->bpf_data != NULL)
+		*c->bpf_data = NULL;
 	if (c->blog_cdr_fwd != NULL)
 		--c->blog_cdr_fwd->refcount;
 	cgn_blog_release(c);

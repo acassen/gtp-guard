@@ -419,7 +419,9 @@ run_iface() {
     start_gtpguard
 
     gtpg_conf_nofail "
+no carrier-grade-nat cgn-ng-1
 no bpf-program cgn-ng-1
+no cdr-fwd cgn
 "
 
     gtpg_conf "
@@ -436,19 +438,19 @@ bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description trop_bien
  ipv4-pool 37.141.0.0/24
+ interface priv side ingress
+ interface pub side egress
  cdr-fwd cgn
 
 interface priv
  description priv_itf
  bpf-program cgn-ng-1
- carrier-grade-nat cgn-ng-1 side network-in
  ip route table-id 1290
  no shutdown
 
 interface pub
  description pub_itf
- bpf-program cgn
- carrier-grade-nat cgn-ng-1 side network-out
+ bpf-program cgn-ng-1
  ip route table-id 1290
  no shutdown
 " || fail "cannot execute vty commands"
@@ -468,6 +470,8 @@ run_iface_vlan() {
     start_gtpguard
 
     gtpg_conf_nofail "
+no carrier-grade-nat cgn-ng-1
+no cdr-fwd cgn
 no bpf-program cgn-ng-1
 "
 
@@ -475,6 +479,8 @@ no bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
  ipv4-pool 37.141.0.0/24
+ interface priv.20 side ingress
+ interface pub.10 side egress
 
 bpf-program cgn-ng-1
  path bin/cgn.bpf
@@ -487,7 +493,6 @@ interface priv
 interface priv.20
  description priv_itf
  ip route table-id 1310
- carrier-grade-nat cgn-ng-1 side network-in
  no shutdown
 
 interface pub
@@ -497,7 +502,6 @@ interface pub
 interface pub.10
  description pub_itf
  ip route table-id 1320
- carrier-grade-nat cgn-ng-1 side network-out
  no shutdown
 " || fail "cannot execute vty commands"
 
@@ -518,16 +522,20 @@ run_vlan() {
 
     gtpg_conf_nofail "
 no bpf-program cgn-ng-1
+no carrier-grade-nat cgn-ng-1
+no cdr-fwd cgn
 "
 
     gtpg_conf "
-carrier-grade-nat cgn-ng-1
- description doit_avoir_le_meme_nom_que_le_prog_bpf
- ipv4-pool 37.141.0.0/24
-
 bpf-program cgn-ng-1
  path bin/cgn.bpf
  no shutdown
+
+carrier-grade-nat cgn-ng-1
+ description doit_avoir_le_meme_nom_que_le_prog_bpf
+ ipv4-pool 37.141.0.0/24
+ interface priv.20 side ingress
+ interface pub.10 side egress
 
 interface virt-eth0
  bpf-program cgn-ng-1
@@ -536,13 +544,11 @@ interface virt-eth0
 interface priv.20
  description priv_itf
  ip route table-id 1310
- carrier-grade-nat cgn-ng-1 side network-in
  no shutdown
 
 interface pub.10
  description pub_itf
  ip route table-id 1320
- carrier-grade-nat cgn-ng-1 side network-out
  no shutdown
 " || fail "cannot execute vty commands"
 
@@ -562,6 +568,7 @@ run_gre() {
     gtpg_conf_nofail "
 no bpf-program cgn-ng-1
 no carrier-grade-nat cgn-ng-1
+no cdr-fwd cgn
 "
 
     gtpg_conf "
@@ -572,18 +579,18 @@ bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
  ipv4-pool 37.141.0.0/24
+ interface gre-priv side ingress
+ interface virt-eth0 side egress
 
 interface virt-eth0
  description internet_connection
  bpf-program cgn-ng-1
  ip route table-id 1320
- carrier-grade-nat cgn-ng-1 side network-out
  no shutdown
 
 interface gre-priv
  description priv_itf_on_gre_tunnel
  ip route table-id 1310
- carrier-grade-nat cgn-ng-1 side network-in
  no shutdown
 " || fail "cannot execute vty commands"
 

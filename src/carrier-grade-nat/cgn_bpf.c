@@ -421,7 +421,7 @@ static int
 cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 {
 	struct bpf_object *obj = p->load.obj;
-	struct cgn_ctx *c = udata;
+	struct cgn_ctx **pc = udata, *c = *pc;
 	struct bpf_map *m;
 	uint64_t icmp_to;
 
@@ -479,16 +479,14 @@ static int
 cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 {
 	struct bpf_object *obj = p->load.obj;
-	struct cgn_ctx *c = udata;
+	struct cgn_ctx **pc = udata, *c = *pc;
 	struct cgn_v4_ipblock *ipbl;
 	struct bpf_map *m;
-	const size_t fmsize = (c->cgn_addr_n + 3) * sizeof (int);
-	const int block_msize = sizeof (struct cgn_v4_ipblock) +
-		sizeof (struct cgn_v4_block) * c->block_count;
-	uint32_t i, l, k;
-	uint8_t d[block_msize];
 	void *free_area;
 	int *free_cnt;
+
+	/* prepare() ensures a cgn block is attached */
+	assert(c != NULL);
 
 	/* index bpf maps */
 	c->v4_blocks = bpf_object__find_map_by_name(obj, "v4_blocks");
@@ -509,6 +507,12 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 
 	if (reloading)
 		return 0;
+
+	const size_t fmsize = (c->cgn_addr_n + 3) * sizeof (int);
+	const int block_msize = sizeof (struct cgn_v4_ipblock) +
+		sizeof (struct cgn_v4_block) * c->block_count;
+	uint32_t i, l, k;
+	uint8_t d[block_msize];
 
 	/* prepare memory to be copied to maps */
 	free_cnt = free_area = malloc(fmsize);
@@ -566,14 +570,46 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 static void
 cgn_bpf_closed(struct gtp_bpf_prog *p, void *udata)
 {
-	struct cgn_ctx *c = udata;
+	struct cgn_ctx **c = udata;
 
-	cgn_blog_release(c);
+	if (*c != NULL)
+		cgn_blog_release(*c);
+}
+
+static void *
+cgn_bpf_alloc(struct gtp_bpf_prog *p)
+{
+	struct cgn_ctx **pc, *c;
+
+	pc = calloc(1, sizeof (struct cgn_ctx *));
+	if (pc == NULL)
+		return NULL;
+
+	/* attach to already declared cgn-block */
+	c = cgn_ctx_get_by_name(p->name);
+	if (c != NULL) {
+		c->bpf_data = pc;
+		*pc = c;
+	}
+
+	return pc;
+}
+
+static void
+cgn_bpf_release(struct gtp_bpf_prog *p, void *udata)
+{
+	struct cgn_ctx **c = udata;
+
+	if (*c != NULL)
+		(*c)->bpf_data = NULL;
+	free(c);
 }
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.name = "cgn",
 	.description = "carrier-grade-nat",
+	.alloc = cgn_bpf_alloc,
+	.release = cgn_bpf_release,
 	.prepare = cgn_bpf_prepare,
 	.loaded = cgn_bpf_loaded,
 	.closed = cgn_bpf_closed,

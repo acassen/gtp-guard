@@ -49,7 +49,8 @@ struct cgn_ctx
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	struct list_head	next;
-	struct gtp_bpf_prog	*prg;	/* always set */
+	struct gtp_bpf_prog	*prg;		/* always set */
+	struct cgn_ctx		**bpf_data;	/* pointer from bpf to us */
 
 	/* links to interfaces */
 	struct gtp_interface	*priv;

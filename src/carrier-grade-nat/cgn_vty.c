@@ -255,7 +255,7 @@ DEFUN(cgn_cdr_fwd,
 DEFUN(cgn_no_cdr_fwd,
       cgn_no_cdr_fwd_cmd,
       "no cdr-fwd",
-      "Detach"
+      "Detach\n"
       "Configure cdr-forward instance to be detached\n"
       "Cdr-Forward instance name\n")
 {
@@ -272,48 +272,43 @@ DEFUN(cgn_no_cdr_fwd,
 	return CMD_SUCCESS;
 }
 
-/* attached on INTERFACE_NODE */
 DEFUN(cgn_interface,
       cgn_interface_cmd,
-      "carrier-grade-nat CGNBLOCK side (network-in|network-out)",
-      "Configure carrier-grade on this interface\n"
-      "carrier-grade-nat configuration bloc name\n"
+      "interface IFACE side (ingress|egress)",
+      "Configure carrier-grade on interface\n"
+      "Interface name\n"
       "Side this interface is handling\n"
       "Network's operator side (private,local,inside)\n"
       "Internet side (public,remote,outside)\n")
 {
-	struct gtp_interface *iface = vty->index;
-	struct cgn_ctx *c;
+	struct cgn_ctx *c = vty->index;
+	struct gtp_interface *iface;
 
-	c = cgn_ctx_get_by_name(argv[0]);
-	if (c == NULL) {
-		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined\n",
-			iface->ifname, argv[0]);
+	iface = gtp_interface_get(argv[0], true);
+	if (iface == NULL) {
+		vty_out(vty, "%% cannot find interface %s\n", argv[0]);
 		return CMD_WARNING;
 	}
-
-	cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "network-in"));
+	cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "ingress"));
 
 	return CMD_SUCCESS;
 }
 
-/* attached on INTERFACE_NODE */
 DEFUN(cgn_no_interface,
       cgn_no_interface_cmd,
-      "no carrier-grade-nat CGNBLOCK",
+      "no interface IFACE",
+      "Detach\n"
       "Destroy carrier-grade on this interface\n"
       "carrier-grade-nat configuration bloc name\n")
 {
-	struct gtp_interface *iface = vty->index;
-	struct cgn_ctx *c;
+	struct cgn_ctx *c = vty->index;
+	struct gtp_interface *iface;
 
-	c = cgn_ctx_get_by_name(argv[0]);
-	if (c == NULL) {
-		vty_out(vty, "%% {itf:%s} carrier-grade-nat bloc '%s' not defined\n",
-			iface->ifname, argv[0]);
+	iface = gtp_interface_get(argv[0], false);
+	if (iface == NULL) {
+		vty_out(vty, "%% cannot find interface %s\n", argv[0]);
 		return CMD_WARNING;
 	}
-
 	cgn_ctx_detach_interface(c, iface);
 
 	return CMD_SUCCESS;
@@ -485,8 +480,8 @@ cmd_ext_cgn_install(void)
 	install_element(CGN_NODE, &cgn_protocol_tcp_port_conf_cmd);
 	install_element(CGN_NODE, &cgn_cdr_fwd_cmd);
 	install_element(CGN_NODE, &cgn_no_cdr_fwd_cmd);
-	install_element(INTERFACE_NODE, &cgn_interface_cmd);
-	install_element(INTERFACE_NODE, &cgn_no_interface_cmd);
+	install_element(CGN_NODE, &cgn_interface_cmd);
+	install_element(CGN_NODE, &cgn_no_interface_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cgn_cmd);

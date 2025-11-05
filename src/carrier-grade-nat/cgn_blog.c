@@ -35,22 +35,6 @@ extern struct thread_master *master;
 
 
 /*
- * perf buffer
- * bpf program sends event through it
- * one cgn_blog_pb allocated per cpu
- */
-#define PERF_BUFFER_PAGES		8
-
-struct cgn_blog_pb
-{
-	struct perf_buffer *pb;
-	struct thread *t;
-	uint64_t cpu;
-};
-
-
-
-/*
  * cdr type
  */
 #define CDR_TYPE_ALLOC_IP		0x01
@@ -133,10 +117,12 @@ cgn_pb_timer_cb(struct thread *t)
 
 	for (i = 0; i < 10000; i++) {
 		memset(&e, 0x00, sizeof (e));
-		ret = bpf_map__lookup_and_delete_elem(c->blog_queue, NULL, 0, &e, sizeof (e), 0);
+		ret = bpf_map__lookup_and_delete_elem(c->blog_queue, NULL, 0,
+						      &e, sizeof (e), 0);
 		if (ret < 0) {
 			if (errno != ENOENT)
-				log_message(LOG_INFO, "cgn_blog: map__lookup_and_delete: %m\n");
+				log_message(LOG_INFO,
+					    "cgn_blog: map__lookup_and_delete: %m");
 			return;
 		}
 		cgn_blog_send(c, &e);
