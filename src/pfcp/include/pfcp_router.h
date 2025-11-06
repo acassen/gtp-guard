@@ -47,6 +47,7 @@ struct pfcp_router {
 	uint8_t			node_id_len;
 	uint32_t		recovery_ts;
 
+	uint64_t		seed;
 	unsigned long		flags;
 
 	struct list_head	next;

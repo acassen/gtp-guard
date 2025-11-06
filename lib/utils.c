@@ -354,13 +354,13 @@ poor_prng(unsigned int *seed)
 /*
  *	XorShift*
  */
-uint32_t
+uint64_t
 xorshift_prng(uint64_t *state)
 {
 	*state ^= *state >> 12;
 	*state ^= *state << 25;
 	*state ^= *state >> 27;
-	return (*state * 0x2545F4914F6CDD1DULL) >> 32;
+	return *state * 0x2545F4914F6CDD1DULL;
 }
 
 /*

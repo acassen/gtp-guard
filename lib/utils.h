@@ -91,7 +91,7 @@ uint32_t adler_crc32(uint8_t *data, size_t len);
 uint32_t fletcher_crc32(uint8_t *data, size_t len);
 int integer_to_string(const int value, char *str, size_t size);
 uint32_t poor_prng(unsigned int *seed);
-uint32_t xorshift_prng(uint64_t *state);
+uint64_t xorshift_prng(uint64_t *state);
 size_t bsd_strlcpy(char *dst, const char *src, size_t dsize);
 size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
 char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);

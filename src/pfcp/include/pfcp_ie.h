@@ -321,6 +321,11 @@ struct pfcp_ie_cause {
 } __attribute__((packed));
 
 /* Source Interface IE */
+#define PFCP_SRC_INTERFACE_TYPE_ACCESS	0
+#define PFCP_SRC_INTERFACE_TYPE_CORE	1
+#define PFCP_SRC_INTERFACE_TYPE_SGI	2
+#define PFCP_SRC_INTERFACE_TYPE_CP	3
+#define PFCP_SRC_INTERFACE_TYPE_5GVN	4
 struct pfcp_ie_source_interface {
 	struct pfcp_ie h;
 	uint8_t value;
@@ -2162,6 +2167,11 @@ struct pfcp_ie_apn_dnn {
 } __attribute__((packed));
 
 /* 3GPP Interface Type IE */
+#define PFCP_3GPP_INTERFACE_S1U	0
+#define PFCP_3GPP_INTERFACE_S5U	1
+#define PFCP_3GPP_INTERFACE_SGI	16
+#define PFCP_3GPP_INTERFACE_S8U	19
+#define PFCP_3GPP_INTERFACE_N9	23
 struct pfcp_ie_3gpp_interface_type {
 	struct pfcp_ie h;
 #if __BYTE_ORDER == __LITTLE_ENDIAN

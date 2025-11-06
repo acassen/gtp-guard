@@ -118,6 +118,7 @@ pfcp_router_alloc(const char *name)
 	}
 	INIT_LIST_HEAD(&new->next);
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
+	new->seed = time(NULL);
 
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();
