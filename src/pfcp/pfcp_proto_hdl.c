@@ -22,6 +22,7 @@
 #include "pfcp.h"
 #include "pfcp_router.h"
 #include "pfcp_assoc.h"
+#include "pfcp_session.h"
 #include "pfcp_msg.h"
 #include "pfcp_proto_dump.h"
 #include "pfcp_utils.h"
@@ -168,6 +169,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_router *ctx = srv->ctx;
 	struct pfcp_assoc *assoc;
+	struct pfcp_session *s;
 	struct gtp_conn *c;
 	struct gtp_apn *apn = NULL;
 	struct pfcp_session_establishment_request *req;
@@ -213,6 +215,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	if (!c)
 		c = gtp_conn_alloc(imsi, imei, msisdn);
 
+	/* Create new session */
+	s = pfcp_session_alloc(c, apn, ctx);
+	if (!s) {
+		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					    PFCP_CAUSE_REQUEST_REJECTED);
+	}
 
 
 
@@ -262,7 +270,7 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	}
 
 	if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG_BIT, &c->debug))
-		pfcp_proto_dump(srv, msg, addr, PFCP_DIRECTION_INGRESS);
+		pfcp_proto_dump(srv, msg, addr, PFCP_DIR_INGRESS);
 
 	if (!*(pfcp_msg_hdl[pfcph->type].hdl)) {
 		pfcp_metrics_rx_notsup(&srv->msg_metrics, pfcph->type);
@@ -274,7 +282,7 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	err = (*(pfcp_msg_hdl[pfcph->type].hdl)) (msg, srv, addr);
 
 	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG_BIT, &c->debug))
-		pfcp_proto_dump(srv, NULL, addr, PFCP_DIRECTION_EGRESS);
+		pfcp_proto_dump(srv, NULL, addr, PFCP_DIR_EGRESS);
 
 end:
 	return err;

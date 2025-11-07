@@ -32,6 +32,31 @@
 #define PFCP_SEID_LEN		8
 
 
+/* Direction definition : Reference point is UE
+ *
+ * Ingress : A TEID allocated by SMF for UPF, All GTP-U traffic to this TEID will
+ *           be received by UPF from SGi and forwarded to S1/S5/S8-U and thus
+ *           correspond to UE ingress (downstream)
+ *
+ * Egress  : A TEID allocated by UPF for SMF, All GTP-U traffic to this TEID will
+ *           be received by UPF from S1/S5/S8-U and forwarded to SGi and thus
+ *           correspond to UE egress (upstream).
+ */
+enum pfcp_direction {
+	PFCP_DIR_INGRESS = 0,
+	PFCP_DIR_EGRESS,
+	PFCP_DIR_MAX,
+};
+
+/* 3GPP Interface remaped */
+enum pfcp_interface {
+	PFCP_IF_S1_U = 0,
+	PFCP_IF_S5_U,
+	PFCP_IF_S8_U,
+	PFCP_IF_SGI,
+	PFCP_IF_MAX,
+};
+
 /* Macro */
 #define PFCP_SQN(sqn) (ntohl(sqn) >> 8)
 

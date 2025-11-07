@@ -296,8 +296,8 @@ pfcp_proto_buffer_format(struct sockaddr_storage *addr, struct pkt_buffer *pbuff
 	int i;
 
 	snprintf(title, sizeof(title), " %s packet %s [%s]:%d len:%d ",
-		 (dir == PFCP_DIRECTION_INGRESS) ? "ingress" : "egress",
-		 (dir == PFCP_DIRECTION_INGRESS) ? "from" : "to",
+		 (dir == PFCP_DIR_INGRESS) ? "ingress" : "egress",
+		 (dir == PFCP_DIR_INGRESS) ? "from" : "to",
 		 inet_sockaddrtos(addr), ntohs(inet_sockaddrport(addr)),
 		 pkt_buffer_len(pbuff));
 	text_len = strlen(title) + 2;

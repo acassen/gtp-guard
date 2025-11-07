@@ -3,6 +3,7 @@
 src += files(
   'pfcp.c',
   'pfcp_assoc.c',
+  'pfcp_session.c',
   'pfcp_ie.c',
   'pfcp_metrics.c',
   'pfcp_msg.c',

@@ -110,6 +110,7 @@ struct pfcp_router *
 pfcp_router_alloc(const char *name)
 {
 	struct pfcp_router *new;
+	time_t now = time(NULL);
 
 	PMALLOC(new);
 	if (!new) {
@@ -118,7 +119,7 @@ pfcp_router_alloc(const char *name)
 	}
 	INIT_LIST_HEAD(&new->next);
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
-	new->seed = time(NULL);
+	new->seed = poor_prng((unsigned int *) &now);
 
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();

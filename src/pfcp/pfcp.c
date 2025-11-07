@@ -20,6 +20,7 @@
  */
 
 #include "pfcp_assoc.h"
+#include "pfcp_session.h"
 #include "pfcp_router.h"
 
 
@@ -30,6 +31,7 @@ int
 pfcp_init(void)
 {
 	pfcp_assoc_init();
+	pfcp_sessions_int();
 	return 0;
 }
 
@@ -38,5 +40,6 @@ pfcp_destroy(void)
 {
 	pfcp_assoc_destroy();
 	pfcp_router_destroy();
+	pfcp_sessions_destroy();
 	return 0;
 }

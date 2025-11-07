@@ -23,11 +23,6 @@
 #include "pfcp_server.h"
 #include "pfcp_msg.h"
 
-enum pfcp_direction {
-	PFCP_DIRECTION_INGRESS = 0,
-	PFCP_DIRECTION_EGRESS,
-};
-
 /* Prototypes */
 void pfcp_proto_dump(struct pfcp_server *srv, struct pfcp_msg *msg, struct sockaddr_storage *addr,
 		     enum pfcp_direction dir);
