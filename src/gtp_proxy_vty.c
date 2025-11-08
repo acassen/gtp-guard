@@ -278,7 +278,7 @@ DEFUN(gtpu_proxy_tunnel_endpoint,
 	const char *side = argv[1];
 	const char *ifname = argv[2];
 	char buf[100];
-	uint32_t port = 2152;
+	uint32_t port = GTP_U_PORT;
 	int err = 0;
 
 	if (!ctx->bpf_prog) {
@@ -293,7 +293,12 @@ DEFUN(gtpu_proxy_tunnel_endpoint,
 	}
 
 	/* build bind-address for gtp-u socket */
-	addr_parse(argv[0], &bind_addr);
+	err = addr_parse(argv[0], &bind_addr);
+	if (err) {
+		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
 	if (argc >= 5)
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[4], 1024, 65535);
 	addr_set_port(&bind_addr, port);

@@ -46,7 +46,7 @@ uint32_t addr_hash_in6_addr(const struct in6_addr *addr);
 static inline void
 addr_zero(union addr *a)
 {
-	a->sa.sa_family = AF_UNSPEC;
+	a->family = AF_UNSPEC;
 }
 
 static inline int __addr_ip4_equal(const struct in_addr *a1,

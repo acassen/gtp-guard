@@ -23,17 +23,22 @@
 
 #include "pfcp_server.h"
 #include "gtp_bpf_prog.h"
+#include "addr.h"
 
 #define PFCP_ROUTER_DELAYED	2
 
 enum pfcp_flags {
-	PFCP_ROUTER_FL_LISTEN_BIT,
-	PFCP_ROUTER_FL_STRICT_APN_BIT,
+	PFCP_ROUTER_FL_LISTEN,
+	PFCP_ROUTER_FL_STRICT_APN,
+	PFCP_ROUTER_FL_S1U,
+	PFCP_ROUTER_FL_S5U,
+	PFCP_ROUTER_FL_S8U,
+	PFCP_ROUTER_FL_N9U,
 };
 
 enum pfcp_debug_flags {
-	PFCP_DEBUG_FL_INGRESS_MSG_BIT,
-	PFCP_DEBUG_FL_EGRESS_MSG_BIT,
+	PFCP_DEBUG_FL_INGRESS_MSG,
+	PFCP_DEBUG_FL_EGRESS_MSG,
 };
 
 struct pfcp_router {
@@ -46,6 +51,11 @@ struct pfcp_router {
 	uint8_t			node_id[GTP_STR_MAX_LEN];
 	uint8_t			node_id_len;
 	uint32_t		recovery_ts;
+
+	union addr		gtpu_s1;
+	union addr		gtpu_s5;
+	union addr		gtpu_s8;
+	union addr		gtpu_n9;
 
 	uint64_t		seed;
 	unsigned long		flags;

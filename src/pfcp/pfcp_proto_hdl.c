@@ -188,7 +188,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 					    PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION);
 
 	/* APN selection */
-	if (__test_bit(PFCP_ROUTER_FL_STRICT_APN_BIT, &ctx->flags)) {
+	if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &ctx->flags)) {
 		apn = pfcp_session_get_apn(req->apn_dnn);
 		if (!apn)
 			return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
@@ -269,7 +269,7 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 		goto end;
 	}
 
-	if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG_BIT, &c->debug))
+	if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG, &c->debug))
 		pfcp_proto_dump(srv, msg, addr, PFCP_DIR_INGRESS);
 
 	if (!*(pfcp_msg_hdl[pfcph->type].hdl)) {
@@ -281,7 +281,7 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
 	err = (*(pfcp_msg_hdl[pfcph->type].hdl)) (msg, srv, addr);
 
-	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG_BIT, &c->debug))
+	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
 		pfcp_proto_dump(srv, NULL, addr, PFCP_DIR_EGRESS);
 
 end:
