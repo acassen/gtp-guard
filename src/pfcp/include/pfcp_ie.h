@@ -431,8 +431,10 @@ struct pfcp_ie_gate_status {
 /* MBR IE */
 struct pfcp_ie_mbr {
 	struct pfcp_ie h;
-	uint64_t ul_mbr;
-	uint64_t dl_mbr;
+	uint8_t h_ul_mbr;
+	uint32_t ul_mbr;
+	uint8_t h_dl_mbr;
+	uint32_t dl_mbr;
 } __attribute__((packed));
 
 /* GBR IE */
@@ -540,52 +542,42 @@ struct pfcp_ie_inactivity_detection_time {
 struct pfcp_ie_reporting_triggers {
 	struct pfcp_ie h;
 	union {
-		uint32_t triggers;
+		uint16_t triggers;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint32_t perio:1;
-			uint32_t volth:1;
-			uint32_t timth:1;
-			uint32_t quhti:1;
-			uint32_t start:1;
-			uint32_t stopt:1;
-			uint32_t droth:1;
-			uint32_t liusa:1;
-			uint32_t volqu:1;
-			uint32_t timqu:1;
-			uint32_t envcl:1;
-			uint32_t macar:1;
-			uint32_t eveth:1;
-			uint32_t evequ:1;
-			uint32_t tebur:1;
-			uint32_t reemr:1;
-			uint32_t upint:1;
-			uint32_t ipmjl:1;
-			uint32_t quvti:1;
-			uint32_t emrre:1;
-			uint32_t spare:12;
+			uint16_t perio:1;
+			uint16_t volth:1;
+			uint16_t timth:1;
+			uint16_t quhti:1;
+			uint16_t start:1;
+			uint16_t stopt:1;
+			uint16_t droth:1;
+			uint16_t liusa:1;
+			uint16_t volqu:1;
+			uint16_t timqu:1;
+			uint16_t envcl:1;
+			uint16_t macar:1;
+			uint16_t eveth:1;
+			uint16_t evequ:1;
+			uint16_t ipmjl:1;
+			uint16_t quvti:1;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			uint32_t spare:12;
-			uint32_t emrre:1;
-			uint32_t quvti:1;
-			uint32_t ipmjl:1;
-			uint32_t upint:1;
-			uint32_t reemr:1;
-			uint32_t tebur:1;
-			uint32_t evequ:1;
-			uint32_t eveth:1;
-			uint32_t macar:1;
-			uint32_t envcl:1;
-			uint32_t timqu:1;
-			uint32_t volqu:1;
-			uint32_t liusa:1;
-			uint32_t droth:1;
-			uint32_t stopt:1;
-			uint32_t start:1;
-			uint32_t quhti:1;
-			uint32_t timth:1;
-			uint32_t volth:1;
-			uint32_t perio:1;
+			uint16_t quvti:1;
+			uint16_t ipmjl:1;
+			uint16_t evequ:1;
+			uint16_t eveth:1;
+			uint16_t macar:1;
+			uint16_t envcl:1;
+			uint16_t timqu:1;
+			uint16_t volqu:1;
+			uint16_t liusa:1;
+			uint16_t droth:1;
+			uint16_t stopt:1;
+			uint16_t start:1;
+			uint16_t quhti:1;
+			uint16_t timth:1;
+			uint16_t volth:1;
+			uint16_t perio:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
@@ -1260,7 +1252,7 @@ struct pfcp_ie_end_time {
 /* URR ID IE */
 struct pfcp_ie_urr_id {
 	struct pfcp_ie h;
-	uint32_t urr_id;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Linked URR ID IE */
@@ -1602,13 +1594,13 @@ struct pfcp_ie_deactivate_predefined_rules {
 /* FAR ID IE */
 struct pfcp_ie_far_id {
 	struct pfcp_ie h;
-	uint32_t far_id;
+	uint32_t value;
 } __attribute__((packed));
 
 /* QER ID IE */
 struct pfcp_ie_qer_id {
 	struct pfcp_ie h;
-	uint32_t qer_id;
+	uint32_t value;
 } __attribute__((packed));
 
 /* OCI Flags IE */

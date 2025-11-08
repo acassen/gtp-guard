@@ -218,10 +218,19 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	/* Create new session */
 	s = pfcp_session_alloc(c, apn, ctx);
 	if (!s) {
+		log_message(LOG_INFO, "%s(): Unable to create new session... rejecting..."
+				    , __FUNCTION__);
 		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
 					    PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
+	err = pfcp_session_decode(s, req, addr);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Unable to decode new session... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					    PFCP_CAUSE_REQUEST_REJECTED);
+	}
 
 
 	return -1;

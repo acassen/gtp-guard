@@ -199,7 +199,7 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 			if (req->create_pdr[i]->far_id)
 				pos += scnprintf(buffer + pos, size - pos,
 						 "    FAR ID: %u\n",
-						 ntohl(req->create_pdr[i]->far_id->far_id));
+						 ntohl(req->create_pdr[i]->far_id->value));
 		}
 	}
 
@@ -211,7 +211,7 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 			if (req->create_far[i]->far_id)
 				pos += scnprintf(buffer + pos, size - pos,
 						 "    FAR ID: %u\n",
-						 ntohl(req->create_far[i]->far_id->far_id));
+						 ntohl(req->create_far[i]->far_id->value));
 			if (req->create_far[i]->apply_action)
 				pos += scnprintf(buffer + pos, size - pos,
 						 "    Apply Action: 0x%02x\n",
@@ -225,7 +225,7 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 		for (i = 0; i < req->nr_create_urr; i++) {
 			pos += scnprintf(buffer + pos, size - pos, "  URR[%d]:\n", i);
 			pos += scnprintf(buffer + pos, size - pos, "    URR ID: %u\n",
-					 ntohl(req->create_urr[i]->urr_id->urr_id));
+					 ntohl(req->create_urr[i]->urr_id->value));
 		}
 	}
 
@@ -235,7 +235,7 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 		for (i = 0; i < req->nr_create_qer; i++) {
 			pos += scnprintf(buffer + pos, size - pos, "  QER[%d]:\n", i);
 			pos += scnprintf(buffer + pos, size - pos, "    QER ID: %u\n",
-					 ntohl(req->create_qer[i]->qer_id->qer_id));
+					 ntohl(req->create_qer[i]->qer_id->value));
 		}
 	}
 

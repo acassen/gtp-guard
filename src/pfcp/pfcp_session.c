@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include "pfcp_session.h"
+#include "pfcp_msg.h"
 #include "pfcp_router.h"
 #include "gtp_conn.h"
 #include "utils.h"
@@ -236,6 +237,9 @@ pfcp_session_seid_alloc(struct pfcp_router *r)
 	int retry = 0;
 
 shoot_again:
+	/* TODO: Do we really need random seid ? it avoid seid prediction
+	 * but need proper security investigation to ensure if it is really
+	 * needed. For now, asume random is best... */
 	seid = xorshift_prng(&r->seed);
 	s = pfcp_session_get(seid);
 	if (!s)
@@ -386,5 +390,233 @@ pfcp_sessions_destroy(void)
 
 	free(pfcp_session_tab);
 	pfcp_session_unuse_destroy();
+	return 0;
+}
+
+
+
+/****************************************************************************************
+ *                                  Session Decoders                                    *
+ ****************************************************************************************/
+static int
+pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
+		       struct pfcp_ie_create_traffic_endpoint *ie)
+{
+	te->id = ie->traffic_endpoint_id->value;
+
+	if (ie->ue_ip_address->v4)
+		te->ue_ipv4 = ie->ue_ip_address->ip_address.v4;
+
+	if (ie->ue_ip_address->v6)
+		te->ue_ipv6 = ie->ue_ip_address->ip_address.v6;
+
+	if (ie->local_f_teid->chid)
+		te->choose_id = ie->local_f_teid->choose_id;
+
+	if (!ie->local_f_teid->ch) {
+		te->teid[PFCP_DIR_EGRESS].id = be32toh(ie->local_f_teid->s.teid);
+		if (ie->local_f_teid->v4)
+			te->teid[PFCP_DIR_EGRESS].ipv4 = ie->local_f_teid->s.ip.v4;
+		if (ie->local_f_teid->v6)
+			te->teid[PFCP_DIR_EGRESS].ipv6 = ie->local_f_teid->s.ip.v6;
+	} else {
+		/* TODO: Allocate F-TEID */
+	}
+
+	if (ie->source_interface_type)
+		te->interface = ie->source_interface_type->value;
+
+	return 0;
+}
+
+static struct traffic_endpoint *
+pfcp_session_get_te_by_id(struct pfcp_session *s, uint8_t id)
+{
+	int i;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+		if (s->te[i].id == id)
+			return &s->te[i];
+	}
+
+	return NULL;
+}
+
+static struct far *
+pfcp_session_get_far_by_id(struct pfcp_session *s, uint32_t id)
+{
+	int i;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->far[i].id; i++) {
+		if (s->far[i].id == id)
+			return &s->far[i];
+	}
+
+	return NULL;
+}
+
+static struct qer *
+pfcp_session_get_qer_by_id(struct pfcp_session *s, uint32_t id)
+{
+	int i;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->qer[i].id; i++) {
+		if (s->qer[i].id == id)
+			return &s->qer[i];
+	}
+
+	return NULL;
+}
+
+static struct urr *
+pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
+{
+	int i;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++) {
+		if (s->urr[i].id == id)
+			return &s->urr[i];
+	}
+
+	return NULL;
+}
+
+static int
+pfcp_session_decode_far(struct pfcp_session *s, struct far *far, struct pfcp_ie_create_far *ie)
+{
+	struct pfcp_ie_forwarding_parameters *fwd;
+
+	far->id = ie->far_id->value;
+
+	/* Optional: Forwarding Parameters */
+	if (!ie->forwarding_parameters)
+		return 0;
+
+	fwd = ie->forwarding_parameters;
+
+	if (fwd->destination_interface)
+		far->dst_interface = fwd->destination_interface->value;
+
+	if (fwd->destination_interface_type)
+		far->dst_interface_type = fwd->destination_interface_type->value;
+
+	if (fwd->transport_level_marking) {
+		far->tos_tclass = ntohs(fwd->transport_level_marking->traffic_class) & 0xff;
+		far->tos_mask = (ntohs(fwd->transport_level_marking->traffic_class) >> 8) & 0xff;
+	}
+
+	if (fwd->linked_traffic_endpoint_id)
+		far->dst_te = pfcp_session_get_te_by_id(s, fwd->linked_traffic_endpoint_id->value);
+
+	return 0;
+}
+
+static int
+pfcp_session_decode_qer(struct pfcp_session *s, struct qer *qer, struct pfcp_ie_create_qer *ie)
+{
+	qer->id = ie->qer_id->value;
+
+	if (ie->maximum_bitrate) {
+		qer->ul_mbr = ntohl(ie->maximum_bitrate->ul_mbr);
+		qer->dl_mbr = ntohl(ie->maximum_bitrate->dl_mbr);
+	}
+
+	return 0;
+}
+
+static int
+pfcp_session_decode_urr(struct pfcp_session *s, struct urr *urr, struct pfcp_ie_create_urr *ie)
+{
+	urr->id = ie->urr_id->value;
+
+	urr->measurement_method = ie->measurement_method->measurement_method;
+
+	urr->triggers = ntohs(ie->reporting_triggers->triggers);
+
+	if (ie->measurement_information)
+		urr->measurement_info = ie->measurement_information->flags;
+
+	if (ie->quota_holding_time)
+		urr->quota_holdtime = ntohl(ie->quota_holding_time->value);
+
+	if (ie->volume_threshold) {
+		/* Use total volume if present, otherwise fallback to uplink or downlink */
+		if (ie->volume_threshold->tovol)
+			urr->volume_threshold = be64toh(ie->volume_threshold->total_volume);
+		else if (ie->volume_threshold->ulvol)
+			urr->volume_threshold = be64toh(ie->volume_threshold->uplink_volume);
+		else if (ie->volume_threshold->dlvol)
+			urr->volume_threshold = be64toh(ie->volume_threshold->downlink_volume);
+	}
+
+	return 0;
+}
+
+static int
+pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_create_pdr *ie)
+{
+	struct pfcp_ie_pdi *pdi;
+
+	pdr->id = ie->pdr_id->rule_id;
+
+	pdr->precedence = be32toh(ie->precedence->value);
+
+	pdi = ie->pdi;
+	if (pdi) {
+		if (pdi->traffic_endpoint_id) {
+			pdr->te = pfcp_session_get_te_by_id(s, pdi->traffic_endpoint_id->value);
+		}
+	}
+
+	if (ie->far_id)
+		pdr->far = pfcp_session_get_far_by_id(s, ie->far_id->value);
+
+	/* FIXME: Support multiple URR */
+	if (ie->urr_id)
+		pdr->urr[0] = pfcp_session_get_urr_by_id(s, ie->urr_id->value);
+
+	if (ie->qer_id)
+		pdr->qer = pfcp_session_get_qer_by_id(s, ie->qer_id->value);
+
+	if (ie->activate_predefined_rules) {
+		size_t len = ntohs(ie->activate_predefined_rules->h.length);
+		if (len > 0 && len < PFCP_STR_MAX_LEN)
+			memcpy(pdr->predifined_rule,
+			       ie->activate_predefined_rules->predefined_rules_name, len);
+	}
+
+	return 0;
+}
+
+int
+pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_request *req,
+		    struct sockaddr_storage *addr)
+{
+	int i;
+
+	/* Remote SEID */
+	s->remote_seid.id = be64toh(req->cp_f_seid->seid);
+	s->remote_seid.addr = *addr;
+
+	/* Traffic Endpoint */
+	for (i = 0; i < req->nr_create_traffic_endpoint && i < PFCP_MAX_NR_ELEM; i++)
+		pfcp_session_decode_te(s, &s->te[i], req->create_traffic_endpoint[i]);
+
+	/* FAR */
+	for (i = 0; i < req->nr_create_far && i < PFCP_MAX_NR_ELEM; i++)
+		pfcp_session_decode_far(s, &s->far[i], req->create_far[i]);
+
+	/* QER */
+	for (i = 0; i < req->nr_create_qer && i < PFCP_MAX_NR_ELEM; i++)
+		pfcp_session_decode_qer(s, &s->qer[i], req->create_qer[i]);
+
+	/* URR */
+	for (i = 0; i < req->nr_create_urr && i < PFCP_MAX_NR_ELEM; i++)
+		pfcp_session_decode_urr(s, &s->urr[i], req->create_urr[i]);
+
+	/* PDR will reference parsed elem */
+	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++)
+		pfcp_session_decode_pdr(s, &s->pdr[i], req->create_pdr[i]);
+
 	return 0;
 }

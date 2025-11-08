@@ -22,8 +22,8 @@
 
 #include "gtp_apn.h"
 #include "gtp_conn.h"
-#include "pfcp_metrics.h"
 #include "pfcp.h"
+#include "pfcp_msg.h"
 
 /* Default values */
 #define PFCP_MAX_NR_ELEM	5
@@ -50,6 +50,11 @@ enum {
 };
 
 /* Session components */
+struct f_seid {
+	uint64_t		id;
+	struct sockaddr_storage	addr;
+};
+
 struct f_teid {
 	uint32_t		id;
 	struct in_addr		ipv4;
@@ -60,13 +65,15 @@ struct f_teid {
 struct traffic_endpoint {
 	uint8_t			id;
 	uint8_t			choose_id;
-	uint8_t			interface_type;
+	uint8_t			interface;
+	struct in_addr		ue_ipv4;
+	struct in6_addr		ue_ipv6;
 	struct f_teid		teid[PFCP_DIR_MAX];
 };
 
 struct far {
 	uint32_t		id;
-	uint8_t			interface_type;
+	uint8_t			dst_interface_type;
 	uint8_t			dst_interface;
 	uint8_t			tos_tclass;
 	uint8_t			tos_mask;
@@ -74,46 +81,43 @@ struct far {
 	struct traffic_endpoint	*dst_te;
 };
 
+struct qer {
+	uint32_t	id;
+	uint32_t	ul_mbr;
+	uint32_t	dl_mbr;
+};
+
 struct urr {
 	uint32_t		id;
+	uint8_t			measurement_method;
+	uint8_t			measurement_info;
 	uint16_t		triggers;
 	uint32_t		quota_holdtime;
-	uint8_t			measurement_info;
-
-	/* Metrics */
-	struct pfcp_metrics_pkt	ingress;
-	struct pfcp_metrics_pkt	egress;
-	struct {
-		struct pfcp_metrics_pkt	ingress;
-		struct pfcp_metrics_pkt	egress;
-		time_t			ts;
-	} last_report;
+	uint64_t		volume_threshold;
+	uint64_t		counter;
 };
 
 struct pdr {
 	uint16_t		id;
 	uint32_t		precedence;
 	uint8_t			action;
-	struct traffic_endpoint *te[PFCP_MAX_NR_ELEM];
-	struct far		*far[PFCP_MAX_NR_ELEM];
+	struct traffic_endpoint *te;
+	struct far		*far;
 	struct urr		*urr[PFCP_MAX_NR_ELEM];
-	struct qer		*qer[PFCP_MAX_NR_ELEM];
+	struct qer		*qer;
 	char			predifined_rule[PFCP_STR_MAX_LEN];
 };
 
 /* PFCP session */
 struct pfcp_session {
 	uint64_t		seid;
-	uint64_t		remote_seid;
-	struct sockaddr_storage	remote_addr;
+	struct f_seid		remote_seid;
 
-	struct in_addr		ue_ipv4;
-	struct in6_addr		ue_ipv6;
-
-	struct traffic_endpoint	te[PFCP_MAX_NR_ELEM];
 	struct pdr		pdr[PFCP_MAX_NR_ELEM];
 	struct far		far[PFCP_MAX_NR_ELEM];
+	struct qer		qer[PFCP_MAX_NR_ELEM];
 	struct urr		urr[PFCP_MAX_NR_ELEM];
+	struct traffic_endpoint	te[PFCP_MAX_NR_ELEM];
 
 	struct gtp_conn		*conn;		/* backpointer */
 	struct pfcp_router	*router;	/* Server used */
@@ -147,7 +151,7 @@ int pfcp_session_destroy(struct pfcp_session *s);
 int pfcp_sessions_free(struct gtp_conn *c);
 int pfcp_sessions_int(void);
 int pfcp_sessions_destroy(void);
-
-
-
+int pfcp_session_decode(struct pfcp_session *s,
+			struct pfcp_session_establishment_request *req,
+			struct sockaddr_storage *addr);
 
