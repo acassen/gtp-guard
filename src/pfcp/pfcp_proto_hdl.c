@@ -226,7 +226,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 
 	err = pfcp_session_decode(s, req, addr);
 	if (err) {
-		log_message(LOG_INFO, "%s(): Unable to decode new session... rejecting..."
+		log_message(LOG_INFO, "%s(): malformed create_pdr ie... rejecting..."
 				    , __FUNCTION__);
 		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
 					    PFCP_CAUSE_REQUEST_REJECTED);

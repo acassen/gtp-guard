@@ -566,6 +566,8 @@ pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 	if (pdi) {
 		if (pdi->traffic_endpoint_id) {
 			pdr->te = pfcp_session_get_te_by_id(s, pdi->traffic_endpoint_id->value);
+			if (!pdr->te)
+				return -1;
 		}
 	}
 
@@ -573,12 +575,18 @@ pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 		pdr->far = pfcp_session_get_far_by_id(s, ie->far_id->value);
 
 	if (ie->urr_id) {
-		for (i = 0; i < ie->nr_urr_id && i < PFCP_MAX_NR_ELEM; i++)
+		for (i = 0; i < ie->nr_urr_id && i < PFCP_MAX_NR_ELEM; i++) {
 			pdr->urr[i] = pfcp_session_get_urr_by_id(s, ie->urr_id[i]->value);
+			if (!pdr->urr[i])
+				return -1;
+		}
 	}
 
-	if (ie->qer_id)
+	if (ie->qer_id) {
 		pdr->qer = pfcp_session_get_qer_by_id(s, ie->qer_id->value);
+		if (!pdr->qer)
+			return -1;
+	}
 
 	if (ie->activate_predefined_rules) {
 		size_t len = ntohs(ie->activate_predefined_rules->h.length);
@@ -594,7 +602,7 @@ int
 pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_request *req,
 		    struct sockaddr_storage *addr)
 {
-	int i;
+	int i, err = 0;
 
 	/* Remote SEID */
 	s->remote_seid.id = req->cp_f_seid->seid;
@@ -617,8 +625,11 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 		pfcp_session_decode_urr(s, &s->urr[i], req->create_urr[i]);
 
 	/* PDR will reference parsed elem */
-	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++)
-		pfcp_session_decode_pdr(s, &s->pdr[i], req->create_pdr[i]);
+	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++) {
+		err = pfcp_session_decode_pdr(s, &s->pdr[i], req->create_pdr[i]);
+		if (err)
+			return -1;
+	}
 
 	return 0;
 }
