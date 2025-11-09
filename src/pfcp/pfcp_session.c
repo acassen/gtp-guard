@@ -398,37 +398,6 @@ pfcp_sessions_destroy(void)
 /****************************************************************************************
  *                                  Session Decoders                                    *
  ****************************************************************************************/
-static int
-pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
-		       struct pfcp_ie_create_traffic_endpoint *ie)
-{
-	te->id = ie->traffic_endpoint_id->value;
-
-	if (ie->ue_ip_address->v4)
-		te->ue_ipv4 = ie->ue_ip_address->ip_address.v4;
-
-	if (ie->ue_ip_address->v6)
-		te->ue_ipv6 = ie->ue_ip_address->ip_address.v6;
-
-	if (ie->local_f_teid->chid)
-		te->choose_id = ie->local_f_teid->choose_id;
-
-	if (!ie->local_f_teid->ch) {
-		te->teid[PFCP_DIR_EGRESS].id = be32toh(ie->local_f_teid->s.teid);
-		if (ie->local_f_teid->v4)
-			te->teid[PFCP_DIR_EGRESS].ipv4 = ie->local_f_teid->s.ip.v4;
-		if (ie->local_f_teid->v6)
-			te->teid[PFCP_DIR_EGRESS].ipv6 = ie->local_f_teid->s.ip.v6;
-	} else {
-		/* TODO: Allocate F-TEID */
-	}
-
-	if (ie->source_interface_type)
-		te->interface = ie->source_interface_type->value;
-
-	return 0;
-}
-
 static struct traffic_endpoint *
 pfcp_session_get_te_by_id(struct pfcp_session *s, uint8_t id)
 {
@@ -479,6 +448,37 @@ pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
 	}
 
 	return NULL;
+}
+
+static int
+pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
+		       struct pfcp_ie_create_traffic_endpoint *ie)
+{
+	te->id = ie->traffic_endpoint_id->value;
+
+	if (ie->ue_ip_address->v4)
+		te->ue_ipv4 = ie->ue_ip_address->ip_address.v4;
+
+	if (ie->ue_ip_address->v6)
+		te->ue_ipv6 = ie->ue_ip_address->ip_address.v6;
+
+	if (ie->local_f_teid->chid)
+		te->choose_id = ie->local_f_teid->choose_id;
+
+	if (!ie->local_f_teid->ch) {
+		te->teid[PFCP_DIR_EGRESS].id = be32toh(ie->local_f_teid->s.teid);
+		if (ie->local_f_teid->v4)
+			te->teid[PFCP_DIR_EGRESS].ipv4 = ie->local_f_teid->s.ip.v4;
+		if (ie->local_f_teid->v6)
+			te->teid[PFCP_DIR_EGRESS].ipv6 = ie->local_f_teid->s.ip.v6;
+	} else {
+		/* TODO: Allocate F-TEID */
+	}
+
+	if (ie->source_interface_type)
+		te->interface = ie->source_interface_type->value;
+
+	return 0;
 }
 
 static int
@@ -556,6 +556,7 @@ static int
 pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_create_pdr *ie)
 {
 	struct pfcp_ie_pdi *pdi;
+	int i;
 
 	pdr->id = ie->pdr_id->rule_id;
 
@@ -571,9 +572,10 @@ pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 	if (ie->far_id)
 		pdr->far = pfcp_session_get_far_by_id(s, ie->far_id->value);
 
-	/* FIXME: Support multiple URR */
-	if (ie->urr_id)
-		pdr->urr[0] = pfcp_session_get_urr_by_id(s, ie->urr_id->value);
+	if (ie->urr_id) {
+		for (i = 0; i < ie->nr_urr_id && i < PFCP_MAX_NR_ELEM; i++)
+			pdr->urr[i] = pfcp_session_get_urr_by_id(s, ie->urr_id[i]->value);
+	}
 
 	if (ie->qer_id)
 		pdr->qer = pfcp_session_get_qer_by_id(s, ie->qer_id->value);
@@ -595,7 +597,7 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 	int i;
 
 	/* Remote SEID */
-	s->remote_seid.id = be64toh(req->cp_f_seid->seid);
+	s->remote_seid.id = req->cp_f_seid->seid;
 	s->remote_seid.addr = *addr;
 
 	/* Traffic Endpoint */

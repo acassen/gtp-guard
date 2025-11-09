@@ -145,6 +145,20 @@ pfcp_heartbeat_req_format(struct pfcp_msg *msg, char *buffer, size_t size)
 /*
  *	PFCP Session Establishment Request Dump
  */
+static size_t
+pfcp_urr_id_format(struct pfcp_ie_urr_id **urr_id, int nr_urr_id, char *buffer, size_t size)
+{
+	size_t pos = 0;
+	int i;
+
+	for (i = 0; i < nr_urr_id; i++) {
+		pos += scnprintf(buffer + pos, size - pos, "    URR ID: %u\n",
+				 ntohl(urr_id[i]->value));
+	}
+
+	return pos;
+}
+
 static void
 pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t size)
 {
@@ -200,6 +214,14 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 				pos += scnprintf(buffer + pos, size - pos,
 						 "    FAR ID: %u\n",
 						 ntohl(req->create_pdr[i]->far_id->value));
+			if (req->create_pdr[i]->qer_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    QER ID: %u\n",
+						 ntohl(req->create_pdr[i]->qer_id->value));
+			if (req->create_pdr[i]->urr_id)
+				pos += pfcp_urr_id_format(req->create_pdr[i]->urr_id,
+							  req->create_pdr[i]->nr_urr_id,
+							  buffer + pos, size - pos);
 		}
 	}
 

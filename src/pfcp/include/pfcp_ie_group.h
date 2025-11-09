@@ -179,7 +179,7 @@ struct pfcp_ie_create_pdr {
 	/* Optional IEs */
 	struct pfcp_ie_outer_header_removal *outer_header_removal;
 	struct pfcp_ie_far_id *far_id;
-	struct pfcp_ie_urr_id *urr_id;
+	struct pfcp_ie_urr_id **urr_id;
 	struct pfcp_ie_qer_id *qer_id;
 	struct pfcp_ie_mar_id *mar_id;
 	struct pfcp_ie_activate_predefined_rules *activate_predefined_rules;
@@ -187,6 +187,7 @@ struct pfcp_ie_create_pdr {
 	struct pfcp_ie_deactivation_time *deactivation_time;
 	struct pfcp_ie_ue_ip_address_pool_identity *ue_ip_address_pool_identity;
 	struct pfcp_ie_rat_type *rat_type;
+	int nr_urr_id;
 };
 
 /* Create FAR (Forwarding Action Rule) Grouped IE */

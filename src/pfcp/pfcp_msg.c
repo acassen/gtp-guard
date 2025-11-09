@@ -75,8 +75,9 @@ pfcp_parse_add_ie_to_array(struct pfcp_msg *msg, const uint8_t *buffer,
 	*ie_array = array;
 
 	array[(*nr_ie)++] = new_ie;
-	pfcp_ie_foreach(buffer + sizeof(*ie), ntohs(ie->length),
-			ie_parse, msg, new_ie);
+	if (ie_parse)
+		pfcp_ie_foreach(buffer + sizeof(*ie), ntohs(ie->length),
+				ie_parse, msg, new_ie);
 	return 0;
 }
 
@@ -834,7 +835,11 @@ pfcp_parse_ie_create_pdr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_URR_ID:
-		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->urr_id, cp, size);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&create_pdr->urr_id,
+					   &create_pdr->nr_urr_id,
+					   sizeof(struct pfcp_ie_urr_id), NULL);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->urr_id[create_pdr->nr_urr_id - 1],
+				      cp, size);
 		break;
 
 	case PFCP_IE_QER_ID:
