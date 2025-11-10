@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include "pfcp_session.h"
+#include "pfcp_teid.h"
 #include "pfcp_msg.h"
 #include "pfcp_router.h"
 #include "gtp_conn.h"
@@ -450,10 +451,80 @@ pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
 	return NULL;
 }
 
+static union addr *
+pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
+{
+	union addr *gtpu_addr = NULL;
+
+	switch (interface) {
+	case PFCP_3GPP_INTERFACE_S1U:
+		if (__test_bit(PFCP_ROUTER_FL_S1U, &r->flags))
+			gtpu_addr = &r->gtpu_s1;
+		break;
+
+	case PFCP_3GPP_INTERFACE_S5U:
+		if (__test_bit(PFCP_ROUTER_FL_S5U, &r->flags))
+			gtpu_addr = &r->gtpu_s5;
+		break;
+
+	case PFCP_3GPP_INTERFACE_S8U:
+		if (__test_bit(PFCP_ROUTER_FL_S8U, &r->flags))
+			gtpu_addr = &r->gtpu_s8;
+		break;
+
+	case PFCP_3GPP_INTERFACE_N9:
+		if (__test_bit(PFCP_ROUTER_FL_N9U, &r->flags))
+			gtpu_addr = &r->gtpu_n9;
+		break;
+	}
+
+	return gtpu_addr;
+}
+
+static struct pfcp_teid *
+pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
+{
+	struct pfcp_router *r = s->router;
+	union addr *gtpu_addr = NULL;
+	struct in_addr *ipv4;
+	struct in6_addr *ipv6;
+	struct pfcp_teid *t;
+	uint32_t new_id;
+
+	gtpu_addr = pfcp_session_get_addr_by_interface(r, interface);
+	if (!gtpu_addr)
+		return NULL;
+
+	ipv4 = (gtpu_addr->family == AF_INET) ? &gtpu_addr->sin.sin_addr : NULL;
+	ipv6 = (gtpu_addr->family == AF_INET6) ? &gtpu_addr->sin6.sin6_addr : NULL;
+
+	/* Try to use same TEID for different IP Address */
+	if (!*id)  {
+		new_id = pfcp_teid_roll_the_dice(r, ipv4, ipv6);
+		if (!new_id)
+			return NULL;
+		*id = new_id;
+	}
+
+	t = pfcp_teid_alloc(r, *id, ipv4, ipv6);
+	if (!t)
+		return NULL;
+
+#if 0
+	char buffer[1024];
+	pfcp_teid_dump(t, buffer, 1024);
+	printf("Allocating: %s\n", buffer);
+#endif
+
+	return t;
+}
+
 static int
 pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
-		       struct pfcp_ie_create_traffic_endpoint *ie)
+		       struct pfcp_ie_create_traffic_endpoint *ie, uint32_t *id)
 {
+	struct pfcp_teid *t;
+
 	te->id = ie->traffic_endpoint_id->value;
 
 	if (ie->ue_ip_address->v4)
@@ -466,13 +537,20 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 		te->choose_id = ie->local_f_teid->choose_id;
 
 	if (!ie->local_f_teid->ch) {
-		te->teid[PFCP_DIR_EGRESS].id = be32toh(ie->local_f_teid->s.teid);
-		if (ie->local_f_teid->v4)
-			te->teid[PFCP_DIR_EGRESS].ipv4 = ie->local_f_teid->s.ip.v4;
-		if (ie->local_f_teid->v6)
-			te->teid[PFCP_DIR_EGRESS].ipv6 = ie->local_f_teid->s.ip.v6;
+		/* Restoration procedure */
+		t = pfcp_teid_restore(s->router, ie->local_f_teid);
+		if (!t)
+			return -1;
+
+		te->teid[PFCP_DIR_EGRESS] = t;
+		__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
 	} else {
-		/* TODO: Allocate F-TEID */
+		t = pfcp_session_alloc_teid(s, id, te->interface);
+		if (!t)
+			return -1;
+
+		te->teid[PFCP_DIR_EGRESS] = t;
+		__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
 	}
 
 	if (ie->source_interface_type)
@@ -603,14 +681,18 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 		    struct sockaddr_storage *addr)
 {
 	int i, err = 0;
+	uint32_t id = 0;
 
 	/* Remote SEID */
 	s->remote_seid.id = req->cp_f_seid->seid;
 	s->remote_seid.addr = *addr;
 
 	/* Traffic Endpoint */
-	for (i = 0; i < req->nr_create_traffic_endpoint && i < PFCP_MAX_NR_ELEM; i++)
-		pfcp_session_decode_te(s, &s->te[i], req->create_traffic_endpoint[i]);
+	for (i = 0; i < req->nr_create_traffic_endpoint && i < PFCP_MAX_NR_ELEM; i++) {
+		err = pfcp_session_decode_te(s, &s->te[i], req->create_traffic_endpoint[i], &id);
+		if (err)
+			return -1;
+	}
 
 	/* FAR */
 	for (i = 0; i < req->nr_create_far && i < PFCP_MAX_NR_ELEM; i++)

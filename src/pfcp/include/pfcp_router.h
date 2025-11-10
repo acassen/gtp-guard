@@ -52,6 +52,8 @@ struct pfcp_router {
 	uint8_t			node_id_len;
 	uint32_t		recovery_ts;
 
+	struct hlist_head	*teid;
+
 	union addr		gtpu_s1;
 	union addr		gtpu_s5;
 	union addr		gtpu_s8;

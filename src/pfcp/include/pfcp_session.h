@@ -55,20 +55,13 @@ struct f_seid {
 	struct sockaddr_storage	addr;
 };
 
-struct f_teid {
-	uint32_t		id;
-	struct in_addr		ipv4;
-	struct in6_addr		ipv6;
-	uint8_t			action;
-};
-
 struct traffic_endpoint {
 	uint8_t			id;
 	uint8_t			choose_id;
 	uint8_t			interface;
 	struct in_addr		ue_ipv4;
 	struct in6_addr		ue_ipv6;
-	struct f_teid		teid[PFCP_DIR_MAX];
+	struct pfcp_teid	*teid[PFCP_DIR_MAX];
 };
 
 struct far {

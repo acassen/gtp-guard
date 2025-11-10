@@ -25,6 +25,7 @@
 
 #include "gtp_data.h"
 #include "pfcp_router.h"
+#include "pfcp_teid.h"
 #include "pfcp_server.h"
 #include "pfcp_proto_hdl.h"
 #include "utils.h"
@@ -120,6 +121,7 @@ pfcp_router_alloc(const char *name)
 	INIT_LIST_HEAD(&new->next);
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 	new->seed = poor_prng((unsigned int *) &now);
+	new->teid = pfcp_teid_init();
 
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();
@@ -134,6 +136,7 @@ pfcp_router_ctx_destroy(struct pfcp_router *ctx)
 {
 	list_head_del(&ctx->next);
 	pfcp_server_destroy(&ctx->s);
+	pfcp_teid_destroy(ctx->teid);
 	return 0;
 }
 
