@@ -478,6 +478,13 @@ pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 		break;
 	}
 
+	if (!gtpu_addr && __test_bit(PFCP_ROUTER_FL_ALL, &r->flags))
+		gtpu_addr = &r->gtpu;
+
+	if (!gtpu_addr)
+		log_message(LOG_INFO, "%s(): pfcp-router:'%s' No GTP-U interface configured !!!"
+				    , __FUNCTION__, r->name);
+
 	return gtpu_addr;
 }
 
@@ -631,9 +638,11 @@ pfcp_session_decode_urr(struct pfcp_session *s, struct urr *urr, struct pfcp_ie_
 }
 
 static int
-pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_create_pdr *ie)
+pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_create_pdr *ie,
+			uint32_t *id)
 {
 	struct pfcp_ie_pdi *pdi;
+	struct pfcp_teid *t;
 	int i;
 
 	pdr->id = ie->pdr_id->rule_id;
@@ -646,6 +655,17 @@ pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 			pdr->te = pfcp_session_get_te_by_id(s, pdi->traffic_endpoint_id->value);
 			if (!pdr->te)
 				return -1;
+		} else if (pdi->local_f_teid) {
+			if (!pdi->source_interface_type)
+				return -1;
+
+			t = pfcp_session_alloc_teid(s, id, pdi->source_interface_type->value);
+			if (!t)
+				return -1;
+
+printf("[3]\n");
+			pdr->teid[PFCP_DIR_EGRESS] = t;
+			__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
 		}
 	}
 
@@ -708,7 +728,7 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 
 	/* PDR will reference parsed elem */
 	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++) {
-		err = pfcp_session_decode_pdr(s, &s->pdr[i], req->create_pdr[i]);
+		err = pfcp_session_decode_pdr(s, &s->pdr[i], req->create_pdr[i], &id);
 		if (err)
 			return -1;
 	}

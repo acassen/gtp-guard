@@ -30,6 +30,7 @@
 enum pfcp_flags {
 	PFCP_ROUTER_FL_LISTEN,
 	PFCP_ROUTER_FL_STRICT_APN,
+	PFCP_ROUTER_FL_ALL,
 	PFCP_ROUTER_FL_S1U,
 	PFCP_ROUTER_FL_S5U,
 	PFCP_ROUTER_FL_S8U,
@@ -54,6 +55,7 @@ struct pfcp_router {
 
 	struct hlist_head	*teid;
 
+	union addr		gtpu;
 	union addr		gtpu_s1;
 	union addr		gtpu_s5;
 	union addr		gtpu_s8;

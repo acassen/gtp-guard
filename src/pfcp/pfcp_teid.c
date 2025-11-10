@@ -171,7 +171,7 @@ pfcp_teid_dump(struct pfcp_teid *t, char *buf, size_t bsize)
 	char addr_str[INET6_ADDRSTRLEN];
 	int k = 0;
 
-	k += scnprintf(buf + k, bsize - k, "F-TEID(%s): {ID:%d",
+	k += scnprintf(buf + k, bsize - k, "F-TEID(%s): {ID:0x%.8x",
 		       __test_bit(PFCP_TEID_F_INGRESS, &t->flags) ? "ingress" : "egress",
 		       t->id);
 

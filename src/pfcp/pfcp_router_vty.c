@@ -247,8 +247,9 @@ DEFUN(pfcp_strict_apn,
 
 DEFUN(pfcp_gtpu_tunnel_endpoint,
       pfcp_gtpu_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (s1|s5|s8|n9) (A.B.C.D|X:X:X:X) [port <1024-65535>]",
+      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9) (A.B.C.D|X:X:X:X) [port <1024-65535>]",
       "3GPP GTP-U interface\n"
+      "All interface\n"
       "S1-U interface\n"
       "S5-U interface\n"
       "S8-U interface\n"
@@ -281,7 +282,14 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[4], 1024, 65535);
 	addr_set_port(&bind_addr, port);
 
-	if (!strcmp(ifname_3gpp, "s1")) {
+	if (!strcmp(ifname_3gpp, "all")) {
+		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags)) {
+			vty_out(vty, "%% Default GTP-U endpoint already set\n");
+			return CMD_WARNING;
+		}
+		__set_bit(PFCP_ROUTER_FL_ALL, &c->flags);
+		addr_copy(&c->gtpu, &bind_addr);
+	} else if (!strcmp(ifname_3gpp, "s1")) {
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags)) {
 			vty_out(vty, "%% 3GPP-S1-U endpoint already set\n");
 			return CMD_WARNING;
@@ -436,6 +444,11 @@ config_pfcp_router_write(struct vty *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
+		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
+			vty_out(vty, " gtpu-tunnel-endpoint all %s port %s%s"
+				   , addr_stringify_ip(&c->gtpu, addr_str, INET6_ADDRSTRLEN)
+				   , addr_stringify_port(&c->gtpu, addr_str, INET6_ADDRSTRLEN)
+				   , VTY_NEWLINE);
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
 			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %s%s"
 				   , addr_stringify_ip(&c->gtpu_s1, addr_str, INET6_ADDRSTRLEN)

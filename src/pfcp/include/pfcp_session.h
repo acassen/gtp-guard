@@ -94,7 +94,18 @@ struct pdr {
 	uint16_t		id;
 	uint32_t		precedence;
 	uint8_t			action;
+
+	/* F-TEID in PDI */
+	uint8_t			src_interface_type;
+	uint8_t			interface;
+	struct pfcp_teid	*teid[PFCP_DIR_MAX];
+	struct in_addr		ue_ipv4;
+	struct in6_addr		ue_ipv6;
+
+	/* F-TEID in traffic-endpoint when using
+	 * PDI Optimization */
 	struct traffic_endpoint *te;
+
 	struct far		*far;
 	struct urr		*urr[PFCP_MAX_NR_ELEM];
 	struct qer		*qer;
