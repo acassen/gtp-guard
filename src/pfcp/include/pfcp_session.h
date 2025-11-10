@@ -98,6 +98,7 @@ struct pdr {
 	/* F-TEID in PDI */
 	uint8_t			src_interface_type;
 	uint8_t			interface;
+	uint8_t			choose_id;
 	struct pfcp_teid	*teid[PFCP_DIR_MAX];
 	struct in_addr		ue_ipv4;
 	struct in6_addr		ue_ipv6;

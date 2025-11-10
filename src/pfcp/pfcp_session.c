@@ -534,6 +534,9 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 
 	te->id = ie->traffic_endpoint_id->value;
 
+	if (ie->source_interface_type)
+		te->interface = ie->source_interface_type->value;
+
 	if (ie->ue_ip_address->v4)
 		te->ue_ipv4 = ie->ue_ip_address->ip_address.v4;
 
@@ -551,17 +554,15 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 
 		te->teid[PFCP_DIR_EGRESS] = t;
 		__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
-	} else {
-		t = pfcp_session_alloc_teid(s, id, te->interface);
-		if (!t)
-			return -1;
-
-		te->teid[PFCP_DIR_EGRESS] = t;
-		__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
+		return 0;
 	}
 
-	if (ie->source_interface_type)
-		te->interface = ie->source_interface_type->value;
+	t = pfcp_session_alloc_teid(s, id, te->interface);
+	if (!t)
+		return -1;
+
+	te->teid[PFCP_DIR_EGRESS] = t;
+	__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
 
 	return 0;
 }
@@ -638,36 +639,74 @@ pfcp_session_decode_urr(struct pfcp_session *s, struct urr *urr, struct pfcp_ie_
 }
 
 static int
+pfcp_session_decode_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pdi,
+			uint32_t *id)
+{
+	struct pfcp_ie_f_teid *ft = pdi->local_f_teid;
+	struct pfcp_teid *t;
+
+	if (!pdi)
+		return 0;
+
+	/* PDI is traffic-endpoint OR local_f_teid */
+	if (pdi->traffic_endpoint_id) {
+		pdr->te = pfcp_session_get_te_by_id(s, pdi->traffic_endpoint_id->value);
+
+		return (pdr->te) ? 0 : -1;
+	}
+
+	if (!pdi->local_f_teid)
+		return 0;
+
+	/* local_f_teid */
+	if (!pdi->source_interface_type)
+		return -1;
+
+	pdr->src_interface_type = pdi->source_interface_type->value;
+
+	if (pdi->ue_ip_address->v4)
+		pdr->ue_ipv4 = pdi->ue_ip_address->ip_address.v4;
+
+	if (pdi->ue_ip_address->v6)
+		pdr->ue_ipv6 = pdi->ue_ip_address->ip_address.v6;
+
+	if (ft->chid)
+		pdr->choose_id = ft->choose_id;
+
+	if (!ft->ch) {
+		/* Restoration procedure */
+		t = pfcp_teid_restore(s->router, ft);
+		if (!t)
+			return -1;
+
+		pdr->teid[PFCP_DIR_EGRESS] = t;
+		__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
+		return 0;
+	}
+
+	t = pfcp_session_alloc_teid(s, id, pdr->src_interface_type);
+	if (!t)
+		return -1;
+
+	pdr->teid[PFCP_DIR_EGRESS] = t;
+	__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
+
+	return 0;
+}
+
+static int
 pfcp_session_decode_pdr(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_create_pdr *ie,
 			uint32_t *id)
 {
-	struct pfcp_ie_pdi *pdi;
-	struct pfcp_teid *t;
-	int i;
+	int i, err;
 
 	pdr->id = ie->pdr_id->rule_id;
 
 	pdr->precedence = be32toh(ie->precedence->value);
 
-	pdi = ie->pdi;
-	if (pdi) {
-		if (pdi->traffic_endpoint_id) {
-			pdr->te = pfcp_session_get_te_by_id(s, pdi->traffic_endpoint_id->value);
-			if (!pdr->te)
-				return -1;
-		} else if (pdi->local_f_teid) {
-			if (!pdi->source_interface_type)
-				return -1;
-
-			t = pfcp_session_alloc_teid(s, id, pdi->source_interface_type->value);
-			if (!t)
-				return -1;
-
-printf("[3]\n");
-			pdr->teid[PFCP_DIR_EGRESS] = t;
-			__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
-		}
-	}
+	err = pfcp_session_decode_pdi(s, pdr, ie->pdi, id);
+	if (err)
+		return -1;
 
 	if (ie->far_id)
 		pdr->far = pfcp_session_get_far_by_id(s, ie->far_id->value);
