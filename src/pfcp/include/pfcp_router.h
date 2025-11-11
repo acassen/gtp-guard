@@ -45,6 +45,7 @@ enum pfcp_debug_flags {
 struct pfcp_router {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
+	uint8_t			supported_features[4];
 	struct gtp_bpf_prog	*bpf_prog;
 	struct pfcp_server	s;
 	unsigned long		debug;

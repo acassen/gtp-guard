@@ -644,135 +644,121 @@ struct pfcp_ie_destination_interface {
 } __attribute__((packed));
 
 /* UP Function Features IE */
+#define TREU	(1 << 7)
+#define HEEU	(1 << 6)
+#define PFDM	(1 << 5)
+#define FTUP	(1 << 4)
+#define TRST	(1 << 3)
+#define DLBD	(1 << 2)
+#define DDND	(1 << 1)
+#define BUCP	(1 << 0)
+
+#define EPFAR	(1 << 7)
+#define PFDE	(1 << 6)
+#define FRRT	(1 << 5)
+#define TRACE	(1 << 4)
+#define QUOAC	(1 << 3)
+#define UDBC	(1 << 2)
+#define PDIU	(1 << 1)
+#define EMPU	(1 << 0)
+
+#define GCOM	(1 << 7)
+#define BUNDL	(1 << 6)
+#define MTE	(1 << 5)
+#define MNOP	(1 << 4)
+#define SSET	(1 << 3)
+#define UEIP	(1 << 2)
+#define ADPDP	(1 << 1)
+#define DPDRA	(1 << 0)
+
+#define MPTCP	(1 << 7)
+#define TSCU	(1 << 6)
+#define IP6PL	(1 << 5)
+#define IPTV	(1 << 4)
+#define NORP	(1 << 3)
+#define VTIME	(1 << 2)
+#define RTTL	(1 << 1)
+#define MPAS	(1 << 0)
+
 struct pfcp_ie_up_function_features {
 	struct pfcp_ie h;
 	union {
-		uint16_t feature_flags[5];
+		uint8_t feature_flags[4];
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			/* Octets 5-6 */
-			uint16_t bucp:1;
-			uint16_t ddnd:1;
-			uint16_t dlbd:1;
-			uint16_t trst:1;
-			uint16_t ftup:1;
-			uint16_t pfdm:1;
-			uint16_t heeu:1;
-			uint16_t treu:1;
-			uint16_t empu:1;
-			uint16_t pdiu:1;
-			uint16_t udbc:1;
-			uint16_t quoac:1;
-			uint16_t trace:1;
-			uint16_t frrt:1;
-			uint16_t pfde:1;
-			uint16_t epfar:1;
-			/* Octets 7-8 */
-			uint16_t dpdra:1;
-			uint16_t adpdp:1;
-			uint16_t ueip:1;
-			uint16_t sset:1;
-			uint16_t mnop:1;
-			uint16_t mte:1;
-			uint16_t bundl:1;
-			uint16_t gcom:1;
-			uint16_t mpas:1;
-			uint16_t rttl:1;
-			uint16_t vtime:1;
-			uint16_t norp:1;
-			uint16_t iptv:1;
-			uint16_t ip6pl:1;
-			uint16_t tscu:1;
-			uint16_t mptcp:1;
-			/* Octets 9-10 */
-			uint16_t atsss_ll:1;
-			uint16_t qfqm:1;
-			uint16_t gpqm:1;
-			uint16_t mt_edt:1;
-			uint16_t ciot:1;
-			uint16_t ethar:1;
-			uint16_t ddds:1;
-			uint16_t rds:1;
-			uint16_t rttwp:1;
-			uint16_t quasf:1;
-			uint16_t nspoc:1;
-			uint16_t l2tp:1;
-			uint16_t upber:1;
-			uint16_t resps:1;
-			uint16_t iprep:1;
-			uint16_t dnsts:1;
-			/* Octets 11-12 */
-			uint16_t drqos:1;
-			uint16_t mbsn4:1;
-			uint16_t psuprm:1;
-			uint16_t eppi:1;
-			uint16_t ratp:1;
-			uint16_t mbs_sm:1;
-			uint16_t spare_o12:10;
-			/* Octets 13-14 */
-			uint16_t spare_o14:16;
+			/* Octet 5 */
+			uint8_t bucp:1;
+			uint8_t ddnd:1;
+			uint8_t dlbd:1;
+			uint8_t trst:1;
+			uint8_t ftup:1;
+			uint8_t pfdm:1;
+			uint8_t heeu:1;
+			uint8_t treu:1;
+			/* Octet 6 */
+			uint8_t empu:1;
+			uint8_t pdiu:1;
+			uint8_t udbc:1;
+			uint8_t quoac:1;
+			uint8_t trace:1;
+			uint8_t frrt:1;
+			uint8_t pfde:1;
+			uint8_t epfar:1;
+			/* Octet 7 */
+			uint8_t dpdra:1;
+			uint8_t adpdp:1;
+			uint8_t ueip:1;
+			uint8_t sset:1;
+			uint8_t mnop:1;
+			uint8_t mte:1;
+			uint8_t bundl:1;
+			uint8_t gcom:1;
+			/* Octet 8 */
+			uint8_t mpas:1;
+			uint8_t rttl:1;
+			uint8_t vtime:1;
+			uint8_t norp:1;
+			uint8_t iptv:1;
+			uint8_t ip6pl:1;
+			uint8_t tscu:1;
+			uint8_t mptcp:1;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			/* Octets 5-6 */
-			uint16_t epfar:1;
-			uint16_t pfde:1;
-			uint16_t frrt:1;
-			uint16_t trace:1;
-			uint16_t quoac:1;
-			uint16_t udbc:1;
-			uint16_t pdiu:1;
-			uint16_t empu:1;
-			uint16_t treu:1;
-			uint16_t heeu:1;
-			uint16_t pfdm:1;
-			uint16_t ftup:1;
-			uint16_t trst:1;
-			uint16_t dlbd:1;
-			uint16_t ddnd:1;
-			uint16_t bucp:1;
-			/* Octets 7-8 */
-			uint16_t mptcp:1;
-			uint16_t tscu:1;
-			uint16_t ip6pl:1;
-			uint16_t iptv:1;
-			uint16_t norp:1;
-			uint16_t vtime:1;
-			uint16_t rttl:1;
-			uint16_t mpas:1;
-			uint16_t gcom:1;
-			uint16_t bundl:1;
-			uint16_t mte:1;
-			uint16_t mnop:1;
-			uint16_t sset:1;
-			uint16_t ueip:1;
-			uint16_t adpdp:1;
-			uint16_t dpdra:1;
-			/* Octets 9-10 */
-			uint16_t dnsts:1;
-			uint16_t iprep:1;
-			uint16_t resps:1;
-			uint16_t upber:1;
-			uint16_t l2tp:1;
-			uint16_t nspoc:1;
-			uint16_t quasf:1;
-			uint16_t rttwp:1;
-			uint16_t rds:1;
-			uint16_t ddds:1;
-			uint16_t ethar:1;
-			uint16_t ciot:1;
-			uint16_t mt_edt:1;
-			uint16_t gpqm:1;
-			uint16_t qfqm:1;
-			uint16_t atsss_ll:1;
-			/* Octets 11-12 */
-			uint16_t spare_o12:10;
-			uint16_t mbs_sm:1;
-			uint16_t ratp:1;
-			uint16_t eppi:1;
-			uint16_t psuprm:1;
-			uint16_t mbsn4:1;
-			uint16_t drqos:1;
-			/* Octets 13-14 */
-			uint16_t spare_o14:16;
+			/* Octet 5 */
+			uint8_t treu:1;
+			uint8_t heeu:1;
+			uint8_t pfdm:1;
+			uint8_t ftup:1;
+			uint8_t trst:1;
+			uint8_t dlbd:1;
+			uint8_t ddnd:1;
+			uint8_t bucp:1;
+			/* Octet 6 */
+			uint8_t epfar:1;
+			uint8_t pfde:1;
+			uint8_t frrt:1;
+			uint8_t trace:1;
+			uint8_t quoac:1;
+			uint8_t udbc:1;
+			uint8_t pdiu:1;
+			uint8_t empu:1;
+			/* Octet 7 */
+			uint8_t gcom:1;
+			uint8_t bundl:1;
+			uint8_t mte:1;
+			uint8_t mnop:1;
+			uint8_t sset:1;
+			uint8_t ueip:1;
+			uint8_t adpdp:1;
+			uint8_t dpdra:1;
+			/* Octet 8 */
+			uint8_t mptcp:1;
+			uint8_t tscu:1;
+			uint8_t ip6pl:1;
+			uint8_t iptv:1;
+			uint8_t norp:1;
+			uint8_t vtime:1;
+			uint8_t rttl:1;
+			uint8_t mpas:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
@@ -3484,6 +3470,8 @@ int pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi,
 int pfcp_ie_decode_apn_dnn_ni(struct pfcp_ie_apn_dnn *apn, char *dst, size_t dsize);
 int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
 int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts);
+int pfcp_ie_put_up_function_features(struct pkt_buffer *pbuff,
+				     uint8_t *supported_features);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
 int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize);

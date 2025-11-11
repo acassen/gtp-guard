@@ -124,6 +124,7 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct s
 	/* Append IEs */
 	err = pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len, cause);
 	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
+	err = (err) ? : pfcp_ie_put_up_function_features(pbuff, ctx->supported_features);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);

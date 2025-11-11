@@ -308,7 +308,7 @@ pfcp_teid_alloc(struct pfcp_router *r, uint32_t id, struct in_addr *ipv4,
 	}
 	if (ipv6) {
 		__set_bit(PFCP_TEID_F_IPV6, &new->flags);
-		new->ipv6 = *ipv6;
+		memcpy(&new->ipv6, ipv6, sizeof(struct in6_addr));
 	}
 
 	pfcp_teid_hash(r->teid, new);
@@ -335,7 +335,7 @@ pfcp_teid_restore(struct pfcp_router *r, struct pfcp_ie_f_teid *ie)
 	}
 	if (ie->v6) {
 		__set_bit(PFCP_TEID_F_IPV6, &new->flags);
-		new->ipv6 = ie->s.ip.v6;
+		memcpy(&new->ipv6, &ie->s.ip.v6, sizeof(struct in6_addr));
 	}
 
 	pfcp_teid_hash(r->teid, new);

@@ -109,6 +109,7 @@ pfcp_ie_decode_apn_dnn_ni(struct pfcp_ie_apn_dnn *apn, char *dst, size_t dsize)
 	return gtp_apn_extract_ni(apn->apn_dnn, ntohs(apn->h.length), dst, dsize);
 }
 
+
 /*
  *	PFCP Pkt IE Factory
  */
@@ -139,6 +140,23 @@ pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts)
 
 	ie = (struct pfcp_ie_recovery_time_stamp *) pbuff->data;
 	ie->ts = htonl(ts);
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_up_function_features(struct pkt_buffer *pbuff, uint8_t *supported_features)
+{
+	struct pfcp_ie_up_function_features *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_UP_FUNCTION_FEATURES, length) < 0)
+		return -1;
+
+	ie = (struct pfcp_ie_up_function_features *) pbuff->data;
+	memcpy(ie->feature_flags, supported_features, sizeof(ie->feature_flags));
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);

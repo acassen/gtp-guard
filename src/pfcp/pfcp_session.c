@@ -517,12 +517,6 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
 	if (!t)
 		return NULL;
 
-#if 0
-	char buffer[1024];
-	pfcp_teid_dump(t, buffer, 1024);
-	printf("Allocating: %s\n", buffer);
-#endif
-
 	return t;
 }
 
@@ -646,7 +640,7 @@ pfcp_session_decode_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 	struct pfcp_teid *t;
 
 	if (!pdi)
-		return 0;
+		return -1;
 
 	/* PDI is traffic-endpoint OR local_f_teid */
 	if (pdi->traffic_endpoint_id) {

@@ -107,6 +107,40 @@ pfcp_router_get(const char *name)
 	return NULL;
 }
 
+static void
+pfcp_router_set_up_features(struct pfcp_router *ctx)
+{
+	/* Header Enrichement */
+	ctx->supported_features[0] |= HEEU;
+
+	/* F-TEID Allocation / Release */
+	ctx->supported_features[0] |= FTUP;
+
+	/* Framed Routing */
+	ctx->supported_features[1] |= FRRT;
+
+	/* Quota Action */
+	ctx->supported_features[1] |= QUOAC;
+
+	/* PDI optimised signalling */
+	ctx->supported_features[1] |= PDIU;
+
+	/* Sending End Marker packet */
+	ctx->supported_features[1] |= EMPU;
+
+	/* Measurement of number of packets */
+	ctx->supported_features[2] |= MNOP;
+
+	/* UE IP Address or prefixes allocation */
+	ctx->supported_features[2] |= UEIP;
+
+	/* Activation or Deactivation of Pre-Defined PDRs */
+	ctx->supported_features[2] |= ADPDP;
+
+	/* Deferred PDR Activation or Deactivation */
+	ctx->supported_features[2] |= DPDRA;
+}
+
 struct pfcp_router *
 pfcp_router_alloc(const char *name)
 {
@@ -122,6 +156,7 @@ pfcp_router_alloc(const char *name)
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 	new->seed = poor_prng((unsigned int *) &now);
 	new->teid = pfcp_teid_init();
+	pfcp_router_set_up_features(new);
 
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();
