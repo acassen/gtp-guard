@@ -4,6 +4,7 @@ fs = import('fs')
 
 bpf_sources = files(
   'gtp_fwd.c',
+  'gtp_fwd_mirror.c',
   'gtp_route.c',
   'gtp_mirror.c',
   'cgn.c',

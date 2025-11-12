@@ -186,8 +186,8 @@ gtp_mirror_alloc(const char *name)
 	return new;
 }
 
-int
-__gtp_mirror_destroy(struct gtp_mirror *m)
+void
+gtp_mirror_destroy(struct gtp_mirror *m)
 {
 	struct gtp_mirror_rule *r, *_r;
 	struct list_head *l = &m->rules;
@@ -199,14 +199,6 @@ __gtp_mirror_destroy(struct gtp_mirror *m)
 
 	list_head_del(&m->next);
 	FREE(m);
-	return 0;
-}
-
-int
-gtp_mirror_destroy(struct gtp_mirror *m)
-{
-	__gtp_mirror_destroy(m);
-	return 0;
 }
 
 int
@@ -216,6 +208,6 @@ gtp_mirrors_destroy(void)
 	struct gtp_mirror *m, *_m;
 
 	list_for_each_entry_safe(m, _m, l, next)
-		__gtp_mirror_destroy(m);
+		gtp_mirror_destroy(m);
 	return 0;
 }

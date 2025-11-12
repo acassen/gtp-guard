@@ -212,8 +212,9 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
  * before.
  */
 static __attribute__((noinline)) int
-if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
+if_rule_rewrite_pkt(struct if_rule_data *d)
 {
+	struct xdp_md *ctx = d->ctx;
 	const struct if_rule_key_base *k = &d->k.b;
 	void *data, *data_end, *payload;
 	struct ethhdr *ethh;

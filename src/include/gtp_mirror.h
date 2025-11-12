@@ -67,5 +67,5 @@ void gtp_mirror_foreach(int (*hdl) (struct gtp_mirror *, void *), void *);
 struct gtp_mirror *gtp_mirror_get(const char *);
 int gtp_mirror_put(struct gtp_mirror *m);
 struct gtp_mirror *gtp_mirror_alloc(const char *);
-int gtp_mirror_destroy(struct gtp_mirror *);
+void gtp_mirror_destroy(struct gtp_mirror *);
 int gtp_mirrors_destroy(void);

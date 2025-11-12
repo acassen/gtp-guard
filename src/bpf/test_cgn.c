@@ -82,7 +82,7 @@ int xdp_entry_1(struct xdp_md *ctx)
 		return action;
 
 	/* phase 3: rewrite interface encap */
-	return if_rule_rewrite_pkt(ctx, &d);
+	return if_rule_rewrite_pkt(&d);
 }
 
 SEC("xdp")

@@ -247,11 +247,17 @@ run_combined() {
     gtpg_conf_nofail "
 no bpf-program fwd-1
 no gtp-proxy all
+no mirror sig-dbg
 "
 
     gtpg_conf "
 bpf-program fwd-1
- path bin/gtp_fwd.bpf
+ path bin/gtp_fwd_mirror.bpf
+ no shutdown
+
+mirror sig-dbg
+ bpf-program fwd-1
+ ip-src-dst 192.168.61.129 port-src-dst 3000 protocol UDP interface ptun
  no shutdown
 
 interface gtpp

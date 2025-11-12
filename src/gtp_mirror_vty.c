@@ -57,11 +57,6 @@ DEFUN(mirror,
 {
 	struct gtp_mirror *new;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
 	new = gtp_mirror_get(argv[0]);
 	if (new) {
 		vty->node = MIRROR_NODE;
@@ -79,16 +74,11 @@ DEFUN(mirror,
 
 DEFUN(no_mirror,
       no_mirror_cmd,
-      "no interface STRING",
-      "Configure interface\n"
-      "Local system interface name\n")
+      "no mirror STRING",
+      "Configure mirror\n"
+      "Mirror name\n")
 {
 	struct gtp_mirror *m;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	m = gtp_mirror_get(argv[0]);
 	if (!m) {
@@ -141,9 +131,9 @@ DEFUN(mirror_bpf_prog,
 
 DEFUN(mirror_description,
       mirror_description_cmd,
-      "mirror STRING",
+      "description STRING",
       "Set mirror description\n"
-      "description\n")
+      "Description\n")
 {
 	struct gtp_mirror *m = vty->index;
 
@@ -158,7 +148,7 @@ DEFUN(mirror_description,
 
 DEFUN(mirror_shutdown,
       mirror_shutdown_cmd,
-      "mirror",
+      "shutdown",
       "Shutdown mirror\n")
 {
 	struct gtp_mirror *m = vty->index;
@@ -249,7 +239,7 @@ mirror_prepare(int argc, const char **argv, struct vty *vty,
 
 DEFUN(mirror_rule,
       mirror_rule_cmd,
-      "ip-src-dst (A.B.C.D|X:X:X:X) port-src-dst <1024-65535> protocol STRING interface STRING",
+      "ip-src-dst (A.B.C.D|X:X::X:X) port-src-dst <1024-65535> protocol STRING interface STRING",
       "Mirroring rule\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
@@ -305,7 +295,7 @@ DEFUN(mirror_rule,
 
 DEFUN(mirror_no_rule,
       mirror_no_rule_cmd,
-      "no ip-src-dst (A.B.C.D|X:X:X:X) port-src-dst <1024-65535> protocol STRING interface STRING",
+      "no ip-src-dst (A.B.C.D|X:X::X:X) port-src-dst <1024-65535> protocol STRING interface STRING",
       "Mirroring rule\n"
       "IPv4 Address\n"
       "IPv6 Address\n"
