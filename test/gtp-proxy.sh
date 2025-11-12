@@ -8,7 +8,7 @@ clean() {
     ip tunnel del ptun 2>/dev/null && true
     ip link del ptun 2>/dev/null && true
     ip link del gtpp 2>/dev/null && true
-    clean_netns "sgw" "pgw" "cloud"
+    clean_netns "sgw" "pgw" "cloud" "cloud1" "cloud2"
 }
 
 # everyone on the same interface
@@ -26,7 +26,6 @@ setup_combined() {
     sysctl -q net.ipv4.conf.gtpp.forwarding=1
 
     ip -n cloud addr add 192.168.61.193/27 dev veth0
-
     for i in `seq 0 $((gtp_proxy_count-1))`; do
 	# gtp-c
 	ip addr add 192.168.61.$((i+194))/27 dev gtpp
@@ -68,6 +67,83 @@ setup_combined() {
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
+
+# 2 physical interfaces, vip ip on dummy interface
+setup_vip() {
+    setup_netns "cloud1" "cloud2"
+    sleep 0.5
+
+    # trunk1
+    ip link add dev veth0 netns cloud1 address d2:ad:ca:fe:aa:01 type veth \
+       peer name gtpp1 address d2:f0:0c:ba:bb:01
+    ip -n cloud1 link set dev veth0 up
+    ip -n cloud1 link set dev lo up
+    ip link set dev gtpp1 up
+    ip netns exec cloud1 sysctl -q net.ipv4.conf.veth0.forwarding=1
+    sysctl -q net.ipv4.conf.gtpp1.forwarding=1
+
+    # trunk2
+    ip link add dev veth0 netns cloud2 address d2:ad:ca:fe:aa:02 type veth \
+       peer name gtpp2 address d2:f0:0c:ba:bb:02
+    ip -n cloud2 link set dev veth0 up
+    ip -n cloud2 link set dev lo up
+    ip link set dev gtpp2 up
+    ip netns exec cloud2 sysctl -q net.ipv4.conf.veth0.forwarding=1
+    sysctl -q net.ipv4.conf.gtpp2.forwarding=1
+
+    # dummy
+    rmmod dummy
+    modprobe dummy numdummies=$gtp_proxy_count
+    ip link set dummy0 up
+
+    ip -n cloud1 addr add 192.168.61.192/27 dev veth0
+    ip -n cloud2 addr add 192.168.61.193/27 dev veth0
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	# gtp-c
+	ip addr add 192.168.61.$((i+194))/27 dev dummy$i
+
+	# gtp-u
+	ip -n cloud1 addr add 192.168.61.$((i*8+1))/25 dev veth0
+	ip -n cloud1 addr add 192.168.61.$((i*8+2))/25 dev veth0
+	ip -n cloud2 addr add 192.168.61.$((i*8+3))/25 dev veth0
+	ip -n cloud2 addr add 192.168.61.$((i*8+4))/25 dev veth0
+	ip addr add 192.168.61.$((i*8))/25 dev dummy$i
+
+	arp -s 192.168.61.$((i*8+1)) d2:ad:ca:fe:aa:01
+	arp -s 192.168.61.$((i*8+2)) d2:ad:ca:fe:aa:01
+	arp -s 192.168.61.$((i*8+3)) d2:ad:ca:fe:aa:02
+	arp -s 192.168.61.$((i*8+4)) d2:ad:ca:fe:aa:02
+    done
+
+    # tun
+    ns_tun_dev=veth0
+    if [ $tun_vlan -ne 0 ]; then
+	ns_tun_dev=veth0.$tun_vlan
+	ip -n cloud1 link add link veth0 name $ns_tun_dev type vlan id $tun_vlan
+	ip -n cloud1 link set $ns_tun_dev up
+    fi
+    ip -n cloud1 addr add 192.168.61.129/30 dev $ns_tun_dev
+    ip -n cloud1 tunnel add ptun mode ipip local 192.168.61.129 remote 192.168.61.130
+    ip -n cloud1 link set ptun up
+
+    tun_dev=gtpp1
+    if [ $tun_vlan -ne 0 ]; then
+	tun_dev=gtpp1.$tun_vlan
+	ip link add link gtpp1 name $tun_dev type vlan id $tun_vlan
+	ip link set $tun_dev up
+    fi
+    ip addr add 192.168.61.130/30 dev $tun_dev
+    ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129 dev $tun_dev
+    ip link set ptun up
+    arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
+
+    ip netns exec cloud1 ethtool -K veth0 gro on
+    ip netns exec cloud1 ethtool -K veth0 tx-checksumming off >/dev/null
+    ip netns exec cloud2 ethtool -K veth0 gro on
+    ip netns exec cloud2 ethtool -K veth0 tx-checksumming off >/dev/null
+}
+
+
 # everyone on its own interface
 setup_split() {
     setup_netns "sgw" "pgw" "cloud"
@@ -80,6 +156,11 @@ setup_split() {
     ip -n pgw link set dev lo up
     ip link set dev pgw up
     ip -n pgw addr add 192.168.61.193/28 dev pgw
+    ip -n pgw link add link pgw name pgw.9 type vlan id 9
+    ip -n pgw link set pgw.9 up
+    ip -n pgw addr add 192.168.61.225/28 dev pgw.9
+    ip link add link pgw name pgw.9 type vlan id 9
+    ip link set dev pgw.9 up
 
     # sgw side
     ip link add dev sgw netns sgw address d2:ad:ca:fe:b4:02 type veth \
@@ -92,11 +173,14 @@ setup_split() {
     for i in `seq 0 $((gtp_proxy_count-1))`; do
 	# gtp-c
 	ip addr add 192.168.61.$((i+194))/28 dev pgw
+	ip addr add 192.168.61.$((i+226))/28 dev pgw.9
 	ip addr add 192.168.61.$((i+210))/28 dev sgw
 
 	# gtp-u
 	ip -n pgw addr add 192.168.61.$((i*4+2))/27 dev pgw
 	ip addr add 192.168.61.$((i*4+1))/27 dev pgw
+	ip -n pgw addr add 192.168.61.$((i*4+0))/27 dev pgw.9
+	ip addr add 192.168.61.$((i*4+3))/27 dev pgw.9
 	ip -n sgw addr add 192.168.61.$((64+i*4+2))/27 dev sgw
 	ip addr add 192.168.61.$((64+i*4+1))/27 dev sgw
 
@@ -163,11 +247,17 @@ run_combined() {
     gtpg_conf_nofail "
 no bpf-program fwd-1
 no gtp-proxy all
+no mirror sig-dbg
 "
 
     gtpg_conf "
 bpf-program fwd-1
- path bin/gtp_fwd.bpf
+ path bin/gtp_fwd_mirror.bpf
+ no shutdown
+
+mirror sig-dbg
+ bpf-program fwd-1
+ ip-src-dst 192.168.61.129 port-src-dst 3000 protocol UDP interface ptun
  no shutdown
 
 interface gtpp
@@ -183,7 +273,7 @@ interface ptun
 gtp-proxy gtpp-undertest-$i
  bpf-program fwd-1
  gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
- gtpu-tunnel-endpoint 192.168.61.$((i*8+1)) both-side interface gtpp
+ gtpu-tunnel-endpoint 192.168.61.$((i*8+1)) both-sides interfaces gtpp
  gtpu-ipip interface ptun view egress
  gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+3)) ingress
  gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+2)) egress
@@ -200,6 +290,57 @@ show interface-rule all
 show interface-rule installed
 "
 }
+
+
+run_vip() {
+    start_gtpguard
+
+    gtpg_conf_nofail "
+no bpf-program fwd-1
+no gtp-proxy all
+"
+
+    gtpg_conf "
+bpf-program fwd-1
+ path bin/gtp_fwd.bpf
+ no shutdown
+
+interface gtpp1
+ bpf-program fwd-1
+ no shutdown
+
+interface gtpp2
+ bpf-program fwd-1
+ no shutdown
+
+interface ptun
+ no shutdown
+" || fail "cannot execute vty commands"
+
+    for i in `seq 0 $((gtp_proxy_count-1))`; do
+	gtpg_conf "
+gtp-proxy gtpp-undertest-$i
+ bpf-program fwd-1
+ gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
+ gtpu-tunnel-endpoint 192.168.61.$((i*8)) both-sides interfaces gtpp1 gtpp2
+ gtpu-ipip interface ptun view egress
+! gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+2)) ingress
+! gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+1)) egress
+! gtpu-ipip debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+4)) ingress
+! gtpu-ipip debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+3)) egress
+
+" || fail "cannot execute vty commands"
+    done
+
+    gtpg_show "
+show interface
+show bpf forwarding
+show interface-rule all
+show interface-rule installed
+"
+}
+
+
 
 run_split() {
     start_gtpguard
@@ -236,8 +377,8 @@ gtp-proxy gtpp-undertest-$i
  bpf-program fwd-1
  gtpc-tunnel-endpoint 192.168.61.$((i+210)) port 2123
  gtpc-egress-tunnel-endpoint 192.168.61.$((i+194)) port 2123
- gtpu-tunnel-endpoint 192.168.61.$((64+i*4+1)) ingress interface sgw
- gtpu-tunnel-endpoint 192.168.61.$((i*4+1)) egress interface pgw
+ gtpu-tunnel-endpoint 192.168.61.$((64+i*4+1)) ingress interfaces sgw
+ gtpu-tunnel-endpoint 192.168.61.$((i*4+1)) egress interfaces pgw pgw.9
  gtpu-ipip interface ptun view egress
  gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*4+2)) ingress
  gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((64+i*4+2)) egress

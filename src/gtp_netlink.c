@@ -562,7 +562,7 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 				gtp_interface_link(l_iface, iface);
 		}
 
-		addr_fromip4(&iface->tunnel_remote,
+		addr_fromip4(&iface->tunnel_local,
 			     *(uint32_t *)RTA_DATA(attr[IFLA_GRE_LOCAL]));
 		addr_fromip4(&iface->tunnel_remote,
 			     *(uint32_t *)RTA_DATA(attr[IFLA_GRE_REMOTE]));

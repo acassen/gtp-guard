@@ -405,8 +405,6 @@ interface_config_write(struct vty *vty)
 						       sizeof (addr_str))
 				   , VTY_NEWLINE);
 
-		gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_VTY_WRITE, vty);
-
 		if (iface->table_id)
 			vty_out(vty, " ip route table-id %d%s", iface->table_id, VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_GTP_BIT, &iface->flags))

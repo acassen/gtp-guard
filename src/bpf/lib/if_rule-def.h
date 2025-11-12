@@ -14,6 +14,7 @@ struct if_rule_key_base
 	__u32 tun_local;
 	__u32 tun_remote;
 	__u16 vlan_id;
+	__u16 flags;
 } __attribute__((packed));
 
 struct if_rule

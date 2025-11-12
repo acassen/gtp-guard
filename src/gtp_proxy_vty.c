@@ -29,6 +29,7 @@
 #include "command.h"
 #include "memory.h"
 #include "bitops.h"
+#include "utils.h"
 #include "inet_utils.h"
 
 
@@ -140,7 +141,7 @@ DEFUN(gtp_proxy_session_expiration_timeout_delete,
 
 DEFUN(gtpc_proxy_tunnel_endpoint,
       gtpc_proxy_tunnel_endpoint_cmd,
-      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "gtpc-tunnel-endpoint (A.B.C.D|X:X::X:X) port <1024-65535>",
       "GTP Control channel ingress tunnel endpoint\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
@@ -186,7 +187,7 @@ DEFUN(gtpc_proxy_tunnel_endpoint,
 
 DEFUN(gtpc_proxy_egress_tunnel_endpoint,
       gtpc_proxy_egress_tunnel_endpoint_cmd,
-      "gtpc-egress-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "gtpc-egress-tunnel-endpoint (A.B.C.D|X:X::X:X) port <1024-65535>",
       "GTP Control channel egress tunnel endpoint\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
@@ -259,13 +260,13 @@ DEFUN(gtpc_force_pgw_selection,
 
 DEFUN(gtpu_proxy_tunnel_endpoint,
       gtpu_proxy_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) (ingress|egress|both-side) interface IFACE [port <1024-65535>]",
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X::X:X) (ingress|egress|both-sides) interfaces .IFACE",
       "GTP Userplane channel tunnel endpoint\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "ingress side\n"
       "egress side\n"
-      "tun side\n"
+      "both sides\n"
       "Use interface\n"
       "Interface name\n"
       "listening UDP Port (default = 2152)\n"
@@ -274,67 +275,57 @@ DEFUN(gtpu_proxy_tunnel_endpoint,
 	struct gtp_proxy *ctx = vty->index;
 	struct gtp_interface *iface;
 	struct gtp_server *srv;
+	const char *bind_addr_str = argv[0];
 	union addr bind_addr;
-	const char *side = argv[1];
-	const char *ifname = argv[2];
+	bool ingress = !strcmp(argv[1], "ingress") || !strcmp(argv[1], "both-sides");
+	bool egress = !strcmp(argv[1], "egress") || !strcmp(argv[1], "both-sides");
 	char buf[100];
-	uint32_t port = GTP_U_PORT;
-	int err = 0;
+	int i, err = 0;
 
 	if (!ctx->bpf_prog) {
 		vty_out(vty, "%% eBPF GTP-FORWARD program not loaded!\n");
 		return CMD_WARNING;
 	}
 
-	iface = gtp_interface_get(ifname, true);
-	if (iface == NULL) {
-		vty_out(vty, "%% cannot find interface %s\n", ifname);
-		return CMD_WARNING;
-	}
-
 	/* build bind-address for gtp-u socket */
-	err = addr_parse(argv[0], &bind_addr);
+	err = addr_parse(bind_addr_str, &bind_addr);
 	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		vty_out(vty, "%% malformed IP address %s\n", bind_addr_str);
 		return CMD_WARNING;
 	}
+	if (!addr_get_port(&bind_addr))
+		addr_set_port(&bind_addr, GTP_U_PORT);
 
-	if (argc >= 5)
-		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[4], 1024, 65535);
-	addr_set_port(&bind_addr, port);
-
-	if (!strcmp(side, "ingress")) {
-		if (ctx->iface_ingress) {
-			vty_out(vty, "%% gtpu endpoint ingress already set\n");
+	for (i = 2; i < argc; i++) {
+		iface = gtp_interface_get(argv[i], true);
+		if (iface == NULL) {
+			vty_out(vty, "%% cannot find interface %s\n", argv[i]);
 			return CMD_WARNING;
 		}
-		ctx->iface_ingress = iface;
-		srv = &ctx->gtpu;
 
-	} else if (!strcmp(side, "egress")) {
-		if (ctx->iface_egress) {
-			vty_out(vty, "%% gtpu endpoint egress already set\n");
-			return CMD_WARNING;
+		if (ingress) {
+			err = gtp_interface_rules_ctx_add(ctx->irules, iface, true);
+			if (err && errno == EEXIST) {
+				vty_out(vty, "%% interface %s already added as ingress\n",
+					argv[i]);
+				return CMD_WARNING;
+			}
 		}
-		ctx->iface_egress = iface;
+		if (egress) {
+			err = gtp_interface_rules_ctx_add(ctx->irules, iface, false);
+			if (err && errno == EEXIST) {
+				vty_out(vty, "%% interface %s already added as egress\n",
+					argv[i]);
+				return CMD_WARNING;
+			}
+		}
+	}
+
+	/* bind service */
+	if (egress && !ingress)
 		srv = &ctx->gtpu_egress;
-
-	} else if (!strcmp(side, "both-side")) {
-		if (ctx->iface_ingress || ctx->iface_egress) {
-			vty_out(vty, "%% gtpu endpoints already set\n");
-			return CMD_WARNING;
-		}
-		ctx->iface_ingress = iface;
-		ctx->iface_egress = iface;
+	else
 		srv = &ctx->gtpu;
-
-	} else {
-		return CMD_WARNING;
-	}
-
-	/* receive events for selected interface */
-	gtp_interface_register_event(iface, gtp_proxy_iface_event_cb, ctx);
-
 	srv->s.addr = bind_addr.ss;
 	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 	err = gtp_server_init(srv, ctx, gtp_proxy_ingress_init, gtp_proxy_ingress_process);
@@ -523,6 +514,10 @@ gtp_config_write(struct vty *vty)
 	struct gtp_server *srv;
 	struct gtp_proxy *ctx;
 	char ifname[IF_NAMESIZE];
+	int nin, neg, nbo, i, j, port;
+	struct gtp_interface *ifin[8], *ifeg[8], *ifbo[8];
+	char sport[10];
+
 
 	list_for_each_entry(ctx, l, next) {
 		vty_out(vty, "gtp-proxy %s%s", ctx->name, VTY_NEWLINE);
@@ -547,22 +542,53 @@ gtp_config_write(struct vty *vty)
 				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
-		if (ctx->iface_ingress) {
+		nin = gtp_interface_rules_ctx_list_bound(ctx->irules, true, ifin,
+						       ARRAY_SIZE(ifin));
+		neg = gtp_interface_rules_ctx_list_bound(ctx->irules, false, ifeg,
+						       ARRAY_SIZE(ifeg));
+		for (i = 0, nbo = 0; i < nin; i++) {
+			for (j = 0; j < neg; j++) {
+				if (ifeg[j] == ifin[i]) {
+					ifbo[nbo++] = ifin[i];
+					ifin[i--] = ifin[--nin];
+					ifeg[j--] = ifeg[--neg];
+				}
+			}
+		}
+		if (nin || nbo) {
 			srv = &ctx->gtpu;
-			vty_out(vty, " gtpu-tunnel-endpoint %s %s interface %s port %d\n"
-				   , inet_sockaddrtos(&srv->s.addr)
-				   , ctx->iface_ingress == ctx->iface_egress ?
-				     "both-side" : "ingress"
-				   , ctx->iface_ingress->ifname
-				   , ntohs(inet_sockaddrport(&srv->s.addr)));
+			port = ntohs(inet_sockaddrport(&srv->s.addr));
+			sport[0] = 0;
+			if (port != GTP_U_PORT)
+				sprintf(sport, ":%d", port);
 		}
-		if (ctx->iface_egress && ctx->iface_ingress != ctx->iface_egress) {
-			srv = &ctx->gtpu_egress;
-			vty_out(vty, " gtpu-tunnel-endpoint %s egress interface %s port %d\n"
-				   , ctx->iface_egress->ifname
-				   , inet_sockaddrtos(&srv->s.addr)
-				   , ntohs(inet_sockaddrport(&srv->s.addr)));
+		if (nin) {
+			vty_out(vty, " gtpu-tunnel-endpoint %s%s ingress interfaces",
+				inet_sockaddrtos(&srv->s.addr), sport);
+			for (i = 0; i < nin; i++)
+				vty_out(vty, " %s", ifin[i]->ifname);
+			vty_out(vty, "%s", VTY_NEWLINE);
 		}
+		if (nbo) {
+			vty_out(vty, " gtpu-tunnel-endpoint %s%s both-sides interfaces",
+				inet_sockaddrtos(&srv->s.addr), sport);
+			for (i = 0; i < nbo; i++)
+				vty_out(vty, " %s", ifbo[i]->ifname);
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
+		if (neg) {
+			srv = &ctx->gtpu;
+			port = ntohs(inet_sockaddrport(&srv->s.addr));
+			sport[0] = 0;
+			if (port != GTP_U_PORT)
+				sprintf(sport, ":%d", port);
+			vty_out(vty, " gtpu-tunnel-endpoint %s%s egress interfaces",
+				inet_sockaddrtos(&srv->s.addr), sport);
+			for (i = 0; i < neg; i++)
+				vty_out(vty, " %s", ifeg[i]->ifname);
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
+
 		if (__test_bit(GTP_FL_FORCE_PGW_BIT, &ctx->flags))
 			vty_out(vty, " pgw-force-selection %s%s"
 				   , inet_sockaddrtos(&ctx->pgw_addr)

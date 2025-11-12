@@ -36,7 +36,7 @@ int cgn_entry(struct xdp_md *ctx)
 		return XDP_DROP;
 
 	/* phase 3: rewrite interface encap */
-	return if_rule_rewrite_pkt(ctx, &d);
+	return if_rule_rewrite_pkt(&d);
 }
 
 

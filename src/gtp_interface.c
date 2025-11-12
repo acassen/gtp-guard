@@ -126,6 +126,9 @@ gtp_interface_get_by_ifindex(int ifindex, bool alloc)
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
 
+	if (ifindex <= 0)
+		return NULL;
+
 	list_for_each_entry(iface, l, next) {
 		if (iface->ifindex == ifindex) {
 			__sync_add_and_fetch(&iface->refcnt, 1);
@@ -234,6 +237,9 @@ gtp_interface_link(struct gtp_interface *master, struct gtp_interface *slave)
 		}
 	}
 
+	/* see comment in gtp_interfaces_destroy(). masters sit first in list */
+	list_move(&master->next, &daemon_data->interfaces);
+
 	slave->link_iface = master;
 }
 
@@ -262,7 +268,8 @@ gtp_interface_register_event(struct gtp_interface *iface,
 
 void
 gtp_interface_unregister_event(struct gtp_interface *iface,
-			       gtp_interface_event_cb_t cb)
+			       gtp_interface_event_cb_t cb,
+			       void *ud)
 {
 	int i;
 
@@ -270,10 +277,8 @@ gtp_interface_unregister_event(struct gtp_interface *iface,
 		return;
 
 	for (i = 0; i < iface->ev_n; i++) {
-		if (iface->ev[i].cb == cb) {
-			if (iface->ev_n > 1)
-				iface->ev[i] = iface->ev[iface->ev_n - 1];
-			--iface->ev_n;
+		if (iface->ev[i].cb == cb && iface->ev[i].cb_ud == ud) {
+			iface->ev[i] = iface->ev[--iface->ev_n];
 			break;
 		}
 	}

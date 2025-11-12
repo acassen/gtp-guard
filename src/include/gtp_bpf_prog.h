@@ -41,13 +41,15 @@ struct gtp_bpf_prog_var {
 struct gtp_bpf_prog_tpl {
 	char			name[GTP_STR_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
-	size_t			udata_alloc_size;
 
+	/* template's userdata. either set alloc_size or alloc/release cb */
+	size_t			udata_alloc_size;
 	void *(*alloc)(struct gtp_bpf_prog *);
+	void (*release)(struct gtp_bpf_prog *, void *);
+
 	int (*prepare)(struct gtp_bpf_prog *, void *);
 	int (*loaded)(struct gtp_bpf_prog *, void *, bool);
 	void (*closed)(struct gtp_bpf_prog *, void *);
-	void (*release)(struct gtp_bpf_prog *, void *);
 
 	int (*iface_bind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
 	void (*iface_unbind)(struct gtp_bpf_prog *, void *, struct gtp_interface *);
@@ -101,7 +103,6 @@ bool gtp_bpf_prog_is_attached(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_detach(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_unload(struct gtp_bpf_prog *);
 int gtp_bpf_prog_destroy(struct gtp_bpf_prog *);
-int gtp_bpf_prog_tpl_data_set(struct gtp_bpf_prog *, const char *, void *);
 void gtp_bpf_prog_foreach_prog(int (*hdl) (struct gtp_bpf_prog *, void *),
  			      void *, const char *);
 struct gtp_bpf_prog *gtp_bpf_prog_get(const char *);

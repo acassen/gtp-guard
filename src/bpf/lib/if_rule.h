@@ -114,6 +114,7 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 	struct ethhdr *ethh = data;
 	struct vlan_hdr *vlanh;
 	struct iphdr *ip4h, *ip4h_in;
+	struct if_rule_key_base *k = &d->k.b;
 	__u16 offset;
 	__u16 eth_type;
 
@@ -150,8 +151,9 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 		if (ip4h->version == 4 &&
 		    ip4h->ihl == 5 &&
 		    ip4h->protocol == IPPROTO_IPIP) {
-			d->k.b.tun_local = ip4h->daddr;
-			d->k.b.tun_remote = ip4h->saddr;
+			k->tun_local = ip4h->daddr;
+			k->tun_remote = ip4h->saddr;
+			k->flags |= IF_RULE_FL_TUNNEL_IPIP;
 
 			offset += sizeof (*ip4h);
 			ip4h_in = (struct iphdr *)(data + offset);
@@ -171,8 +173,9 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 				return 1;
 			if (GRE_VERSION(gre) == GRE_VERSION_1701 && gre->flags == 0) {
 				/* is a basic gre tunnel */
-				d->k.b.tun_local = ip4h->daddr;
-				d->k.b.tun_remote = ip4h->saddr;
+				k->tun_local = ip4h->daddr;
+				k->tun_remote = ip4h->saddr;
+				k->flags |= IF_RULE_FL_TUNNEL_GRE;
 
 				offset += sizeof (*gre);
 				ip4h_in = (struct iphdr *)(data + offset);
@@ -209,8 +212,9 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
  * before.
  */
 static __attribute__((noinline)) int
-if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
+if_rule_rewrite_pkt(struct if_rule_data *d)
 {
+	struct xdp_md *ctx = d->ctx;
 	const struct if_rule_key_base *k = &d->k.b;
 	void *data, *data_end, *payload;
 	struct ethhdr *ethh;
@@ -259,7 +263,7 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			adjust_sz -= sizeof (struct gre_hdr);
 	} else if (k->tun_remote && !d->r->tun_remote) {
 		adjust_sz += sizeof (struct iphdr);
-		if (d->r->flags & IF_RULE_FL_TUNNEL_GRE)
+		if (k->flags & IF_RULE_FL_TUNNEL_GRE)
 			adjust_sz += sizeof (struct gre_hdr);
 	}
 

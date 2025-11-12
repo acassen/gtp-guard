@@ -336,7 +336,7 @@ gtpu_traffic_selector(struct if_rule_data *d)
 	}
 
 	/* Perform xlat if needed */
-	if (d->r->action == 11) {
+	if (d->r->action == 10 || d->r->action == 11) {
 		gtpu_xlat_header(rule, iph, udph, gtph);
 		d->dst_addr = rule->dst_addr;
 		/* bpf_printk("gtpu xlat header! dst=%x", rule->dst_addr); */

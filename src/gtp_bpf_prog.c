@@ -403,6 +403,10 @@ gtp_bpf_prog_open(struct gtp_bpf_prog *p)
 			else if (tpl->udata_alloc_size)
 				p->tpl_data[p->tpl_n] =
 					calloc(1, tpl->udata_alloc_size);
+			else
+				goto err;
+			if (p->tpl_data[p->tpl_n] == NULL)
+				goto err;
 			p->tpl[p->tpl_n++] = tpl;
 		}
 	}
@@ -691,33 +695,6 @@ gtp_bpf_prog_destroy(struct gtp_bpf_prog *p)
 	FREE(p);
 	return 0;
 }
-
-int
-gtp_bpf_prog_tpl_data_set(struct gtp_bpf_prog *p, const char *tpl_name, void *udata)
-{
-	const struct gtp_bpf_prog_tpl *tpl;
-	int i;
-
-	for (i = 0; i < p->tpl_n; i++) {
-		if (!strcmp(p->tpl[i]->name, tpl_name)) {
-			if (p->tpl[i]->udata_alloc_size)
-				return -1;
-			p->tpl_data[i] = udata;
-			return 0;
-		}
-	}
-	if (p->tpl_n == BPF_PROG_TPL_MAX)
-		return -1;
-	tpl = gtp_bpf_prog_tpl_get(tpl_name);
-	if (!tpl || tpl->udata_alloc_size)
-		return -1;
-	p->tpl[p->tpl_n] = tpl;
-	p->tpl_data[p->tpl_n++] = udata;
-
-	return 0;
-}
-
-
 
 static void
 _update_running_bpf_prog(struct gtp_bpf_prog *p, struct gtp_interface *iface)

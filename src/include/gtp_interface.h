@@ -36,7 +36,6 @@ enum gtp_interface_event {
 	GTP_INTERFACE_EV_PRG_UNBIND,
 	GTP_INTERFACE_EV_DESTROYING,
 	GTP_INTERFACE_EV_VTY_SHOW,
-	GTP_INTERFACE_EV_VTY_WRITE,
 };
 
 typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
@@ -113,7 +112,8 @@ void gtp_interface_stop(struct gtp_interface *);
 void gtp_interface_link(struct gtp_interface *, struct gtp_interface *);
 void gtp_interface_register_event(struct gtp_interface *, gtp_interface_event_cb_t,
 				  void *);
-void gtp_interface_unregister_event(struct gtp_interface *, gtp_interface_event_cb_t);
+void gtp_interface_unregister_event(struct gtp_interface *, gtp_interface_event_cb_t,
+				    void *);
 void gtp_interface_trigger_event(struct gtp_interface *iface,
 				 enum gtp_interface_event type, void *arg);
 void gtp_interface_trigger_event_wide(struct gtp_interface *iface,

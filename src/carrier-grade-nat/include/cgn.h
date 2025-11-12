@@ -28,6 +28,7 @@
 
 struct gtp_bpf_prog;
 struct gtp_interface;
+struct gtp_interface_rule_ctx;
 
 
 /* default protocol timeout values */
@@ -49,14 +50,8 @@ struct cgn_ctx
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	struct list_head	next;
-	struct gtp_bpf_prog	*prg;	/* always set */
-
-	/* links to interfaces */
-	struct gtp_interface	*priv;
-	struct gtp_interface	*pub;
-	bool			bind_priv;
-	bool			bind_pub;
-	bool			rules_set;
+	struct cgn_ctx		**bpf_data;	/* pointer from bpf to us */
+	struct gtp_interface_rules_ctx *irules;
 
 	/* bpf maps */
 	struct bpf_map		*v4_blocks;
