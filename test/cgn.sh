@@ -143,17 +143,19 @@ setup_iface_vlan() {
     # priv side
     ip link add dev priv netns cgn-priv address d2:ad:ca:fe:b4:01 type veth \
        peer name priv address d2:f0:0c:ba:a5:02
-    ip link add link priv name priv.20 type vlan id 20
-    ip -n cgn-priv link add link priv name priv.20 type vlan id 20
-    ip -n cgn-priv link set dev priv up
-    ip -n cgn-priv link set dev priv.20 up
-    ip -n cgn-priv link set dev lo up
-    ip -n cgn-priv addr add 192.168.61.1/30 dev priv.20
-    ip -n cgn-priv addr add 10.0.0.1/8 dev priv.20
+    for vlan in `seq 20 24`; do
+	ip link add link priv name priv.$vlan type vlan id $vlan
+	ip -n cgn-priv link add link priv name priv.$vlan type vlan id $vlan
+	ip -n cgn-priv link set dev priv up
+	ip -n cgn-priv link set dev priv.$vlan up
+	ip -n cgn-priv link set dev lo up
+	ip -n cgn-priv addr add 192.168.61.1/30 dev priv.$vlan
+	ip -n cgn-priv addr add 10.0.0.1/8 dev priv.$vlan
+	ip link set dev priv up
+	ip link set dev priv.$vlan up
+	ip addr add 192.168.61.2/30 dev priv.$vlan
+    done
     ip -n cgn-priv route add default via 192.168.61.2 dev priv.20
-    ip link set dev priv up
-    ip link set dev priv.20 up
-    ip addr add 192.168.61.2/30 dev priv.20
     ip route add 10.0.0.0/8 via 192.168.61.1 dev priv.20 table 1320
     ip route add 37.141.0.0/24 via 192.168.61.1 dev priv.20 table 1320
 
@@ -480,6 +482,9 @@ carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
  ipv4-pool 37.141.0.0/24
  interface priv.20 side ingress
+ interface priv.21 side ingress
+ interface priv.22 side ingress
+ interface priv.23 side ingress
  interface pub.10 side egress
 
 bpf-program cgn-ng-1
@@ -510,11 +515,12 @@ interface pub
     gtpg_show "
 show interface
 show carrier-grade-nat flows 10.0.0.1
+show interface-rule all
 "
 }
 
 
-############################ RUN IFACE VLAN #################################
+############################ RUN VLAN #################################
 
 run_vlan() {
     # start gtp-guard if not yet started
@@ -609,9 +615,9 @@ show carrier-grade-nat flows 10.0.0.1
 # send various packets type
 #
 pkt() {
-    netns=cgn_priv
+    netns="cgn-priv"
     if [ $type == "gre" -o $type == "vlan" ]; then
-	netns=router-priv
+	netns="router-priv"
     fi
 
     ip netns exec $netns ping -c 1 -W 2 -I 10.0.0.1 8.8.8.8

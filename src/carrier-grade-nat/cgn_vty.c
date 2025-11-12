@@ -283,13 +283,14 @@ DEFUN(cgn_interface,
 {
 	struct cgn_ctx *c = vty->index;
 	struct gtp_interface *iface;
+	bool ingress = !strcmp(argv[1], "ingress");
 
 	iface = gtp_interface_get(argv[0], true);
 	if (iface == NULL) {
 		vty_out(vty, "%% cannot find interface %s\n", argv[0]);
 		return CMD_WARNING;
 	}
-	cgn_ctx_attach_interface(c, iface, !strcmp(argv[1], "ingress"));
+	cgn_ctx_attach_interface(c, iface, ingress);
 
 	return CMD_SUCCESS;
 }

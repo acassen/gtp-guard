@@ -141,108 +141,35 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 	return k;
 }
 
-static void
-cgn_ctx_set_rules(struct cgn_ctx *c)
-{
-	/* everything configured/binded, set traffic rules */
-	if (!c->rules_set &&
-	    c->priv != NULL && c->bind_priv &&
-	    c->pub != NULL && c->bind_pub) {
-		struct if_rule_key_base k;
-		struct gtp_if_rule ifr = {
-			.from = c->priv,
-			.to = c->pub,
-			.key = &k,
-			.key_size = sizeof (k),
-			.action = 10,
-			.prio = 100,
-		};
-		gtp_interface_rule_add(&ifr);
-		ifr.from = c->pub;
-		ifr.to = c->priv;
-		ifr.action = 11;
-		ifr.prio = 500;
-		gtp_interface_rule_add(&ifr);
-		c->rules_set = true;
-		return;
-	}
-
-	/* something not configured/binded anymore, unset traffic rules */
-	if (c->rules_set && (!c->bind_priv || !c->bind_pub)) {
-		assert(c->priv && c->pub);
-		gtp_interface_rule_del_iface(c->priv);
-		gtp_interface_rule_del_iface(c->pub);
-		c->rules_set = false;
-	}
-}
 
 static void
-cgn_ctx_iface_event_cb(struct gtp_interface *iface,
-		       enum gtp_interface_event type,
-		       void *ud, void *arg)
+_rule_set(void *ud, struct gtp_interface *from, bool from_ingress,
+	  struct gtp_interface *to, bool add)
 {
-	struct cgn_ctx *c = ud;
-
-	switch (type) {
-	case GTP_INTERFACE_EV_PRG_BIND:
-		if (iface == c->priv)
-			c->bind_priv = true;
-		if (iface == c->pub)
-			c->bind_pub = true;
-		break;
-
-	case GTP_INTERFACE_EV_PRG_UNBIND:
-	case GTP_INTERFACE_EV_DESTROYING:
-		if (iface == c->priv)
-			c->bind_priv = false;
-		if (iface == c->pub)
-			c->bind_pub = false;
-		break;
-
-	case GTP_INTERFACE_EV_VTY_SHOW:
-	{
-		struct vty *vty = arg;
-		if (iface == c->priv)
-			vty_out(vty, " carrier-grade-nat:%s side ingress\n",
-				c->name);
-		if (iface == c->pub)
-			vty_out(vty, " carrier-grade-nat:%s side egress\n",
-				c->name);
-		break;
-	}
-	}
-
-	cgn_ctx_set_rules(c);
-
-	if (type == GTP_INTERFACE_EV_DESTROYING) {
-		if (iface == c->priv)
-			c->priv = NULL;
-		if (iface == c->pub)
-			c->pub = NULL;
-	}
+	struct if_rule_key_base k;
+	struct gtp_if_rule ifr = {
+		.from = from,
+		.to = to,
+		.key = &k,
+		.key_size = sizeof (k),
+		.action = from_ingress ? 10 : 11,
+		.prio = from_ingress ? 100 : 500,
+	};
+	gtp_interface_rule_set(&ifr, add);
 }
 
 int
 cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
-			 bool is_priv)
+			 bool ingress)
 {
-	struct gtp_interface **piface = is_priv ? &c->priv : &c->pub;
-
-	if (*piface) {
-		errno = EEXIST;
-		return -1;
-	}
-	*piface = iface;
-	gtp_interface_register_event(iface, cgn_ctx_iface_event_cb, c);
-
-	return 0;
+	return gtp_interface_rules_ctx_add(c->irules, iface, ingress);
 }
 
 void
 cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface)
 {
-	cgn_ctx_iface_event_cb(iface, GTP_INTERFACE_EV_DESTROYING, c, NULL);
-	gtp_interface_unregister_event(iface, cgn_ctx_iface_event_cb);
+	gtp_interface_rules_ctx_del(c->irules, iface, true);
+	gtp_interface_rules_ctx_del(c->irules, iface, false);
 }
 
 
@@ -265,6 +192,9 @@ cgn_ctx_alloc(const char *name)
 {
 	struct cgn_ctx *c = NULL;
 	struct gtp_bpf_prog *p;
+	struct gtp_interface_rules_ops irules_ops = {
+		.rule_set = _rule_set,
+	};
 
 	/* cgn configure a bpf-program. create it if it doesn't exist */
 	p = gtp_bpf_prog_get(name);
@@ -278,10 +208,11 @@ cgn_ctx_alloc(const char *name)
 	if (c == NULL)
 		return NULL;
 
-	c->prg = p;
 	c->bpf_data = gtp_bpf_prog_tpl_data_get(p, "cgn");
 	if (c->bpf_data)
 		*c->bpf_data = c;
+	irules_ops.ud = c;
+	c->irules = gtp_interface_rules_ctx_new(&irules_ops);
 	c->port_start = 1500;
 	c->port_end = 65535;
 	c->block_size = 500;
@@ -303,10 +234,8 @@ cgn_ctx_alloc(const char *name)
 void
 cgn_ctx_release(struct cgn_ctx *c)
 {
-	if (c->priv != NULL)
-		cgn_ctx_detach_interface(c, c->priv);
-	if (c->pub != NULL)
-		cgn_ctx_detach_interface(c, c->pub);
+	if (c->irules != NULL)
+		gtp_interface_rules_ctx_release(c->irules);
 	if (c->bpf_data != NULL)
 		*c->bpf_data = NULL;
 	if (c->blog_cdr_fwd != NULL)
