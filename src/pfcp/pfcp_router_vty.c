@@ -140,8 +140,8 @@ DEFUN(pfcp_router_bpf_prog,
 	struct pfcp_bpf_data *bpf_data;
 	struct gtp_bpf_prog *p;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+	if (c->bpf_prog != NULL) {
+		vty_out(vty, "%% bpf-program already set\n");
 		return CMD_WARNING;
 	}
 
@@ -508,7 +508,7 @@ config_pfcp_router_write(struct vty *vty)
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
 
-		n = gtp_interface_rules_ctx_list(c->irules, false, iflist,
+		n = gtp_interface_rules_ctx_list(c->irules, true, iflist,
 						 ARRAY_SIZE(iflist));
 		ifbuf[0] = 0;
 		for (k = 0, i = 0; i < n; i++)
