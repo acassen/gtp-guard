@@ -78,8 +78,7 @@ pfcp_ie_decode_bcd_field(const uint8_t **cp, const uint8_t *end, uint64_t *outpu
 	if (*cp + len > end)
 		return -1;
 
-	if (output)
-		*output = bcd_to_int64(*cp, len);
+	*output = bcd_to_int64(*cp, len);
 
 	*cp += len;
 	return 0;
