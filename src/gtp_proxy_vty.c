@@ -104,15 +104,24 @@ DEFUN(gtp_proxy_bpf_program,
 	struct gtp_proxy *ctx = vty->index;
 	struct gtp_bpf_prog *p;
 
-	p = gtp_bpf_prog_get(argv[0]);
-	if (!p) {
-		vty_out(vty, "%% unknown bpf-program '%s'%s"
-			   , argv[0], VTY_NEWLINE);
+	if (ctx->bpf_prog != NULL) {
+		vty_out(vty, "%% bpf-program already set\n");
 		return CMD_WARNING;
 	}
 
-	ctx->bpf_prog = p;
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% unknown bpf-program '%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
 	ctx->bpf_data = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
+	if (ctx->bpf_data == NULL) {
+		vty_out(vty, "%% bpf-program '%s' is not implementing "
+			"template 'gtp_fwd'\n", argv[0]);
+		return CMD_WARNING;
+	}
+	ctx->bpf_prog = p;
 	list_add(&ctx->bpf_list, &ctx->bpf_data->gtp_proxy_list);
 
 	return CMD_SUCCESS;
