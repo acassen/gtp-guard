@@ -119,7 +119,7 @@ _rule_set(void *ud, struct gtp_interface *from, bool from_ingress,
 		.to = to,
 		.key = &k,
 		.key_size = sizeof (k),
-		.action = from_ingress ? 10 : 11,
+		.action = from_ingress ? XDP_ACTION_FROM_INGRESS : XDP_ACTION_FROM_EGRESS,
 		.prio = from_ingress ? 100 : 500,
 	};
 	gtp_interface_rule_set(&ifr, add);
