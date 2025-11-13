@@ -20,17 +20,81 @@
  */
 
 #include <stdlib.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
-#include "inet_utils.h"
-#include "gtp_interface.h"
-#include "pfcp_router.h"
 #include "pfcp_bpf.h"
-#include "logger.h"
-#include "bpf/lib/upf-def.h"
+#include "pfcp_router.h"
+#include "pfcp_teid.h"
+#include "gtp_bpf_utils.h"
+#include "list_head.h"
+#include "bitops.h"
 
 
 /* Extern data */
 extern struct data *daemon_data;
+
+
+int
+pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
+		     struct ue_ip_address *ue)
+{
+	char ue_str[INET6_ADDRSTRLEN];
+	char gtpu_str[INET6_ADDRSTRLEN];
+
+	if (!t)
+		return -1;
+
+
+	/* NOTE: t->id is stored in host byte order. Any matching
+	 * MUST convert it into network by order. htonl() is then
+	 * used during PFCP protcol F-TEID IE creation */
+
+	/* Egress rules :
+	 * NOTE: Egress direction is a simple GTP-U decap + forwarding
+	 * NOTE: You can also implement strict GTP-U endpoint by
+	 * validating every incoming pkt with pfcp_teid->ipv{4,6}
+	 */
+	if (__test_bit(PFCP_TEID_F_EGRESS, &t->flags)) {
+		printf("%s(): '%s' UPF bpf 'egress' rule for teid:0x%.8x",
+		       __FUNCTION__,
+		       (action == RULE_ADD) ? "adding" : "removing", t->id);
+		return 0;
+	}
+
+	/* Ingress rules :
+	 * NOTE: Ingress direction is more complicated. IPv4 and/or IPv6 iph->daddr
+	 * MUST match ue_ip_address. If so, then encap into GTP-U and forward pkt
+	 * to remote GTP-U endpoint as present in pfcp_teid->ipv{4,6}.
+	 */
+	if (__test_bit(PFCP_TEID_F_INGRESS, &t->flags)) {
+		/* At least v4 or v6... */
+		if (!ue->flags)
+			return -1;
+
+		if (ue->flags & UE_IPV4) {
+			printf("%s(): '%s' UPF bpf 'ingress' rule matching ue:'%s'\n"
+			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s",
+			       __FUNCTION__,
+			       (action == RULE_ADD) ? "adding" : "removing",
+			       inet_ntop(AF_INET, &ue->v4, ue_str, INET6_ADDRSTRLEN),
+			       t->id,
+			       inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN));
+		}
+
+		if (ue->flags & UE_IPV6) {
+			printf("%s(): '%s' UPF bpf 'ingress' rule matching ue:'%s'\n"
+			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s",
+			       __FUNCTION__,
+			       (action == RULE_ADD) ? "adding" : "removing",
+			       inet_ntop(AF_INET6, &ue->v6, ue_str, INET6_ADDRSTRLEN),
+			       t->id,
+			       inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN));
+		}
+	}
+
+	return 0;
+}
 
 
 static void *

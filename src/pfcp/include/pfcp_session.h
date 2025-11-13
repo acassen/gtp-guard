@@ -169,3 +169,4 @@ int pfcp_session_put_create_pdr(struct pkt_buffer *pbuff,
 				struct pfcp_session *s);
 int pfcp_session_put_create_traffic_endpoint(struct pkt_buffer *pbuff,
 					     struct pfcp_session *s);
+int pfcp_session_bpf_teid_action(struct pfcp_session *s, int action, int dir);

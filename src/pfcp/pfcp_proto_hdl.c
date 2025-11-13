@@ -28,6 +28,7 @@
 #include "pfcp_utils.h"
 #include "gtp_conn.h"
 #include "gtp_apn.h"
+#include "gtp_bpf_utils.h"
 #include "pkt_buffer.h"
 #include "bitops.h"
 #include "logger.h"
@@ -250,7 +251,13 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 		return -1;
 	}
 
-	/* TODO: Egress Data-Path setup here */
+	/* Egress Data-Path setup */
+	err = pfcp_session_bpf_teid_action(s, RULE_ADD, PFCP_DIR_EGRESS);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
+				    , __FUNCTION__);
+		return -1;
+	}
 
 	return 0;
 }

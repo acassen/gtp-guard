@@ -20,7 +20,6 @@
  */
 
 #include "inet_utils.h"
-#include "gtp_interface.h"
 #include "gtp_data.h"
 #include "gtp_bpf_fwd.h"
 #include "gtp_bpf_utils.h"
@@ -172,7 +171,7 @@ gtp_bpf_fwd_teid_bytes(struct gtp_teid *t, uint64_t *bytes)
 	struct bpf_map *map;
 	uint32_t id;
 	int err = 0, i;
-	size_t sz;
+	size_t sz = sizeof(r);
 
 	if (!proxy || !proxy->bpf_data || !(map = proxy->bpf_data->teid_xlat))
 		return -1;

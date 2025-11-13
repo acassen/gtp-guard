@@ -21,7 +21,10 @@
 
 #pragma once
 
-#include "gtp_bpf_prog.h"
+#include "pfcp_teid.h"
+#include "pfcp_session.h"
+
+struct pfcp_router;
 
 struct pfcp_bpf_data
 {
@@ -30,3 +33,7 @@ struct pfcp_bpf_data
 	// XXX set your own
 	struct bpf_map		*teid_rule;
 };
+
+/* Prototypes */
+int pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
+			 struct ue_ip_address *ue);

@@ -25,7 +25,9 @@
 #include "pfcp_teid.h"
 #include "pfcp_msg.h"
 #include "pfcp_router.h"
+#include "pfcp_bpf.h"
 #include "gtp_conn.h"
+#include "gtp_bpf_utils.h"
 #include "utils.h"
 #include "bitops.h"
 #include "logger.h"
@@ -567,8 +569,6 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 	if (!t)
 		return -1;
 
-printf("%s(): TE-ID:%d - Allocating TEID:0x%.8x\n", __FUNCTION__, te->id, t->id);
-
 	te->teid[PFCP_DIR_EGRESS] = t;
 	__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
 
@@ -849,6 +849,33 @@ pfcp_session_put_create_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_s
 		err = pfcp_ie_put_create_te(pbuff, te->id, htonl(teid), ipv4, ipv6);
 		if (err)
 			return -1;
+	}
+
+	return 0;
+}
+
+/*
+ *	Session BPF
+ */
+int
+pfcp_session_bpf_teid_action(struct pfcp_session *s, int action, int dir)
+{
+	struct pdr *p;
+	struct traffic_endpoint *te;
+	int i;
+
+	/* Non-optimized pdi */
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->pdr[i].id; i++) {
+		p = &s->pdr[i];
+		pfcp_bpf_teid_action(s->router, RULE_ADD, p->teid[dir],
+				     &p->ue_ip);
+	}
+
+	/* PDI Optimized */
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+		te = &s->te[i];
+		pfcp_bpf_teid_action(s->router, RULE_ADD, p->teid[dir],
+				     &te->ue_ip);
 	}
 
 	return 0;
