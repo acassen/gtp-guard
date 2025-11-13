@@ -874,7 +874,7 @@ pfcp_session_bpf_teid_action(struct pfcp_session *s, int action, int dir)
 	/* PDI Optimized */
 	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
 		te = &s->te[i];
-		pfcp_bpf_teid_action(s->router, RULE_ADD, p->teid[dir],
+		pfcp_bpf_teid_action(s->router, RULE_ADD, te->teid[dir],
 				     &te->ue_ip);
 	}
 

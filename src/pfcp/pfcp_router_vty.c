@@ -153,6 +153,11 @@ DEFUN(pfcp_router_bpf_prog,
 
 	c->bpf_prog = p;
 	c->bpf_data = gtp_bpf_prog_tpl_data_get(p, "upf");
+	if (!c->bpf_data) {
+		vty_out(vty, "%% unknown template 'upf' for bpf-program '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 	list_add(&c->bpf_list, &c->bpf_data->pfcp_router_list);
 
 	return CMD_SUCCESS;
