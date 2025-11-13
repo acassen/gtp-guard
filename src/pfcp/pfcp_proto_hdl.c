@@ -76,8 +76,8 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struc
 	pfcph->type = PFCP_PFD_MANAGEMENT_RESPONSE;
 
 	/* Append IEs */
-	err = pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-				   PFCP_CAUSE_REQUEST_ACCEPTED);
+	err = pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+				      PFCP_CAUSE_REQUEST_ACCEPTED);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
@@ -122,7 +122,7 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct s
 	pfcph->type = PFCP_ASSOCIATION_SETUP_RESPONSE;
 
 	/* Append IEs */
-	err = pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len, cause);
+	err = pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len, cause);
 	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
 	err = (err) ? : pfcp_ie_put_up_function_features(pbuff, ctx->supported_features);
 	if (err) {
@@ -174,6 +174,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	struct gtp_conn *c;
 	struct gtp_apn *apn = NULL;
 	struct pfcp_session_establishment_request *req;
+	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 	uint64_t imsi, imei, msisdn;
 	int err;
 
@@ -185,31 +186,31 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 
 	assoc = pfcp_assoc_get_by_ie(req->node_id);
 	if (!assoc)
-		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					    PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_NO_ESTABLISHED_PFCP_ASSOCIATION);
 
 	/* APN selection */
 	if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &ctx->flags)) {
 		apn = pfcp_session_get_apn(req->apn_dnn);
 		if (!apn)
-			return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-						    PFCP_CAUSE_REQUEST_REJECTED);
+			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+						       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	/* User infos */
 	if (!req->user_id) {
 		log_message(LOG_INFO, "%s(): IE User-ID not present... rejecting..."
 				    , __FUNCTION__);
-		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					    PFCP_CAUSE_REQUEST_REJECTED);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	err = pfcp_ie_decode_user_id(req->user_id, &imsi, &imei, &msisdn);
 	if (err) {
 		log_message(LOG_INFO, "%s(): malformed IE User-ID... rejecting..."
 				    , __FUNCTION__);
-		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					    PFCP_CAUSE_REQUEST_REJECTED);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	c = gtp_conn_get_by_imsi(imsi);
@@ -221,20 +222,37 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	if (!s) {
 		log_message(LOG_INFO, "%s(): Unable to create new session... rejecting..."
 				    , __FUNCTION__);
-		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					    PFCP_CAUSE_REQUEST_REJECTED);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	err = pfcp_session_decode(s, req, addr);
 	if (err) {
 		log_message(LOG_INFO, "%s(): malformed IE Create-PDR... rejecting..."
 				    , __FUNCTION__);
-		return pfcp_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					    PFCP_CAUSE_REQUEST_REJECTED);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	pfcph->type = PFCP_SESSION_ESTABLISHMENT_RESPONSE;
+	pfcph->seid = s->remote_seid.id;
 
-	return -1;
+	/* Append IEs */
+	err = pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len, cause);
+	err = (err) ? : pfcp_ie_put_f_seid(pbuff, htobe64(s->seid), &srv->s.addr);
+	err = (err) ? : pfcp_session_put_create_pdr(pbuff, s);
+	err = (err) ? : pfcp_session_put_create_traffic_endpoint(pbuff, s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	/* TODO: Egress Data-Path setup here */
+
+	return 0;
 }
 
 

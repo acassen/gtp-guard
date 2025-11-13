@@ -507,13 +507,13 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
 
 	/* Try to use same TEID for different IP Address */
 	if (!*id)  {
-		new_id = pfcp_teid_roll_the_dice(r, ipv4, ipv6);
+		new_id = pfcp_teid_roll_the_dice(r->teid, &r->seed, ipv4, ipv6);
 		if (!new_id)
 			return NULL;
 		*id = new_id;
 	}
 
-	t = pfcp_teid_alloc(r, *id, ipv4, ipv6);
+	t = pfcp_teid_alloc(r->teid, &r->seed, *id, ipv4, ipv6);
 	if (!t)
 		return NULL;
 
@@ -524,6 +524,8 @@ static int
 pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 		       struct pfcp_ie_create_traffic_endpoint *ie, uint32_t *id)
 {
+	struct pfcp_ie_f_teid *fteid = ie->local_f_teid;
+	struct ue_ip_address *ue_ip = &te->ue_ip;
 	struct pfcp_teid *t;
 
 	te->id = ie->traffic_endpoint_id->value;
@@ -531,18 +533,28 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 	if (ie->source_interface_type)
 		te->interface = ie->source_interface_type->value;
 
-	if (ie->ue_ip_address->v4)
-		te->ue_ipv4 = ie->ue_ip_address->ip_address.v4;
+	if (ie->ue_ip_address) {
+		if (ie->ue_ip_address->v4) {
+			ue_ip->flags |= UE_IPV4;
+			ue_ip->v4 = ie->ue_ip_address->ip_address.v4;
+		}
 
-	if (ie->ue_ip_address->v6)
-		te->ue_ipv6 = ie->ue_ip_address->ip_address.v6;
+		if (ie->ue_ip_address->v6) {
+			ue_ip->flags |= UE_IPV6;
+			memcpy(&ue_ip->v6, &ie->ue_ip_address->ip_address.v6,
+			       sizeof(struct in6_addr));
+		}
+	}
 
-	if (ie->local_f_teid->chid)
-		te->choose_id = ie->local_f_teid->choose_id;
+	if (!fteid)
+		return 0;
 
-	if (!ie->local_f_teid->ch) {
+	if (fteid->chid)
+		te->choose_id = fteid->choose_id;
+
+	if (!fteid->ch) {
 		/* Restoration procedure */
-		t = pfcp_teid_restore(s->router, ie->local_f_teid);
+		t = pfcp_teid_restore(s->router->teid, fteid);
 		if (!t)
 			return -1;
 
@@ -555,6 +567,8 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 	if (!t)
 		return -1;
 
+printf("%s(): TE-ID:%d - Allocating TEID:0x%.8x\n", __FUNCTION__, te->id, t->id);
+
 	te->teid[PFCP_DIR_EGRESS] = t;
 	__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
 
@@ -564,15 +578,13 @@ pfcp_session_decode_te(struct pfcp_session *s, struct traffic_endpoint *te,
 static int
 pfcp_session_decode_far(struct pfcp_session *s, struct far *far, struct pfcp_ie_create_far *ie)
 {
-	struct pfcp_ie_forwarding_parameters *fwd;
+	struct pfcp_ie_forwarding_parameters *fwd = ie->forwarding_parameters;
 
 	far->id = ie->far_id->value;
 
 	/* Optional: Forwarding Parameters */
 	if (!ie->forwarding_parameters)
 		return 0;
-
-	fwd = ie->forwarding_parameters;
 
 	if (fwd->destination_interface)
 		far->dst_interface = fwd->destination_interface->value;
@@ -636,7 +648,8 @@ static int
 pfcp_session_decode_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pdi,
 			uint32_t *id)
 {
-	struct pfcp_ie_f_teid *ft = pdi->local_f_teid;
+	struct pfcp_ie_f_teid *fteid = pdi->local_f_teid;
+	struct ue_ip_address *ue_ip = &pdr->ue_ip;
 	struct pfcp_teid *t;
 
 	if (!pdi)
@@ -649,7 +662,7 @@ pfcp_session_decode_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 		return (pdr->te) ? 0 : -1;
 	}
 
-	if (!pdi->local_f_teid)
+	if (!fteid)
 		return 0;
 
 	/* local_f_teid */
@@ -658,18 +671,25 @@ pfcp_session_decode_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_
 
 	pdr->src_interface_type = pdi->source_interface_type->value;
 
-	if (pdi->ue_ip_address->v4)
-		pdr->ue_ipv4 = pdi->ue_ip_address->ip_address.v4;
+	if (pdi->ue_ip_address) {
+		if (pdi->ue_ip_address->v4) {
+			ue_ip->flags |= UE_IPV4;
+			ue_ip->v4 = pdi->ue_ip_address->ip_address.v4;
+		}
 
-	if (pdi->ue_ip_address->v6)
-		pdr->ue_ipv6 = pdi->ue_ip_address->ip_address.v6;
+		if (pdi->ue_ip_address->v6) {
+			ue_ip->flags |= UE_IPV6;
+			memcpy(&ue_ip->v6, &pdi->ue_ip_address->ip_address.v6,
+			       sizeof(struct in6_addr));
+		}
+	}
 
-	if (ft->chid)
-		pdr->choose_id = ft->choose_id;
+	if (fteid->chid)
+		pdr->choose_id = fteid->choose_id;
 
-	if (!ft->ch) {
+	if (!fteid->ch) {
 		/* Restoration procedure */
-		t = pfcp_teid_restore(s->router, ft);
+		t = pfcp_teid_restore(s->router->teid, fteid);
 		if (!t)
 			return -1;
 
@@ -742,7 +762,8 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 
 	/* Traffic Endpoint */
 	for (i = 0; i < req->nr_create_traffic_endpoint && i < PFCP_MAX_NR_ELEM; i++) {
-		err = pfcp_session_decode_te(s, &s->te[i], req->create_traffic_endpoint[i], &id);
+		err = pfcp_session_decode_te(s, &s->te[i], req->create_traffic_endpoint[i],
+					     &id);
 		if (err)
 			return -1;
 	}
@@ -762,6 +783,70 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 	/* PDR will reference parsed elem */
 	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++) {
 		err = pfcp_session_decode_pdr(s, &s->pdr[i], req->create_pdr[i], &id);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
+
+/*
+ *	Session IE put
+ */
+static void
+pfcp_session_init_teid_values(struct pfcp_teid *t, uint32_t *teid,
+			      struct in_addr **ipv4,
+			      struct in6_addr **ipv6)
+{
+	*teid = 0;
+	*ipv4 = NULL;
+	*ipv6 = NULL;
+
+	if (!t)
+		return;
+
+	*teid = t->id;
+	if (__test_bit(PFCP_TEID_F_IPV4, &t->flags))
+		*ipv4 = &t->ipv4;
+	if (__test_bit(PFCP_TEID_F_IPV6, &t->flags))
+		*ipv6 = &t->ipv6;
+}
+
+int
+pfcp_session_put_create_pdr(struct pkt_buffer *pbuff, struct pfcp_session *s)
+{
+	struct pdr *p;
+	uint32_t teid;
+	struct in_addr *ipv4;
+	struct in6_addr *ipv6;
+	int i, err;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->pdr[i].id; i++) {
+		p = &s->pdr[i];
+		pfcp_session_init_teid_values(p->teid[PFCP_DIR_EGRESS], &teid,
+					      &ipv4, &ipv6);
+		err = pfcp_ie_put_create_pdr(pbuff, p->id, htonl(teid), ipv4, ipv6);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
+
+int
+pfcp_session_put_create_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_session *s)
+{
+	struct traffic_endpoint *te;
+	uint32_t teid;
+	struct in_addr *ipv4;
+	struct in6_addr *ipv6;
+	int i, err;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+		te = &s->te[i];
+		pfcp_session_init_teid_values(te->teid[PFCP_DIR_EGRESS], &teid,
+					      &ipv4, &ipv6);
+		err = pfcp_ie_put_create_te(pbuff, te->id, htonl(teid), ipv4, ipv6);
 		if (err)
 			return -1;
 	}

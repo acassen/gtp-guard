@@ -25,7 +25,6 @@
 #include <arpa/inet.h>
 
 #include "pfcp_teid.h"
-#include "pfcp_router.h"
 #include "jhash.h"
 #include "bitops.h"
 #include "addr.h"
@@ -262,7 +261,7 @@ pfcp_teid_vty(struct vty *vty, struct hlist_head *h, uint32_t id, struct in_addr
  *	teid related
  */
 uint32_t
-pfcp_teid_roll_the_dice(struct pfcp_router *r, struct in_addr *ipv4,
+pfcp_teid_roll_the_dice(struct hlist_head *h, uint64_t *seed, struct in_addr *ipv4,
 			struct in6_addr *ipv6)
 {
 	struct pfcp_teid *t;
@@ -271,8 +270,8 @@ pfcp_teid_roll_the_dice(struct pfcp_router *r, struct in_addr *ipv4,
 
 shoot_again:
 	/* roll the dice ! */
-	id = (uint32_t) (xorshift_prng(&r->seed) >> 32);
-	t = pfcp_teid_get(r->teid, id, ipv4, ipv6);
+	id = (uint32_t) (xorshift_prng(seed) >> 32);
+	t = pfcp_teid_get(h, id, ipv4, ipv6);
 	if (t && retry++ < 5)
 		goto shoot_again;
 
@@ -284,15 +283,15 @@ shoot_again:
 }
 
 struct pfcp_teid *
-pfcp_teid_alloc(struct pfcp_router *r, uint32_t id, struct in_addr *ipv4,
-		struct in6_addr *ipv6)
+pfcp_teid_alloc(struct hlist_head *h, uint64_t *seed, uint32_t id,
+		struct in_addr *ipv4, struct in6_addr *ipv6)
 {
 	struct pfcp_teid *new, *t;
 	uint32_t new_id = id;
 
-	t = pfcp_teid_get(r->teid, id, ipv4, ipv6);
+	t = pfcp_teid_get(h, id, ipv4, ipv6);
 	if (t) {
-		new_id = pfcp_teid_roll_the_dice(r, ipv4, ipv6);
+		new_id = pfcp_teid_roll_the_dice(h, seed, ipv4, ipv6);
 		if (!new_id)
 			return NULL;
 	}
@@ -311,17 +310,17 @@ pfcp_teid_alloc(struct pfcp_router *r, uint32_t id, struct in_addr *ipv4,
 		memcpy(&new->ipv6, ipv6, sizeof(struct in6_addr));
 	}
 
-	pfcp_teid_hash(r->teid, new);
+	pfcp_teid_hash(h, new);
 
 	return new;
 }
 
 struct pfcp_teid *
-pfcp_teid_restore(struct pfcp_router *r, struct pfcp_ie_f_teid *ie)
+pfcp_teid_restore(struct hlist_head *h, struct pfcp_ie_f_teid *ie)
 {
 	struct pfcp_teid *new, *t;
 
-	t = pfcp_teid_get_by_ie_f_teid(r->teid, ie);
+	t = pfcp_teid_get_by_ie_f_teid(h, ie);
 	if (t)
 		return NULL;
 
@@ -338,7 +337,7 @@ pfcp_teid_restore(struct pfcp_router *r, struct pfcp_ie_f_teid *ie)
 		memcpy(&new->ipv6, &ie->s.ip.v6, sizeof(struct in6_addr));
 	}
 
-	pfcp_teid_hash(r->teid, new);
+	pfcp_teid_hash(h, new);
 
 	return new;
 }

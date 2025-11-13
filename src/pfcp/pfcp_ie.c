@@ -130,6 +130,20 @@ pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length)
 }
 
 int
+pfcp_ie_put_type(struct pkt_buffer *pbuff, uint16_t type)
+{
+	struct pfcp_ie *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, type, length) < 0)
+		return -1;
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
 pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts)
 {
 	struct pfcp_ie_recovery_time_stamp *ie;
@@ -199,10 +213,155 @@ pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsi
 }
 
 int
-pfcp_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize, uint8_t cause)
+pfcp_ie_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize,
+			uint8_t cause)
 {
 	int err = pfcp_ie_put_node_id(pbuff, node_id, nsize);
 	return (err) ? : pfcp_ie_put_cause(pbuff, cause);
 }
 
+int
+pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
+		const struct sockaddr_storage *addr)
+{
+	struct pfcp_ie_f_seid *ie;
+	unsigned int length = sizeof(struct pfcp_ie) + sizeof(uint64_t) + 1;
 
+	switch (addr->ss_family) {
+	case AF_INET:
+		length += sizeof(struct in_addr);
+		break;
+	case AF_INET6:
+		length += sizeof(struct in6_addr);
+		break;
+	default:
+		return -1;
+	}
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_F_SEID, length) < 0)
+		return -1;
+
+	ie = (struct pfcp_ie_f_seid *) pbuff->data;
+	ie->seid = seid;
+	switch (addr->ss_family) {
+	case AF_INET:
+		ie->v4 = 1;
+		ie->ipv4 = ((struct sockaddr_in *)addr)->sin_addr;
+		break;
+	case AF_INET6:
+		ie->v6 = 1;
+		memcpy(&ie->ipv6, &((struct sockaddr_in6 *)addr)->sin6_addr,
+		       sizeof(struct in6_addr));
+		break;
+	}
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_f_teid(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t teid,
+		const struct in_addr *ipv4, const struct in6_addr *ipv6)
+{
+	struct pfcp_ie_f_teid *ie;
+	unsigned int length = sizeof(struct pfcp_ie) + sizeof(uint32_t) + 1;
+
+	if (!teid)
+		return 0;
+
+	length += (ipv4) ? sizeof(struct in_addr) : 0;
+	length += (ipv6) ? sizeof(struct in6_addr) : 0;
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_F_TEID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_f_teid *) pbuff->data;
+	ie->s.teid = teid;
+	ie->spare = 0;
+	ie->ch = 0;
+	ie->chid = 0;
+	ie->v4 = (ipv4) ? 1 : 0;
+	ie->v6 = (ipv6) ? 1 : 0;
+
+	if (ipv4)
+		ie->s.ip.v4 = *ipv4;
+
+	if (ipv6)
+		memcpy(&ie->s.ip.v6, ipv6, sizeof(struct in6_addr));
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_pdr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint16_t pdr_id)
+{
+	struct pfcp_ie_pdr_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_PDR_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_pdr_id *) pbuff->data;
+	ie->rule_id = pdr_id;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_create_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
+		       const uint32_t teid, const struct in_addr *ipv4,
+		       const struct in6_addr *ipv6)
+{
+	struct pfcp_ie *ie_created_pdr = (struct pfcp_ie *) pbuff->data;
+	int err;
+
+	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_PDR);
+	err = (err) ? : pfcp_ie_put_pdr_id(pbuff, ie_created_pdr, pdr_id);
+	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_pdr, teid, ipv4, ipv6);
+
+	return err;
+}
+
+static int
+pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
+{
+	struct pfcp_ie_traffic_endpoint_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_TRAFFIC_ENDPOINT_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_traffic_endpoint_id *) pbuff->data;
+	ie->value = id;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_create_te(struct pkt_buffer *pbuff, const uint8_t id,
+		      const uint32_t teid, const struct in_addr *ipv4,
+		      const struct in6_addr *ipv6)
+{
+	struct pfcp_ie *ie_created_te = (struct pfcp_ie *) pbuff->data;
+	int err;
+
+	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_TRAFFIC_ENDPOINT);
+	err = (err) ? : pfcp_ie_put_te_id(pbuff, ie_created_te, id);
+	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_te, teid, ipv4, ipv6);
+
+	return err;
+}

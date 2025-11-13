@@ -55,12 +55,19 @@ struct f_seid {
 	struct sockaddr_storage	addr;
 };
 
+#define UE_IPV4	(1 << 0)
+#define UE_IPV6	(1 << 1)
+struct ue_ip_address {
+	uint8_t			flags;
+	struct in_addr		v4;
+	struct in6_addr		v6;
+};
+
 struct traffic_endpoint {
 	uint8_t			id;
 	uint8_t			choose_id;
 	uint8_t			interface;
-	struct in_addr		ue_ipv4;
-	struct in6_addr		ue_ipv6;
+	struct ue_ip_address	ue_ip;
 	struct pfcp_teid	*teid[PFCP_DIR_MAX];
 };
 
@@ -75,9 +82,9 @@ struct far {
 };
 
 struct qer {
-	uint32_t	id;
-	uint32_t	ul_mbr;
-	uint32_t	dl_mbr;
+	uint32_t		id;
+	uint32_t		ul_mbr;
+	uint32_t		dl_mbr;
 };
 
 struct urr {
@@ -100,8 +107,7 @@ struct pdr {
 	uint8_t			interface;
 	uint8_t			choose_id;
 	struct pfcp_teid	*teid[PFCP_DIR_MAX];
-	struct in_addr		ue_ipv4;
-	struct in6_addr		ue_ipv6;
+	struct ue_ip_address	ue_ip;
 
 	/* F-TEID in traffic-endpoint when using
 	 * PDI Optimization */
@@ -159,4 +165,7 @@ int pfcp_sessions_destroy(void);
 int pfcp_session_decode(struct pfcp_session *s,
 			struct pfcp_session_establishment_request *req,
 			struct sockaddr_storage *addr);
-
+int pfcp_session_put_create_pdr(struct pkt_buffer *pbuff,
+				struct pfcp_session *s);
+int pfcp_session_put_create_traffic_endpoint(struct pkt_buffer *pbuff,
+					     struct pfcp_session *s);
