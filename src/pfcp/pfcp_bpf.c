@@ -56,7 +56,7 @@ pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 	 * validating every incoming pkt with pfcp_teid->ipv{4,6}
 	 */
 	if (__test_bit(PFCP_TEID_F_EGRESS, &t->flags)) {
-		printf("%s(): '%s' UPF bpf 'egress' rule for teid:0x%.8x",
+		printf("%s(): '%s' UPF bpf 'egress' rule for teid:0x%.8x\n",
 		       __FUNCTION__,
 		       (action == RULE_ADD) ? "adding" : "removing", t->id);
 		return 0;
@@ -74,7 +74,7 @@ pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 
 		if (ue->flags & UE_IPV4) {
 			printf("%s(): '%s' UPF bpf 'ingress' rule matching ue:'%s'\n"
-			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s",
+			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s\n",
 			       __FUNCTION__,
 			       (action == RULE_ADD) ? "adding" : "removing",
 			       inet_ntop(AF_INET, &ue->v4, ue_str, INET6_ADDRSTRLEN),
@@ -84,7 +84,7 @@ pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 
 		if (ue->flags & UE_IPV6) {
 			printf("%s(): '%s' UPF bpf 'ingress' rule matching ue:'%s'\n"
-			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s",
+			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s\n",
 			       __FUNCTION__,
 			       (action == RULE_ADD) ? "adding" : "removing",
 			       inet_ntop(AF_INET6, &ue->v6, ue_str, INET6_ADDRSTRLEN),

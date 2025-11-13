@@ -268,11 +268,10 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
       "S5-U interface\n"
       "S8-U interface\n"
       "N9-U interface\n"
-      "Ingress side\n"
-      "Egress side\n"
-      "Both sides\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
+      "UDP port to listen to\n"
+      "Number between 1024 and 65535\n"
       "Interfaces to bind\n")
 {
 	struct pfcp_router *c = vty->index;
@@ -282,6 +281,11 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 	union addr bind_addr;
 	int port = GTP_U_PORT;
 	int i, err = 0;
+
+	if (argc < 3) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
 
 	/* endpoint ip address */
 	VTY_GET_INTEGER_RANGE("UDP Port", port, argv[2], 1024, 65535);
@@ -465,7 +469,7 @@ config_pfcp_router_debug(struct vty *vty, struct pfcp_router *c)
 		vty_out(vty, "ingress_msg");
 	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
 		vty_out(vty, "|egress_msg");
-	vty_out(vty, "\n");
+	vty_out(vty, "%s", VTY_NEWLINE);
 	return 0;
 }
 
