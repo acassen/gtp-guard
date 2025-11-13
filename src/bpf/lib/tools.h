@@ -92,6 +92,24 @@ struct gre_hdr
 
 
 /*********************************/
+/* gtp-u stuff */
+
+/* fixme: duplicate with gtp.h */
+#ifndef GTPU_ECHO_REQ_TYPE
+struct gtphdr {
+	__u8		flags;
+	__u8		type;
+	__be16		length;
+	__be32		teid;
+} __attribute__ ((__packed__));
+#define GTPU_TPDU		0xff
+#define GTPU_FLAGS		0x30
+#define GTPU_PORT		2152
+#define GTPC_PORT		2123
+#define GTPU_ECHO_REQ_TYPE	1
+#endif
+
+/*********************************/
 /* checksum helpers */
 
 #ifdef EBPF_SRC

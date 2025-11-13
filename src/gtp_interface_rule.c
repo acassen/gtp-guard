@@ -622,6 +622,23 @@ gtp_interface_rules_ctx_list_bound(struct gtp_interface_rules_ctx *irc, bool ing
 	return k;
 }
 
+int
+gtp_interface_rules_ctx_list(struct gtp_interface_rules_ctx *irc, bool ingress,
+			     struct gtp_interface **iface_list, int iface_n)
+{
+	struct interface_rule *ir;
+	uint32_t k = 0;
+
+	list_for_each_entry(ir, &irc->ir_list, list) {
+		if (ir->ingress == ingress) {
+			iface_list[k++] = ir->iface;
+			if (k == iface_n)
+				break;
+		}
+	}
+	return k;
+}
+
 
 
 struct gtp_interface_rules_ctx *
@@ -643,6 +660,8 @@ gtp_interface_rules_ctx_release(struct gtp_interface_rules_ctx *irc)
 {
 	struct interface_rule *ir, *ir_tmp;
 
+	if (irc == NULL)
+		return;
 	list_for_each_entry_safe(ir, ir_tmp, &irc->ir_list, list) {
 		if (ir->bir == NULL || _ir_detach(ir) != 1)
 			free(ir);

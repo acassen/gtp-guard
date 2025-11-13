@@ -16,12 +16,13 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com> 
+ * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #pragma once
 
 #include "pfcp_server.h"
+#include "pfcp_bpf.h"
 #include "gtp_bpf_prog.h"
 #include "addr.h"
 
@@ -47,6 +48,9 @@ struct pfcp_router {
 	char			description[GTP_STR_MAX_LEN];
 	uint8_t			supported_features[4];
 	struct gtp_bpf_prog	*bpf_prog;
+	struct pfcp_bpf_data	*bpf_data;
+	struct list_head	bpf_list;
+	struct gtp_interface_rules_ctx *irules;
 	struct pfcp_server	s;
 	unsigned long		debug;
 
@@ -71,7 +75,7 @@ struct pfcp_router {
 /* Prototypes */
 int pfcp_router_ingress_init(struct inet_server *srv);
 int pfcp_router_ingress_process(struct inet_server *srv,
-			        struct sockaddr_storage *addr_from);
+				struct sockaddr_storage *addr_from);
 size_t pfcp_router_dump(struct pfcp_router *ctx, char *buffer, size_t bsize);
 bool pfcp_router_inuse(void);
 void pfcp_router_foreach(int (*hdl) (struct pfcp_router *, void *), void *arg);

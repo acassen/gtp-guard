@@ -542,10 +542,10 @@ gtp_config_write(struct vty *vty)
 				   , ntohs(inet_sockaddrport(&srv->s.addr))
 				   , VTY_NEWLINE);
 		}
-		nin = gtp_interface_rules_ctx_list_bound(ctx->irules, true, ifin,
-						       ARRAY_SIZE(ifin));
-		neg = gtp_interface_rules_ctx_list_bound(ctx->irules, false, ifeg,
-						       ARRAY_SIZE(ifeg));
+		nin = gtp_interface_rules_ctx_list(ctx->irules, true, ifin,
+						   ARRAY_SIZE(ifin));
+		neg = gtp_interface_rules_ctx_list(ctx->irules, false, ifeg,
+						   ARRAY_SIZE(ifeg));
 		for (i = 0, nbo = 0; i < nin; i++) {
 			for (j = 0; j < neg; j++) {
 				if (ifeg[j] == ifin[i]) {

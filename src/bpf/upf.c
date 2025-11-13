@@ -1,53 +1,43 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
+
 #include "lib/if_rule.h"
-#include "lib/cgn.h"
 #include "lib/upf.h"
 
 /*
- * sample file. does not compile (yet).
+ * solo UPF
  */
 
 SEC("xdp")
 int upf_entry(struct xdp_md *ctx)
 {
-	struct if_rule_data d = {};
-	int action, ret;
+	struct if_rule_data d = { .ctx = ctx };
+	int action;
 
 	/* phase 1: parse interface encap */
-	action = if_rule_parse_pkt(ctx, &d);
+	action = if_rule_parse_pkt(&d, NULL);
 	if (action <= XDP_REDIRECT)
 		return action;
 
 	/* phase 2: execute action */
 	if (action == 10) {
-		/* packet from private-network. gtp(upf) then nat(cgn) */
-		ret = upf_pkt_handle(ctx, &d);
-		if (ret == 0)
-			ret = cgn_pkt_handle(ctx, d.payload, 1);
+		action = upf_handle_gtpu(&d);
 
 	} else if (action == 11) {
-		/* packet from public-network. nat(cgn) then gtp(upf) */
-		ret = cgn_pkt_handle(ctx, d.payload, 0);
-		if (ret == 0)
-			ret = upf_pkt_handle(ctx, &d, 1);
+		action = upf_handle_pub(&d);
 
 	} else {
 		/* not expected */
-		return XDP_PASS;
+		action = XDP_PASS;
 	}
-	if (hit_bug || ret < 0) {
-		hit_bug = 0;
-		return XDP_ABORTED;
-	}
-	if (ret != 0)
-		return XDP_DROP;
 
 	/* phase 3: rewrite interface encap */
-	return if_rule_rewrite_pkt(ctx, &d);
+	if (action == 10)
+		return if_rule_rewrite_pkt(&d);
+
+	return action;
 }
 
-/* inherit from these 3 modes */
-const char *_mode = "if_rules,cgn,upf";
+const char _mode[] = "if_rules,upf";
 
 char _license[] SEC("license") = "GPL";
