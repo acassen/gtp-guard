@@ -20,10 +20,10 @@ int upf_entry(struct xdp_md *ctx)
 		return action;
 
 	/* phase 2: execute action */
-	if (action == 10) {
+	if (action == XDP_ACTION_FROM_INGRESS) {
 		action = upf_handle_gtpu(&d);
 
-	} else if (action == 11) {
+	} else if (action == XDP_ACTION_FROM_EGRESS) {
 		action = upf_handle_pub(&d);
 
 	} else {
