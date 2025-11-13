@@ -24,12 +24,14 @@
 #include <errno.h>
 
 #include "gtp_data.h"
+#include "gtp_interface_rule.h"
 #include "pfcp_router.h"
 #include "pfcp_teid.h"
 #include "pfcp_server.h"
 #include "pfcp_proto_hdl.h"
 #include "utils.h"
 #include "memory.h"
+#include "bpf/lib/if_rule-def.h"
 
 
 /* Extern data */
@@ -108,6 +110,22 @@ pfcp_router_get(const char *name)
 }
 
 static void
+_rule_set(void *ud, struct gtp_interface *from, bool from_ingress,
+	  struct gtp_interface *to, bool add)
+{
+	struct if_rule_key_base k = {};
+	struct gtp_if_rule ifr = {
+		.from = from,
+		.to = to,
+		.key = &k,
+		.key_size = sizeof (k),
+		.action = from_ingress ? 10 : 11,
+		.prio = from_ingress ? 100 : 500,
+	};
+	gtp_interface_rule_set(&ifr, add);
+}
+
+static void
 pfcp_router_set_up_features(struct pfcp_router *ctx)
 {
 	/* Header Enrichement */
@@ -153,6 +171,7 @@ pfcp_router_alloc(const char *name)
 		return NULL;
 	}
 	INIT_LIST_HEAD(&new->next);
+	INIT_LIST_HEAD(&new->bpf_list);
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 	new->seed = poor_prng((unsigned int *) &now);
 	new->teid = pfcp_teid_init();
@@ -160,6 +179,12 @@ pfcp_router_alloc(const char *name)
 
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();
+
+	struct gtp_interface_rules_ops irules_ops = {
+		.rule_set = _rule_set,
+		.ud = new,
+	};
+	new->irules = gtp_interface_rules_ctx_new(&irules_ops);
 
 	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);
 
@@ -169,6 +194,8 @@ pfcp_router_alloc(const char *name)
 int
 pfcp_router_ctx_destroy(struct pfcp_router *ctx)
 {
+	gtp_interface_rules_ctx_release(ctx->irules);
+	list_del(&ctx->bpf_list);
 	list_head_del(&ctx->next);
 	pfcp_server_destroy(&ctx->s);
 	pfcp_teid_destroy(ctx->teid);

@@ -15,13 +15,15 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com> 
+ * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <string.h>
 #include <assert.h>
 
 #include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
+#include "gtp_interface_rule.h"
 #include "gtp_data.h"
 #include "gtp.h"
 #include "include/pfcp_router.h"
@@ -33,6 +35,7 @@
 #include "bitops.h"
 #include "memory.h"
 #include "logger.h"
+#include "utils.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -133,7 +136,7 @@ DEFUN(pfcp_router_bpf_prog,
       "Use BPF Program\n"
       "BPF Program name")
 {
-        struct pfcp_router *c = vty->index;
+	struct pfcp_router *c = vty->index;
 	struct gtp_bpf_prog *p;
 
 	if (argc < 1) {
@@ -149,12 +152,15 @@ DEFUN(pfcp_router_bpf_prog,
 	}
 
 	c->bpf_prog = p;
+	c->bpf_data = gtp_bpf_prog_tpl_data_get(p, "upf");
+	list_add(&c->bpf_list, &c->bpf_data->pfcp_router_list);
+
 	return CMD_SUCCESS;
 }
 
 DEFUN(pfcp_listen,
       pfcp_listen_cmd,
-      "listen (A.B.C.D|X:X:X:X) port <1024-65535>",
+      "listen (A.B.C.D|X:X::X:X) port <1024-65535>",
       "PFCP Session channel endpoint\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
@@ -247,41 +253,38 @@ DEFUN(pfcp_strict_apn,
 
 DEFUN(pfcp_gtpu_tunnel_endpoint,
       pfcp_gtpu_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9) (A.B.C.D|X:X:X:X) [port <1024-65535>]",
+      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9) (A.B.C.D|X:X::X:X) port <1024-65535> interfaces .IFACES",
       "3GPP GTP-U interface\n"
       "All interface\n"
       "S1-U interface\n"
       "S5-U interface\n"
       "S8-U interface\n"
       "N9-U interface\n"
-      "GTP-U tunnel endpoint IP Address\n"
+      "Ingress side\n"
+      "Egress side\n"
+      "Both sides\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
-      "listening UDP Port (default = 2152)\n"
-      "Number\n")
+      "Interfaces to bind\n")
 {
 	struct pfcp_router *c = vty->index;
 	const char *ifname_3gpp = argv[0];
-	uint32_t port = GTP_U_PORT;
+	const char *addr_str = argv[1];
+	struct gtp_interface *iface;
 	union addr bind_addr;
-	int err = 0;
+	int port = GTP_U_PORT;
+	int i, err = 0;
 
-	if (argc < 2) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* build bind-address for gtp-u endpoint */
-	err = addr_parse(argv[1], &bind_addr);
+	/* endpoint ip address */
+	VTY_GET_INTEGER_RANGE("UDP Port", port, argv[2], 1024, 65535);
+	err = addr_parse(addr_str, &bind_addr);
 	if (err) {
-		vty_out(vty, "%% malformed IP address %s%s", argv[1], VTY_NEWLINE);
+		vty_out(vty, "%% malformed IP address %s\n", addr_str);
 		return CMD_WARNING;
 	}
-
-	if (argc >= 4)
-		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[4], 1024, 65535);
 	addr_set_port(&bind_addr, port);
 
+	/* protocol interface */
 	if (!strcmp(ifname_3gpp, "all")) {
 		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags)) {
 			vty_out(vty, "%% Default GTP-U endpoint already set\n");
@@ -319,6 +322,51 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 		addr_copy(&c->gtpu_n9, &bind_addr);
 	} else {
 		return CMD_WARNING;
+	}
+
+	/* interfaces to bind */
+	for (i = 3; i < argc; i++) {
+		iface = gtp_interface_get(argv[i], true);
+		if (iface == NULL) {
+			vty_out(vty, "%% cannot find interface %s\n", argv[i]);
+			return CMD_WARNING;
+		}
+
+		err = gtp_interface_rules_ctx_add(c->irules, iface, true);
+		if (err && errno == EEXIST) {
+			vty_out(vty, "%% interface %s already added as ingress\n",
+				argv[i]);
+			return CMD_WARNING;
+		}
+	}
+
+	return CMD_SUCCESS;
+}
+
+
+DEFUN(pfcp_egress_endpoint,
+      pfcp_egress_endpoint_cmd,
+      "egress-endpoint interfaces .IFACES",
+      "Interfaces to bind\n")
+{
+	struct pfcp_router *c = vty->index;
+	struct gtp_interface *iface;
+	int i, err = 0;
+
+	/* interfaces to bind */
+	for (i = 0; i < argc; i++) {
+		iface = gtp_interface_get(argv[i], true);
+		if (iface == NULL) {
+			vty_out(vty, "%% cannot find interface %s\n", argv[i]);
+			return CMD_WARNING;
+		}
+
+		err = gtp_interface_rules_ctx_add(c->irules, iface, false);
+		if (err && errno == EEXIST) {
+			vty_out(vty, "%% interface %s already added as egress\n",
+				argv[i]);
+			return CMD_WARNING;
+		}
 	}
 
 	return CMD_SUCCESS;
@@ -418,9 +466,12 @@ config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
 	char node_id[GTP_STR_MAX_LEN];
-	char addr_str[INET6_ADDRSTRLEN];
+	char addr_str[INET6_ADDRSTRLEN], port_str[10];
 	struct pfcp_router *c;
 	struct pfcp_server *srv;
+	struct gtp_interface *iflist[8];
+	char ifbuf[200];
+	int i, n, k;
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "pfcp-router %s%s", c->name, VTY_NEWLINE);
@@ -444,31 +495,48 @@ config_pfcp_router_write(struct vty *vty)
 				   , VTY_NEWLINE);
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
+
+		n = gtp_interface_rules_ctx_list(c->irules, false, iflist,
+						 ARRAY_SIZE(iflist));
+		ifbuf[0] = 0;
+		for (k = 0, i = 0; i < n; i++)
+			k += scnprintf(ifbuf + k, sizeof (ifbuf) - k, " %s",
+				       iflist[i]->ifname);
+
 		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint all %s port %s%s"
+			vty_out(vty, " gtpu-tunnel-endpoint all %s port %s interfaces%s\n"
 				   , addr_stringify_ip(&c->gtpu, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu, addr_str, INET6_ADDRSTRLEN)
-				   , VTY_NEWLINE);
+				   , addr_stringify_port(&c->gtpu, port_str, 10)
+				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %s%s"
+			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %s interfaces%s\n"
 				   , addr_stringify_ip(&c->gtpu_s1, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_s1, addr_str, INET6_ADDRSTRLEN)
-				   , VTY_NEWLINE);
+				   , addr_stringify_port(&c->gtpu_s1, port_str, 10)
+				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %s%s"
+			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %s interfaces%s\n"
 				   , addr_stringify_ip(&c->gtpu_s5, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_s5, addr_str, INET6_ADDRSTRLEN)
-				   , VTY_NEWLINE);
+				   , addr_stringify_port(&c->gtpu_s5, port_str, 10)
+				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %s%s"
+			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %s interfaces%s\n"
 				   , addr_stringify_ip(&c->gtpu_s8, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_s8, addr_str, INET6_ADDRSTRLEN)
-				   , VTY_NEWLINE);
+				   , addr_stringify_port(&c->gtpu_s8, port_str, 10)
+				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %s%s"
+			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %s interfaces%s\n"
 				   , addr_stringify_ip(&c->gtpu_n9, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_n9, addr_str, INET6_ADDRSTRLEN)
-				   , VTY_NEWLINE);
+				   , addr_stringify_port(&c->gtpu_n9, port_str, 10)
+				   , ifbuf);
+		n = gtp_interface_rules_ctx_list(c->irules, false, iflist,
+						 ARRAY_SIZE(iflist));
+		if (n > 0) {
+			vty_out(vty, " egress-endpoint interfaces");
+			for (i = 0; i < n; i++)
+				vty_out(vty, " %s", iflist[i]->ifname);
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
+
 		vty_out(vty, "!\n");
 	}
 
@@ -495,6 +563,7 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &no_pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_strict_apn_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_egress_endpoint_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

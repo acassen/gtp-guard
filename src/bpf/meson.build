@@ -8,6 +8,7 @@ bpf_sources = files(
   'gtp_route.c',
   'gtp_mirror.c',
   'cgn.c',
+  'upf.c',
   'test_cgn.c',
 )
 

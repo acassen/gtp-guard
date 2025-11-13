@@ -22,6 +22,7 @@
 
 struct gtp_bpf_interface_rule;
 struct gtp_interface_rules_ctx;
+struct gtp_bpf_prog;
 
 struct gtp_if_rule
 {
@@ -54,8 +55,10 @@ int gtp_interface_rules_ctx_add(struct gtp_interface_rules_ctx *, struct gtp_int
 void gtp_interface_rules_ctx_del(struct gtp_interface_rules_ctx *, struct gtp_interface *,
 				 bool ingress);
 void gtp_interface_rules_ctx_exec(struct gtp_interface_rules_ctx *, bool,
-				  gtp_interface_rules_ctx_exec_cb_t cb);
-int gtp_interface_rules_ctx_list_bound(struct gtp_interface_rules_ctx *irc, bool ingress,
-				       struct gtp_interface **iface_list, int iface_n);
+				  gtp_interface_rules_ctx_exec_cb_t);
+int gtp_interface_rules_ctx_list_bound(struct gtp_interface_rules_ctx *, bool,
+				       struct gtp_interface **, int);
+int gtp_interface_rules_ctx_list(struct gtp_interface_rules_ctx *, bool,
+				 struct gtp_interface **, int);
 int gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg);
 int gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg);
