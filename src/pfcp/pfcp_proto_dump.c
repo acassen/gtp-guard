@@ -283,6 +283,240 @@ pfcp_session_establishment_req_format(struct pfcp_msg *msg, char *buffer, size_t
 	}
 }
 
+static void
+pfcp_session_modification_req_format(struct pfcp_msg *msg, char *buffer, size_t size)
+{
+	struct pfcp_session_modification_request *req = msg->session_modification_request;
+	size_t pos = 0;
+	int i;
+
+	if (!msg || !buffer || size == 0 || !req)
+		return;
+
+	if (req->node_id)
+		pos += pfcp_node_id_format(req->node_id, buffer + pos, size - pos);
+
+	if (req->cp_f_seid)
+		pos += pfcp_seid_format(req->cp_f_seid, buffer + pos, size - pos);
+
+	/* Remove IEs */
+	if (req->nr_remove_pdr) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove PDR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_pdr);
+		for (i = 0; i < req->nr_remove_pdr; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  PDR[%d]:\n", i);
+			if (req->remove_pdr[i]->pdr_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    PDR ID: %u\n",
+						 ntohs(req->remove_pdr[i]->pdr_id->rule_id));
+		}
+	}
+
+	if (req->nr_remove_far) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove FAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_far);
+		for (i = 0; i < req->nr_remove_far; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  FAR[%d]:\n", i);
+			if (req->remove_far[i]->far_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    FAR ID: %u\n",
+						 ntohl(req->remove_far[i]->far_id->value));
+		}
+	}
+
+	if (req->nr_remove_urr) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove URR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_urr);
+		for (i = 0; i < req->nr_remove_urr; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  URR[%d]:\n", i);
+			if (req->remove_urr[i]->urr_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    URR ID: %u\n",
+						 ntohl(req->remove_urr[i]->urr_id->value));
+		}
+	}
+
+	if (req->nr_remove_qer) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove QER:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_qer);
+	}
+
+	if (req->nr_remove_bar) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove BAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_bar);
+	}
+
+	if (req->nr_remove_traffic_endpoint) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove Traffic Endpoint:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n",
+				 req->nr_remove_traffic_endpoint);
+	}
+
+	if (req->nr_remove_mar) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove MAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_mar);
+	}
+
+	if (req->nr_remove_srr) {
+		pos += scnprintf(buffer + pos, size - pos, "Remove SRR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_remove_srr);
+	}
+
+	/* Create IEs */
+	if (req->nr_create_pdr) {
+		pos += scnprintf(buffer + pos, size - pos, "Create PDR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_pdr);
+		for (i = 0; i < req->nr_create_pdr; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  PDR[%d]:\n", i);
+			if (req->create_pdr[i]->pdr_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    PDR ID: %u\n",
+						 ntohs(req->create_pdr[i]->pdr_id->rule_id));
+			if (req->create_pdr[i]->precedence)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    Precedence: %u\n",
+						 ntohl(req->create_pdr[i]->precedence->value));
+			if (req->create_pdr[i]->far_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    FAR ID: %u\n",
+						 ntohl(req->create_pdr[i]->far_id->value));
+			if (req->create_pdr[i]->qer_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    QER ID: %u\n",
+						 ntohl(req->create_pdr[i]->qer_id->value));
+			if (req->create_pdr[i]->urr_id)
+				pos += pfcp_urr_id_format(req->create_pdr[i]->urr_id,
+							  req->create_pdr[i]->nr_urr_id,
+							  buffer + pos, size - pos);
+		}
+	}
+
+	if (req->nr_create_far) {
+		pos += scnprintf(buffer + pos, size - pos, "Create FAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_far);
+		for (i = 0; i < req->nr_create_far; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  FAR[%d]:\n", i);
+			if (req->create_far[i]->far_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    FAR ID: %u\n",
+						 ntohl(req->create_far[i]->far_id->value));
+			if (req->create_far[i]->apply_action)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    Apply Action: 0x%02x\n",
+						 req->create_far[i]->apply_action->flags);
+		}
+	}
+
+	if (req->nr_create_urr) {
+		pos += scnprintf(buffer + pos, size - pos, "Create URR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_urr);
+		for (i = 0; i < req->nr_create_urr; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  URR[%d]:\n", i);
+			pos += scnprintf(buffer + pos, size - pos, "    URR ID: %u\n",
+					 ntohl(req->create_urr[i]->urr_id->value));
+		}
+	}
+
+	if (req->nr_create_qer) {
+		pos += scnprintf(buffer + pos, size - pos, "Create QER:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_qer);
+		for (i = 0; i < req->nr_create_qer; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  QER[%d]:\n", i);
+			pos += scnprintf(buffer + pos, size - pos, "    QER ID: %u\n",
+					 ntohl(req->create_qer[i]->qer_id->value));
+		}
+	}
+
+	if (req->nr_create_bar) {
+		pos += scnprintf(buffer + pos, size - pos, "Create BAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_bar);
+	}
+
+	if (req->nr_create_traffic_endpoint) {
+		pos += scnprintf(buffer + pos, size - pos, "Create Traffic Endpoint:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n",
+				 req->nr_create_traffic_endpoint);
+	}
+
+	if (req->nr_create_mar) {
+		pos += scnprintf(buffer + pos, size - pos, "Create MAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_mar);
+	}
+
+	if (req->nr_create_srr) {
+		pos += scnprintf(buffer + pos, size - pos, "Create SRR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_create_srr);
+	}
+
+	/* Update IEs */
+	if (req->nr_update_pdr) {
+		pos += scnprintf(buffer + pos, size - pos, "Update PDR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_pdr);
+		for (i = 0; i < req->nr_update_pdr; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  PDR[%d]:\n", i);
+			if (req->update_pdr[i]->pdr_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    PDR ID: %u\n",
+						 ntohs(req->update_pdr[i]->pdr_id->rule_id));
+		}
+	}
+
+	if (req->nr_update_far) {
+		pos += scnprintf(buffer + pos, size - pos, "Update FAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_far);
+		for (i = 0; i < req->nr_update_far; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  FAR[%d]:\n", i);
+			if (req->update_far[i]->far_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    FAR ID: %u\n",
+						 ntohl(req->update_far[i]->far_id->value));
+		}
+	}
+
+	if (req->nr_update_urr) {
+		pos += scnprintf(buffer + pos, size - pos, "Update URR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_urr);
+		for (i = 0; i < req->nr_update_urr; i++) {
+			pos += scnprintf(buffer + pos, size - pos, "  URR[%d]:\n", i);
+			if (req->update_urr[i]->urr_id)
+				pos += scnprintf(buffer + pos, size - pos,
+						 "    URR ID: %u\n",
+						 ntohl(req->update_urr[i]->urr_id->value));
+		}
+	}
+
+	if (req->nr_update_qer) {
+		pos += scnprintf(buffer + pos, size - pos, "Update QER:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_qer);
+	}
+
+	if (req->nr_update_bar) {
+		pos += scnprintf(buffer + pos, size - pos, "Update BAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_bar);
+	}
+
+	if (req->nr_update_traffic_endpoint) {
+		pos += scnprintf(buffer + pos, size - pos, "Update Traffic Endpoint:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n",
+				 req->nr_update_traffic_endpoint);
+	}
+
+	if (req->nr_update_mar) {
+		pos += scnprintf(buffer + pos, size - pos, "Update MAR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_mar);
+	}
+
+	if (req->nr_update_srr) {
+		pos += scnprintf(buffer + pos, size - pos, "Update SRR:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Count: %d\n", req->nr_update_srr);
+	}
+
+	if (req->rat_type) {
+		pos += scnprintf(buffer + pos, size - pos, "RAT Type:\n");
+		pos += scnprintf(buffer + pos, size - pos, "  Value: %u\n", req->rat_type->value);
+	}
+}
+
 
 /*
  *	PFCP Dump
@@ -302,7 +536,7 @@ static const struct {
 
 	/* PFCP Session related */
         [PFCP_SESSION_ESTABLISHMENT_REQUEST]    = { pfcp_session_establishment_req_format },
-        [PFCP_SESSION_MODIFICATION_REQUEST]     = { NULL },
+        [PFCP_SESSION_MODIFICATION_REQUEST]     = { pfcp_session_modification_req_format },
         [PFCP_SESSION_DELETION_REQUEST]         = { NULL },
         [PFCP_SESSION_REPORT_REQUEST]           = { NULL },
 };
