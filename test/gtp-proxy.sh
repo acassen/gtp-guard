@@ -11,6 +11,36 @@ clean() {
     clean_netns "sgw" "pgw" "cloud" "cloud1" "cloud2"
 }
 
+# simplest setup, without bells and whistles
+setup_simple() {
+    setup_netns "cloud"
+    sleep 0.5
+
+    # trunk
+    ip link add dev veth0 netns cloud address d2:ad:ca:fe:aa:01 type veth \
+       peer name gtpp address d2:f0:0c:ba:bb:01
+    ip -n cloud link set dev veth0 up
+    ip -n cloud link set dev lo up
+    ip link set dev gtpp up
+    ip netns exec cloud sysctl -q net.ipv4.conf.veth0.forwarding=1
+    sysctl -q net.ipv4.conf.gtpp.forwarding=1
+
+    # gtp-c
+    ip -n cloud addr add 192.168.61.193/27 dev veth0
+    ip addr add 192.168.61.194/27 dev gtpp
+
+    # gtp-u
+    ip -n cloud addr add 192.168.61.2/25 dev veth0
+    ip -n cloud addr add 192.168.61.3/25 dev veth0
+    ip addr add 192.168.61.1/25 dev gtpp
+    arp -s 192.168.61.2 d2:ad:ca:fe:aa:01
+    arp -s 192.168.61.3 d2:ad:ca:fe:aa:01
+
+    ip netns exec cloud ethtool -K veth0 gro on
+    ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
+}
+
+
 # everyone on the same interface
 setup_combined() {
     setup_netns "cloud"
@@ -239,6 +269,42 @@ setup_split() {
     ip netns exec sgw ethtool -K sgw gro on
 }
 
+run_simple() {
+    # start gtp-guard if not yet started
+    start_gtpguard
+
+    gtpg_conf_nofail "
+no bpf-program fwd-1
+no gtp-proxy all
+"
+
+    gtpg_conf "
+bpf-program fwd-1
+ path bin/gtp_fwd_mirror.bpf
+ no shutdown
+
+interface gtpp
+ bpf-program fwd-1
+ no shutdown
+" || fail "cannot execute vty commands"
+
+    gtpg_conf "
+gtp-proxy gtpp-undertest
+ bpf-program fwd-1
+ gtpc-tunnel-endpoint 192.168.61.194 port 2123
+ gtpu-tunnel-endpoint 192.168.61.1 both-sides interfaces gtpp
+ debug teid add 257 1 192.168.61.3 ingress
+ debug teid add 258 2 192.168.61.2 egress
+
+" || fail "cannot execute vty commands"
+
+    gtpg_show "
+show interface
+show bpf forwarding
+show interface-rule all
+show interface-rule installed
+"
+}
 
 run_combined() {
     # start gtp-guard if not yet started
@@ -275,10 +341,10 @@ gtp-proxy gtpp-undertest-$i
  gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
  gtpu-tunnel-endpoint 192.168.61.$((i*8+1)) both-sides interfaces gtpp
  gtpu-ipip interface ptun view egress
- gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+3)) ingress
- gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+2)) egress
-# gtpu-ipip debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+5)) ingress
-# gtpu-ipip debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+4)) egress
+ debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+3)) ingress
+ debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+2)) egress
+! debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+5)) ingress
+! debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+4)) egress
 
 " || fail "cannot execute vty commands"
     done
@@ -324,10 +390,10 @@ gtp-proxy gtpp-undertest-$i
  gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
  gtpu-tunnel-endpoint 192.168.61.$((i*8)) both-sides interfaces gtpp1 gtpp2
  gtpu-ipip interface ptun view egress
-! gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+2)) ingress
-! gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+1)) egress
-! gtpu-ipip debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+4)) ingress
-! gtpu-ipip debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+3)) egress
+! debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+2)) ingress
+! debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+1)) egress
+! debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+4)) ingress
+! debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+3)) egress
 
 " || fail "cannot execute vty commands"
     done
@@ -380,8 +446,8 @@ gtp-proxy gtpp-undertest-$i
  gtpu-tunnel-endpoint 192.168.61.$((64+i*4+1)) ingress interfaces sgw
  gtpu-tunnel-endpoint 192.168.61.$((i*4+1)) egress interfaces pgw pgw.9
  gtpu-ipip interface ptun view egress
- gtpu-ipip debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*4+2)) ingress
- gtpu-ipip debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((64+i*4+2)) egress
+ debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*4+2)) ingress
+ debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((64+i*4+2)) egress
 
 " || fail "cannot execute vty commands"
     done
@@ -406,12 +472,12 @@ pkt() {
 
     echo "run instance $inst, mode $type"
 
-    if [ "$type" == "split" ]; then
+    if [ $type == "split" ]; then
 	ingress_ns=sgw
 	ingress_ip=192.168.61.$((64+inst*4+2))
 	egress_ns=pgw
 	egress_ip=192.168.61.$((inst*4+2))
-    elif [ "$type" == "combined" ]; then
+    elif [ $type == "combined" -o $type == "simple" ]; then
 	ingress_ns=cloud
 	ingress_ip=192.168.61.$((inst*8+2))
 	egress_ns=cloud
@@ -420,7 +486,7 @@ pkt() {
 	return
     fi
 
-    if [ $inst -eq 0 ]; then
+    if [ $type != "simple" -a $inst -eq 0 ]; then
 	(
 ip netns exec cloud python3 - <<EOF
 from scapy.all import *
@@ -485,7 +551,7 @@ EOF
     sleep 1
 
 
-    if [ "$type" == "combined" ]; then
+    if [ $type == "combined" -o $type == "simple" ]; then
 	send_py_pkt cloud veth0 "
 p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   IP(src='$ingress_ip', dst='192.168.61.$((inst*8+1))') /
@@ -525,7 +591,7 @@ p = fragment(p, fragsize=1460)
 }
 
 action=${1:-setup}
-type=${2:-combined}
+type=${2:-simple}
 tun_vlan=${3:-0}
 gtp_proxy_count=${4:-1}
 

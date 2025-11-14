@@ -29,10 +29,142 @@
 #include "gtp_bpf_utils.h"
 #include "list_head.h"
 #include "bitops.h"
+#include "logger.h"
+#include "table.h"
+#include "bpf/lib/upf-def.h"
 
 
 /* Extern data */
 extern struct data *daemon_data;
+
+
+static int
+_set_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
+{
+	uint32_t nr_cpus = bpf_num_possible_cpus();
+	struct upf_user_egress u[nr_cpus];
+	struct upf_user_egress_key key = {
+		.teid = htonl(t->id),
+		.gtpu_remote_addr = t->ipv4.s_addr,
+		.gtpu_remote_port = htons(GTP_U_PORT),
+	};
+	int err;
+
+	memset(u, 0x00, sizeof (u));
+	err = bpf_map__update_elem(r->bpf_data->user_egress, &key, sizeof (key),
+				   u, sizeof (u), BPF_NOEXIST);
+	if (err) {
+		log_message(LOG_INFO, "pfcp_bpf: cannot insert "
+			    "egress rule teid 0x%08x (%m)", key.teid);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+_unset_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
+{
+	struct upf_user_egress_key key = {
+		.teid = htonl(t->id),
+		.gtpu_remote_addr = t->ipv4.s_addr,
+		.gtpu_remote_port = htons(GTP_U_PORT),
+	};
+	int err;
+
+	err = bpf_map__delete_elem(r->bpf_data->user_egress, &key, sizeof(key), 0);
+	if (err) {
+		log_message(LOG_INFO, "pfcp_bpf: cannot delete "
+			    "egress rule teid 0x%08x (%m)", key.teid);
+		return -1;
+	}
+	return 0;
+}
+
+
+static int
+_set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_address *ue)
+{
+	uint32_t nr_cpus = bpf_num_possible_cpus();
+	struct upf_user_ingress u[nr_cpus];
+	struct upf_user_ingress_key key = {};
+	int i, err;
+
+	memset(u, 0x00, sizeof (u));
+	for (i = 0; i < nr_cpus; i++) {
+		u[i].teid = htonl(t->id);
+		u[i].gtpu_remote_addr = t->ipv4.s_addr;
+		u[i].gtpu_remote_port = htons(GTP_U_PORT);
+	}
+
+	if (ue->flags & UE_IPV4) {
+		key.flags = UE_IPV4;
+		key.ue_addr.ip4 = ue->v4.s_addr;
+
+		err = bpf_map__update_elem(r->bpf_data->user_ingress,
+					   &key, sizeof (key),
+					   u, sizeof (u), BPF_NOEXIST);
+		if (err) {
+			log_message(LOG_INFO, "pfcp_bpf: cannot insert "
+				    "user_ingress v4 teid 0x%08x (%m)", u[0].teid);
+			return -1;
+		}
+	}
+
+	if (ue->flags & UE_IPV6) {
+		key.flags = UE_IPV6;
+		memcpy(&key.ue_addr.ip6, &ue->v6, sizeof (ue->v6));
+
+		err = bpf_map__update_elem(r->bpf_data->user_ingress,
+					   &key, sizeof (key),
+					   u, sizeof (u), BPF_NOEXIST);
+		if (err) {
+			log_message(LOG_INFO, "pfcp_bpf: cannot insert "
+				    "user_ingress v6 teid 0x%08x (%m)", u[0].teid);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+
+static int
+_unset_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_address *ue)
+{
+	struct upf_user_ingress_key key = {};
+	int err;
+
+	if (ue->flags & UE_IPV4) {
+		key.flags = UE_IPV4;
+		key.ue_addr.ip4 = ue->v4.s_addr;
+
+		err = bpf_map__delete_elem(r->bpf_data->user_ingress,
+					   &key, sizeof (key), 0);
+		if (err) {
+			log_message(LOG_INFO, "pfcp_bpf: cant delete "
+				    "user_ingress v4 (%m)");
+			return -1;
+		}
+	}
+
+	if (ue->flags & UE_IPV6) {
+		key.flags = UE_IPV6;
+		memcpy(&key.ue_addr.ip6, &ue->v6, sizeof (ue->v6));
+
+		err = bpf_map__delete_elem(r->bpf_data->user_ingress,
+					   &key, sizeof (key), 0);
+		if (err) {
+			log_message(LOG_INFO, "pfcp_bpf: cant delete "
+				    "user_ingress v6 (%m)");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+
 
 
 int
@@ -41,60 +173,141 @@ pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 {
 	char ue_str[INET6_ADDRSTRLEN];
 	char gtpu_str[INET6_ADDRSTRLEN];
+	int err;
 
-	if (!t)
+	if (!t || !r->bpf_data)
 		return -1;
 
-
-	/* NOTE: t->id is stored in host byte order. Any matching
-	 * MUST convert it into network by order. htonl() is then
-	 * used during PFCP protcol F-TEID IE creation */
-
-	/* Egress rules :
-	 * NOTE: Egress direction is a simple GTP-U decap + forwarding
-	 * NOTE: You can also implement strict GTP-U endpoint by
-	 * validating every incoming pkt with pfcp_teid->ipv{4,6}
-	 */
 	if (__test_bit(PFCP_TEID_F_EGRESS, &t->flags)) {
-		printf("%s(): '%s' UPF bpf 'egress' rule for teid:0x%.8x\n",
-		       __FUNCTION__,
-		       (action == RULE_ADD) ? "adding" : "removing", t->id);
-		return 0;
+		if (action == RULE_ADD)
+			err = _set_egress_rule(r, t);
+		else
+			err = _unset_egress_rule(r, t);
+		printf("UPF bpf: %s 'egress' rule for teid:0x%.8x, ret:%d\n",
+		       (action == RULE_ADD) ? "adding" : "removing", t->id, err);
+		return err;
 	}
 
-	/* Ingress rules :
-	 * NOTE: Ingress direction is more complicated. IPv4 and/or IPv6 iph->daddr
-	 * MUST match ue_ip_address. If so, then encap into GTP-U and forward pkt
-	 * to remote GTP-U endpoint as present in pfcp_teid->ipv{4,6}.
-	 */
 	if (__test_bit(PFCP_TEID_F_INGRESS, &t->flags)) {
-		/* At least v4 or v6... */
-		if (!ue->flags)
-			return -1;
-
+		if (action == RULE_ADD)
+			err = _set_ingress_rule(r, t, ue);
+		else
+			err = _unset_ingress_rule(r, t, ue);
 		if (ue->flags & UE_IPV4) {
 			printf("%s(): '%s' UPF bpf 'ingress' rule matching ue:'%s'\n"
-			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s\n",
+			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s, ret:%d\n",
 			       __FUNCTION__,
 			       (action == RULE_ADD) ? "adding" : "removing",
 			       inet_ntop(AF_INET, &ue->v4, ue_str, INET6_ADDRSTRLEN),
 			       t->id,
-			       inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN));
+			       inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+			       err);
 		}
 
 		if (ue->flags & UE_IPV6) {
 			printf("%s(): '%s' UPF bpf 'ingress' rule matching ue:'%s'\n"
-			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s\n",
+			       "\t-> GTP-U encap : teid:0x%.8x gtpu_endpoint:%s, ret:%d\n",
 			       __FUNCTION__,
 			       (action == RULE_ADD) ? "adding" : "removing",
 			       inet_ntop(AF_INET6, &ue->v6, ue_str, INET6_ADDRSTRLEN),
 			       t->id,
-			       inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN));
+			       inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+			       err);
 		}
+		return err;
 	}
+
+	/* should be either egress or ingress */
+	return -1;
+}
+
+
+int
+pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
+{
+	struct pfcp_bpf_data *bd = gtp_bpf_prog_tpl_data_get(p, "upf");
+	struct vty *vty = arg;
+	struct table *tbl;
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct upf_user_egress_key ek = {};
+	struct upf_user_ingress_key ik = {};
+	struct upf_user_egress eu[nr_cpus];
+	struct upf_user_ingress iu[nr_cpus];
+	union addr addr, addr_ue;
+	char buf1[26], buf2[40];
+	uint32_t key = 0;
+	int err = 0, i;
+
+	if (!bd || !bd->user_ingress || !bd->user_egress)
+		return -1;
+
+	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "TEID", "UE Endpoint", "GTP-U Endpoint", "Packets", "Bytes");
+
+	vty_out(vty, "bpf-program '%s', ingress:\n", p->name);
+
+	/* Walk hashtab */
+	memset(iu, 0x00, sizeof(iu));
+	while (!bpf_map__get_next_key(bd->user_ingress, &ik, &ik, sizeof(ik))) {
+		err = bpf_map__lookup_elem(bd->user_ingress, &ik, sizeof(ik),
+					   iu, sizeof (iu), 0);
+		if (err) {
+			vty_out(vty, "%% error fetching value for "
+				"teid_key:0x%.8x (%m)\n", key);
+			break;
+		}
+
+		for (i = 1; i < nr_cpus; i++) {
+			iu[0].packets += iu[i].packets;
+			iu[0].bytes += iu[i].bytes;
+		}
+
+		addr_fromip4(&addr, iu[0].gtpu_remote_addr);
+		addr_set_port(&addr, ntohs(iu[0].gtpu_remote_port));
+		addr_fromip4(&addr_ue, ik.ue_addr.ip4);
+		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
+				  ntohl(iu[0].teid),
+				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
+				  addr_stringify(&addr, buf1, sizeof (buf1)),
+				  iu[0].packets, iu[0].bytes);
+	}
+	table_vty_out(tbl, vty);
+	table_destroy(tbl);
+
+	tbl = table_init(4, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "TEID", "GTP-U Endpoint", "Packets", "Bytes");
+
+	vty_out(vty, "egress:\n");
+
+	/* Walk hashtab */
+	memset(eu, 0x00, sizeof(eu));
+	while (!bpf_map__get_next_key(bd->user_egress, &ek, &ek, sizeof(ek))) {
+		err = bpf_map__lookup_elem(bd->user_egress, &ek, sizeof(ek),
+					   eu, sizeof (eu), 0);
+		if (err) {
+			vty_out(vty, "%% error fetching value for "
+				"teid_key:0x%.8x (%m)\n", key);
+			break;
+		}
+
+		for (i = 1; i < nr_cpus; i++) {
+			eu[0].packets += eu[i].packets;
+			eu[0].bytes += eu[i].bytes;
+		}
+
+		addr_fromip4(&addr, ek.gtpu_remote_addr);
+		addr_set_port(&addr, ntohs(ek.gtpu_remote_port));
+		table_add_row_fmt(tbl, "0x%.8x|%s|%lld|%lld",
+				  ntohl(ek.teid),
+				  addr_stringify(&addr, buf1, sizeof (buf1)),
+				  eu[0].packets, eu[0].bytes);
+	}
+	table_vty_out(tbl, vty);
+	table_destroy(tbl);
 
 	return 0;
 }
+
 
 
 static void *
@@ -129,8 +342,9 @@ pfcp_bpf_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct pfcp_bpf_data *bd = udata;
 
-	bd->teid_rule = gtp_bpf_prog_load_map(p->load.obj, "teid_rule");
-	if (!bd->teid_rule)
+	bd->user_egress = gtp_bpf_prog_load_map(p->load.obj, "user_egress");
+	bd->user_ingress = gtp_bpf_prog_load_map(p->load.obj, "user_ingress");
+	if (bd->user_egress == NULL || bd->user_ingress == NULL)
 		return -1;
 
 	return 0;

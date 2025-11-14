@@ -250,7 +250,7 @@ gtp_proxy_tun_rules_set(struct gtp_proxy *ctx)
 	struct gtp_interface *ifaces[8];
 	int i, k, n;
 
-	if (set == ctx->ipip_rules_set)
+	if (ctx->ipip_iface == NULL || set == ctx->ipip_rules_set)
 		return;
 
 	ctx->ipip_cb_add = set;
@@ -343,9 +343,11 @@ gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, __be32 addr,
 
  apply:
 	/* apply on already bound rules */
-	ctx->ipip_cb_addr = addr;
-	ctx->ipip_cb_add = action == RULE_ADD;
-	gtp_interface_rules_ctx_exec(ctx->irules, !egress, _set_tun_rules_cb);
+	if (ctx->ipip_iface != NULL) {
+		ctx->ipip_cb_addr = addr;
+		ctx->ipip_cb_add = action == RULE_ADD;
+		gtp_interface_rules_ctx_exec(ctx->irules, !egress, _set_tun_rules_cb);
+	}
 }
 
 void

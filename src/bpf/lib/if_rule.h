@@ -47,6 +47,7 @@ struct {
 
 
 #define IF_RULE_FL_XDP_ADJUSTED		0x01
+#define IF_RULE_FL_FILL_IPV4_SADDR	0x02
 
 struct if_rule_data
 {
@@ -192,8 +193,12 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 		}
 
 		/* handle this ipv4 payload */
-		d->pl_off = offset;
-		return _acl_ipv4(d, rscb, ip4h);
+		if (ip4h->version == 4 &&
+		    ip4h->ihl >= 5) {
+			d->pl_off = offset;
+			return _acl_ipv4(d, rscb, ip4h);
+		}
+		return XDP_PASS;
 
 	case __constant_htons(ETH_P_IPV6):
 		/* XXX: todo */
@@ -231,6 +236,8 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 		flags |= BPF_FIB_LOOKUP_SRC;
 		fibp.ipv4_dst = d->r->tun_remote;
 	} else {
+		if (d->flags & IF_RULE_FL_FILL_IPV4_SADDR)
+			flags |= BPF_FIB_LOOKUP_SRC;
 		fibp.ipv4_dst = d->dst_addr;
 	}
 	if (d->r->table) {
@@ -250,6 +257,17 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 		   fibp.ipv4_src, fibp.ipv4_dst, fibp.smac[5], fibp.dmac[5]);
 	if (ret != BPF_FIB_LKUP_RET_SUCCESS)
 		return XDP_DROP;
+
+	if (d->flags & IF_RULE_FL_FILL_IPV4_SADDR) {
+		struct iphdr *ip4h = (void *)(long)ctx->data + d->pl_off;
+		if (d->pl_off > 256 || (void *)(ip4h + 1) > (void *)(long)ctx->data_end)
+			return XDP_DROP;
+		if (!ip4h->saddr) {
+			ip4h->saddr = fibp.ipv4_src;
+			__u32 sum = csum_diff32(0, 0, ip4h->saddr);
+			ip4h->check = csum_replace(ip4h->check, sum);
+		}
+	}
 
 	/* compute how much we need to shrink/expand pkt */
 	if (!k->vlan_id && d->r->vlan_id) {

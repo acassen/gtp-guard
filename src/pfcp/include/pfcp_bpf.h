@@ -25,15 +25,17 @@
 #include "pfcp_session.h"
 
 struct pfcp_router;
+struct gtp_bpf_prog;
 
 struct pfcp_bpf_data
 {
 	struct list_head	pfcp_router_list;
 
-	// XXX set your own
-	struct bpf_map		*teid_rule;
+	struct bpf_map		*user_egress;
+	struct bpf_map		*user_ingress;
 };
 
 /* Prototypes */
 int pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 			 struct ue_ip_address *ue);
+int pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg);
