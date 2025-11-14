@@ -347,19 +347,6 @@ DEFUN(gtpu_proxy_tunnel_endpoint,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_debug,
-      gtpu_debug_cmd,
-      "gtpu debug (on|off)",
-      "GTP Userplane\n"
-      "Be more verbose in log messages\n"
-      "On\n"
-      "Off\n")
-{
-	struct gtp_proxy *ctx = vty->index;
-
-	ctx->debug = !strcmp(argv[0], "on");
-	return CMD_SUCCESS;
-}
 
 DEFUN(gtpu_ipip,
       gtpu_ipip_cmd,
@@ -479,9 +466,23 @@ DEFUN(gtpu_ipip_dead_peer_detection,
 	return CMD_SUCCESS;
 }
 
-DEFUN(gtpu_ipip_debug_set_teid,
-      gtpu_ipip_debug_set_teid_cmd,
-      "gtpu-ipip debug teid (add|del) VTEID TEID ENDPTADDR (egress|ingress)",
+DEFUN(gtpu_debug,
+      gtpu_debug_cmd,
+      "debug gtpu (on|off)",
+      "GTP Userplane\n"
+      "Be more verbose in log messages\n"
+      "On\n"
+      "Off\n")
+{
+	struct gtp_proxy *ctx = vty->index;
+
+	ctx->debug = !strcmp(argv[0], "on");
+	return CMD_SUCCESS;
+}
+
+DEFUN(gtpu_debug_set_teid,
+      gtpu_debug_set_teid_cmd,
+      "debug teid (add|del) VTEID TEID ENDPTADDR (egress|ingress)",
       "GTP Userplane IPIP tunnel\n"
       "Debug command\n")
 {
@@ -640,10 +641,10 @@ cmd_ext_gtp_proxy_install(void)
 	install_element(GTP_PROXY_NODE, &gtpc_proxy_egress_tunnel_endpoint_cmd);
 	install_element(GTP_PROXY_NODE, &gtpc_force_pgw_selection_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_proxy_tunnel_endpoint_cmd);
-	install_element(GTP_PROXY_NODE, &gtpu_debug_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_cmd);
 	install_element(GTP_PROXY_NODE, &gtpu_ipip_dead_peer_detection_cmd);
-	install_element(GTP_PROXY_NODE, &gtpu_ipip_debug_set_teid_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_debug_cmd);
+	install_element(GTP_PROXY_NODE, &gtpu_debug_set_teid_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_bpf_forwarding_cmd);
