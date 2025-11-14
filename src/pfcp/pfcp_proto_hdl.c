@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <inttypes.h>
 #include "pfcp.h"
 #include "pfcp_router.h"
 #include "pfcp_assoc.h"
@@ -40,7 +41,8 @@
 
 /* Heartbeat */
 static int
-pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv,
+		       struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -65,7 +67,8 @@ pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct soc
 
 /* pfd management */
 static int
-pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv,
+			    struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -91,7 +94,8 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv, struc
 
 /* Association setup */
 static int
-pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv,
+			 struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -165,7 +169,8 @@ pfcp_session_get_apn(struct pfcp_ie_apn_dnn *apn_dnn)
 }
 
 static int
-pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv,
+				   struct sockaddr_storage *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -262,6 +267,44 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	return 0;
 }
 
+/* Session modification */
+static int
+pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
+				  struct sockaddr_storage *addr)
+{
+	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
+	struct pfcp_session_modification_request *req;
+	struct pfcp_router *ctx = srv->ctx;
+	struct pfcp_session *s;
+
+	req = msg->session_modification_request;
+
+	if (!pfcph->s) {
+		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
+	}
+
+	s = pfcp_session_get(be64toh(pfcph->seid));
+	if (!s) {
+		log_message(LOG_INFO, "%s(): Unknown Session-ID:0x%" PRIx64 "... rejecting..."
+				    , __FUNCTION__, be64toh(pfcph->seid));
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND);
+	}
+
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	pfcph->type = PFCP_SESSION_MODIFICATION_RESPONSE;
+
+
+
+
+
+	return -1;
+}
 
 /*
  *	PFCP FSM
@@ -281,7 +324,7 @@ static const struct {
 
 	/* PFCP Session related */
 	[PFCP_SESSION_ESTABLISHMENT_REQUEST]	= { pfcp_session_establishment_request },
-	[PFCP_SESSION_MODIFICATION_REQUEST]	= { NULL },
+	[PFCP_SESSION_MODIFICATION_REQUEST]	= { pfcp_session_modification_request },
 	[PFCP_SESSION_DELETION_REQUEST]		= { NULL },
 	[PFCP_SESSION_REPORT_REQUEST]		= { NULL },
 };

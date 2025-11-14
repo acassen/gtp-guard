@@ -261,24 +261,6 @@ struct pfcp_session_establishment_response {
 struct pfcp_session_modification_request {
 	/* Optional IEs */
 	struct pfcp_ie_f_seid *cp_f_seid;
-	struct pfcp_ie_remove_pdr *remove_pdr;
-	struct pfcp_ie_remove_far *remove_far;
-	struct pfcp_ie_remove_urr *remove_urr;
-	struct pfcp_ie_remove_qer *remove_qer;
-	struct pfcp_ie_remove_bar *remove_bar;
-	struct pfcp_ie_remove_traffic_endpoint *remove_traffic_endpoint;
-	struct pfcp_ie_create_pdr *create_pdr;
-	struct pfcp_ie_create_far *create_far;
-	struct pfcp_ie_create_urr *create_urr;
-	struct pfcp_ie_create_qer *create_qer;
-	struct pfcp_ie_create_bar *create_bar;
-	struct pfcp_ie_create_traffic_endpoint *create_traffic_endpoint;
-	struct pfcp_ie_update_pdr *update_pdr;
-	struct pfcp_ie_update_far *update_far;
-	struct pfcp_ie_update_urr *update_urr;
-	struct pfcp_ie_update_qer *update_qer;
-	struct pfcp_ie_update_bar *update_bar;
-	struct pfcp_ie_update_traffic_endpoint *update_traffic_endpoint;
 	struct pfcp_ie_pfcpsmreq_flags *pfcpsmreq_flags;
 	struct pfcp_ie_query_urr *query_urr;
 	struct pfcp_ie_fq_csid *pgw_c_fq_csid;
@@ -289,15 +271,61 @@ struct pfcp_session_modification_request {
 	struct pfcp_ie_user_plane_inactivity_timer *user_plane_inactivity_timer;
 	struct pfcp_ie_query_urr_reference *query_urr_reference;
 	struct pfcp_ie_trace_information *trace_information;
-	struct pfcp_ie_remove_mar *remove_mar;
-	struct pfcp_ie_update_mar *update_mar;
-	struct pfcp_ie_create_mar *create_mar;
 	struct pfcp_ie_node_id *node_id;
-	struct pfcp_ie_remove_srr *remove_srr;
-	struct pfcp_ie_create_srr *create_srr;
-	struct pfcp_ie_update_srr *update_srr;
 	struct pfcp_ie_rat_type *rat_type;
 	struct pfcp_ie_group_id *group_id;
+	/* Grouped IEs - Remove */
+	struct pfcp_ie_remove_pdr **remove_pdr;
+	struct pfcp_ie_remove_far **remove_far;
+	struct pfcp_ie_remove_urr **remove_urr;
+	struct pfcp_ie_remove_qer **remove_qer;
+	struct pfcp_ie_remove_bar **remove_bar;
+	struct pfcp_ie_remove_traffic_endpoint **remove_traffic_endpoint;
+	struct pfcp_ie_remove_mar **remove_mar;
+	struct pfcp_ie_remove_srr **remove_srr;
+	/* Grouped IEs - Create */
+	struct pfcp_ie_create_pdr **create_pdr;
+	struct pfcp_ie_create_far **create_far;
+	struct pfcp_ie_create_urr **create_urr;
+	struct pfcp_ie_create_qer **create_qer;
+	struct pfcp_ie_create_bar **create_bar;
+	struct pfcp_ie_create_traffic_endpoint **create_traffic_endpoint;
+	struct pfcp_ie_create_mar **create_mar;
+	struct pfcp_ie_create_srr **create_srr;
+	/* Grouped IEs - Update */
+	struct pfcp_ie_update_pdr **update_pdr;
+	struct pfcp_ie_update_far **update_far;
+	struct pfcp_ie_update_urr **update_urr;
+	struct pfcp_ie_update_qer **update_qer;
+	struct pfcp_ie_update_bar **update_bar;
+	struct pfcp_ie_update_traffic_endpoint **update_traffic_endpoint;
+	struct pfcp_ie_update_mar **update_mar;
+	struct pfcp_ie_update_srr **update_srr;
+	/* Counters */
+	int nr_remove_pdr;
+	int nr_remove_far;
+	int nr_remove_urr;
+	int nr_remove_qer;
+	int nr_remove_bar;
+	int nr_remove_traffic_endpoint;
+	int nr_remove_mar;
+	int nr_remove_srr;
+	int nr_create_pdr;
+	int nr_create_far;
+	int nr_create_urr;
+	int nr_create_qer;
+	int nr_create_bar;
+	int nr_create_traffic_endpoint;
+	int nr_create_mar;
+	int nr_create_srr;
+	int nr_update_pdr;
+	int nr_update_far;
+	int nr_update_urr;
+	int nr_update_qer;
+	int nr_update_bar;
+	int nr_update_traffic_endpoint;
+	int nr_update_mar;
+	int nr_update_srr;
 };
 
 struct pfcp_session_modification_response {

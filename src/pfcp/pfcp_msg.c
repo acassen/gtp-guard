@@ -2327,93 +2327,129 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_REMOVE_PDR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_pdr,
-				    sizeof(*req->remove_pdr), pfcp_parse_ie_remove_pdr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_pdr, &req->nr_remove_pdr,
+					   sizeof(struct pfcp_ie_remove_pdr), pfcp_parse_ie_remove_pdr);
 		break;
 
 	case PFCP_IE_REMOVE_FAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_far,
-				    sizeof(*req->remove_far), pfcp_parse_ie_remove_far);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_far, &req->nr_remove_far,
+					   sizeof(struct pfcp_ie_remove_far), pfcp_parse_ie_remove_far);
 		break;
 
 	case PFCP_IE_REMOVE_URR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_urr,
-				    sizeof(*req->remove_urr), pfcp_parse_ie_remove_urr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_urr, &req->nr_remove_urr,
+					   sizeof(struct pfcp_ie_remove_urr), pfcp_parse_ie_remove_urr);
 		break;
 
 	case PFCP_IE_REMOVE_QER:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_qer,
-				    sizeof(*req->remove_qer), pfcp_parse_ie_remove_qer);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_qer, &req->nr_remove_qer,
+					   sizeof(struct pfcp_ie_remove_qer), pfcp_parse_ie_remove_qer);
 		break;
 
 	case PFCP_IE_REMOVE_BAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_bar,
-				    sizeof(*req->remove_bar), pfcp_parse_ie_remove_bar);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_bar, &req->nr_remove_bar,
+					   sizeof(struct pfcp_ie_remove_bar), pfcp_parse_ie_remove_bar);
 		break;
 
 	case PFCP_IE_REMOVE_TRAFFIC_ENDPOINT:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_traffic_endpoint,
-				    sizeof(*req->remove_traffic_endpoint), pfcp_parse_ie_remove_traffic_endpoint);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_traffic_endpoint,
+					   &req->nr_remove_traffic_endpoint,
+					   sizeof(struct pfcp_ie_remove_traffic_endpoint),
+					   pfcp_parse_ie_remove_traffic_endpoint);
+		break;
+
+	case PFCP_IE_REMOVE_MAR:
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_mar, &req->nr_remove_mar,
+					   sizeof(struct pfcp_ie_remove_mar), pfcp_parse_ie_remove_mar);
+		break;
+
+	case PFCP_IE_REMOVE_SRR:
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->remove_srr, &req->nr_remove_srr,
+					   sizeof(struct pfcp_ie_remove_srr), pfcp_parse_ie_remove_srr);
 		break;
 
 	case PFCP_IE_CREATE_PDR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_pdr,
-				    sizeof(*req->create_pdr), pfcp_parse_ie_create_pdr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_pdr, &req->nr_create_pdr,
+					   sizeof(struct pfcp_ie_create_pdr), pfcp_parse_ie_create_pdr);
 		break;
 
 	case PFCP_IE_CREATE_FAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_far,
-				    sizeof(*req->create_far), pfcp_parse_ie_create_far);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_far, &req->nr_create_far,
+					   sizeof(struct pfcp_ie_create_far), pfcp_parse_ie_create_far);
 		break;
 
 	case PFCP_IE_CREATE_URR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_urr,
-				    sizeof(*req->create_urr), pfcp_parse_ie_create_urr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_urr, &req->nr_create_urr,
+					   sizeof(struct pfcp_ie_create_urr), pfcp_parse_ie_create_urr);
 		break;
 
 	case PFCP_IE_CREATE_QER:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_qer,
-				    sizeof(*req->create_qer), pfcp_parse_ie_create_qer);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_qer, &req->nr_create_qer,
+					   sizeof(struct pfcp_ie_create_qer), pfcp_parse_ie_create_qer);
 		break;
 
 	case PFCP_IE_CREATE_BAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_bar,
-				    sizeof(*req->create_bar), pfcp_parse_ie_create_bar);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_bar, &req->nr_create_bar,
+					   sizeof(struct pfcp_ie_create_bar), pfcp_parse_ie_create_bar);
 		break;
 
 	case PFCP_IE_CREATE_TRAFFIC_ENDPOINT:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_traffic_endpoint,
-				    sizeof(*req->create_traffic_endpoint), pfcp_parse_ie_create_traffic_endpoint);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_traffic_endpoint,
+					   &req->nr_create_traffic_endpoint,
+					   sizeof(struct pfcp_ie_create_traffic_endpoint),
+					   pfcp_parse_ie_create_traffic_endpoint);
+		break;
+
+	case PFCP_IE_CREATE_MAR:
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_mar, &req->nr_create_mar,
+					   sizeof(struct pfcp_ie_create_mar), pfcp_parse_ie_create_mar);
+		break;
+
+	case PFCP_IE_CREATE_SRR:
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->create_srr, &req->nr_create_srr,
+					   sizeof(struct pfcp_ie_create_srr), pfcp_parse_ie_create_srr);
 		break;
 
 	case PFCP_IE_UPDATE_PDR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_pdr,
-				    sizeof(*req->update_pdr), pfcp_parse_ie_update_pdr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_pdr, &req->nr_update_pdr,
+					   sizeof(struct pfcp_ie_update_pdr), pfcp_parse_ie_update_pdr);
 		break;
 
 	case PFCP_IE_UPDATE_FAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_far,
-				    sizeof(*req->update_far), pfcp_parse_ie_update_far);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_far, &req->nr_update_far,
+					   sizeof(struct pfcp_ie_update_far), pfcp_parse_ie_update_far);
 		break;
 
 	case PFCP_IE_UPDATE_URR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_urr,
-				    sizeof(*req->update_urr), pfcp_parse_ie_update_urr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_urr, &req->nr_update_urr,
+					   sizeof(struct pfcp_ie_update_urr), pfcp_parse_ie_update_urr);
 		break;
 
 	case PFCP_IE_UPDATE_QER:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_qer,
-				    sizeof(*req->update_qer), pfcp_parse_ie_update_qer);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_qer, &req->nr_update_qer,
+					   sizeof(struct pfcp_ie_update_qer), pfcp_parse_ie_update_qer);
 		break;
 
 	case PFCP_IE_UPDATE_BAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_bar,
-				    sizeof(*req->update_bar), pfcp_parse_ie_update_bar);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_bar, &req->nr_update_bar,
+					   sizeof(struct pfcp_ie_update_bar), pfcp_parse_ie_update_bar);
 		break;
 
 	case PFCP_IE_UPDATE_TRAFFIC_ENDPOINT:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_traffic_endpoint,
-				    sizeof(*req->update_traffic_endpoint), pfcp_parse_ie_update_traffic_endpoint);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_traffic_endpoint,
+					   &req->nr_update_traffic_endpoint,
+					   sizeof(struct pfcp_ie_update_traffic_endpoint),
+					   pfcp_parse_ie_update_traffic_endpoint);
+		break;
+
+	case PFCP_IE_UPDATE_MAR:
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_mar, &req->nr_update_mar,
+					   sizeof(struct pfcp_ie_update_mar), pfcp_parse_ie_update_mar);
+		break;
+
+	case PFCP_IE_UPDATE_SRR:
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->update_srr, &req->nr_update_srr,
+					   sizeof(struct pfcp_ie_update_srr), pfcp_parse_ie_update_srr);
 		break;
 
 	case PFCP_IE_PFCPSMREQ_FLAGS:
@@ -2450,38 +2486,8 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		pfcp_msg_alloc_scheme(msg, (void **)&req->trace_information, cp, size);
 		break;
 
-	case PFCP_IE_REMOVE_MAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_mar,
-				    sizeof(*req->remove_mar), pfcp_parse_ie_remove_mar);
-		break;
-
-	case PFCP_IE_UPDATE_MAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_mar,
-				    sizeof(*req->update_mar), pfcp_parse_ie_update_mar);
-		break;
-
-	case PFCP_IE_CREATE_MAR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_mar,
-				    sizeof(*req->create_mar), pfcp_parse_ie_create_mar);
-		break;
-
 	case PFCP_IE_NODE_ID:
 		pfcp_msg_alloc_scheme(msg, (void **)&req->node_id, cp, size);
-		break;
-
-	case PFCP_IE_REMOVE_SRR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->remove_srr,
-				    sizeof(*req->remove_srr), pfcp_parse_ie_remove_srr);
-		break;
-
-	case PFCP_IE_CREATE_SRR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->create_srr,
-				    sizeof(*req->create_srr), pfcp_parse_ie_create_srr);
-		break;
-
-	case PFCP_IE_UPDATE_SRR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->update_srr,
-				    sizeof(*req->update_srr), pfcp_parse_ie_update_srr);
 		break;
 
 	case PFCP_IE_RAT_TYPE:

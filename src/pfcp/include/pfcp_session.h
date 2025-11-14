@@ -155,6 +155,7 @@ struct pfcp_session {
 
 /* Prototypes */
 int pfcp_sessions_count_read(void);
+struct pfcp_session *pfcp_session_get(uint64_t id);
 struct pfcp_session *pfcp_session_alloc(struct gtp_conn *c,
 					struct gtp_apn *apn,
 					struct pfcp_router *r);
