@@ -34,8 +34,8 @@ pdn
   request-channel 127.0.0.1 port 8080
 !
 gtp-router demo
-  gtpc-tunnel-endpoint 0.0.0.0 port 2123 listener-count 3
-  gtpu-tunnel-endpoint 0.0.0.0 port 2152 listener-count 3
+  gtpc-tunnel-endpoint 0.0.0.0 port 2123
+  gtpu-tunnel-endpoint 0.0.0.0 port 2152
 !
 line vty
   no login
@@ -56,32 +56,34 @@ Escape character is '^]'.
  Welcome to GTP-Guard VTY
 
 xps> show version
-gtp-guard v1.0.4-pre1 (2023/11/28) ().
-Copyright (C) 2023 Alexandre Cassen, <acassen@gmail.com>
+gtp-guard v1.1.1 (2025/09/02) ().
+Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
 xps> quit
 Connection closed by foreign host.
 ```
 
 Then you can start sending your GTPc and GTPu workload to the UDP ports 2123 and 2152.
 
+
 ## basic test
 
-For example, the following `test/testenv.sh` script can be used in order to perform a Basic Run
-along with a set of few GTPu and GTPc ping.
-
-It assumes that [gtping](https://github.com/ThomasHabets/gtping) has been installed.
+There are some scripts in test directory. These scripts only test the
+GTPu userplan part and the eBPF program. Below is an example for
+gtp-proxy:
 
 ```
-cd test
-sudo ./testenv.sh \
-  -i path/dev/gtping/src/gtping \
-  -u path/dev/gtpu-guard/test/gtpu-ping.py \
-  -g path/dev/gtp-guard/bin/gtp-guard \
-  -c /tmp/gtp-guard.conf \
-  -f path/dev/gtp-guard/bin/gtp_fwd.bpf \
-  -r path/dev/gtp-guard/bin/gtp_route.bpf \
-  -m path/dev/gtp-guard/bin/gtp_mirror.bpf \
-  -k no
+# set up links, ip, sysctls, ... on your system
+sudo ./test/gtp-proxy.sh setup
+
+# start and configure gtp-guard
+sudo ./test/gtp-proxy.sh run
+
+# send a packet (run on another console)
+sudo ./test/gtp-proxy.sh pkt
+
+# let your system clean (reboot as an alternative)
+sudo ./test/gtp-proxy.sh clean
+
 ```
 
 ## getenv settings
