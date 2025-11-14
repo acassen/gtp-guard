@@ -26,6 +26,7 @@
 #include "gtp_interface_rule.h"
 #include "gtp_data.h"
 #include "gtp.h"
+#include "gtp_bpf_utils.h"
 #include "include/pfcp_router.h"
 #include "inet_server.h"
 #include "pfcp_assoc.h"
@@ -106,7 +107,7 @@ DEFUN(pfcp_router_desciption,
 {
 	struct pfcp_router *c = vty->index;
 
-	snprintf(c->description, GTP_STR_MAX_LEN, "%s", argv[0]);
+	snprintf(c->description, sizeof (c->description), "%s", argv[0]);
 
 	return CMD_SUCCESS;
 }
@@ -218,21 +219,79 @@ DEFUN(pfcp_listen,
 
 DEFUN(pfcp_debug,
       pfcp_debug_cmd,
-      "debug STRING",
+      "debug (ingress_msg|egress_msg)",
       "activate PFCP debug option\n"
-      "valid mode is a combinaison of [ingress_msg|egress_msg]\n")
+      "dump ingress messages\n"
+      "dump egress messages\n")
 {
 	struct pfcp_router *c = vty->index;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+	if (!strcmp(argv[0], "ingress_msg"))
+		__set_bit(PFCP_DEBUG_FL_INGRESS_MSG, &c->debug);
+	if (!strcmp(argv[0], "egress_msg"))
+		__set_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(pfcp_debug_teid,
+      pfcp_debug_teid_cmd,
+      "debug teid (add|del) (egress|ingress) TEID ENDPTADDR [UEADDR UEADDR2]",
+      "Debug command\n"
+      "Add or delete teid\n"
+      "Teid\n"
+      "Gtp-u endpoint address:port\n")
+{
+	struct pfcp_router *c = vty->index;
+	struct pfcp_teid t = {};
+	struct ue_ip_address ue = {};
+	union addr endpt_addr, ue_addr, ue2_addr;
+	uint32_t teid = atoi(argv[2]);
+	int r;
+
+	if (addr_parse(argv[3], &endpt_addr) || endpt_addr.family != AF_INET) {
+		vty_out(vty, "%% cannot parse endpt addresses %s\n", argv[3]);
 		return CMD_WARNING;
 	}
+	t.id = teid;
+	if (!strcmp(argv[1], "ingress"))
+		__set_bit(PFCP_TEID_F_INGRESS, &t.flags);
+	if (!strcmp(argv[1], "egress"))
+		__set_bit(PFCP_TEID_F_EGRESS, &t.flags);
+	t.ipv4 = endpt_addr.sin.sin_addr;
 
-	if (strstr(argv[0], "ingress_msg"))
-		__set_bit(PFCP_DEBUG_FL_INGRESS_MSG, &c->debug);
-	if (strstr(argv[0], "egress_msg"))
-		__set_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug);
+	if (argc >= 5) {
+		if (addr_parse(argv[4], &ue_addr)) {
+			vty_out(vty, "%% cannot parse ue addresses %s\n", argv[4]);
+			return CMD_WARNING;
+		}
+		ue.flags |= ue_addr.family == AF_INET ? UE_IPV4 : UE_IPV6;
+		if (ue_addr.family == AF_INET)
+			ue.v4 = ue_addr.sin.sin_addr;
+		else
+			memcpy(&ue.v6, &ue_addr.sin6.sin6_addr, sizeof (ue.v6));
+	}
+
+	if (argc >= 6) {
+		if (addr_parse(argv[5], &ue2_addr) ||
+		    ue2_addr.family == ue_addr.family) {
+			vty_out(vty, "%% cannot parse secondary ue addresses %s\n",
+				argv[5]);
+			return CMD_WARNING;
+		}
+		ue.flags |= ue2_addr.family == AF_INET ? UE_IPV4 : UE_IPV6;
+		if (ue2_addr.family == AF_INET)
+			ue.v4 = ue2_addr.sin.sin_addr;
+		else
+			memcpy(&ue.v6, &ue2_addr.sin6.sin6_addr, sizeof (ue.v6));
+	}
+
+	r = pfcp_bpf_teid_action(c, !strcmp(argv[0], "add") ? RULE_ADD : RULE_DEL,
+				 &t, &ue);
+	if (r) {
+		vty_out(vty, "%% cannot %s teid 0x%08x\n", argv[0], teid);
+		return CMD_WARNING;
+	}
 
 	return CMD_SUCCESS;
 }
@@ -455,6 +514,18 @@ DEFUN(show_pfcp_assoc,
 }
 
 
+/* Show */
+DEFUN(show_pfcp_bpf,
+      show_pfcp_bpf_cmd,
+      "show bpf pfcp",
+      SHOW_STR
+      "BPF UPF Dataplane ruleset\n")
+{
+	gtp_bpf_prog_foreach_prog(pfcp_bpf_vty, vty, "upf");
+	return CMD_SUCCESS;
+}
+
+
 /*
  *	Configuration writer
  */
@@ -572,6 +643,7 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_bpf_prog_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_debug_teid_cmd);
 	install_element(PFCP_ROUTER_NODE, &no_pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_strict_apn_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_cmd);
@@ -580,8 +652,10 @@ cmd_ext_pfcp_router_install(void)
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);
 	install_element(VIEW_NODE, &show_pfcp_router_cmd);
+	install_element(VIEW_NODE, &show_pfcp_bpf_cmd);
 	install_element(ENABLE_NODE, &show_pfcp_assoc_cmd);
 	install_element(ENABLE_NODE, &show_pfcp_router_cmd);
+	install_element(ENABLE_NODE, &show_pfcp_bpf_cmd);
 
 	return 0;
 }

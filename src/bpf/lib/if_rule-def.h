@@ -2,8 +2,11 @@
 
 #pragma once
 
-#define XDP_ACTION_FROM_INGRESS	10
-#define XDP_ACTION_FROM_EGRESS	11
+/* augment XDP_PASS, XDP_DROP, ... */
+#define XDP_IFR_FORWARD		9
+#define XDP_IFR_FROM_INGRESS	10
+#define XDP_IFR_FROM_EGRESS	11
+
 
 #define IF_RULE_MAX_RULE	2048
 

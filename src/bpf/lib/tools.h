@@ -37,8 +37,6 @@ struct vlan_hdr {
 #define	IP_OFFMASK 0x1fff		/* mask for fragmenting bits */
 
 
-typedef __u32 v4addr_t;
-
 union v6addr
 {
 	struct {
@@ -57,7 +55,7 @@ union v6addr
 union v4v6addr
 {
 	struct {
-		v4addr_t	ip4;
+		__be32		ip4;
 		__u32		pad[3];
 	};
 	union v6addr		ip6;

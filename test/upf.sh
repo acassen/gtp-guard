@@ -8,7 +8,7 @@ clean() {
     clean_netns "access" "internet"
 }
 
-# everyone on the same interface
+# simplest setup that could be
 setup_simple() {
     setup_netns "access" "internet"
     sleep 0.5
@@ -45,6 +45,8 @@ setup_simple() {
     ip addr add 192.168.62.2/24 dev pub
     ip -n internet addr add 8.8.8.8/32 dev veth0
     ip -n internet route add default via 192.168.62.2 dev veth0
+    ip route add default via 192.168.62.1 dev pub table 1020
+    arp -s 192.168.62.1 d2:ad:ca:fe:aa:02
 
     ip netns exec access ethtool -K veth0 gro on
     ip netns exec access ethtool -K veth0 tx-checksumming off >/dev/null
@@ -69,6 +71,7 @@ bpf-program upf-1
 
 interface ran
  bpf-program upf-1
+ ip route table-id 1020
  no shutdown
 
 interface pub
@@ -83,13 +86,55 @@ pfcp-router pfcp-1
  listen 192.168.61.194 port 2123
  gtpu-tunnel-endpoint all 192.168.61.1 port 2152 interfaces ran
  egress-endpoint interfaces pub
+ debug teid add ingress 1 192.168.61.2 10.0.0.1
+ debug teid add egress 17 192.168.61.2
 " || fail "cannot execute vty commands"
 
     gtpg_show "
 show interface
 show interface-rule all
 show interface-rule installed
+show bpf pfcp
 "
+}
+
+
+#
+# send echo request from UE
+#
+pkt() {
+    (
+ip netns exec access python3 - <<EOF
+import socket
+import struct
+fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+fd.bind(('192.168.61.2', 2152))
+data, remote = fd.recvfrom(4096)
+data = bytearray(data)
+print('CORE: RECV REPLY ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
+fd.close()
+EOF
+    ) &
+    python_pid=$!
+    cat >> $tmp/cleanup.sh <<EOF
+kill $python_pid 2> /dev/null
+EOF
+
+    sleep 1
+
+    if [ "$type" == "simple" ]; then
+	send_py_pkt access veth0 "
+p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
+  IP(src='192.168.61.2', dst='192.168.61.1') /
+  UDP(sport=2152, dport=2152) /
+  GTP_U_Header(teid=17, gtp_type=255) /
+  IP(src='10.0.0.1',dst='8.8.8.8') /
+  ICMP(type='echo-request',id=126)]
+"
+    fi
+
+    sleep 1
+    echo "done"
 }
 
 
@@ -105,6 +150,8 @@ case $action in
 	setup_$type ;;
     run)
 	run_$type ;;
+    pkt)
+	pkt ;;
 
     *) fail "action '$action' not recognized" ;;
 esac
