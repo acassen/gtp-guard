@@ -317,7 +317,7 @@ pfcp_ie_put_pdr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint16_t p
 }
 
 int
-pfcp_ie_put_create_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
+pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
 		       const uint32_t teid, const struct in_addr *ipv4,
 		       const struct in6_addr *ipv6)
 {
@@ -351,7 +351,7 @@ pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
 }
 
 int
-pfcp_ie_put_create_te(struct pkt_buffer *pbuff, const uint8_t id,
+pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
 		      const uint32_t teid, const struct in_addr *ipv4,
 		      const struct in6_addr *ipv6)
 {

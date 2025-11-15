@@ -66,7 +66,7 @@ struct ue_ip_address {
 struct traffic_endpoint {
 	uint8_t			id;
 	uint8_t			choose_id;
-	uint8_t			interface;
+	uint8_t			interface_type;
 	struct ue_ip_address	ue_ip;
 	struct pfcp_teid	*teid[PFCP_DIR_MAX];
 };
@@ -103,8 +103,7 @@ struct pdr {
 	uint8_t			action;
 
 	/* F-TEID in PDI */
-	uint8_t			src_interface_type;
-	uint8_t			interface;
+	uint8_t			src_interface;
 	uint8_t			choose_id;
 	struct pfcp_teid	*teid[PFCP_DIR_MAX];
 	struct ue_ip_address	ue_ip;
@@ -166,8 +165,8 @@ int pfcp_sessions_destroy(void);
 int pfcp_session_decode(struct pfcp_session *s,
 			struct pfcp_session_establishment_request *req,
 			struct sockaddr_storage *addr);
-int pfcp_session_put_create_pdr(struct pkt_buffer *pbuff,
-				struct pfcp_session *s);
-int pfcp_session_put_create_traffic_endpoint(struct pkt_buffer *pbuff,
-					     struct pfcp_session *s);
+int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
+				 struct pfcp_session *s);
+int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
+					      struct pfcp_session *s);
 int pfcp_session_bpf_teid_action(struct pfcp_session *s, int action, int dir);

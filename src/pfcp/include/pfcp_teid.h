@@ -62,6 +62,10 @@ struct pfcp_teid *pfcp_teid_alloc(struct hlist_head *h, uint64_t *seed,
 				  uint32_t id,
 				  struct in_addr *ipv4,
 				  struct in6_addr *ipv6);
+struct pfcp_teid *pfcp_teid_alloc_static(struct hlist_head *h, uint32_t id,
+					 struct in_addr *ipv4,
+					 struct in6_addr *ipv6);
+void pfcp_teid_free(struct pfcp_teid *t);
 struct pfcp_teid *pfcp_teid_restore(struct hlist_head *h,
 				    struct pfcp_ie_f_teid *ie);
 struct hlist_head *pfcp_teid_init(void);

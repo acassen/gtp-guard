@@ -1247,6 +1247,7 @@ struct pfcp_ie_linked_urr_id {
 } __attribute__((packed));
 
 /* Outer Header Creation IE */
+#define PFCP_OUTER_HEADER_GTPUV4	0x0100
 struct pfcp_ie_outer_header_creation {
 	struct pfcp_ie h;
 	uint16_t description;
@@ -3478,9 +3479,9 @@ int pfcp_ie_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, si
 			    uint8_t cause);
 int pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
 		       const struct sockaddr_storage *addr);
-int pfcp_ie_put_create_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
-			   const uint32_t teid, const struct in_addr *ipv4,
-			   const struct in6_addr *ipv6);
-int pfcp_ie_put_create_te(struct pkt_buffer *pbuff, const uint8_t id,
-		          const uint32_t teid, const struct in_addr *ipv4,
-		          const struct in6_addr *ipv6);
+int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
+			    const uint32_t teid, const struct in_addr *ipv4,
+			    const struct in6_addr *ipv6);
+int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
+		           const uint32_t teid, const struct in_addr *ipv4,
+		           const struct in6_addr *ipv6);

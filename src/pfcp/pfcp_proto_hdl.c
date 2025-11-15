@@ -248,8 +248,8 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	/* Append IEs */
 	err = pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len, cause);
 	err = (err) ? : pfcp_ie_put_f_seid(pbuff, htobe64(s->seid), &srv->s.addr);
-	err = (err) ? : pfcp_session_put_create_pdr(pbuff, s);
-	err = (err) ? : pfcp_session_put_create_traffic_endpoint(pbuff, s);
+	err = (err) ? : pfcp_session_put_created_pdr(pbuff, s);
+	err = (err) ? : pfcp_session_put_created_traffic_endpoint(pbuff, s);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
