@@ -232,7 +232,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
-	err = pfcp_session_decode(s, req, addr);
+	err = pfcp_session_create(s, req, addr);
 	if (err) {
 		log_message(LOG_INFO, "%s(): malformed IE Create-PDR... rejecting..."
 				    , __FUNCTION__);
@@ -256,8 +256,8 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 		return -1;
 	}
 
-	/* Egress Data-Path setup */
-	err = pfcp_session_bpf_teid_action(s, RULE_ADD, PFCP_DIR_EGRESS);
+	/* Data-Path setup */
+	err = pfcp_session_bpf_action(s, RULE_ADD);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
 				    , __FUNCTION__);
@@ -275,33 +275,52 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_session_modification_request *req;
-	struct pfcp_router *ctx = srv->ctx;
+	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
 	struct pfcp_session *s;
+	int err;
 
 	req = msg->session_modification_request;
 
 	if (!pfcph->s) {
 		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
 				    , __FUNCTION__);
-		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					       PFCP_CAUSE_REQUEST_REJECTED);
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	s = pfcp_session_get(be64toh(pfcph->seid));
 	if (!s) {
 		log_message(LOG_INFO, "%s(): Unknown Session-ID:0x%" PRIx64 "... rejecting..."
 				    , __FUNCTION__, be64toh(pfcph->seid));
-		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-					       PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND);
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND);
+	}
+
+	err = pfcp_session_modify(s, req);
+	if (err) {
+		log_message(LOG_INFO, "%s(): malformed Modification request... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	/* Recycle header and reset length */
 	pfcp_msg_reset_hlen(pbuff);
 	pfcph->type = PFCP_SESSION_MODIFICATION_RESPONSE;
+	pfcph->seid = s->remote_seid.id;
 
+	/* Append IEs */
+	err = pfcp_ie_put_cause(pbuff, cause);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
+	}
 
-
-
+	/* Data-Path setup */
+	err = pfcp_session_bpf_action(s, RULE_ADD);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
+				    , __FUNCTION__);
+		return -1;
+	}
 
 	return -1;
 }
@@ -365,3 +384,11 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 end:
 	return err;
 }
+
+
+/*
+ *	GTP-U related
+ */
+
+
+

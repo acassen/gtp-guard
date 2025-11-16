@@ -162,11 +162,13 @@ int pfcp_session_destroy(struct pfcp_session *s);
 int pfcp_sessions_free(struct gtp_conn *c);
 int pfcp_sessions_int(void);
 int pfcp_sessions_destroy(void);
-int pfcp_session_decode(struct pfcp_session *s,
+int pfcp_session_create(struct pfcp_session *s,
 			struct pfcp_session_establishment_request *req,
 			struct sockaddr_storage *addr);
+int pfcp_session_modify(struct pfcp_session *s,
+			struct pfcp_session_modification_request *req);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
 					      struct pfcp_session *s);
-int pfcp_session_bpf_teid_action(struct pfcp_session *s, int action, int dir);
+int pfcp_session_bpf_action(struct pfcp_session *s, int action);

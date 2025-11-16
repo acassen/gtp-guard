@@ -400,7 +400,7 @@ pfcp_sessions_destroy(void)
 
 
 /****************************************************************************************
- *                                  Session Decoders                                    *
+ *                                  Session Handling                                    *
  ****************************************************************************************/
 static struct traffic_endpoint *
 pfcp_session_get_te_by_id(struct pfcp_session *s, uint8_t id)
@@ -627,6 +627,70 @@ pfcp_session_create_far(struct pfcp_session *s, struct far *far,
 }
 
 static int
+pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
+{
+	struct pfcp_router *r = s->router;
+	struct pfcp_ie_update_forwarding_parameters *ufwd;
+	struct pfcp_ie_outer_header_creation *ohc;
+	struct far *far = NULL;
+	struct traffic_endpoint *te;
+	struct in_addr ipv4;
+	struct pfcp_teid *t;
+
+	far = pfcp_session_get_far_by_id(s, uf->far_id->value);
+	if (!far)
+		return -1;
+
+	te = far->dst_te;
+	ufwd = uf->update_forwarding_parameters;
+
+	/* Update TE accordingly */
+	if (te && ufwd && ufwd->linked_traffic_endpoint_id &&
+	    te->id != ufwd->linked_traffic_endpoint_id->value) {
+		far->dst_te = pfcp_session_get_te_by_id(s, ufwd->linked_traffic_endpoint_id->value);
+		/* Unknown TE... */
+		if (!far->dst_te)
+			return -1;
+	} else if (!te && ufwd && ufwd->linked_traffic_endpoint_id) {
+		far->dst_te = pfcp_session_get_te_by_id(s, ufwd->linked_traffic_endpoint_id->value);
+		/* Unknown TE... */
+		if (!far->dst_te)
+			return -1;
+	}
+
+	ohc = ufwd->outer_header_creation;
+	if (!ohc)
+		return 0;
+
+	/* Same TE, F-TEID changed ? */
+	if (te && te == far->dst_te) {
+		t = te->teid[PFCP_DIR_INGRESS];
+
+		/* Same F-TEID, just ignore and return */
+		if (t && (t->id == ohc->teid &&
+		    t->ipv4.s_addr == ohc->ip_address.v4.s_addr))
+			return 0;
+
+		/* New F-TEID, release previous one and notify */
+		/* TODO: Generate async End-Marker & teid delete */
+		/* async_delete_(te->teid[PFCP_DIR_INGRESS]) */
+	}
+
+	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {
+		ipv4.s_addr = ohc->ip_address.v4.s_addr;
+		t = pfcp_teid_alloc_static(r->teid, ntohl(ohc->teid), &ipv4, NULL);
+		if (t) {
+			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS)
+				far->dst_te->teid[PFCP_DIR_INGRESS] = t;
+			else
+				pfcp_teid_free(t);
+		}
+	}
+
+	return 0;
+}
+
+static int
 pfcp_session_create_qer(struct pfcp_session *s, struct qer *qer,
 			struct pfcp_ie_create_qer *ie)
 {
@@ -779,7 +843,7 @@ pfcp_session_create_pdr(struct pfcp_session *s, struct pdr *pdr,
 }
 
 int
-pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_request *req,
+pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_request *req,
 		    struct sockaddr_storage *addr)
 {
 	int i, err = 0;
@@ -819,6 +883,22 @@ pfcp_session_decode(struct pfcp_session *s, struct pfcp_session_establishment_re
 
 	return 0;
 }
+
+int
+pfcp_session_modify(struct pfcp_session *s, struct pfcp_session_modification_request *req)
+{
+	int i, err = 0;
+
+	/* Update FAR */
+	for (i = 0; i < req->nr_update_far; i++) {
+		err = pfcp_session_update_far(s, req->update_far[i]);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
+
 
 /*
  *	Session IE put
@@ -885,32 +965,55 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 /*
  *	Session BPF
  */
+static int
+pfcp_session_bpf_teid_action(struct pfcp_session *s, struct pfcp_teid *t,
+			     struct ue_ip_address *ue_ip,
+			     int action)
+{
+	int err;
+
+	if (!t)
+		return -1;
+
+	/* Rule previously added ? */
+	if (action == RULE_ADD && __test_bit(PFCP_TEID_F_XDP_SET, &t->flags))
+		return -1;
+
+	/* Cant delete rule not set... */
+	if (action == RULE_DEL && !__test_bit(PFCP_TEID_F_XDP_SET, &t->flags))
+		return -1;
+
+	/* FIXME: Add support to FAR transport level marking ... */
+	err = pfcp_bpf_teid_action(s->router, action, t, ue_ip);
+	if (!err)
+		__set_bit(PFCP_TEID_F_XDP_SET, &t->flags);
+
+	return 0;
+}
+
 int
-pfcp_session_bpf_teid_action(struct pfcp_session *s, int action, int dir)
+pfcp_session_bpf_action(struct pfcp_session *s, int action)
 {
 	struct pdr *pdr;
 	struct traffic_endpoint *te;
-	int i;
+	int i, j;
 
+	/* Non-optimized pdi */
 	for (i = 0; i < PFCP_MAX_NR_ELEM && s->pdr[i].id; i++) {
 		pdr = &s->pdr[i];
 
-		/* Non-optimized pdi */
-		if (pdr->teid[dir]) {
-			/* FIXME: Add support to FAR transport level marking ... */
-			pfcp_bpf_teid_action(s->router, RULE_ADD,
-					     pdr->teid[dir], &pdr->ue_ip);
-			continue;
-		}
+		for (j = 0; j < PFCP_DIR_MAX; j++)
+			pfcp_session_bpf_teid_action(s, pdr->teid[j],
+						     &pdr->ue_ip, action);
+	}
 
-		/* PDI Optimized */
-		te = pdr->te;
-		if (!te || !te->teid[dir])
-			continue;
+	/* Optimized PDI */
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+		te = &s->te[i];
 
-		/* FIXME: Add support to FAR transport level marking ... */
-		pfcp_bpf_teid_action(s->router, RULE_ADD, te->teid[dir],
-				     &te->ue_ip);
+		for (j = 0; j < PFCP_DIR_MAX; j++)
+			pfcp_session_bpf_teid_action(s, te->teid[j],
+						     &te->ue_ip, action);
 	}
 
 	return 0;
