@@ -261,7 +261,7 @@ pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
 
 static int
 pfcp_ie_put_f_teid(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t teid,
-		const struct in_addr *ipv4, const struct in6_addr *ipv6)
+		   const struct in_addr *ipv4, const struct in6_addr *ipv6)
 {
 	struct pfcp_ie_f_teid *ie;
 	unsigned int length = sizeof(struct pfcp_ie) + sizeof(uint32_t) + 1;
@@ -352,8 +352,8 @@ pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
 
 int
 pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
-		      const uint32_t teid, const struct in_addr *ipv4,
-		      const struct in6_addr *ipv6)
+		       const uint32_t teid, const struct in_addr *ipv4,
+		       const struct in6_addr *ipv6)
 {
 	struct pfcp_ie *ie_created_te = (struct pfcp_ie *) pbuff->data;
 	int err;
@@ -361,6 +361,222 @@ pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
 	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_TRAFFIC_ENDPOINT);
 	err = (err) ? : pfcp_ie_put_te_id(pbuff, ie_created_te, id);
 	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_te, teid, ipv4, ipv6);
+
+	return err;
+}
+
+/* Usage Report */
+static int
+pfcp_ie_put_urr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t id)
+{
+	struct pfcp_ie_urr_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_URR_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_urr_id *) pbuff->data;
+	ie->value = id;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_ur_seqn(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t seqn)
+{
+	struct pfcp_ie_ur_seqn *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_UR_SEQN, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_ur_seqn *) pbuff->data;
+	ie->value = htonl(seqn);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c)
+{
+	struct pfcp_ie_usage_report_trigger *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_USAGE_REPORT_TRIGGER, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_usage_report_trigger *) pbuff->data;
+	ie->immer = 1;	/* Immediate report */
+	ie->termr = 1;	/* Termination report */
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_start_time(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t time)
+{
+	struct pfcp_ie_start_time *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_START_TIME, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_start_time *) pbuff->data;
+	ie->value = htonl(time);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_end_time(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t time)
+{
+	struct pfcp_ie_end_time *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_END_TIME, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_end_time *) pbuff->data;
+	ie->value = htonl(time);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_volume_measurement(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+			      const struct pfcp_metrics_pkt *up,
+			      const struct pfcp_metrics_pkt *down)
+{
+	struct pfcp_ie_volume_measurement *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_VOLUME_MEASUREMENT, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_volume_measurement *) pbuff->data;
+	ie->spare = 0;
+	ie->dlnop = 1;
+	ie->ulnop = 1;
+	ie->tonop = 1;
+	ie->dlvol = 1;
+	ie->ulvol = 1;
+	ie->tovol = 1;
+	ie->total_volume = htobe64(up->bytes + down->bytes);
+	ie->uplink_volume = htobe64(up->bytes);
+	ie->downlink_volume = htobe64(down->bytes);
+	ie->total_packets = htobe64(up->count + down->count);
+	ie->uplink_packets = htobe64(up->count);
+	ie->downlink_packets = htobe64(down->count);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_duration_measurement(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+				 const uint32_t duration)
+{
+	struct pfcp_ie_duration_measurement *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_DURATION_MEASUREMENT, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_duration_measurement *) pbuff->data;
+	ie->value = htonl(duration);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_time_first_pkt(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+			   const uint32_t time)
+{
+	struct pfcp_ie_time_of_first_packet *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_TIME_OF_FIRST_PACKET, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_time_of_first_packet *) pbuff->data;
+	ie->value = htonl(time);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_time_last_pkt(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+			  const uint32_t time)
+{
+	struct pfcp_ie_time_of_last_packet *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_TIME_OF_LAST_PACKET, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_time_of_last_packet *) pbuff->data;
+	ie->value = htonl(time);
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
+			 uint32_t start_time, uint32_t end_time,
+			 struct pfcp_metrics_pkt *uplink,
+			 struct pfcp_metrics_pkt *downlink)
+{
+	struct pfcp_ie *ie_usage_report = (struct pfcp_ie *) pbuff->data;
+	uint32_t duration = end_time - start_time;
+	int err;
+
+	err = pfcp_ie_put_type(pbuff, PFCP_IE_USAGE_REPORT_DELETION);
+	err = (err) ? : pfcp_ie_put_urr_id(pbuff, ie_usage_report, id);
+	err = (err) ? : pfcp_ie_put_ur_seqn(pbuff, ie_usage_report, 0);
+	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report);
+	err = (err) ? : pfcp_ie_put_start_time(pbuff, ie_usage_report, start_time);
+	err = (err) ? : pfcp_ie_put_end_time(pbuff, ie_usage_report, end_time);
+	err = (err) ? : pfcp_ie_put_volume_measurement(pbuff, ie_usage_report,
+						       uplink, downlink);
+	err = (err) ? : pfcp_ie_put_duration_measurement(pbuff, ie_usage_report,
+							 duration);
+	err = (err) ? : pfcp_ie_put_time_first_pkt(pbuff, ie_usage_report, start_time);
+	err = (err) ? : pfcp_ie_put_time_last_pkt(pbuff, ie_usage_report, end_time);
 
 	return err;
 }

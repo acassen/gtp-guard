@@ -24,6 +24,7 @@
 #include <netinet/in.h>
 #include <endian.h>
 
+#include "pfcp_metrics.h"
 #include "pkt_buffer.h"
 
 /*
@@ -271,7 +272,9 @@ enum pfcp_ie_type {
 	PFCP_IE_PFD_CONTEXT			= 59,
 	PFCP_IE_APPLICATION_DETECTION_INFORMATION = 68,
 	PFCP_IE_QUERY_URR			= 77,
-	PFCP_IE_USAGE_REPORT			= 78,
+	PFCP_IE_USAGE_REPORT_MODIFICATION	= 78,
+	PFCP_IE_USAGE_REPORT_DELETION		= 79,
+	PFCP_IE_USAGE_REPORT			= 80,
 	PFCP_IE_DOWNLINK_DATA_REPORT		= 83,
 	PFCP_IE_CREATE_BAR			= 85,
 	PFCP_IE_UPDATE_BAR			= 86,
@@ -1022,54 +1025,42 @@ struct pfcp_ie_measurement_method {
 struct pfcp_ie_usage_report_trigger {
 	struct pfcp_ie h;
 	union {
-		uint32_t trigger_flags;
+		uint16_t trigger_flags;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint32_t perio:1;
-			uint32_t volth:1;
-			uint32_t timth:1;
-			uint32_t quhti:1;
-			uint32_t start:1;
-			uint32_t stopt:1;
-			uint32_t droth:1;
-			uint32_t immer:1;
-			uint32_t volqu:1;
-			uint32_t timqu:1;
-			uint32_t liusa:1;
-			uint32_t termr:1;
-			uint32_t monit:1;
-			uint32_t envcl:1;
-			uint32_t macar:1;
-			uint32_t eveth:1;
-			uint32_t evequ:1;
-			uint32_t tebur:1;
-			uint32_t ipmjl:1;
-			uint32_t quvti:1;
-			uint32_t emrre:1;
-			uint32_t spare:11;
+			uint16_t perio:1;
+			uint16_t volth:1;
+			uint16_t timth:1;
+			uint16_t quhti:1;
+			uint16_t start:1;
+			uint16_t stopt:1;
+			uint16_t droth:1;
+			uint16_t immer:1;
+			uint16_t volqu:1;
+			uint16_t timqu:1;
+			uint16_t liusa:1;
+			uint16_t termr:1;
+			uint16_t monit:1;
+			uint16_t envcl:1;
+			uint16_t macar:1;
+			uint16_t eveth:1;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			uint32_t spare:11;
-			uint32_t emrre:1;
-			uint32_t quvti:1;
-			uint32_t ipmjl:1;
-			uint32_t tebur:1;
-			uint32_t evequ:1;
-			uint32_t eveth:1;
-			uint32_t macar:1;
-			uint32_t envcl:1;
-			uint32_t monit:1;
-			uint32_t termr:1;
-			uint32_t liusa:1;
-			uint32_t timqu:1;
-			uint32_t volqu:1;
-			uint32_t immer:1;
-			uint32_t droth:1;
-			uint32_t stopt:1;
-			uint32_t start:1;
-			uint32_t quhti:1;
-			uint32_t timth:1;
-			uint32_t volth:1;
-			uint32_t perio:1;
+			uint16_t eveth:1;
+			uint16_t macar:1;
+			uint16_t envcl:1;
+			uint16_t monit:1;
+			uint16_t termr:1;
+			uint16_t liusa:1;
+			uint16_t timqu:1;
+			uint16_t volqu:1;
+			uint16_t immer:1;
+			uint16_t droth:1;
+			uint16_t stopt:1;
+			uint16_t start:1;
+			uint16_t quhti:1;
+			uint16_t timth:1;
+			uint16_t volth:1;
+			uint16_t perio:1;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
@@ -1152,13 +1143,13 @@ struct pfcp_ie_duration_measurement {
 /* Time of First Packet IE */
 struct pfcp_ie_time_of_first_packet {
 	struct pfcp_ie h;
-	uint32_t time_of_first_packet;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Time of Last Packet IE */
 struct pfcp_ie_time_of_last_packet {
 	struct pfcp_ie h;
-	uint32_t time_of_last_packet;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Quota Holding Time IE */
@@ -1225,13 +1216,13 @@ struct pfcp_ie_time_quota {
 /* Start Time IE */
 struct pfcp_ie_start_time {
 	struct pfcp_ie h;
-	uint32_t start_time;
+	uint32_t value;
 } __attribute__((packed));
 
 /* End Time IE */
 struct pfcp_ie_end_time {
 	struct pfcp_ie h;
-	uint32_t end_time;
+	uint32_t value;
 } __attribute__((packed));
 
 /* URR ID IE */
@@ -1562,7 +1553,7 @@ struct pfcp_ie_remote_gtp_u_peer {
 /* UR-SEQN IE */
 struct pfcp_ie_ur_seqn {
 	struct pfcp_ie h;
-	uint32_t ur_seqn;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Activate Predefined Rules IE */
@@ -3467,16 +3458,18 @@ int pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
 		    void *arg1, void *arg2);
 int pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi,
 			   uint64_t *imei, uint64_t *msisdn);
-int pfcp_ie_decode_apn_dnn_ni(struct pfcp_ie_apn_dnn *apn, char *dst, size_t dsize);
+int pfcp_ie_decode_apn_dnn_ni(struct pfcp_ie_apn_dnn *apn, char *dst,
+			      size_t dsize);
 int pfcp_ie_put(struct pkt_buffer *pbuff, uint16_t type, uint16_t length);
 int pfcp_ie_put_type(struct pkt_buffer *pbuff, uint16_t type);
 int pfcp_ie_put_recovery_ts(struct pkt_buffer *pbuff, uint32_t ts);
 int pfcp_ie_put_up_function_features(struct pkt_buffer *pbuff,
 				     uint8_t *supported_features);
 int pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause);
-int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize);
-int pfcp_ie_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t nsize,
-			    uint8_t cause);
+int pfcp_ie_put_node_id(struct pkt_buffer *pbuff, const uint8_t *node_id,
+			size_t nsize);
+int pfcp_ie_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id,
+			    size_t nsize, uint8_t cause);
 int pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
 		       const struct sockaddr_storage *addr);
 int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
@@ -3485,3 +3478,7 @@ int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
 int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
 		           const uint32_t teid, const struct in_addr *ipv4,
 		           const struct in6_addr *ipv6);
+int pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
+			     uint32_t start_time, uint32_t end_time,
+			     struct pfcp_metrics_pkt *uplink,
+			     struct pfcp_metrics_pkt *downlink);

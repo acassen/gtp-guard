@@ -22,7 +22,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include "pfcp_session.h"
-#include "include/pfcp.h"
+#include "pfcp.h"
 #include "pfcp_teid.h"
 #include "pfcp_msg.h"
 #include "pfcp_router.h"
@@ -301,7 +301,7 @@ pfcp_session_release(struct pfcp_session *s)
 	__sync_sub_and_fetch(&s->apn->session_count, 1);
 	__sync_sub_and_fetch(&pfcp_sessions_count, 1);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
-//	pfcp_session_bpf__destroy(s);
+	pfcp_session_bpf_action(s, RULE_DEL);
 	list_head_del(&s->next);
 	pfcp_session_unhash(s);
 	pfcp_session_free(s);
@@ -763,6 +763,8 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 {
 	urr->id = ie->urr_id->value;
 
+	urr->start_time = time_now_to_ntp();
+
 	urr->measurement_method = ie->measurement_method->measurement_method;
 
 	urr->triggers = ntohs(ie->reporting_triggers->triggers);
@@ -1014,6 +1016,25 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 
 	return 0;
 }
+
+int
+pfcp_session_put_usage_report(struct pkt_buffer *pbuff, struct pfcp_session *s)
+{
+	struct urr *u;
+	int i, err;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++) {
+		u = &s->urr[i];
+		u->end_time = time_now_to_ntp();
+		err = pfcp_ie_put_usage_report(pbuff, u->id, u->start_time, u->end_time,
+					       &u->uplink, &u->downlink);
+		if (err)
+			return -1;
+	}
+
+	return 0;
+}
+
 
 /*
  *	Session BPF

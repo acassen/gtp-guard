@@ -326,8 +326,51 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return -1;
 	}
 
-	return -1;
+	return 0;
 }
+
+/* Session deletion */
+static int
+pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
+			      struct sockaddr_storage *addr)
+{
+	struct pkt_buffer *pbuff = srv->s.pbuff;
+	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
+	uint8_t cause = PFCP_CAUSE_REQUEST_ACCEPTED;
+	struct pfcp_session *s;
+	int err;
+
+	if (!pfcph->s) {
+		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
+	}
+
+	s = pfcp_session_get(be64toh(pfcph->seid));
+	if (!s) {
+		log_message(LOG_INFO, "%s(): Unknown Session-ID:0x%" PRIx64 "... rejecting..."
+				    , __FUNCTION__, be64toh(pfcph->seid));
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND);
+	}
+
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	pfcph->type = PFCP_SESSION_DELETION_RESPONSE;
+	pfcph->seid = s->remote_seid.id;
+
+	/* Append IEs */
+	err = pfcp_ie_put_cause(pbuff, cause);
+	err = (err) ? : pfcp_session_put_usage_report(pbuff, s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
+	}
+
+	pfcp_session_destroy(s);
+	return 0;
+}
+
 
 /*
  *	PFCP FSM
@@ -348,7 +391,7 @@ static const struct {
 	/* PFCP Session related */
 	[PFCP_SESSION_ESTABLISHMENT_REQUEST]	= { pfcp_session_establishment_request },
 	[PFCP_SESSION_MODIFICATION_REQUEST]	= { pfcp_session_modification_request },
-	[PFCP_SESSION_DELETION_REQUEST]		= { NULL },
+	[PFCP_SESSION_DELETION_REQUEST]		= { pfcp_session_deletion_request },
 	[PFCP_SESSION_REPORT_REQUEST]		= { NULL },
 };
 

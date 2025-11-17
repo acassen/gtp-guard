@@ -24,6 +24,7 @@
 #include "gtp_conn.h"
 #include "pfcp.h"
 #include "pfcp_msg.h"
+#include "pfcp_metrics.h"
 
 /* Default values */
 #define PFCP_MAX_NR_ELEM	5
@@ -95,6 +96,12 @@ struct urr {
 	uint32_t		quota_holdtime;
 	uint64_t		volume_threshold;
 	uint64_t		counter;
+
+	/* metrics */
+	uint32_t		start_time;
+	uint32_t		end_time;
+	struct pfcp_metrics_pkt	uplink;
+	struct pfcp_metrics_pkt	downlink;
 };
 
 struct pdr {
@@ -139,6 +146,7 @@ struct pfcp_session {
 	/* Expiration handling */
 	char			tmp_str[64];
 	struct tm		creation_time;
+	struct tm		deletion_time;
 
 	/* I/O MUX */
 	struct thread		*timer;
@@ -171,4 +179,6 @@ int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
 					      struct pfcp_session *s);
+int pfcp_session_put_usage_report(struct pkt_buffer *pbuff,
+				  struct pfcp_session *s);
 int pfcp_session_bpf_action(struct pfcp_session *s, int action);
