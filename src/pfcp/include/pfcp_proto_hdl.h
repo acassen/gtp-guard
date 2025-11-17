@@ -21,6 +21,9 @@
 #pragma once
 
 #include "pfcp_server.h"
+#include "gtp_server.h"
 
 /* Prototypes */
 int pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr);
+void pfcp_proto_async_teid_delete(struct thread *t);
+int pfcp_gtpu_hdl(struct gtp_server *s, struct sockaddr_storage *addr_from);

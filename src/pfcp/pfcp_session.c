@@ -26,6 +26,7 @@
 #include "pfcp_teid.h"
 #include "pfcp_msg.h"
 #include "pfcp_router.h"
+#include "pfcp_proto_hdl.h"
 #include "pfcp_bpf.h"
 #include "gtp_conn.h"
 #include "gtp_bpf_utils.h"
@@ -454,35 +455,35 @@ pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
 	return NULL;
 }
 
-static union addr *
+static struct sockaddr_storage *
 pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 {
-	union addr *gtpu_addr = NULL;
+	struct sockaddr_storage *gtpu_addr = NULL;
 
 	switch (interface) {
 	case PFCP_3GPP_INTERFACE_S1U:
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &r->flags))
-			gtpu_addr = &r->gtpu_s1;
+			gtpu_addr = &r->gtpu_s1.s.addr;
 		break;
 
 	case PFCP_3GPP_INTERFACE_S5U:
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &r->flags))
-			gtpu_addr = &r->gtpu_s5;
+			gtpu_addr = &r->gtpu_s5.s.addr;
 		break;
 
 	case PFCP_3GPP_INTERFACE_S8U:
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &r->flags))
-			gtpu_addr = &r->gtpu_s8;
+			gtpu_addr = &r->gtpu_s8.s.addr;
 		break;
 
 	case PFCP_3GPP_INTERFACE_N9:
 		if (__test_bit(PFCP_ROUTER_FL_N9U, &r->flags))
-			gtpu_addr = &r->gtpu_n9;
+			gtpu_addr = &r->gtpu_n9.s.addr;
 		break;
 	}
 
 	if (!gtpu_addr && __test_bit(PFCP_ROUTER_FL_ALL, &r->flags))
-		gtpu_addr = &r->gtpu;
+		gtpu_addr = &r->gtpu.s.addr;
 
 	if (!gtpu_addr)
 		log_message(LOG_INFO, "%s(): pfcp-router:'%s' No GTP-U interface configured !!!"
@@ -495,7 +496,7 @@ static struct pfcp_teid *
 pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
 {
 	struct pfcp_router *r = s->router;
-	union addr *gtpu_addr = NULL;
+	struct sockaddr_storage *gtpu_addr = NULL;
 	struct in_addr *ipv4;
 	struct in6_addr *ipv6;
 	struct pfcp_teid *t;
@@ -505,8 +506,8 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
 	if (!gtpu_addr)
 		return NULL;
 
-	ipv4 = (gtpu_addr->family == AF_INET) ? &gtpu_addr->sin.sin_addr : NULL;
-	ipv6 = (gtpu_addr->family == AF_INET6) ? &gtpu_addr->sin6.sin6_addr : NULL;
+	ipv4 = (gtpu_addr->ss_family == AF_INET) ? &((struct sockaddr_in *)gtpu_addr)->sin_addr : NULL;
+	ipv6 = (gtpu_addr->ss_family == AF_INET6) ? &((struct sockaddr_in6 *)gtpu_addr)->sin6_addr : NULL;
 
 	/* Try to use same TEID for different IP Address */
 	if (!*id)  {
@@ -632,6 +633,7 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	struct pfcp_router *r = s->router;
 	struct pfcp_ie_update_forwarding_parameters *ufwd;
 	struct pfcp_ie_outer_header_creation *ohc;
+	struct pfcp_ie_pfcpsmreq_flags *pfcpsm_flags;
 	struct far *far = NULL;
 	struct traffic_endpoint *te;
 	struct in_addr ipv4;
@@ -643,21 +645,25 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 
 	te = far->dst_te;
 	ufwd = uf->update_forwarding_parameters;
+	if (!ufwd)
+		return -1;
 
 	/* Update TE accordingly */
-	if (te && ufwd && ufwd->linked_traffic_endpoint_id &&
+	if (te && ufwd->linked_traffic_endpoint_id &&
 	    te->id != ufwd->linked_traffic_endpoint_id->value) {
 		far->dst_te = pfcp_session_get_te_by_id(s, ufwd->linked_traffic_endpoint_id->value);
 		/* Unknown TE... */
 		if (!far->dst_te)
 			return -1;
-	} else if (!te && ufwd && ufwd->linked_traffic_endpoint_id) {
+	} else if (!te && ufwd->linked_traffic_endpoint_id) {
 		far->dst_te = pfcp_session_get_te_by_id(s, ufwd->linked_traffic_endpoint_id->value);
 		/* Unknown TE... */
 		if (!far->dst_te)
 			return -1;
 	}
 
+	/* Outer header creation induce ingress traffic from
+	 * SGi to Access */
 	ohc = ufwd->outer_header_creation;
 	if (!ohc)
 		return 0;
@@ -672,8 +678,13 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 			return 0;
 
 		/* New F-TEID, release previous one and notify */
-		/* TODO: Generate async End-Marker & teid delete */
-		/* async_delete_(te->teid[PFCP_DIR_INGRESS]) */
+		if (t) {
+			int sndem = 0;
+			pfcpsm_flags = ufwd->pfcpsm_req_flags;
+			if (pfcpsm_flags && pfcpsm_flags->sndem)
+				sndem = 1;
+			thread_add_event(master, pfcp_proto_async_teid_delete, t, sndem);
+		}
 	}
 
 	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {

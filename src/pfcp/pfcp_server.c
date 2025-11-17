@@ -58,7 +58,7 @@ pfcp_server_rcv(struct inet_server *srv, ssize_t nbytes)
 
 
 /*
- *	GTP Server related
+ *	PFCP Server related
  */
 int
 pfcp_server_init(struct pfcp_server *s, void *ctx,

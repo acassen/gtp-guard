@@ -28,6 +28,7 @@
 #include "pfcp_teid.h"
 #include "gtp_bpf_utils.h"
 #include "list_head.h"
+#include "addr.h"
 #include "bitops.h"
 #include "logger.h"
 #include "table.h"

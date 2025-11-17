@@ -20,6 +20,8 @@
  */
 
 #include <inttypes.h>
+#include "gtp.h"
+#include "gtp_utils.h"
 #include "pfcp.h"
 #include "pfcp_router.h"
 #include "pfcp_assoc.h"
@@ -30,6 +32,7 @@
 #include "gtp_conn.h"
 #include "gtp_apn.h"
 #include "gtp_bpf_utils.h"
+#include "inet_utils.h"
 #include "pkt_buffer.h"
 #include "bitops.h"
 #include "logger.h"
@@ -387,8 +390,89 @@ end:
 
 
 /*
- *	GTP-U related
+ *	GTP-U Message handle
  */
+void
+pfcp_proto_async_teid_delete(struct thread *t)
+{
+	struct pfcp_teid *teid = THREAD_ARG(t);
+	int sndem = t->u.val;
+	struct gtp1_hdr gtph;
+
+	if (sndem) {
+		memset(&gtph, 0, sizeof(struct gtp1_hdr));
+		gtph.flags = 0x30; /* GTP-Rel99 + GTPv1 */
+		gtph.type = GTPU_END_MARKER_TYPE;
+		gtph.teid_only = teid->id;
+	}
+}
+
+static int
+gtpu_echo_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
+{
+	struct gtp1_hdr *h = (struct gtp1_hdr *) srv->s.pbuff->head;
+	struct gtp1_ie_recovery *rec;
+
+	/* 3GPP.TS.129.060 7.2.2 : IE Recovery is mandatory in response message */
+	h->type = GTPU_ECHO_RSP_TYPE;
+	h->length = htons(ntohs(h->length) + sizeof(*rec));
+	pkt_buffer_set_end_pointer(srv->s.pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_data_pointer(srv->s.pbuff, gtp1_get_header_len(h));
+
+	gtp1_ie_add_tail(srv->s.pbuff, sizeof(*rec));
+	rec = (struct gtp1_ie_recovery *) srv->s.pbuff->data;
+	rec->type = GTP1_IE_RECOVERY_TYPE;
+	rec->recovery = 0;
+	pkt_buffer_put_data(srv->s.pbuff, sizeof(*rec));
+	return 0;
+}
+
+static int
+gtpu_error_indication_hdl(struct gtp_server *s, struct sockaddr_storage *addr)
+{
+	return 0;
+}
+
+static int
+gtpu_end_marker_hdl(struct gtp_server *s, struct sockaddr_storage *addr)
+{
+	/* TODO: Release related TEID */
+	return 0;
+}
+
+static const struct {
+	int (*hdl) (struct gtp_server *, struct sockaddr_storage *);
+} gtpu_msg_hdl[1 << 8] = {
+	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
+	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
+	[GTPU_END_MARKER_TYPE]			= { gtpu_end_marker_hdl	},
+};
+
+int
+pfcp_gtpu_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
+{
+	struct gtp_hdr *gtph = (struct gtp_hdr *) srv->s.pbuff->head;
+	ssize_t len;
+
+	len = gtpu_get_header_len(srv->s.pbuff);
+	if (len < 0)
+		return -1;
+
+	if (*(gtpu_msg_hdl[gtph->type].hdl)) {
+		gtp_metrics_rx(&srv->msg_metrics, gtph->type);
+
+		return (*(gtpu_msg_hdl[gtph->type].hdl)) (srv, addr);
+	}
+
+	/* Not supported */
+	log_message(LOG_INFO, "%s(): GTP-U/path-mgt msg_type:0x%.2x from %s not supported..."
+			    , __FUNCTION__
+			    , gtph->type
+			    , inet_sockaddrtos(addr));
+
+	gtp_metrics_rx_notsup(&srv->msg_metrics, gtph->type);
+	return -1;
+}
 
 
 

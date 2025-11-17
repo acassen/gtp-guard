@@ -43,6 +43,26 @@ extern struct thread_master *master;
  *	Helpers
  */
 int
+pfcp_gtpu_ingress_init(struct inet_server *srv)
+{
+	return 0;
+}
+
+int
+pfcp_gtpu_ingress_process(struct inet_server *srv, struct sockaddr_storage *addr_from)
+{
+	struct gtp_server *s = srv->ctx;
+	int ret;
+
+	ret = pfcp_gtpu_hdl(s, addr_from);
+	if (ret < 0)
+		return -1;
+
+	inet_server_snd(srv, srv->fd, srv->pbuff, (struct sockaddr_in *) addr_from);
+	return 0;
+}
+
+int
 pfcp_router_ingress_init(struct inet_server *s)
 {
 	return 0;

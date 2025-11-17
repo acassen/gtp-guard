@@ -475,7 +475,7 @@ struct pfcp_ie_update_forwarding_parameters {
 	struct pfcp_ie_forwarding_policy *forwarding_policy;
 	struct pfcp_ie_header_enrichment *header_enrichment;
 	struct pfcp_ie_traffic_endpoint_id *linked_traffic_endpoint_id;
-	struct pfcp_ie_pfcpsm_req_flags *pfcpsm_req_flags;
+	struct pfcp_ie_pfcpsmreq_flags *pfcpsm_req_flags;
 	struct pfcp_ie_3gpp_interface_type *destination_interface_type;
 };
 

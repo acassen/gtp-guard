@@ -174,7 +174,7 @@ DEFUN(gtpu_router_tunnel_endpoint,
 	struct gtp_router *ctx = vty->index;
 	struct gtp_server *srv = &ctx->gtpu;
 	struct sockaddr_storage *addr = &srv->s.addr;
-	int port = 2152, err = 0;
+	int port = GTP_U_PORT, err = 0;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -196,13 +196,14 @@ DEFUN(gtpu_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 	err = gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
 	if (err) {
 		vty_out(vty, "%% Error initializing GTP-U listener on [%s]:%d%s"
 			   , argv[0], port, VTY_NEWLINE);
+		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
 	}
+	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 
 	return CMD_SUCCESS;
 }

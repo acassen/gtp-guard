@@ -337,7 +337,8 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 	const char *ifname_3gpp = argv[0];
 	const char *addr_str = argv[1];
 	struct gtp_interface *iface;
-	union addr bind_addr;
+	struct gtp_server *srv;
+	unsigned int fl;
 	int port = GTP_U_PORT;
 	int i, err = 0;
 
@@ -346,54 +347,64 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	/* endpoint ip address */
-	VTY_GET_INTEGER_RANGE("UDP Port", port, argv[2], 1024, 65535);
-	err = addr_parse(addr_str, &bind_addr);
-	if (err) {
-		vty_out(vty, "%% malformed IP address %s\n", addr_str);
-		return CMD_WARNING;
-	}
-	addr_set_port(&bind_addr, port);
-
 	/* protocol interface */
 	if (!strcmp(ifname_3gpp, "all")) {
 		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags)) {
 			vty_out(vty, "%% Default GTP-U endpoint already set\n");
 			return CMD_WARNING;
 		}
-		__set_bit(PFCP_ROUTER_FL_ALL, &c->flags);
-		addr_copy(&c->gtpu, &bind_addr);
+		fl = PFCP_ROUTER_FL_ALL;
+		srv = &c->gtpu;
 	} else if (!strcmp(ifname_3gpp, "s1")) {
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags)) {
 			vty_out(vty, "%% 3GPP-S1-U endpoint already set\n");
 			return CMD_WARNING;
 		}
-		__set_bit(PFCP_ROUTER_FL_S1U, &c->flags);
-		addr_copy(&c->gtpu_s1, &bind_addr);
+		fl = PFCP_ROUTER_FL_S1U;
+		srv = &c->gtpu_s1;
 	} else if (!strcmp(ifname_3gpp, "s5")) {
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags)) {
 			vty_out(vty, "%% 3GPP-S5-U endpoint already set\n");
 			return CMD_WARNING;
 		}
-		__set_bit(PFCP_ROUTER_FL_S5U, &c->flags);
-		addr_copy(&c->gtpu_s5, &bind_addr);
+		fl = PFCP_ROUTER_FL_S5U;
+		srv = &c->gtpu_s5;
 	} else if (!strcmp(ifname_3gpp, "s8")) {
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags)) {
 			vty_out(vty, "%% 3GPP-S8-U endpoint already set\n");
 			return CMD_WARNING;
 		}
-		__set_bit(PFCP_ROUTER_FL_S8U, &c->flags);
-		addr_copy(&c->gtpu_s8, &bind_addr);
+		fl = PFCP_ROUTER_FL_S8U;
+		srv = &c->gtpu_s8;
 	} else if (!strcmp(ifname_3gpp, "n9")) {
 		if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags)) {
 			vty_out(vty, "%% 3GPP-N9-U endpoint already set\n");
 			return CMD_WARNING;
 		}
-		__set_bit(PFCP_ROUTER_FL_N9U, &c->flags);
-		addr_copy(&c->gtpu_n9, &bind_addr);
+		fl = PFCP_ROUTER_FL_N9U;
+		srv = &c->gtpu_n9;
 	} else {
 		return CMD_WARNING;
 	}
+
+	/* endpoint ip address */
+	VTY_GET_INTEGER_RANGE("UDP Port", port, argv[2], 1024, 65535);
+	err = inet_stosockaddr(addr_str, port, &srv->s.addr);
+	if (err) {
+		vty_out(vty, "%% malformed IP address %s\n", addr_str);
+		memset(&srv->s.addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+
+	err = gtp_server_init(srv, c, pfcp_gtpu_ingress_init,
+			      pfcp_gtpu_ingress_process);
+	if (err) {
+		vty_out(vty, "%% Error initializing GTP-U listener on [%s]:%d%s"
+			   , addr_str, port, VTY_NEWLINE);
+		memset(&srv->s.addr, 0, sizeof(struct sockaddr_storage));
+		return CMD_WARNING;
+	}
+	__set_bit(fl, &c->flags);
 
 	/* interfaces to bind */
 	for (i = 3; i < argc; i++) {
@@ -549,7 +560,6 @@ config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
 	char node_id[GTP_STR_MAX_LEN];
-	char addr_str[INET6_ADDRSTRLEN], port_str[10];
 	struct pfcp_router *c;
 	struct pfcp_server *srv;
 	struct gtp_interface *iflist[8];
@@ -587,29 +597,29 @@ config_pfcp_router_write(struct vty *vty)
 				       iflist[i]->ifname);
 
 		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint all %s port %s interfaces%s\n"
-				   , addr_stringify_ip(&c->gtpu, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu, port_str, 10)
+			vty_out(vty, " gtpu-tunnel-endpoint all %s port %d interfaces%s\n"
+				   , inet_sockaddrtos(&c->gtpu.s.addr)
+				   , ntohs(inet_sockaddrport(&c->gtpu.s.addr))
 				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %s interfaces%s\n"
-				   , addr_stringify_ip(&c->gtpu_s1, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_s1, port_str, 10)
+			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %d interfaces%s\n"
+				   , inet_sockaddrtos(&c->gtpu_s1.s.addr)
+				   , ntohs(inet_sockaddrport(&c->gtpu_s1.s.addr))
 				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %s interfaces%s\n"
-				   , addr_stringify_ip(&c->gtpu_s5, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_s5, port_str, 10)
+			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %d interfaces%s\n"
+				   , inet_sockaddrtos(&c->gtpu_s5.s.addr)
+				   , ntohs(inet_sockaddrport(&c->gtpu_s5.s.addr))
 				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %s interfaces%s\n"
-				   , addr_stringify_ip(&c->gtpu_s8, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_s8, port_str, 10)
+			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %d interfaces%s\n"
+				   , inet_sockaddrtos(&c->gtpu_s8.s.addr)
+				   , ntohs(inet_sockaddrport(&c->gtpu_s8.s.addr))
 				   , ifbuf);
 		if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %s interfaces%s\n"
-				   , addr_stringify_ip(&c->gtpu_n9, addr_str, INET6_ADDRSTRLEN)
-				   , addr_stringify_port(&c->gtpu_n9, port_str, 10)
+			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %d interfaces%s\n"
+				   , inet_sockaddrtos(&c->gtpu_n9.s.addr)
+				   , ntohs(inet_sockaddrport(&c->gtpu_n9.s.addr))
 				   , ifbuf);
 		n = gtp_interface_rules_ctx_list(c->irules, false, iflist,
 						 ARRAY_SIZE(iflist));

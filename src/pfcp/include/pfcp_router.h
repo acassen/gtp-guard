@@ -22,9 +22,9 @@
 #pragma once
 
 #include "pfcp_server.h"
+#include "gtp_server.h"
 #include "pfcp_bpf.h"
 #include "gtp_bpf_prog.h"
-#include "addr.h"
 
 #define PFCP_ROUTER_DELAYED	2
 
@@ -60,11 +60,11 @@ struct pfcp_router {
 
 	struct hlist_head	*teid;
 
-	union addr		gtpu;
-	union addr		gtpu_s1;
-	union addr		gtpu_s5;
-	union addr		gtpu_s8;
-	union addr		gtpu_n9;
+	struct gtp_server	gtpu;
+	struct gtp_server	gtpu_s1;
+	struct gtp_server	gtpu_s5;
+	struct gtp_server	gtpu_s8;
+	struct gtp_server	gtpu_n9;
 
 	uint64_t		seed;
 	unsigned long		flags;
@@ -73,6 +73,9 @@ struct pfcp_router {
 };
 
 /* Prototypes */
+int pfcp_gtpu_ingress_init(struct inet_server *srv);
+int pfcp_gtpu_ingress_process(struct inet_server *srv,
+			      struct sockaddr_storage *addr_from);
 int pfcp_router_ingress_init(struct inet_server *srv);
 int pfcp_router_ingress_process(struct inet_server *srv,
 				struct sockaddr_storage *addr_from);
