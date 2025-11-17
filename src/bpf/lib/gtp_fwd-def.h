@@ -4,9 +4,11 @@
 
 #include "if_rule-def.h"
 
-#define IPTNL_FL_TRANSPARENT_EGRESS_ENCAP	(1 << 1)
-#define IPTNL_FL_DPD				(1 << 3)
-#define IPTNL_FL_DEAD				(1 << 4)
+
+#define XDP_GTPFWD_GTPU_XLAT	10
+#define XDP_GTPFWD_GTPU_NOXLAT	11
+#define XDP_GTPFWD_TUN_XLAT	12
+#define XDP_GTPFWD_TUN_NOXLAT	13
 
 #define IF_RULE_CUSTOM_KEY
 struct if_rule_key

@@ -141,38 +141,6 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 	return k;
 }
 
-
-static void
-_rule_set(void *ud, struct gtp_interface *from, bool from_ingress,
-	  struct gtp_interface *to, bool add)
-{
-	struct if_rule_key_base k;
-	struct gtp_if_rule ifr = {
-		.from = from,
-		.to = to,
-		.key = &k,
-		.key_size = sizeof (k),
-		.action = from_ingress ? 10 : 11,
-		.prio = from_ingress ? 100 : 500,
-	};
-	gtp_interface_rule_set(&ifr, add);
-}
-
-int
-cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
-			 bool ingress)
-{
-	return gtp_interface_rules_ctx_add(c->irules, iface, ingress);
-}
-
-void
-cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface)
-{
-	gtp_interface_rules_ctx_del(c->irules, iface, true);
-	gtp_interface_rules_ctx_del(c->irules, iface, false);
-}
-
-
 struct cgn_ctx *
 cgn_ctx_get_by_name(const char *name)
 {
@@ -192,9 +160,6 @@ cgn_ctx_alloc(const char *name)
 {
 	struct cgn_ctx *c = NULL;
 	struct gtp_bpf_prog *p;
-	struct gtp_interface_rules_ops irules_ops = {
-		.rule_set = _rule_set,
-	};
 
 	/* cgn configure a bpf-program. create it if it doesn't exist */
 	p = gtp_bpf_prog_get(name);
@@ -211,8 +176,6 @@ cgn_ctx_alloc(const char *name)
 	c->bpf_data = gtp_bpf_prog_tpl_data_get(p, "cgn");
 	if (c->bpf_data)
 		*c->bpf_data = c;
-	irules_ops.ud = c;
-	c->irules = gtp_interface_rules_ctx_new(&irules_ops);
 	c->port_start = 1500;
 	c->port_end = 65535;
 	c->block_size = 500;
@@ -234,8 +197,6 @@ cgn_ctx_alloc(const char *name)
 void
 cgn_ctx_release(struct cgn_ctx *c)
 {
-	if (c->irules != NULL)
-		gtp_interface_rules_ctx_release(c->irules);
 	if (c->bpf_data != NULL)
 		*c->bpf_data = NULL;
 	if (c->blog_cdr_fwd != NULL)

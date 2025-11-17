@@ -34,8 +34,9 @@
 enum gtp_interface_event {
 	GTP_INTERFACE_EV_PRG_BIND,
 	GTP_INTERFACE_EV_PRG_UNBIND,
+	GTP_INTERFACE_EV_START,
+	GTP_INTERFACE_EV_STOP,
 	GTP_INTERFACE_EV_DESTROYING,
-	GTP_INTERFACE_EV_VTY_SHOW,
 };
 
 typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
@@ -44,6 +45,12 @@ typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
 					 void *arg);
 struct gtp_interface_event_storage;
 
+
+enum gtp_interface_tunnel_mode {
+	GTP_INTERFACE_TUN_NONE = 0,
+	GTP_INTERFACE_TUN_GRE,
+	GTP_INTERFACE_TUN_IPIP,
+};
 
 /* Flags */
 enum gtp_interface_flags {
@@ -58,43 +65,43 @@ enum gtp_interface_flags {
 
 /* Interface structure */
 struct gtp_interface {
-	char			ifname[IF_NAMESIZE];
-	uint8_t			hw_addr[ETH_ALEN];
-	uint8_t			hw_addr_len;
-	uint16_t		vlan_id;
-	uint16_t		table_id;
-	union addr		direct_tx_gw;
-	uint8_t			direct_tx_hw_addr[ETH_ALEN];
-	int			ifindex;
-	char			description[GTP_STR_MAX_LEN];
+	char				ifname[IF_NAMESIZE];
+	uint8_t				hw_addr[ETH_ALEN];
+	uint8_t				hw_addr_len;
+	uint16_t			vlan_id;
+	uint16_t			table_id;
+	union addr			direct_tx_gw;
+	uint8_t				direct_tx_hw_addr[ETH_ALEN];
+	int				ifindex;
+	char				description[GTP_STR_MAX_LEN];
 
-	/* bpf-prog */
-	struct gtp_bpf_prog	*bpf_prog;
-	struct list_head	bpf_prog_list;
-	struct bpf_link		*bpf_xdp_lnk;
-	struct bpf_link		*bpf_tc_lnk;
-	struct gtp_bpf_interface_rule *rules;
+	/* only set if bfp-prog is attached to this device */
+	struct gtp_bpf_prog		*bpf_prog;
+	struct list_head		bpf_prog_list;
+	struct bpf_link			*bpf_xdp_lnk;
+	struct bpf_link			*bpf_tc_lnk;
+	struct gtp_bpf_interface_rule	*bpf_irules;
+
+	/* point to real device if it's a virtual device */
+	struct gtp_interface		*link_iface;
 
 	/* interface events */
 	struct gtp_interface_event_storage *ev;
-	int			ev_n;
-	int			ev_msize;
+	int				ev_n;
+	int				ev_msize;
 
 	/* metrics */
-	struct rtnl_link_stats64 *link_metrics;
-
-	/* point to real device if it's a virtual device */
-	struct gtp_interface	*link_iface;
+	struct rtnl_link_stats64	*link_metrics;
 
 	/* tunnel info */
-	int			tunnel_mode; /* 0:none, 1:gre, 2:ipip */
-	union addr		tunnel_local;
-	union addr		tunnel_remote;
+	enum gtp_interface_tunnel_mode	tunnel_mode;
+	union addr			tunnel_local;
+	union addr			tunnel_remote;
 
-	struct list_head	next;
+	struct list_head		next;
 
-	int			refcnt;
-	unsigned long		flags;
+	int				refcnt;
+	unsigned long			flags;
 };
 
 
@@ -116,8 +123,7 @@ void gtp_interface_unregister_event(struct gtp_interface *, gtp_interface_event_
 				    void *);
 void gtp_interface_trigger_event(struct gtp_interface *iface,
 				 enum gtp_interface_event type, void *arg);
-void gtp_interface_trigger_event_wide(struct gtp_interface *iface,
-				      enum gtp_interface_event type, void *arg);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
 void gtp_interface_destroy(struct gtp_interface *);
 int gtp_interfaces_destroy(void);
+

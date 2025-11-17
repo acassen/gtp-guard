@@ -6,6 +6,7 @@
 . $(dirname $0)/_gtpg_cmd.sh
 
 clean() {
+    ip tunnel del gre-priv 2>/dev/null && true
     clean_netns "cgn-pub" "cgn-priv" "router" "router-priv" "router-pub"
 }
 
@@ -330,7 +331,6 @@ setup_vlan() {
 
 setup_gre() {
     setup_netns "router" "router-priv"
-    ip tunnel del gre-priv 2>/dev/null && true
     sleep 0.5
 
     # the 'trunk' between router and cgn server
@@ -370,9 +370,10 @@ setup_gre() {
     ip route add default via 192.168.61.1 dev virt-eth0 table 1310
 
     # priv side
-    ip tunnel add gre-priv mode gre local 192.168.61.2 remote 192.168.61.6 dev virt-eth0
+    ip tunnel add gre-priv mode gre local 192.168.61.2 remote 192.168.61.6 #dev virt-eth0
     ip link set gre-priv up
     ip addr add 192.168.62.2/30 dev gre-priv
+    ip route add default via 192.168.62.1 dev gre-priv table 1320
     ip route add 192.168.61.4/30 via 192.168.61.1 dev virt-eth0 table 1320
 
     # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
@@ -440,8 +441,8 @@ bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description trop_bien
  ipv4-pool 37.141.0.0/24
- interface priv side ingress
- interface pub side egress
+! interface priv side ingress
+! interface pub side egress
  cdr-fwd cgn
 
 interface priv
@@ -481,18 +482,21 @@ no bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
  ipv4-pool 37.141.0.0/24
- interface priv.20 side ingress
- interface priv.21 side ingress
- interface priv.22 side ingress
- interface priv.23 side ingress
- interface pub.10 side egress
+! interface priv.20 side ingress
+! interface priv.21 side ingress
+! interface priv.22 side ingress
+! interface priv.23 side ingress
+! interface pub.10 side egress
 
 bpf-program cgn-ng-1
  path bin/cgn.bpf
  no shutdown
 
 interface priv.20
- description priv_itf
+ ip route table-id 1310
+ no shutdown
+
+interface priv.21
  ip route table-id 1310
  no shutdown
 
@@ -500,13 +504,21 @@ interface priv
  bpf-program cgn-ng-1
  no shutdown
 
-interface pub.10
- description pub_itf
- ip route table-id 1320
+interface priv.22
+ ip route table-id 1310
+ no shutdown
+
+interface priv.23
+ ip route table-id 1310
  no shutdown
 
 interface pub
  bpf-program cgn-ng-1
+ no shutdown
+
+interface pub.10
+ description pub_itf
+ ip route table-id 1320
  no shutdown
 " || fail "cannot execute vty commands"
 
@@ -540,12 +552,16 @@ bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
  ipv4-pool 37.141.0.0/24
- interface priv.20 side ingress
- interface pub.10 side egress
+! interface priv.20 side ingress
+! interface pub.10 side egress
 
 interface priv.20
  description priv_itf
  ip route table-id 1310
+ no shutdown
+
+interface virt-eth0
+ bpf-program cgn-ng-1
  no shutdown
 
 interface pub.10
@@ -553,9 +569,6 @@ interface pub.10
  ip route table-id 1320
  no shutdown
 
-interface virt-eth0
- bpf-program cgn-ng-1
- no shutdown
 " || fail "cannot execute vty commands"
 
     sudo ip netns exec router-priv ping -c 1 -W 2 -I 10.0.0.1 8.8.8.8
@@ -586,19 +599,18 @@ bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
  ipv4-pool 37.141.0.0/24
- interface gre-priv side ingress
- interface virt-eth0 side egress
-
-# XXX do not work if declared after virt-eth0
-interface gre-priv
- description priv_itf_on_gre_tunnel
- ip route table-id 1310
- no shutdown
+! interface gre-priv side ingress
+! interface virt-eth0 side egress
 
 interface virt-eth0
  description internet_connection
  bpf-program cgn-ng-1
  ip route table-id 1320
+ no shutdown
+
+interface gre-priv
+ description priv_itf_on_gre_tunnel
+ ip route table-id 1310
  no shutdown
 " || fail "cannot execute vty commands"
 
@@ -607,6 +619,7 @@ interface virt-eth0
     gtpg_show "
 show interface
 show carrier-grade-nat flows 10.0.0.1
+show interface-rule all
 "
 }
 

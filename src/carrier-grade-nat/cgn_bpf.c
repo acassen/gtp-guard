@@ -465,11 +465,19 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 	if (m == NULL)
 		return -1;
 	if (bpf_map__set_max_entries(m, c->block_count + 1) != 0) {
-		log_message(LOG_INFO, "set free_blocks_cnt.max_entries failed");
+		log_message(LOG_INFO, "set v4_free_blocks.max_entries failed");
 		return -1;
 	}
 	if (_dyn_map_resize(obj, m, c->cgn_addr_n + 3) < 0)
 		return -1;
+
+	m = bpf_object__find_map_by_name(obj, "v4_pool_addr");
+	if (m == NULL)
+		return -1;
+	if (bpf_map__set_max_entries(m, c->cgn_addr_n * 2) != 0) {
+		log_message(LOG_INFO, "set v4_pool_addr.max_entries failed");
+		return -1;
+	}
 
 	return 0;
 }
@@ -495,9 +503,10 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 	c->flow_port_timeouts = bpf_object__find_map_by_name(obj, "flow_port_timeouts");
 	c->blog_queue = bpf_object__find_map_by_name(obj, "v4_block_log_queue");
 	c->v4_priv_flows = bpf_object__find_map_by_name(obj, "v4_priv_flows");
+	c->v4_pool_addr = bpf_object__find_map_by_name(obj, "v4_pool_addr");
 
 	if (!c->v4_blocks || !c->v4_free_blocks || !c->users ||
-	    !c->flow_port_timeouts || !c->blog_queue) {
+	    !c->flow_port_timeouts || !c->blog_queue || !c->v4_pool_addr) {
 		log_message(LOG_ERR, "%s: a mandatory bpf map is missing",
 			    p->name);
 		return -1;
@@ -512,7 +521,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 	const int block_msize = sizeof (struct cgn_v4_ipblock) +
 		sizeof (struct cgn_v4_block) * c->block_count;
 	uint32_t i, l, k;
-	uint8_t d[block_msize];
+	uint8_t d[block_msize], uu = 1;
 
 	/* prepare memory to be copied to maps */
 	free_cnt = free_area = malloc(fmsize);
@@ -536,6 +545,11 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 
 		bpf_map__update_elem(m, &i, sizeof (i),
 				     d, block_msize, 0);
+
+		k = htonl(c->cgn_addr[i]);
+		bpf_map__update_elem(c->v4_pool_addr, &k, sizeof (k),
+				     &uu, sizeof (uu), 0);
+
 	}
 	free_cnt[0] = 0;
 	free_cnt[1] = c->cgn_addr_n;

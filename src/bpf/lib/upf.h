@@ -183,3 +183,34 @@ upf_handle_gtpu(struct if_rule_data *d)
 
 	return XDP_IFR_FORWARD;
 }
+
+
+/*
+ *	Choose between gtp-u and l3 side
+ */
+static __always_inline int
+upf_traffic_selector(struct if_rule_data *d)
+{
+	void *data = (void *)(long)d->ctx->data;
+	void *data_end = (void *)(long)d->ctx->data_end;
+	struct iphdr *iph;
+	struct udphdr *udph;
+
+	/* check input gtp-u (proto udp and port) */
+	iph = (struct iphdr *)(data + d->pl_off);
+	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
+		return XDP_DROP;
+
+	if (iph->protocol != IPPROTO_UDP)
+		return upf_handle_pub(d);
+
+	udph = (void *)(iph) + iph->ihl * 4;
+	if (udph + 1 > data_end)
+		return XDP_DROP;
+
+	/* this is our gtp-u ! */
+	if (udph->dest == bpf_htons(GTPU_PORT))
+		return upf_handle_gtpu(d);
+
+	return upf_handle_pub(d);
+}

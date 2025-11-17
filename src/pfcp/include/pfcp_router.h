@@ -50,7 +50,6 @@ struct pfcp_router {
 	struct gtp_bpf_prog	*bpf_prog;
 	struct pfcp_bpf_data	*bpf_data;
 	struct list_head	bpf_list;
-	struct gtp_interface_rules_ctx *irules;
 	struct pfcp_server	s;
 	unsigned long		debug;
 

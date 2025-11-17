@@ -28,7 +28,6 @@
 
 struct gtp_bpf_prog;
 struct gtp_interface;
-struct gtp_interface_rule_ctx;
 
 
 /* default protocol timeout values */
@@ -51,7 +50,6 @@ struct cgn_ctx
 	char			description[GTP_STR_MAX_LEN];
 	struct list_head	next;
 	struct cgn_ctx		**bpf_data;	/* pointer from bpf to us */
-	struct gtp_interface_rules_ctx *irules;
 
 	/* bpf maps */
 	struct bpf_map		*v4_blocks;
@@ -59,6 +57,7 @@ struct cgn_ctx
 	struct bpf_map		*users;
 	struct bpf_map		*v4_priv_flows;
 	struct bpf_map		*flow_port_timeouts;
+	struct bpf_map		*v4_pool_addr;
 
 	/* conf. read-only after bpf prog is opened */
 	uint32_t		*cgn_addr;	/* array of size 'cgn_addr_n' */
@@ -87,9 +86,6 @@ struct cgn_ctx
 /* cgn.c */
 int cgn_ctx_compact_cgn_addr(struct cgn_ctx *c, uint64_t *out);
 int cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s);
-int cgn_ctx_attach_interface(struct cgn_ctx *c, struct gtp_interface *iface,
-			     bool is_priv);
-void cgn_ctx_detach_interface(struct cgn_ctx *c, struct gtp_interface *iface);
 struct cgn_ctx *cgn_ctx_get_by_name(const char *name);
 void cgn_ctx_release(struct cgn_ctx *c);
 struct cgn_ctx *cgn_ctx_alloc(const char *name);

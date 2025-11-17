@@ -81,6 +81,7 @@ setup_combined() {
     ip -n cloud addr add 192.168.61.129/30 dev $ns_tun_dev
     ip -n cloud tunnel add ptun mode ipip local 192.168.61.129 remote 192.168.61.130
     ip -n cloud link set ptun up
+    # ip -n cloud addr add 192.168.62.1/30 dev ptun
 
     tun_dev=gtpp
     if [ $tun_vlan -ne 0 ]; then
@@ -89,8 +90,9 @@ setup_combined() {
 	ip link set $tun_dev up
     fi
     ip addr add 192.168.61.130/30 dev $tun_dev
-    ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129 dev $tun_dev
+    ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129
     ip link set ptun up
+    # ip addr add 192.168.62.2/30 dev ptun
     arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
 
     ip netns exec cloud ethtool -K veth0 gro on
@@ -292,7 +294,7 @@ interface gtpp
 gtp-proxy gtpp-undertest
  bpf-program fwd-1
  gtpc-tunnel-endpoint 192.168.61.194 port 2123
- gtpu-tunnel-endpoint 192.168.61.1 both-sides interfaces gtpp
+ gtpu-tunnel-endpoint 192.168.61.1 port 2152 both-sides
  debug teid add 257 1 192.168.61.3 ingress
  debug teid add 258 2 192.168.61.2 egress
 
@@ -339,7 +341,7 @@ interface ptun
 gtp-proxy gtpp-undertest-$i
  bpf-program fwd-1
  gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
- gtpu-tunnel-endpoint 192.168.61.$((i*8+1)) both-sides interfaces gtpp
+ gtpu-tunnel-endpoint 192.168.61.$((i*8+1)) port 2152 both-sides
  gtpu-ipip interface ptun view egress
  debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+3)) ingress
  debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+2)) egress
@@ -421,11 +423,11 @@ bpf-program fwd-1
  path bin/gtp_fwd.bpf
  no shutdown
 
-interface sgw
+interface pgw
  bpf-program fwd-1
  no shutdown
 
-interface pgw
+interface sgw
  bpf-program fwd-1
  no shutdown
 
@@ -443,8 +445,8 @@ gtp-proxy gtpp-undertest-$i
  bpf-program fwd-1
  gtpc-tunnel-endpoint 192.168.61.$((i+210)) port 2123
  gtpc-egress-tunnel-endpoint 192.168.61.$((i+194)) port 2123
- gtpu-tunnel-endpoint 192.168.61.$((64+i*4+1)) ingress interfaces sgw
- gtpu-tunnel-endpoint 192.168.61.$((i*4+1)) egress interfaces pgw pgw.9
+ gtpu-tunnel-endpoint 192.168.61.$((64+i*4+1)) port 2152 ingress
+ gtpu-tunnel-endpoint 192.168.61.$((i*4+1)) port 2152 egress
  gtpu-ipip interface ptun view egress
  debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*4+2)) ingress
  debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((64+i*4+2)) egress

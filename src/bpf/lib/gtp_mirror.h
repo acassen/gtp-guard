@@ -19,46 +19,23 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#pragma once
 
-#include "lib/gtp_fwd.h"
-#include "lib/if_rule.h"
+#include <linux/pkt_cls.h>
+
+struct gtp_mirror_rule {
+	__be32		addr;
+	__be16		port;
+	__u8		protocol;
+	int		ifindex;
+} __attribute__ ((__aligned__(8)));
+
+#define MAX_MIRROR_ENTRIES 100U
 
 
-SEC("xdp")
-int gtp_fwd_main(struct xdp_md *ctx)
-{
-	struct if_rule_data d = { .ctx = ctx };
-	int action, ret;
-
-	action = if_rule_parse_pkt(&d, gtp_fwd_rule_selection);
-
-	switch (action) {
-	case XDP_ABORTED ... XDP_REDIRECT:
-		return action;
-
-	case XDP_IFR_DEFAULT_ROUTE:
-		action = gtp_fwd_traffic_selector(&d);
-		break;
-
-	case XDP_GTPFWD_GTPU_XLAT:
-	case XDP_GTPFWD_GTPU_NOXLAT:
-		action = gtp_fwd_handle_gtpu(&d);
-		break;
-
-	case XDP_GTPFWD_TUN_XLAT:
-	case XDP_GTPFWD_TUN_NOXLAT:
-		action = gtp_fwd_handle_ipip(&d);
-		break;
-
-	default:
-		return XDP_PASS;
-	}
-
-	if (action == XDP_IFR_FORWARD)
-		return if_rule_rewrite_pkt(&d);
-
-	return action;
-}
-
-const char _mode[] = "if_rules,gtp_fwd";
-char _license[] SEC("license") = "GPL";
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, MAX_MIRROR_ENTRIES);
+	__type(key, __be32);
+	__type(value, struct gtp_mirror_rule);
+} mirror_rules SEC(".maps");

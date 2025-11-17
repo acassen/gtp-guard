@@ -125,10 +125,11 @@ int cgn_test_pkt(struct xdp_md *ctx)
 		return 1;
 
 	struct if_rule_data ifd = {
+		.ctx = ctx,
 		.pl_off = sizeof (*eth),
 	};
 
-	ret = cgn_pkt_handle(ctx, &ifd, eth->h_dest[5]);
+	ret = cgn_pkt_handle(&ifd, eth->h_dest[5]);
 	if (hit_bug || ret < 0) {
 		hit_bug = 0;
 		return XDP_ABORTED;

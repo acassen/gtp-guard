@@ -12,31 +12,27 @@ int cgn_entry(struct xdp_md *ctx)
 
 	/* phase 1: parse interface encap */
 	action = if_rule_parse_pkt(&d, NULL);
-	if (action <= XDP_REDIRECT)
-		return action;
 
 	/* phase 2: execute action */
-	if (action == 10) {
-		/* packet from private-network */
-		ret = cgn_pkt_handle(ctx, &d, 1);
-
-	} else if (action == 11) {
-		/* packet from public-network */
-		ret = cgn_pkt_handle(ctx, &d, 0);
-
-	} else {
-		/* not expected */
-		return XDP_PASS;
+	if (action == XDP_IFR_DEFAULT_ROUTE) {
+		ret = cgn_pkt_handle(&d, 2);
+		if (hit_bug || ret < 0) {
+			hit_bug = 0;
+			return XDP_ABORTED;
+		}
+		if (ret == 0)
+			action = XDP_IFR_FORWARD;
+		else if (ret == 3)
+			action = XDP_PASS;
+		else
+			action = XDP_DROP;
 	}
-	if (hit_bug || ret < 0) {
-		hit_bug = 0;
-		return XDP_ABORTED;
-	}
-	if (ret != 0)
-		return XDP_DROP;
 
 	/* phase 3: rewrite interface encap */
-	return if_rule_rewrite_pkt(&d);
+	if (action == XDP_IFR_FORWARD)
+		return if_rule_rewrite_pkt(&d);
+
+	return action;
 }
 
 

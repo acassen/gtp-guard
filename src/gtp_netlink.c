@@ -512,7 +512,6 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 {
 	struct rtattr *linkinfo[IFLA_INFO_MAX + 1];
 	struct rtattr *linkdata;
-	struct gtp_interface *l_iface;
 	const char *kind;
 
 	if (!tb)
@@ -541,7 +540,6 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 
 	} else if (!strcmp(kind, "gre")) {
 		struct rtattr *attr[IFLA_GRE_MAX + 1];
-		int link_ifindex;
 
 		parse_rtattr(attr, IFLA_GRE_MAX, RTA_DATA(linkdata),
 			     RTA_PAYLOAD(linkdata), NLA_F_NESTED);
@@ -552,15 +550,7 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 		    RTA_PAYLOAD(attr[IFLA_GRE_REMOTE]) != 4)
 			return -1;
 
-		iface->tunnel_mode = 1;
-
-		/* "ip tunnel .... dev xxx" specified, attach to this device */
-		if (attr[IFLA_GRE_LINK]) {
-			link_ifindex = *(uint32_t *)RTA_DATA(attr[IFLA_GRE_LINK]);
-			l_iface = gtp_interface_get_by_ifindex(link_ifindex, true);
-			if (l_iface)
-				gtp_interface_link(l_iface, iface);
-		}
+		iface->tunnel_mode = GTP_INTERFACE_TUN_GRE;
 
 		addr_fromip4(&iface->tunnel_local,
 			     *(uint32_t *)RTA_DATA(attr[IFLA_GRE_LOCAL]));
@@ -569,7 +559,6 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 
 	} else if (!strcmp(kind, "ipip")) {
 		struct rtattr *attr[IFLA_IPTUN_MAX + 1];
-		int link_ifindex;
 
 		parse_rtattr(attr, IFLA_IPTUN_MAX, RTA_DATA(linkdata),
 			     RTA_PAYLOAD(linkdata), NLA_F_NESTED);
@@ -580,15 +569,7 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 		    RTA_PAYLOAD(attr[IFLA_IPTUN_REMOTE]) != 4)
 			return -1;
 
-		iface->tunnel_mode = 2;
-
-		/* "ip tunnel .... dev xxx" specified, attach to this device */
-		if (attr[IFLA_IPTUN_LINK]) {
-			link_ifindex = *(uint32_t *)RTA_DATA(attr[IFLA_IPTUN_LINK]);
-			l_iface = gtp_interface_get_by_ifindex(link_ifindex, true);
-			if (l_iface)
-				gtp_interface_link(l_iface, iface);
-		}
+		iface->tunnel_mode = GTP_INTERFACE_TUN_IPIP;
 
 		addr_fromip4(&iface->tunnel_local,
 			     *(uint32_t *)RTA_DATA(attr[IFLA_IPTUN_LOCAL]));

@@ -101,6 +101,12 @@ struct {
 } v4_free_blocks SEC(".maps");
 
 struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, __u32);
+	__type(value, __u8);
+} v4_pool_addr SEC(".maps");
+
+struct {
 	__uint(type, BPF_MAP_TYPE_QUEUE);
 	__uint(max_entries, 15000);
 	__type(value, struct cgn_v4_block_log);
@@ -698,7 +704,7 @@ _flow_add_entry(const struct cgn_packet *pp, struct cgn_v4_block *bl,
 	return ret;
 }
 
-static inline __attribute__((always_inline)) struct cgn_v4_flow_priv *
+static __always_inline struct cgn_v4_flow_priv *
 _flow_alloc(struct cgn_user *u, struct cgn_packet *pp)
 {
 	struct cgn_v4_ipblock *ipbl = NULL;
@@ -845,19 +851,28 @@ _flow_v4_lookup_priv_hairpin(const struct cgn_packet *pp)
  *   10: no associated flow
  *   11: user alloc error
  *   12: flow alloc error
+ *   13: packet from pub
  */
-static inline int
+static __always_inline int
 cgn_flow_handle_priv(struct cgn_packet *cp)
 {
 	struct cgn_v4_flow_priv_hairpin *hf;
 	struct cgn_v4_flow_priv *f;
 	struct cgn_user *u;
+	void *p;
 	int ret;
 
 	f = _flow_v4_lookup_priv(cp);
 	if (f == NULL) {
 		if (cp->icmp_err_off)
 			return 10;
+
+		/* this packet is for egress (to our ip pool pub) */
+		if (cp->from_priv == 2) {
+			p = bpf_map_lookup_elem(&v4_pool_addr, &cp->dst_addr);
+			if (p != NULL)
+				return 13;
+		}
 
 		/* get/allocate user before allocating flow */
 		u = _cgn_user_lookup(cp->src_addr);
@@ -935,7 +950,7 @@ cgn_flow_handle_priv(struct cgn_packet *cp)
  *     0: ok
  *    10: no associated flow
  */
-static inline int
+static __always_inline int
 cgn_flow_handle_pub(struct cgn_packet *cp)
 {
 	struct cgn_v4_flow_pub *f;
@@ -982,7 +997,7 @@ struct {
 
 
 
-static inline __attribute__((always_inline)) int
+static __always_inline int
 cgn_pkt_rewrite_src(struct xdp_md *ctx, struct cgn_packet *cp, struct iphdr *ip4h, void *payload,
 		    __u32 addr, __u16 port)
 {
@@ -1060,7 +1075,7 @@ cgn_pkt_rewrite_src(struct xdp_md *ctx, struct cgn_packet *cp, struct iphdr *ip4
 }
 
 
-static inline __attribute__((always_inline)) int
+static __always_inline int
 cgn_pkt_rewrite_dst(struct xdp_md *ctx, struct cgn_packet *cp, struct iphdr *ip4h, void *payload,
 		    __u32 addr, __u16 port)
 {
@@ -1140,13 +1155,12 @@ cgn_pkt_rewrite_dst(struct xdp_md *ctx, struct cgn_packet *cp, struct iphdr *ip4
 /*
  * process icmp error's inner ip header
  */
-static inline __attribute__((always_inline)) int
-_handle_pkt_icmp_error(struct xdp_md *ctx, struct cgn_packet *cp,
-		       struct iphdr *outer_ip4h, struct icmphdr *outer_icmp,
-		       struct iphdr *ip4h)
+static __always_inline int
+_handle_pkt_icmp_error(struct cgn_packet *cp, struct iphdr *outer_ip4h,
+		       struct icmphdr *outer_icmp, struct iphdr *ip4h)
 {
-	void *data = (void *)(long)ctx->data;
-	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)cp->ctx->data;
+	void *data_end = (void *)(long)cp->ctx->data_end;
 	__u32 sum, addr;
 	int ret;
 
@@ -1192,31 +1206,35 @@ _handle_pkt_icmp_error(struct xdp_md *ctx, struct cgn_packet *cp,
 	}
 
 	/* lookup and process flow, then rewrite inner l3/l4 and outer l3 */
-	if (cp->from_priv) {
-		ret = cgn_flow_handle_priv(cp);
-		if (ret)
-			return ret;
-		ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, udp, cp->src_addr, cp->src_port);
-		if (ret)
-			return ret;
-
-		addr = bpf_htonl(cp->src_addr);
-		sum = csum_diff32(0, outer_ip4h->saddr, addr);
-		outer_ip4h->saddr = addr;
-
-	} else {
+	if (cp->from_priv == 0 || cp->from_priv == 2) {
 		ret = cgn_flow_handle_pub(cp);
-		if (ret)
-			return ret;
-		ret = cgn_pkt_rewrite_src(ctx, cp, ip4h, udp, cp->dst_addr, cp->dst_port);
-		if (ret)
-			return ret;
+		if (!ret) {
+			ret = cgn_pkt_rewrite_src(cp->ctx, cp, ip4h, udp,
+						  cp->dst_addr, cp->dst_port);
+			if (ret)
+				return ret;
 
-		addr = bpf_htonl(cp->dst_addr);
-		sum = csum_diff32(0, outer_ip4h->daddr, addr);
-		outer_ip4h->daddr = addr;
+			addr = bpf_htonl(cp->dst_addr);
+			sum = csum_diff32(0, outer_ip4h->daddr, addr);
+			outer_ip4h->daddr = addr;
+			goto end;
+		}
+		if (cp->from_priv == 0)
+			return ret;
 	}
 
+	ret = cgn_flow_handle_priv(cp);
+	if (ret)
+		return ret;
+	ret = cgn_pkt_rewrite_dst(cp->ctx, cp, ip4h, udp, cp->src_addr, cp->src_port);
+	if (ret)
+		return ret;
+
+	addr = bpf_htonl(cp->src_addr);
+	sum = csum_diff32(0, outer_ip4h->saddr, addr);
+	outer_ip4h->saddr = addr;
+
+ end:
 	--sum;
 	--outer_ip4h->ttl;
 	outer_ip4h->check = csum_replace(outer_ip4h->check, sum);
@@ -1227,7 +1245,7 @@ _handle_pkt_icmp_error(struct xdp_md *ctx, struct cgn_packet *cp,
  * main cgn entry function.
  * parameters:
  *  - ip4h: must already be checked (ihl, version, ttl > 0), and cannot be a fragment
- *  - from_priv: 1 if packet is coming from 'private' side, else 0
+ *  - from_priv: 0: egress, 1: ingress, 2: guess
  *
  * returns:
  *    0: ok. packet modified
@@ -1239,8 +1257,9 @@ _handle_pkt_icmp_error(struct xdp_md *ctx, struct cgn_packet *cp,
  *   12: flow alloc error
  */
 static __attribute__((noinline)) int
-cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
+cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 {
+	struct xdp_md *ctx = d->ctx;
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
 	struct iphdr *ip4h = data + d->pl_off;
@@ -1301,8 +1320,10 @@ cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 			break;
 		case ICMP_DEST_UNREACH:
 		case ICMP_TIME_EXCEEDED:
-			return _handle_pkt_icmp_error(ctx, cp, ip4h, icmp,
-						      (struct iphdr *)(icmp + 1));
+			ret = _handle_pkt_icmp_error(cp, ip4h, icmp,
+						     (struct iphdr *)(icmp + 1));
+			d->dst_addr = ip4h->daddr;
+			return ret;
 		default:
 			return 3;
 		}
@@ -1312,18 +1333,24 @@ cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 	}
 	}
 
-	if (from_priv) {
-		ret = cgn_flow_handle_priv(cp);
-		if (ret)
-			return ret;
-		ret = cgn_pkt_rewrite_src(ctx, cp, ip4h, payload, cp->src_addr, cp->src_port);
-	} else {
+	if (from_priv == 0 || from_priv == 2) {
 		ret = cgn_flow_handle_pub(cp);
-		if (ret)
+		if (!ret) {
+			ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, payload,
+						  cp->dst_addr, cp->dst_port);
+			d->dst_addr = bpf_htonl(cp->dst_addr);
 			return ret;
-		ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, payload, cp->dst_addr, cp->dst_port);
+		}
+		if (cp->from_priv == 0)
+			return ret;
 	}
 
-	d->dst_addr = bpf_htonl(cp->dst_addr);
+	ret = cgn_flow_handle_priv(cp);
+	if (!ret) {
+		ret = cgn_pkt_rewrite_src(ctx, cp, ip4h, payload,
+					  cp->src_addr, cp->src_port);
+		d->dst_addr = bpf_htonl(cp->dst_addr);
+	}
+
 	return ret;
 }

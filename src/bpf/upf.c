@@ -20,12 +20,8 @@ int upf_entry(struct xdp_md *ctx)
 		return action;
 
 	/* phase 2: execute action */
-	if (action == XDP_IFR_FROM_INGRESS) {
-		action = upf_handle_gtpu(&d);
-
-	} else if (action == XDP_IFR_FROM_EGRESS) {
-		action = upf_handle_pub(&d);
-	}
+	if (action == XDP_IFR_DEFAULT_ROUTE)
+		action = upf_traffic_selector(&d);
 
 	/* phase 3: rewrite to dst interface */
 	if (action == XDP_IFR_FORWARD)

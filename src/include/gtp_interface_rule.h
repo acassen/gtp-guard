@@ -21,44 +21,26 @@
 #pragma once
 
 struct gtp_bpf_interface_rule;
-struct gtp_interface_rules_ctx;
 struct gtp_bpf_prog;
 
 struct gtp_if_rule
 {
-	struct gtp_interface	*from;
-	struct gtp_interface	*to;
-	void			*key;
-	int			key_size;
-	int			action;
-	int			prio;
-};
+	struct gtp_bpf_interface_rule	*bir;
+	struct gtp_interface		*from;
+	int				prio;
 
-typedef void (*gtp_interface_rules_ctx_exec_cb_t)(void *ud, struct gtp_interface *,
-						  bool, struct gtp_interface *);
+	int (*key_stringify)(const struct gtp_if_rule *, char *, int, bool);
+	void				*key;
+	int				key_size;
 
-struct gtp_interface_rules_ops {
-	void	(*rule_set)(void *, struct gtp_interface *, bool,
-			    struct gtp_interface *, bool);
-	int	(*key_stringify)(const struct gtp_if_rule *, char *, int, bool);
-
-	void	*ud;
+	int				action;
+	int				table_id;
+	uint32_t			force_ifindex;
 };
 
 
 /* Prototypes */
 int gtp_interface_rule_set(struct gtp_if_rule *, bool add);
-struct gtp_interface_rules_ctx *gtp_interface_rules_ctx_new(const struct gtp_interface_rules_ops *);
-void gtp_interface_rules_ctx_release(struct gtp_interface_rules_ctx *);
-int gtp_interface_rules_ctx_add(struct gtp_interface_rules_ctx *, struct gtp_interface *,
-			       bool ingress);
-void gtp_interface_rules_ctx_del(struct gtp_interface_rules_ctx *, struct gtp_interface *,
-				 bool ingress);
-void gtp_interface_rules_ctx_exec(struct gtp_interface_rules_ctx *, bool,
-				  gtp_interface_rules_ctx_exec_cb_t);
-int gtp_interface_rules_ctx_list_bound(struct gtp_interface_rules_ctx *, bool,
-				       struct gtp_interface **, int);
-int gtp_interface_rules_ctx_list(struct gtp_interface_rules_ctx *, bool,
-				 struct gtp_interface **, int);
+int gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg);
 int gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg);
 int gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg);

@@ -320,7 +320,7 @@ DEFUN(pfcp_strict_apn,
 
 DEFUN(pfcp_gtpu_tunnel_endpoint,
       pfcp_gtpu_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9) (A.B.C.D|X:X::X:X) port <1024-65535> interfaces .IFACES",
+      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9) (A.B.C.D|X:X::X:X) port <1024-65535>",
       "3GPP GTP-U interface\n"
       "All interface\n"
       "S1-U interface\n"
@@ -330,22 +330,15 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "UDP port to listen to\n"
-      "Number between 1024 and 65535\n"
-      "Interfaces to bind\n")
+      "Number between 1024 and 65535\n")
 {
 	struct pfcp_router *c = vty->index;
 	const char *ifname_3gpp = argv[0];
 	const char *addr_str = argv[1];
-	struct gtp_interface *iface;
 	struct gtp_server *srv;
 	unsigned int fl;
 	int port = GTP_U_PORT;
-	int i, err = 0;
-
-	if (argc < 3) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
+	int err = 0;
 
 	/* protocol interface */
 	if (!strcmp(ifname_3gpp, "all")) {
@@ -406,54 +399,8 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 	}
 	__set_bit(fl, &c->flags);
 
-	/* interfaces to bind */
-	for (i = 3; i < argc; i++) {
-		iface = gtp_interface_get(argv[i], true);
-		if (iface == NULL) {
-			vty_out(vty, "%% cannot find interface %s\n", argv[i]);
-			return CMD_WARNING;
-		}
-
-		err = gtp_interface_rules_ctx_add(c->irules, iface, true);
-		if (err && errno == EEXIST) {
-			vty_out(vty, "%% interface %s already added as ingress\n",
-				argv[i]);
-			return CMD_WARNING;
-		}
-	}
-
 	return CMD_SUCCESS;
 }
-
-
-DEFUN(pfcp_egress_endpoint,
-      pfcp_egress_endpoint_cmd,
-      "egress-endpoint interfaces .IFACES",
-      "Interfaces to bind\n")
-{
-	struct pfcp_router *c = vty->index;
-	struct gtp_interface *iface;
-	int i, err = 0;
-
-	/* interfaces to bind */
-	for (i = 0; i < argc; i++) {
-		iface = gtp_interface_get(argv[i], true);
-		if (iface == NULL) {
-			vty_out(vty, "%% cannot find interface %s\n", argv[i]);
-			return CMD_WARNING;
-		}
-
-		err = gtp_interface_rules_ctx_add(c->irules, iface, false);
-		if (err && errno == EEXIST) {
-			vty_out(vty, "%% interface %s already added as egress\n",
-				argv[i]);
-			return CMD_WARNING;
-		}
-	}
-
-	return CMD_SUCCESS;
-}
-
 
 /*
  *	Show commands
@@ -562,9 +509,6 @@ config_pfcp_router_write(struct vty *vty)
 	char node_id[GTP_STR_MAX_LEN];
 	struct pfcp_router *c;
 	struct pfcp_server *srv;
-	struct gtp_interface *iflist[8];
-	char ifbuf[200];
-	int i, n, k;
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "pfcp-router %s%s", c->name, VTY_NEWLINE);
@@ -589,46 +533,26 @@ config_pfcp_router_write(struct vty *vty)
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
 
-		n = gtp_interface_rules_ctx_list(c->irules, true, iflist,
-						 ARRAY_SIZE(iflist));
-		ifbuf[0] = 0;
-		for (k = 0, i = 0; i < n; i++)
-			k += scnprintf(ifbuf + k, sizeof (ifbuf) - k, " %s",
-				       iflist[i]->ifname);
-
 		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint all %s port %d interfaces%s\n"
+			vty_out(vty, " gtpu-tunnel-endpoint all %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu.s.addr))
-				   , ifbuf);
+				   , ntohs(inet_sockaddrport(&c->gtpu.s.addr)));
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %d interfaces%s\n"
+			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu_s1.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_s1.s.addr))
-				   , ifbuf);
+				   , ntohs(inet_sockaddrport(&c->gtpu_s1.s.addr)));
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %d interfaces%s\n"
+			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu_s5.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_s5.s.addr))
-				   , ifbuf);
+				   , ntohs(inet_sockaddrport(&c->gtpu_s5.s.addr)));
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %d interfaces%s\n"
+			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu_s8.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_s8.s.addr))
-				   , ifbuf);
+				   , ntohs(inet_sockaddrport(&c->gtpu_s8.s.addr)));
 		if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %d interfaces%s\n"
+			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu_n9.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_n9.s.addr))
-				   , ifbuf);
-		n = gtp_interface_rules_ctx_list(c->irules, false, iflist,
-						 ARRAY_SIZE(iflist));
-		if (n > 0) {
-			vty_out(vty, " egress-endpoint interfaces");
-			for (i = 0; i < n; i++)
-				vty_out(vty, " %s", iflist[i]->ifname);
-			vty_out(vty, "%s", VTY_NEWLINE);
-		}
+				   , ntohs(inet_sockaddrport(&c->gtpu_n9.s.addr)));
 
 		vty_out(vty, "!\n");
 	}
@@ -657,7 +581,6 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &no_pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_strict_apn_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_cmd);
-	install_element(PFCP_ROUTER_NODE, &pfcp_egress_endpoint_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

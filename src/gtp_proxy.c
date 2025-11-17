@@ -159,10 +159,10 @@ _show_key(const struct gtp_if_rule *r, char *buf, int size, bool short_out)
 }
 
 static void
-_set_tun_rules(struct gtp_proxy *ctx, bool ingress, struct gtp_interface *iface)
+_set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 {
+	struct gtp_interface *tun = ctx->ipip_iface;
 	bool xlat_before = false, xlat_after = false;
-	uint32_t addr = ctx->ipip_cb_addr;
 	uint32_t local;
 
 	if ((ctx->ipip_xlat == 2 && ingress) ||
@@ -183,104 +183,52 @@ _set_tun_rules(struct gtp_proxy *ctx, bool ingress, struct gtp_interface *iface)
 		.daddr = local,
 	};
 	struct gtp_if_rule ifr = {
-		.from = iface,
-		.to = ctx->ipip_iface,
+		.bir = ctx->bpf_irules,
+		.prio = 100,
+		.key_stringify = _show_key,
 		.key = &k,
 		.key_size = sizeof (k),
-		.action = xlat_before ? 11 : 12,
-		.prio = 100,
+		.action = xlat_before ? XDP_GTPFWD_GTPU_XLAT : XDP_GTPFWD_GTPU_NOXLAT,
+		.force_ifindex = tun->ifindex,
 	};
-	gtp_interface_rule_set(&ifr, ctx->ipip_cb_add);
+	gtp_interface_rule_set(&ifr, add);
+
+	/* rules from tunnel */
+	k.b.tun_local = addr_toip4(&tun->tunnel_local);
+	k.b.tun_remote = addr_toip4(&tun->tunnel_remote);
+	k.b.flags = IF_RULE_FL_TUNNEL_IPIP;
 
 	if (!xlat_before) {
-		/* rule from tunnel, same packet, will xlat */
+		/* same packet, will xlat */
 		struct gtp_if_rule ifr = {
-			.from = ctx->ipip_iface,
-			.to = iface,
+			.bir = ctx->bpf_irules,
+			.from = tun,
+			.prio = 100,
+			.key_stringify = _show_key,
 			.key = &k,
 			.key_size = sizeof (k),
-			.action = 13,
-			.prio = 100,
+			.action = XDP_GTPFWD_TUN_XLAT,
 		};
-		gtp_interface_rule_set(&ifr, ctx->ipip_cb_add);
+		gtp_interface_rule_set(&ifr, add);
 	}
 
 	if (xlat_after) {
-		/* rule from tunnel, xlat'ed on other side  */
-		struct if_rule_key k = {
-			.saddr = local,
-			.daddr = addr,
-		};
+		/* xlat'ed on other side  */
+		k.saddr = local;
+		k.daddr = addr;
 		struct gtp_if_rule ifr = {
-			.from = ctx->ipip_iface,
-			.to = iface,
+			.bir = ctx->bpf_irules,
+			.from = tun,
+			.prio = 100,
+			.key_stringify = _show_key,
 			.key = &k,
 			.key_size = sizeof (k),
-			.action = 14,
-			.prio = 100,
+			.action = XDP_GTPFWD_TUN_NOXLAT,
 		};
-		gtp_interface_rule_set(&ifr, ctx->ipip_cb_add);
-	}
-
-	if (ctx->debug) {
-		log_message(LOG_DEBUG, "gtp_proxy_rules: %s tun rule %s "
-			    "local %x dst %x, xlat{conf:%d before:%d after:%d} ",
-			    ctx->ipip_cb_add ? "add" : "del",
-			    ingress ? "ingress" : "egress",
-			    local, addr,
-			    ctx->ipip_xlat, xlat_before, xlat_after);
+		gtp_interface_rule_set(&ifr, add);
 	}
 }
 
-static void
-_set_tun_rules_cb(void *ud, struct gtp_interface *from, bool ingress,
-		  struct gtp_interface *to)
-{
-	struct gtp_proxy *ctx = ud;
-
-	_set_tun_rules(ctx, ingress, from);
-}
-
-
-void
-gtp_proxy_tun_rules_set(struct gtp_proxy *ctx)
-{
-	struct gtp_proxy_remote_addr *a;
-	bool set = ctx->ipip_bind && !ctx->ipip_dead;
-	struct gtp_interface *ifaces[8];
-	int i, k, n;
-
-	if (ctx->ipip_iface == NULL || set == ctx->ipip_rules_set)
-		return;
-
-	ctx->ipip_cb_add = set;
-
-	n = gtp_interface_rules_ctx_list_bound(ctx->irules, true,
-					       ifaces, ARRAY_SIZE(ifaces));
-	if (n < 0)
-		return;
-	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++) {
-		hlist_for_each_entry(a, &ctx->ipip_ingress_tab[i], hlist) {
-			ctx->ipip_cb_addr = a->addr;
-			for (k = 0; k < n; k++)
-				_set_tun_rules(ctx, true, ifaces[k]);
-		}
-	}
-
-	n = gtp_interface_rules_ctx_list_bound(ctx->irules, false,
-					       ifaces, ARRAY_SIZE(ifaces));
-	if (n < 0)
-		return;
-	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++) {
-		hlist_for_each_entry(a, &ctx->ipip_egress_tab[i], hlist) {
-			ctx->ipip_cb_addr = a->addr;
-			for (k = 0; k < n; k++)
-				_set_tun_rules(ctx, false, ifaces[k]);
-		}
-	}
-
-	ctx->ipip_rules_set = set;
-}
 
 int
 gtp_proxy_rules_remote_exists(struct gtp_proxy *ctx, __be32 addr, bool *egress)
@@ -313,12 +261,9 @@ gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, __be32 addr,
 	struct hlist_head *head;
 	uint32_t h;
 
-	if (ctx->debug) {
-		log_message(LOG_DEBUG, "gtp_proxy: %s %s addr: 0x%x\n",
-			    action == RULE_ADD ? "add" : "del",
-			    egress ? "egress" : "ingress",
-			    addr);
-	}
+	log_message(LOG_DEBUG, "gtp_proxy'%s': %s %s addr: 0x%x\n",
+		    ctx->name, action == RULE_ADD ? "add" : "del",
+		    egress ? "egress" : "ingress", addr);
 
 	h = jhash_1word(addr, 0) % GTP_PROXY_REMOTE_ADDR_HSIZE;
 	head = egress ? &ctx->ipip_egress_tab[h] : &ctx->ipip_ingress_tab[h];
@@ -343,11 +288,40 @@ gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, __be32 addr,
 
  apply:
 	/* apply on already bound rules */
-	if (ctx->ipip_iface != NULL) {
-		ctx->ipip_cb_addr = addr;
-		ctx->ipip_cb_add = action == RULE_ADD;
-		gtp_interface_rules_ctx_exec(ctx->irules, !egress, _set_tun_rules_cb);
+	if (ctx->ipip_iface != NULL && ctx->ipip_rules_set) {
+		printf("new teid remote add:%d ingress:%d addr:%x\n",
+		       action == RULE_ADD, !egress, addr);
+		_set_tun_rules(ctx, action == RULE_ADD, !egress, addr);
 	}
+}
+
+void
+gtp_proxy_rules_tun_set(struct gtp_proxy *ctx)
+{
+	struct gtp_proxy_remote_addr *a;
+	bool set = ctx->ipip_bind && !ctx->ipip_dead;
+	int i;
+
+	if (ctx->ipip_iface == NULL || set == ctx->ipip_rules_set)
+		return;
+
+	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++) {
+		hlist_for_each_entry(a, &ctx->ipip_ingress_tab[i], hlist) {
+			printf(" consider ingress addr %x\n", a->addr);
+			_set_tun_rules(ctx, set, true, a->addr);
+		}
+	}
+
+	for (i = 0; i < GTP_PROXY_REMOTE_ADDR_HSIZE; i++) {
+		hlist_for_each_entry(a, &ctx->ipip_egress_tab[i], hlist) {
+			printf(" consider egress addr %x\n", a->addr);
+			_set_tun_rules(ctx, set, false, a->addr);
+		}
+	}
+
+	printf("%s: done\n", __func__);
+
+	ctx->ipip_rules_set = set;
 }
 
 void
@@ -357,44 +331,34 @@ gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 {
 	struct gtp_proxy *ctx = ud;
 
-	if (ctx->debug)
-		log_message(LOG_DEBUG, "iface:%s ipip event %d\n",
-			    iface->ifname, type);
+	log_message(LOG_DEBUG, "iface:%s ipip event %d\n", iface->ifname, type);
 
 	switch (type) {
 	case GTP_INTERFACE_EV_PRG_BIND:
+	case GTP_INTERFACE_EV_START:
 		ctx->ipip_bind = true;
 		break;
 	case GTP_INTERFACE_EV_PRG_UNBIND:
+	case GTP_INTERFACE_EV_STOP:
 	case GTP_INTERFACE_EV_DESTROYING:
 		ctx->ipip_bind = false;
 		break;
-	case GTP_INTERFACE_EV_VTY_SHOW:
-	{
-		struct vty *vty = arg;
-		vty_out(vty, " gtp-proxy:%s gtpu-ipip\n", ctx->name);
-		return;
-	}
 	default:
 		return;
 	}
 
-	gtp_proxy_tun_rules_set(ctx);
+	gtp_proxy_rules_tun_set(ctx);
 
 	if (type == GTP_INTERFACE_EV_DESTROYING)
 		ctx->ipip_iface = NULL;
 }
 
-static void
-_rule_set(void *ud, struct gtp_interface *from, bool from_ingress,
-	  struct gtp_interface *to, bool add)
+void
+gtp_proxy_rules_set(void *ud, struct gtp_interface *from, bool from_ingress,
+		    struct gtp_interface *to, bool add)
 {
-	struct if_rule_key k = {};
 	struct gtp_if_rule ifr = {
 		.from = from,
-		.to = to,
-		.key = &k,
-		.key_size = sizeof (k),
 		.action = 10,
 		.prio = from_ingress ? 100 : 500,
 	};
@@ -433,13 +397,6 @@ gtp_proxy_alloc(const char *name)
 	strncpy(ctx->name, name, GTP_NAME_MAX_LEN - 1);
 	list_add_tail(&ctx->next, &daemon_data->gtp_proxy_ctx);
 
-	struct gtp_interface_rules_ops irules_ops = {
-		.rule_set = _rule_set,
-		.key_stringify = _show_key,
-		.ud = ctx,
-	};
-	ctx->irules = gtp_interface_rules_ctx_new(&irules_ops);
-
 	/* Init hashtab */
 	ctx->gtpc_teid_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
 	ctx->gtpu_teid_tab = calloc(CONN_HASHTAB_SIZE, sizeof(struct hlist_head));
@@ -469,13 +426,10 @@ gtp_proxy_ctx_server_stop(struct gtp_proxy *ctx)
 					     GTP_INTERFACE_EV_DESTROYING,
 					     ctx, NULL);
 	}
-	if (ctx->irules != NULL) {
-		gtp_interface_rules_ctx_release(ctx->irules);
-		ctx->irules = NULL;
-	}
 	if (ctx->bpf_prog != NULL) {
 		ctx->bpf_prog = NULL;
 		ctx->bpf_data = NULL;
+		ctx->bpf_irules = NULL;
 		list_del(&ctx->bpf_list);
 	}
 
