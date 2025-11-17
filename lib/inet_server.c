@@ -124,7 +124,7 @@ inet_server_udp_async_recv_thread(struct thread *t)
 	struct inet_server *s = THREAD_ARG(t);
 	struct sockaddr_storage *addr = &s->addr;
 	struct sockaddr_storage addr_from;
-	socklen_t addrlen;
+	socklen_t addrlen = sizeof (*addr);
 	ssize_t nbytes;
 
 	if (t->type == THREAD_READ_TIMEOUT)
@@ -266,7 +266,7 @@ static void
 inet_server_accept(struct thread *t)
 {
 	struct sockaddr_storage addr;
-	socklen_t addrlen;
+	socklen_t addrlen = sizeof (addr);
 	struct inet_worker *w;
 	struct inet_cnx *c;
 	int fd, accept_fd, err = 0, family;
@@ -486,32 +486,32 @@ inet_server_worker_task(void *arg)
 	snprintf(pname, 127, "inet-srv-%d", w->id);
 	prctl(PR_SET_NAME, pname, 0, 0, 0, 0);
 
-        /* Welcome message */
-        log_message(LOG_INFO, "%s(): Starting Listener Server[%s:%d]/Worker[%d]"
-                            , __FUNCTION__
-                            , inet_sockaddrtos(&s->addr)
-                            , ntohs(inet_sockaddrport(&s->addr))
-                            , w->id);
+	/* Welcome message */
+	log_message(LOG_INFO, "%s(): Starting Listener Server[%s:%d]/Worker[%d]"
+			    , __FUNCTION__
+			    , inet_sockaddrtos(&s->addr)
+			    , ntohs(inet_sockaddrport(&s->addr))
+			    , w->id);
 	__set_bit(INET_FL_RUNNING_BIT, &w->flags);
 
-        /* I/O MUX init */
-        w->master = thread_make_master(true);
+	/* I/O MUX init */
+	w->master = thread_make_master(true);
 
 	/* Register event pipe */
 	inet_server_tcp_event_init(w);
 
-        /* Register listener */
-        inet_server_tcp_listen(w);
+	/* Register listener */
+	inet_server_tcp_listen(w);
 
-        /* Infinite loop */
-        launch_thread_scheduler(w->master);
+	/* Infinite loop */
+	launch_thread_scheduler(w->master);
 
-        /* Release Master stuff */
-        log_message(LOG_INFO, "%s(): Stopping Listener Server[%s:%d]/Worker[%d]"
-                            , __FUNCTION__
-                            , inet_sockaddrtos(&s->addr)
-                            , ntohs(inet_sockaddrport(&s->addr))
-                            , w->id);
+	/* Release Master stuff */
+	log_message(LOG_INFO, "%s(): Stopping Listener Server[%s:%d]/Worker[%d]"
+			    , __FUNCTION__
+			    , inet_sockaddrtos(&s->addr)
+			    , ntohs(inet_sockaddrport(&s->addr))
+			    , w->id);
 	__clear_bit(INET_FL_RUNNING_BIT, &w->flags);
 	return NULL;
 }
