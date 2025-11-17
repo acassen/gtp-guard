@@ -455,45 +455,56 @@ pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
 	return NULL;
 }
 
-static struct sockaddr_storage *
-pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
+static struct gtp_server *
+pfcp_session_get_gtp_server_by_interface(struct pfcp_router *r, uint8_t interface)
 {
-	struct sockaddr_storage *gtpu_addr = NULL;
+	struct gtp_server *srv = NULL;
 
 	switch (interface) {
 	case PFCP_3GPP_INTERFACE_S1U:
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &r->flags))
-			gtpu_addr = &r->gtpu_s1.s.addr;
+			srv = &r->gtpu_s1;
 		break;
 
 	case PFCP_3GPP_INTERFACE_S5U:
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &r->flags))
-			gtpu_addr = &r->gtpu_s5.s.addr;
+			srv = &r->gtpu_s5;
 		break;
 
 	case PFCP_3GPP_INTERFACE_S8U:
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &r->flags))
-			gtpu_addr = &r->gtpu_s8.s.addr;
+			srv = &r->gtpu_s8;
 		break;
 
 	case PFCP_3GPP_INTERFACE_N9:
 		if (__test_bit(PFCP_ROUTER_FL_N9U, &r->flags))
-			gtpu_addr = &r->gtpu_n9.s.addr;
+			srv = &r->gtpu_n9;
 		break;
 	}
 
-	if (!gtpu_addr && __test_bit(PFCP_ROUTER_FL_ALL, &r->flags))
-		gtpu_addr = &r->gtpu.s.addr;
+	if (!srv && __test_bit(PFCP_ROUTER_FL_ALL, &r->flags))
+		srv = &r->gtpu;
 
-	if (!gtpu_addr)
+	return srv;
+}
+
+static struct sockaddr_storage *
+pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
+{
+	struct gtp_server *srv;
+
+	srv = pfcp_session_get_gtp_server_by_interface(r, interface);
+	if (!srv) {
 		log_message(LOG_INFO, "%s(): pfcp-router:'%s' No GTP-U interface configured !!!"
 				    , __FUNCTION__, r->name);
+		return NULL;
+	}
 
-	return gtpu_addr;
+	return &srv->s.addr;
 }
 
 static struct pfcp_teid *
-pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
+pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 {
 	struct pfcp_router *r = s->router;
 	struct sockaddr_storage *gtpu_addr = NULL;
@@ -517,12 +528,35 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint32_t *id, uint8_t interface)
 		*id = new_id;
 	}
 
-	t = pfcp_teid_alloc(r->teid, &r->seed, *id, ipv4, ipv6);
+	t = pfcp_teid_alloc(r->teid, &r->seed, interface, *id, ipv4, ipv6);
 	if (!t)
 		return NULL;
 
 	return t;
 }
+
+static int
+pfcp_session_destroy_teid(struct pfcp_session *s, struct traffic_endpoint *te,
+			  struct pfcp_teid *t, int sndem)
+{
+	struct pfcp_router *r = s->router;
+	struct gtp_server *srv;
+
+	if (!sndem)
+		goto teid_del;
+
+	srv = pfcp_session_get_gtp_server_by_interface(r, te->interface_type);
+	if (!srv)
+		goto teid_del;
+
+	gtpu_send_end_marker(srv, t);
+
+teid_del:
+	pfcp_bpf_teid_action(r, RULE_DEL, t, &te->ue_ip);
+	pfcp_teid_free(t);
+	return 0;
+}
+
 
 static int
 pfcp_session_create_te(struct pfcp_session *s, struct traffic_endpoint *te,
@@ -565,7 +599,7 @@ pfcp_session_create_te(struct pfcp_session *s, struct traffic_endpoint *te,
 		goto set_type;
 	}
 
-	t = pfcp_session_alloc_teid(s, id, te->interface_type);
+	t = pfcp_session_alloc_teid(s, te->interface_type, id);
 	if (!t)
 		return -1;
 
@@ -590,6 +624,7 @@ pfcp_session_create_far(struct pfcp_session *s, struct far *far,
 	struct pfcp_ie_outer_header_creation *ohc;
 	struct in_addr ipv4;
 	struct pfcp_teid *t;
+	uint8_t interface = 0;
 
 	far->id = ie->far_id->value;
 
@@ -600,8 +635,10 @@ pfcp_session_create_far(struct pfcp_session *s, struct far *far,
 	if (fwd->destination_interface)
 		far->dst_interface = fwd->destination_interface->value;
 
-	if (fwd->destination_interface_type)
-		far->dst_interface_type = fwd->destination_interface_type->value;
+	if (fwd->destination_interface_type) {
+		interface = fwd->destination_interface_type->value;
+		far->dst_interface_type = interface;
+	}
 
 	if (fwd->transport_level_marking) {
 		far->tos_tclass = ntohs(fwd->transport_level_marking->traffic_class) & 0xff;
@@ -615,7 +652,7 @@ pfcp_session_create_far(struct pfcp_session *s, struct far *far,
 	/* TODO: Support IPv6... */
 	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {
 		ipv4.s_addr = ohc->ip_address.v4.s_addr;
-		t = pfcp_teid_alloc_static(r->teid, ntohl(ohc->teid), &ipv4, NULL);
+		t = pfcp_teid_alloc_static(r->teid, interface, ntohl(ohc->teid), &ipv4, NULL);
 		if (t) {
 			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS)
 				far->dst_te->teid[PFCP_DIR_INGRESS] = t;
@@ -638,6 +675,7 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	struct traffic_endpoint *te;
 	struct in_addr ipv4;
 	struct pfcp_teid *t;
+	uint8_t interface = 0;
 
 	far = pfcp_session_get_far_by_id(s, uf->far_id->value);
 	if (!far)
@@ -647,6 +685,9 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	ufwd = uf->update_forwarding_parameters;
 	if (!ufwd)
 		return -1;
+
+	if (ufwd->destination_interface_type)
+		interface = ufwd->destination_interface_type->value;
 
 	/* Update TE accordingly */
 	if (te && ufwd->linked_traffic_endpoint_id &&
@@ -683,13 +724,14 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 			pfcpsm_flags = ufwd->pfcpsm_req_flags;
 			if (pfcpsm_flags && pfcpsm_flags->sndem)
 				sndem = 1;
-			thread_add_event(master, pfcp_proto_async_teid_delete, t, sndem);
+			pfcp_session_destroy_teid(s, te, t, sndem);
 		}
 	}
 
 	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {
 		ipv4.s_addr = ohc->ip_address.v4.s_addr;
-		t = pfcp_teid_alloc_static(r->teid, ntohl(ohc->teid), &ipv4, NULL);
+		t = pfcp_teid_alloc_static(r->teid, interface,
+					   ntohl(ohc->teid), &ipv4, NULL);
 		if (t) {
 			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS)
 				far->dst_te->teid[PFCP_DIR_INGRESS] = t;
@@ -796,7 +838,7 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 		goto set_type;
 	}
 
-	t = pfcp_session_alloc_teid(s, id, pdr->src_interface);
+	t = pfcp_session_alloc_teid(s, pdr->src_interface, id);
 	if (!t)
 		return -1;
 

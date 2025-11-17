@@ -283,10 +283,11 @@ shoot_again:
 }
 
 static void
-pfcp_teid_set(struct hlist_head *h, struct pfcp_teid *t,
+pfcp_teid_set(struct hlist_head *h, struct pfcp_teid *t, uint8_t interface,
 	      uint32_t id, struct in_addr *ipv4, struct in6_addr *ipv6)
 {
 	t->id = id;
+	t->interface = interface;
 	if (ipv4) {
 		__set_bit(PFCP_TEID_F_IPV4, &t->flags);
 		t->ipv4 = *ipv4;
@@ -300,8 +301,8 @@ pfcp_teid_set(struct hlist_head *h, struct pfcp_teid *t,
 }
 
 struct pfcp_teid *
-pfcp_teid_alloc(struct hlist_head *h, uint64_t *seed, uint32_t id,
-		struct in_addr *ipv4, struct in6_addr *ipv6)
+pfcp_teid_alloc(struct hlist_head *h, uint64_t *seed, uint8_t interface,
+		uint32_t id, struct in_addr *ipv4, struct in6_addr *ipv6)
 {
 	struct pfcp_teid *new, *t;
 	uint32_t new_id = id;
@@ -317,14 +318,14 @@ pfcp_teid_alloc(struct hlist_head *h, uint64_t *seed, uint32_t id,
 	new = calloc(1, sizeof(*new));
 	if (!new)
 		return NULL;
-	pfcp_teid_set(h, new, new_id, ipv4, ipv6);
+	pfcp_teid_set(h, new, interface, new_id, ipv4, ipv6);
 
 	return new;
 }
 
 struct pfcp_teid *
-pfcp_teid_alloc_static(struct hlist_head *h, uint32_t id,
-		       struct in_addr *ipv4, struct in6_addr *ipv6)
+pfcp_teid_alloc_static(struct hlist_head *h, uint8_t interface,
+		       uint32_t id, struct in_addr *ipv4, struct in6_addr *ipv6)
 {
 	struct pfcp_teid *new;
 
@@ -335,7 +336,7 @@ pfcp_teid_alloc_static(struct hlist_head *h, uint32_t id,
 	new = calloc(1, sizeof(*new));
 	if (!new)
 		return NULL;
-	pfcp_teid_set(h, new, id, ipv4, ipv6);
+	pfcp_teid_set(h, new, interface, id, ipv4, ipv6);
 
 	return new;
 }

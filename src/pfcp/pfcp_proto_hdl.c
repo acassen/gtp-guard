@@ -20,6 +20,7 @@
  */
 
 #include <inttypes.h>
+#include <sys/socket.h>
 #include "gtp.h"
 #include "gtp_utils.h"
 #include "pfcp.h"
@@ -392,19 +393,24 @@ end:
 /*
  *	GTP-U Message handle
  */
-void
-pfcp_proto_async_teid_delete(struct thread *t)
+int
+gtpu_send_end_marker(struct gtp_server *srv, struct pfcp_teid *t)
 {
-	struct pfcp_teid *teid = THREAD_ARG(t);
-	int sndem = t->u.val;
-	struct gtp1_hdr gtph;
+	struct gtp1_hdr *h = (struct gtp1_hdr *) srv->s.pbuff->head;
+	struct sockaddr_in addr_to = {
+		.sin_family = AF_INET,
+		.sin_addr = t->ipv4,
+		.sin_port = htons(GTP_U_PORT),
+	};
 
-	if (sndem) {
-		memset(&gtph, 0, sizeof(struct gtp1_hdr));
-		gtph.flags = 0x30; /* GTP-Rel99 + GTPv1 */
-		gtph.type = GTPU_END_MARKER_TYPE;
-		gtph.teid_only = teid->id;
-	}
+	memset(h, 0, sizeof(*h));
+	h->flags = 0x30; /* GTP-Rel99 + GTPv1 */
+	h->type = GTPU_END_MARKER_TYPE;
+	h->teid_only = t->id;
+	pkt_buffer_set_end_pointer(srv->s.pbuff, gtp1_get_header_len(h));
+	pkt_buffer_set_data_pointer(srv->s.pbuff, gtp1_get_header_len(h));
+
+	return inet_server_snd(&srv->s, srv->s.fd, srv->s.pbuff, &addr_to);
 }
 
 static int
