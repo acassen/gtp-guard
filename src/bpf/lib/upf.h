@@ -5,8 +5,6 @@
 #include <time.h>
 #include <linux/bpf.h>
 #include <linux/errno.h>
-#include <linux/in.h>
-#include <linux/ip.h>
 #include <linux/udp.h>
 #include <linux/tcp.h>
 #include <linux/icmp.h>
@@ -36,32 +34,15 @@ struct {
 } user_ingress SEC(".maps");
 
 
-/*
- *	Ingress direction (UE pov), traffic from internet
- */
 static __always_inline int
-upf_handle_pub(struct if_rule_data *d)
+_encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
-	struct upf_user_ingress_key k = {};
-	struct upf_user_ingress *u;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph;
+	void *data, *data_end;
 	int adjust_sz, pkt_len;
 	__u32 csum = 0;
-
-	/* lookup user */
-	iph = (struct iphdr *)(data + d->pl_off);
-	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
-		return XDP_PASS;
-
-	k.flags = UE_IPV4;
-	k.ue_addr.ip4 = iph->daddr;
-	u = bpf_map_lookup_elem(&user_ingress, &k);
-	if (u == NULL)
-		return XDP_PASS;
 
 	/* encap in gtp-u, make room */
 	adjust_sz = sizeof(*iph) + sizeof(*udph) + sizeof(*gtph);
@@ -107,45 +88,87 @@ upf_handle_pub(struct if_rule_data *d)
 	gtph->length = bpf_htons(pkt_len);
 	gtph->teid = u->teid;
 
-	d->dst_addr = u->gtpu_remote_addr;
+	d->dst_addr.ip4 = u->gtpu_remote_addr;
 
 	/* metrics */
 	++u->packets;
 	u->bytes += pkt_len;
 
 	return XDP_IFR_FORWARD;
+
+}
+
+/*
+ *	Ingress direction (UE pov), ipv6 traffic from internet
+ */
+static __always_inline int
+upf_handle_pubv6(struct if_rule_data *d)
+{
+	void *data = (void *)(long)d->ctx->data;
+	void *data_end = (void *)(long)d->ctx->data_end;
+	struct upf_user_ingress_key k = {};
+	struct upf_user_ingress *u;
+	struct ipv6hdr *ip6h;
+	struct udphdr *udph;
+	struct gtphdr *gtph;
+	int adjust_sz, pkt_len;
+	__u32 csum = 0;
+
+	/* lookup user */
+	ip6h = (struct ipv6hdr *)(data + d->pl_off);
+	if (d->pl_off > 256 || (void *)(ip6h + 1) > data_end)
+		return XDP_PASS;
+
+	k.flags = UE_IPV6;
+	__builtin_memcpy(k.ue_addr.ip6.addr, ip6h->daddr.s6_addr, 16);
+	u = bpf_map_lookup_elem(&user_ingress, &k);
+	if (u == NULL)
+		return XDP_PASS;
+
+	return _encap_gtpu(d, u);
+}
+
+/*
+ *	Ingress direction (UE pov), traffic from internet
+ */
+static __always_inline int
+upf_handle_pub(struct if_rule_data *d)
+{
+	void *data = (void *)(long)d->ctx->data;
+	void *data_end = (void *)(long)d->ctx->data_end;
+	struct upf_user_ingress_key k = {};
+	struct upf_user_ingress *u;
+	struct iphdr *iph;
+
+	if (d->flags & IF_RULE_FL_SRC_IPV6)
+		return upf_handle_pubv6(d);
+
+	/* lookup user */
+	iph = (struct iphdr *)(data + d->pl_off);
+	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
+		return XDP_PASS;
+
+	k.flags = UE_IPV4;
+	k.ue_addr.ip4 = iph->daddr;
+	u = bpf_map_lookup_elem(&user_ingress, &k);
+	if (u == NULL)
+		return XDP_PASS;
+
+	return _encap_gtpu(d, u);
 }
 
 
-/*
- *	Egress direction (UE pov), traffic from GTP-U endpoint
- */
 static __always_inline int
-upf_handle_gtpu(struct if_rule_data *d)
+_handle_gtpu(struct if_rule_data *d, struct iphdr *iph, struct udphdr *udph)
 {
 	void *data = (void *)(long)d->ctx->data;
 	void *data_end = (void *)(long)d->ctx->data_end;
 	struct upf_user_egress_key k;
 	struct upf_user_egress *u;
-	struct iphdr *iph, *iph_inner;
-	struct udphdr *udph;
+	struct iphdr *ip4h_inner;
+	struct ipv6hdr *ip6h_inner;
 	struct gtphdr *gtph;
 	int adjust_sz, payload_len;
-
-	/* check input gtp-u (proto udp and port) */
-	iph = (struct iphdr *)(data + d->pl_off);
-	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
-		return XDP_PASS;
-
-	if (iph->protocol != IPPROTO_UDP)
-		return XDP_PASS;
-
-	udph = (void *)(iph) + iph->ihl * 4;
-	if (udph + 1 > data_end)
-		return XDP_DROP;
-
-	if (udph->dest != bpf_htons(GTPU_PORT))
-		return XDP_PASS;
 
 	gtph = (struct gtphdr *)(udph + 1);
 	if (gtph + 1 > data_end)
@@ -164,10 +187,24 @@ upf_handle_gtpu(struct if_rule_data *d)
 		return XDP_PASS;
 
 	/* for futur nh lookup */
-	iph_inner = (struct iphdr *)(gtph + 1);
-	if (iph_inner + 1 > data_end)
+	ip4h_inner = (struct iphdr *)(gtph + 1);
+	if (ip4h_inner + 1 > data_end)
 		return XDP_DROP;
-	d->dst_addr = iph_inner->daddr;
+	switch (ip4h_inner->version) {
+	case 4:
+		d->dst_addr.ip4 = ip4h_inner->daddr;
+		break;
+	case 6:
+		ip6h_inner = (struct ipv6hdr *)ip4h_inner;
+		if (ip6h_inner + 1 > data_end)
+			return XDP_DROP;
+		__builtin_memcpy(d->dst_addr.ip6.addr,
+				 ip6h_inner->daddr.s6_addr, 16);
+		d->flags |= IF_RULE_FL_DST_IPV6;
+		break;
+	default:
+		return XDP_DROP;
+	}
 
 	adjust_sz = (void *)(gtph + 1) - (void *)iph;
 	payload_len = data_end - data - d->pl_off - adjust_sz;
@@ -186,6 +223,36 @@ upf_handle_gtpu(struct if_rule_data *d)
 
 
 /*
+ *	Egress direction (UE pov), traffic from GTP-U endpoint
+ */
+static __always_inline int
+upf_handle_gtpu(struct if_rule_data *d)
+{
+	void *data = (void *)(long)d->ctx->data;
+	void *data_end = (void *)(long)d->ctx->data_end;
+	struct iphdr *iph;
+	struct udphdr *udph;
+
+	/* check input gtp-u (proto udp and port) */
+	iph = (struct iphdr *)(data + d->pl_off);
+	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
+		return XDP_PASS;
+
+	if (iph->protocol != IPPROTO_UDP)
+		return XDP_PASS;
+
+	udph = (void *)(iph) + iph->ihl * 4;
+	if (udph + 1 > data_end)
+		return XDP_DROP;
+
+	if (udph->dest != bpf_htons(GTPU_PORT))
+		return XDP_PASS;
+
+	return _handle_gtpu(d, iph, udph);
+}
+
+
+/*
  *	Choose between gtp-u and l3 side
  */
 static __always_inline int
@@ -195,6 +262,9 @@ upf_traffic_selector(struct if_rule_data *d)
 	void *data_end = (void *)(long)d->ctx->data_end;
 	struct iphdr *iph;
 	struct udphdr *udph;
+
+	if (d->flags & IF_RULE_FL_SRC_IPV6)
+		return upf_handle_pubv6(d);
 
 	/* check input gtp-u (proto udp and port) */
 	iph = (struct iphdr *)(data + d->pl_off);
@@ -210,7 +280,7 @@ upf_traffic_selector(struct if_rule_data *d)
 
 	/* this is our gtp-u ! */
 	if (udph->dest == bpf_htons(GTPU_PORT))
-		return upf_handle_gtpu(d);
+		return _handle_gtpu(d, iph, udph);
 
 	return upf_handle_pub(d);
 }

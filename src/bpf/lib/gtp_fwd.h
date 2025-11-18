@@ -248,9 +248,9 @@ gtp_fwd_handle_ipip(struct if_rule_data *d)
 			return XDP_DROP;
 		if (d->r->action == 13) {
 			gtpu_xlat_iph(iph, gtpf->src_addr, gtpf->dst_addr);
-			d->dst_addr = gtpf->dst_addr;
+			d->dst_addr.ip4 = gtpf->dst_addr;
 		} else {
-			d->dst_addr = iph->daddr;
+			d->dst_addr.ip4 = iph->daddr;
 		}
 		return XDP_IFR_FORWARD;
 	}
@@ -281,11 +281,11 @@ gtp_fwd_handle_ipip(struct if_rule_data *d)
 		if (!rule)
 			return XDP_DROP;
 		gtpu_xlat_header(rule, iph, udph, gtph);
-		d->dst_addr = rule->dst_addr;
-		/* bpf_printk("ipip xlat now, dst=%x", d->dst_addr); */
+		d->dst_addr.ip4 = rule->dst_addr;
+		/* bpf_printk("ipip xlat now, dst=%x", d->dst_addr.ip4); */
 	} else {
-		d->dst_addr = iph->daddr;
-		/* bpf_printk("ipip no translation, dst=%x", d->dst_addr); */
+		d->dst_addr.ip4 = iph->daddr;
+		/* bpf_printk("ipip no translation, dst=%x", d->dst_addr.ip4); */
 	}
 
 	return XDP_IFR_FORWARD;
@@ -326,7 +326,7 @@ gtp_fwd_handle_gtpu(struct if_rule_data *d)
 			/* xlat subsequent fragment. we need to add a new
 			 * frag key to match when it will come back */
 			gtpu_xlat_iph(iph, gtpf->src_addr, gtpf->dst_addr);
-			d->dst_addr = gtpf->dst_addr;
+			d->dst_addr.ip4 = gtpf->dst_addr;
 
 			frag_key.saddr = iph->saddr;
 			frag_key.daddr = iph->daddr;
@@ -341,12 +341,12 @@ gtp_fwd_handle_gtpu(struct if_rule_data *d)
 
 			gtpu_ip_frag_timer_set(&frag_key);
 
-			/* bpf_printk("gtpu FRAG xlat header! dst=%x", d->dst_addr); */
+			/* bpf_printk("gtpu FRAG xlat header! dst=%x", d->dst_addr.ip4); */
 			return XDP_IFR_FORWARD;
 
 		} else if (gtpf) {
 			/* no xlat here, let it go */
-			d->dst_addr = iph->daddr;
+			d->dst_addr.ip4 = iph->daddr;
 			return XDP_IFR_FORWARD;
 
 		} else if (frag_off != 0) {
@@ -410,11 +410,11 @@ gtp_fwd_handle_gtpu(struct if_rule_data *d)
 	if (d->r->action == XDP_GTPFWD_GTPU_XLAT ||
 	    d->r->action == XDP_IFR_DEFAULT_ROUTE) {
 		gtpu_xlat_header(rule, iph, udph, gtph);
-		d->dst_addr = rule->dst_addr;
+		d->dst_addr.ip4 = rule->dst_addr;
 		/* bpf_printk("gtpu xlat header! dst=%x", rule->dst_addr); */
 	} else {
-		d->dst_addr = iph->daddr;
-		/* bpf_printk("gtpu no translation dst=%x", d->dst_addr); */
+		d->dst_addr.ip4 = iph->daddr;
+		/* bpf_printk("gtpu no translation dst=%x", d->dst_addr.ip4); */
 	}
 
 	return XDP_IFR_FORWARD;

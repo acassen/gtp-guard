@@ -1322,7 +1322,7 @@ cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 		case ICMP_TIME_EXCEEDED:
 			ret = _handle_pkt_icmp_error(cp, ip4h, icmp,
 						     (struct iphdr *)(icmp + 1));
-			d->dst_addr = ip4h->daddr;
+			d->dst_addr.ip4 = ip4h->daddr;
 			return ret;
 		default:
 			return 3;
@@ -1338,7 +1338,7 @@ cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 		if (!ret) {
 			ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, payload,
 						  cp->dst_addr, cp->dst_port);
-			d->dst_addr = bpf_htonl(cp->dst_addr);
+			d->dst_addr.ip4 = bpf_htonl(cp->dst_addr);
 			return ret;
 		}
 		if (cp->from_priv == 0)
@@ -1349,7 +1349,7 @@ cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 	if (!ret) {
 		ret = cgn_pkt_rewrite_src(ctx, cp, ip4h, payload,
 					  cp->src_addr, cp->src_port);
-		d->dst_addr = bpf_htonl(cp->dst_addr);
+		d->dst_addr.ip4 = bpf_htonl(cp->dst_addr);
 	}
 
 	return ret;

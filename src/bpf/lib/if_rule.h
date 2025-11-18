@@ -3,12 +3,10 @@
 #pragma once
 
 #include <stddef.h>
-#include <linux/in.h>
-#include <linux/ip.h>
+#include <linux/icmpv6.h>
 #include <linux/if_ether.h>
 #include <linux/if_vlan.h>
 #include <linux/types.h>
-#include <linux/ip.h>
 #include <sys/socket.h>
 #include <bpf_endian.h>
 #include <bpf_helpers.h>
@@ -54,8 +52,10 @@ struct {
 
 
 
-#define IF_RULE_FL_XDP_ADJUSTED		0x01
-#define IF_RULE_FL_FILL_IPV4_SADDR	0x02
+#define IF_RULE_FL_SRC_IPV6		0x0001
+#define IF_RULE_FL_DST_IPV6		0x0002
+#define IF_RULE_FL_XDP_ADJUSTED		0x0004
+#define IF_RULE_FL_FILL_IPV4_SADDR	0x0008
 
 struct if_rule_data
 {
@@ -64,7 +64,7 @@ struct if_rule_data
 	struct if_rule		*r;
 	__u16			flags;
 	__u16			pl_off;
-	__u32			dst_addr;
+	union v4v6addr		dst_addr;
 };
 
 
@@ -75,9 +75,9 @@ _acl_ipv4(struct if_rule_data *d, rule_selector_t rscb, struct iphdr *iph)
 	struct if_rule_key_base *k = &d->k.b;
 	int action = XDP_PASS;
 
-	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%x|%x",
+	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%pI4|%pI4",
 		d->ctx->ingress_ifindex, k->ifindex, k->vlan_id,
-		k->tun_local, k->tun_remote);
+		&k->tun_local, &k->tun_remote);
 
 #ifdef IF_RULE_CUSTOM_KEY
 	action = rscb(d, iph);
@@ -100,7 +100,28 @@ _acl_ipv4(struct if_rule_data *d, rule_selector_t rscb, struct iphdr *iph)
 	if (d->r == NULL)
 		return action;
 
-	IFR_DBG("got the rule ! action:%d table:%d", d->r->action, d->r->table_id);
+	IFR_DBG("got the rule! action:%d table:%d", d->r->action, d->r->table_id);
+
+	d->r->pkt_in++;
+	d->r->bytes_in += d->ctx->data_end - d->ctx->data;
+
+	return d->r->action;
+}
+
+static __always_inline int
+_acl_ipv6(struct if_rule_data *d, struct ipv6hdr *ip6h)
+{
+	struct if_rule_key_base *k = &d->k.b;
+
+	IFR_DBG("acl: in6 if:%d, searching if:%d vlan:%d",
+		d->ctx->ingress_ifindex, k->ifindex, k->vlan_id);
+
+	d->r = bpf_map_lookup_elem(&if_rule, k);
+
+	if (d->r == NULL)
+		return XDP_PASS;
+
+	IFR_DBG("got the 6rule! action:%d table:%d", d->r->action, d->r->table_id);
 
 	d->r->pkt_in++;
 	d->r->bytes_in += d->ctx->data_end - d->ctx->data;
@@ -134,9 +155,12 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 	struct ethhdr *ethh = data;
 	struct vlan_hdr *vlanh;
 	struct iphdr *ip4h, *ip4h_in;
+	struct ipv6hdr *ip6h;
+	struct icmp6hdr *icmp6;
 	struct if_rule_key_base *k = &d->k.b;
 	__u16 offset;
 	__u16 eth_type;
+	__u8 proto;
 
 	if ((void *)(ethh + 1) > data_end)
 		return XDP_DROP;
@@ -160,16 +184,14 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 
 	switch (eth_type) {
 	case __constant_htons(ETH_P_IP):
-		//d->family = AF_INET;
-
 		/* check ipv4 header */
 		ip4h = data + offset;
-		if ((void *)(ip4h + 1) > data_end)
+		if ((void *)(ip4h + 1) > data_end ||
+		    ip4h->version != 4 || ip4h->ihl < 5)
 			return XDP_DROP;
 
 		/* may be an ipip tunnel */
-		if (ip4h->version == 4 &&
-		    ip4h->ihl == 5 &&
+		if (ip4h->ihl == 5 &&
 		    ip4h->protocol == IPPROTO_IPIP) {
 			k->tun_local = ip4h->daddr;
 			k->tun_remote = ip4h->saddr;
@@ -184,8 +206,7 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 		}
 
 		/* may be a gre tunnel */
-		if (ip4h->version == 4 &&
-		    ip4h->ihl == 5 &&
+		if (ip4h->ihl == 5 &&
 		    ip4h->protocol == IPPROTO_GRE) {
 			offset += sizeof (*ip4h);
 			struct gre_hdr *gre = (struct gre_hdr *)(data + offset);
@@ -212,16 +233,20 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 		}
 
 		/* handle this ipv4 payload */
-		if (ip4h->version == 4 &&
-		    ip4h->ihl >= 5) {
-			d->pl_off = offset;
-			return _acl_ipv4(d, rscb, ip4h);
-		}
-		return XDP_PASS;
+		d->pl_off = offset;
+		return _acl_ipv4(d, rscb, ip4h);
 
 	case __constant_htons(ETH_P_IPV6):
-		/* XXX: todo */
-		return XDP_PASS;
+		ip6h = data + offset;
+		if ((void *)(ip6h + 1) > data_end || ip6h->version != 6)
+			return XDP_DROP;
+
+		if (IN6_IS_ADDR_LINKLOCAL(&ip6h->saddr))
+			return XDP_PASS;
+
+		d->pl_off = offset;
+		d->flags |= IF_RULE_FL_SRC_IPV6;
+		return _acl_ipv6(d, ip6h);
 
 	default:
 		return XDP_PASS;
@@ -255,8 +280,16 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 	} else {
 		__builtin_memset(&fibp, 0x00, sizeof (fibp));
 		fibp.ifindex = ctx->ingress_ifindex;
-		fibp.family = AF_INET;
-		fibp.ipv4_dst = d->dst_addr;
+		if (d->flags & IF_RULE_FL_DST_IPV6) {
+			fibp.family = AF_INET6;
+			fibp.ipv6_dst[0] = d->dst_addr.ip6.addr4[0];
+			fibp.ipv6_dst[1] = d->dst_addr.ip6.addr4[1];
+			fibp.ipv6_dst[2] = d->dst_addr.ip6.addr4[2];
+			fibp.ipv6_dst[3] = d->dst_addr.ip6.addr4[3];
+		} else {
+			fibp.family = AF_INET;
+			fibp.ipv4_dst = d->dst_addr.ip4;
+		}
 
 		flags = BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC;
 		if (d->r->table_id) {
@@ -266,14 +299,25 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 
 		fibl_ret = bpf_fib_lookup(ctx, &fibp, sizeof (fibp), flags);
 		if (fibl_ret < 0) {
-			bpf_printk("fib_lookup(if=%d, dst=%x) failed: %d",
-				   ctx->ingress_ifindex, d->dst_addr, fibl_ret);
+			bpf_printk("fib_lookup(if=%d) failed: %d",
+				   ctx->ingress_ifindex, fibl_ret);
 			return XDP_ABORTED;
 		}
-		IFR_DBG("bpf_fib_lookup(%d): dst:%x if:%d->%d "
-			"from %x nh %x mac_src:%02x mac_dst:%02x",
-			fibl_ret, d->dst_addr, ctx->ingress_ifindex, fibp.ifindex,
-			fibp.ipv4_src, fibp.ipv4_dst, fibp.smac[5], fibp.dmac[5]);
+#ifdef IF_RULE_DEBUG
+		if (d->flags & IF_RULE_FL_DST_IPV6) {
+			bpf_printk("bpf_fib_lookup(%d): dst:%pI6 if:%d->%d "
+				   "from %pI6 nh %pI6 mac_src:%02x mac_dst:%02x",
+				   fibl_ret, d->dst_addr.ip6.addr4, ctx->ingress_ifindex,
+				   fibp.ifindex, fibp.ipv6_src, fibp.ipv6_dst,
+				   fibp.smac[5], fibp.dmac[5]);
+		} else {
+			bpf_printk("bpf_fib_lookup(%d): dst:%pI4 if:%d->%d "
+				   "from %pI4 nh %pI4 mac_src:%02x mac_dst:%02x",
+				   fibl_ret, &d->dst_addr.ip4, ctx->ingress_ifindex,
+				   fibp.ifindex, &fibp.ipv4_src, &fibp.ipv4_dst,
+				   fibp.smac[5], fibp.dmac[5]);
+		}
+#endif
 		if (fibl_ret != BPF_FIB_LKUP_RET_SUCCESS &&
 		    fibl_ret != BPF_FIB_LKUP_RET_NO_NEIGH)
 			return XDP_DROP;
@@ -297,8 +341,8 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 		IFR_DBG("iface:%d not in attr! drop", fibp.ifindex);
 		return XDP_DROP;
 	}
-	IFR_DBG(" output to if:%d vlan:%d tun:%d %x->%x",
-		ia->ifindex, ia->vlan_id, ia->flags, ia->tun_local, ia->tun_remote);
+	IFR_DBG(" output to if:%d vlan:%d tun:%d %pI4->%pI4",
+		ia->ifindex, ia->vlan_id, ia->flags, &ia->tun_local, &ia->tun_remote);
 
 	/* do a second fib_lookup to retrieve outer mac addresss  */
 	if (ia->tun_remote) {
@@ -309,8 +353,8 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 		fibp.ipv4_dst = ia->tun_remote;
 		fibl_ret = bpf_fib_lookup(ctx, &fibp, sizeof (fibp), flags);
 		if (fibl_ret < 0) {
-			bpf_printk("fib_lookup(if=%d, dst=%x) tun failed: %d",
-				   ctx->ingress_ifindex, ia->tun_remote, fibl_ret);
+			bpf_printk("fib_lookup(if=%d, dst=%pI4) tun failed: %d",
+				   ctx->ingress_ifindex, &ia->tun_remote, fibl_ret);
 			return XDP_ABORTED;
 		}
 
@@ -366,7 +410,9 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 			return XDP_DROP;
 
 		vlanh->vlan_tci = bpf_ntohs(a->vlan_id);
-		vlanh->next_proto = __constant_htons(ETH_P_IP);
+		vlanh->next_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+			__constant_htons(ETH_P_IPV6) :
+			__constant_htons(ETH_P_IP);
 		ethh->h_proto = __constant_htons(ETH_P_8021Q);
 		payload = vlanh + 1;
 
@@ -375,8 +421,9 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 			return XDP_DROP;
 
 		/* remove vlan header */
-		if ((k->vlan_id && !a->vlan_id) || adjust_sz)
-			ethh->h_proto = __constant_htons(ETH_P_IP);
+		ethh->h_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+			__constant_htons(ETH_P_IPV6) :
+			__constant_htons(ETH_P_IP);
 
 		payload = ethh + 1;
 	}
@@ -407,7 +454,9 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 				return XDP_DROP;
 			gre->flags = 0;
 			gre->version = GRE_VERSION_1701;
-			gre->proto = __constant_htons(ETH_P_IP);
+			gre->proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+				__constant_htons(ETH_P_IPV6) :
+				__constant_htons(ETH_P_IP);
 		} else {
 			ip4h->protocol = IPPROTO_IPIP;
 		}

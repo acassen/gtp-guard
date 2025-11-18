@@ -3,6 +3,10 @@
 #pragma once
 
 #include <linux/bpf.h>
+#include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+
 
 /*********************************/
 /* compiler stuff */
@@ -36,19 +40,13 @@ struct vlan_hdr {
 #define	IP_MF 0x2000			/* more fragments flag */
 #define	IP_OFFMASK 0x1fff		/* mask for fragmenting bits */
 
-
 union v6addr
 {
-	struct {
-		__u32 p1;
-		__u32 p2;
-		__u32 p3;
-		__u32 p4;
-	};
 	struct {
 		__u64 d1;
 		__u64 d2;
 	};
+	__u32 addr4[4];
 	__u8 addr[16];
 } __attribute__((packed));
 
@@ -196,6 +194,19 @@ struct ipfrag_rule
 	struct bpf_timer timer;
 	__u8 flags;
 };
+
+/*********************************/
+/* ipv6 */
+
+#define IPV6_MAX_HEADERS	4
+
+#ifdef EBPF_SRC
+/* from netinet/in.h */
+# define IN6_IS_ADDR_LINKLOCAL(a)				    \
+	(((a)->s6_addr32[0] & __constant_htonl(0xffc00000)) ==	    \
+	 __constant_htonl(0xfe800000))
+#endif
+
 
 /*********************************/
 
