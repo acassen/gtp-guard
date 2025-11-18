@@ -61,6 +61,33 @@ addr_toip4(const union addr *a)
 	return 0;
 }
 
+void
+addr_fromip6(union addr *a, const struct in6_addr *ipaddr)
+{
+	a->family = AF_INET6;
+	memcpy(a->sin6.sin6_addr.s6_addr, ipaddr->s6_addr,
+	       sizeof (ipaddr->s6_addr));
+	a->sin6.sin6_port = 0;
+}
+
+void
+addr_fromip6b(union addr *a, uint8_t *bytes)
+{
+	a->family = AF_INET6;
+	memcpy(a->sin6.sin6_addr.s6_addr, bytes, sizeof (a->sin6.sin6_addr));
+	a->sin6.sin6_port = 0;
+	a->sin6.sin6_flowinfo = 0;
+	a->sin6.sin6_scope_id = 0;
+}
+
+const struct in6_addr *
+addr_toip6(const union addr *a)
+{
+	if (a->family == AF_INET6)
+		return &a->sin6.sin6_addr;
+	return NULL;
+}
+
 int
 addr_cmp(const union addr *la, const union addr *ra)
 {

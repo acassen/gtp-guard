@@ -200,7 +200,7 @@ gtp_dpd_timer_thread(struct thread *thread)
 				    , NIPQUAD(t->remote_addr));
 		t->flags &= ~IPTNL_FL_DEAD;
 		p->ipip_dead = false;
-		gtp_proxy_tun_rules_set(p);
+		gtp_proxy_rules_tun_set(p);
 		gtp_mirror_brd_action(RULE_ADD, t->ifindex);
 		goto end;
 	}
@@ -214,7 +214,7 @@ gtp_dpd_timer_thread(struct thread *thread)
 				    , NIPQUAD(t->remote_addr));
 		t->flags |= IPTNL_FL_DEAD;
 		p->ipip_dead = true;
-		gtp_proxy_tun_rules_set(p);
+		gtp_proxy_rules_tun_set(p);
 		gtp_mirror_brd_action(RULE_DEL, t->ifindex);
 	}
 

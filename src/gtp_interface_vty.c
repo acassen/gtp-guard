@@ -83,8 +83,6 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 			   , ETHER_BYTES(iface->direct_tx_hw_addr)
 			   , VTY_NEWLINE);
 
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_VTY_SHOW, vty);
-
 	gtp_bpf_rt_stats_vty(p, iface, vty);
 
 	vty_out(vty, "%s", VTY_NEWLINE);

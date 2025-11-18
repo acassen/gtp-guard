@@ -272,50 +272,6 @@ DEFUN(cgn_no_cdr_fwd,
 	return CMD_SUCCESS;
 }
 
-DEFUN(cgn_interface,
-      cgn_interface_cmd,
-      "interface IFACE side (ingress|egress)",
-      "Configure carrier-grade on interface\n"
-      "Interface name\n"
-      "Side this interface is handling\n"
-      "Network's operator side (private,local,inside)\n"
-      "Internet side (public,remote,outside)\n")
-{
-	struct cgn_ctx *c = vty->index;
-	struct gtp_interface *iface;
-	bool ingress = !strcmp(argv[1], "ingress");
-
-	iface = gtp_interface_get(argv[0], true);
-	if (iface == NULL) {
-		vty_out(vty, "%% cannot find interface %s\n", argv[0]);
-		return CMD_WARNING;
-	}
-	cgn_ctx_attach_interface(c, iface, ingress);
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(cgn_no_interface,
-      cgn_no_interface_cmd,
-      "no interface IFACE",
-      "Detach\n"
-      "Destroy carrier-grade on this interface\n"
-      "carrier-grade-nat configuration bloc name\n")
-{
-	struct cgn_ctx *c = vty->index;
-	struct gtp_interface *iface;
-
-	iface = gtp_interface_get(argv[0], false);
-	if (iface == NULL) {
-		vty_out(vty, "%% cannot find interface %s\n", argv[0]);
-		return CMD_WARNING;
-	}
-	cgn_ctx_detach_interface(c, iface);
-
-	return CMD_SUCCESS;
-}
-
-
 
 /*
  *	Show commands
@@ -481,8 +437,6 @@ cmd_ext_cgn_install(void)
 	install_element(CGN_NODE, &cgn_protocol_tcp_port_conf_cmd);
 	install_element(CGN_NODE, &cgn_cdr_fwd_cmd);
 	install_element(CGN_NODE, &cgn_no_cdr_fwd_cmd);
-	install_element(CGN_NODE, &cgn_interface_cmd);
-	install_element(CGN_NODE, &cgn_no_interface_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_cgn_cmd);

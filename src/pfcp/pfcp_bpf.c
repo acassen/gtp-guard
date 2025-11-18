@@ -243,7 +243,8 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 		return -1;
 
 	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
-	table_set_column(tbl, "TEID", "UE Endpoint", "GTP-U Endpoint", "Packets", "Bytes");
+	table_set_column(tbl, "TEID", "UE Endpoint", "GTP-U Endpoint",
+			 "Packets", "Bytes");
 
 	vty_out(vty, "bpf-program '%s', ingress:\n", p->name);
 
@@ -262,10 +263,12 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 			iu[0].packets += iu[i].packets;
 			iu[0].bytes += iu[i].bytes;
 		}
-
+		if (ik.flags & UE_IPV4)
+			addr_fromip4(&addr_ue, ik.ue_addr.ip4);
+		else if (ik.flags & UE_IPV6)
+			addr_fromip6b(&addr_ue, ik.ue_addr.ip6.addr);
 		addr_fromip4(&addr, iu[0].gtpu_remote_addr);
 		addr_set_port(&addr, ntohs(iu[0].gtpu_remote_port));
-		addr_fromip4(&addr_ue, ik.ue_addr.ip4);
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(iu[0].teid),
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),

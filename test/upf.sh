@@ -5,11 +5,52 @@
 . $(dirname $0)/_gtpg_cmd.sh
 
 clean() {
-    clean_netns "access" "internet"
+    clean_netns "cloud" "access" "internet"
 }
 
-# simplest setup that could be
-setup_simple() {
+# UPF has everything on one interface
+setup_combined() {
+    setup_netns "cloud"
+    sleep 0.5
+
+    # trunk
+    ip link add dev veth0 netns cloud address d2:ad:ca:fe:aa:01 type veth \
+       peer name upf address d2:f0:0c:ba:bb:01
+    ip -n cloud link set dev veth0 up
+    ip -n cloud link set dev lo up
+    ip link set dev upf up
+    ip netns exec cloud sysctl -q net.ipv4.conf.veth0.forwarding=1
+    ip netns exec cloud sysctl -q net.ipv6.conf.veth0.forwarding=1
+    sysctl -q net.ipv4.conf.upf.forwarding=1
+    sysctl -q net.ipv6.conf.upf.forwarding=1
+
+    # pfcp
+    ip -n cloud addr add 192.168.61.193/27 dev veth0
+    ip addr add 192.168.61.194/27 dev upf
+
+    # gtp-u
+    ip -n cloud addr add 192.168.61.2/25 dev veth0
+    ip -n cloud addr add fc::2/64 dev veth0
+    ip addr add 192.168.61.1/25 dev upf
+    ip addr add fc::1/64 dev upf
+    arp -s 192.168.61.2 d2:ad:ca:fe:aa:01
+    ip -6 neigh add fc::2 lladdr d2:ad:ca:fe:aa:01 nud permanent dev upf
+
+    # outside
+    ip -n cloud addr add 8.8.8.8/32 dev veth0
+    ip -n cloud addr add 8::8 dev veth0
+    ip -n cloud route add default via 192.168.61.1 dev veth0
+    ip -n cloud route add default via fc::1 dev veth0
+    ip route add default via 192.168.61.2 dev upf table 1020
+    ip route add default via fc::2 dev upf table 1020
+
+    ip netns exec cloud ethtool -K veth0 gro on
+    ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
+}
+
+
+# 2 interfaces for UPF: access and internet
+setup_split() {
     setup_netns "access" "internet"
     sleep 0.5
 
@@ -55,7 +96,7 @@ setup_simple() {
 }
 
 
-run_simple() {
+run_split_combined() {
     # start gtp-guard if not yet started
     start_gtpguard
 
@@ -65,10 +106,20 @@ no pfcp-router pfcp-1
 "
 
     gtpg_conf "
-bpf-program upf-1
+    bpf-program upf-1 
  path bin/upf.bpf
  no shutdown
+" || fail "cannot load bpf program"
 
+    if [ $type == "combined" ]; then
+	gtpg_conf "
+interface upf
+ bpf-program upf-1
+ ip route table-id 1020
+ no shutdown
+" || fail "cannot execute vty commands"
+    else
+	gtpg_conf "
 interface ran
  bpf-program upf-1
  ip route table-id 1020
@@ -78,19 +129,24 @@ interface pub
  bpf-program upf-1
  no shutdown
 " || fail "cannot execute vty commands"
+    fi
 
     gtpg_conf "
 pfcp-router pfcp-1
  description first_one
  bpf-program upf-1
  listen 192.168.61.194 port 2123
- gtpu-tunnel-endpoint all 192.168.61.1 port 2152 interfaces ran
- egress-endpoint interfaces pub
+ gtpu-tunnel-endpoint all 192.168.61.1 port 2152
  debug teid add ingress 1 192.168.61.2 10.0.0.1
+ debug teid add ingress 2 192.168.61.2 1234::1
+ debug teid add ingress 3 192.168.61.2 10.0.0.2 1234::2
  debug teid add egress 17 192.168.61.2
+ debug teid add egress 18 192.168.61.2
+ debug teid add egress 19 192.168.61.2
 " || fail "cannot execute vty commands"
 
     gtpg_show "
+show running-config
 show interface
 show interface-rule all
 show interface-rule installed
@@ -98,20 +154,31 @@ show bpf pfcp
 "
 }
 
+run_combined() { run_split_combined; }
+run_split() { run_split_combined; }
 
 #
-# send echo request from UE
+# simulate a ping (in a gtp-u packet) from UE.
+# upf decap it, send to iface holding 8.8.8.8, receive echo-response,
+# then encap it again in gtp-u.
 #
 pkt() {
+    if [ $type == 'combined' ]; then
+	ingress_ns=cloud
+    else
+	ingress_ns=access
+    fi
+
     (
-ip netns exec access python3 - <<EOF
+ip netns exec $ingress_ns python3 - <<EOF
 import socket
 import struct
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 fd.bind(('192.168.61.2', 2152))
-data, remote = fd.recvfrom(4096)
-data = bytearray(data)
-print('CORE: RECV REPLY ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
+for i in [0,1]:
+    data, remote = fd.recvfrom(4096)
+    data = bytearray(data)
+    print('CORE: RECV REPLY ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
 fd.close()
 EOF
     ) &
@@ -122,14 +189,21 @@ EOF
 
     sleep 1
 
-    if [ "$type" == "simple" ]; then
-	send_py_pkt access veth0 "
+    if [ $type == "split" -o $type == "combined" ]; then
+	send_py_pkt $ingress_ns veth0 "
 p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   IP(src='192.168.61.2', dst='192.168.61.1') /
   UDP(sport=2152, dport=2152) /
   GTP_U_Header(teid=17, gtp_type=255) /
   IP(src='10.0.0.1',dst='8.8.8.8') /
-  ICMP(type='echo-request',id=126)]
+  ICMP(type='echo-request',id=126),
+Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
+  IP(src='192.168.61.2', dst='192.168.61.1') /
+  UDP(sport=2152, dport=2152) /
+  GTP_U_Header(teid=17, gtp_type=255) /
+  IPv6(src='1234::1',dst='8::8') /
+  ICMPv6EchoRequest(id=99),
+]
 "
     fi
 
@@ -139,7 +213,7 @@ p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
 
 
 action=${1:-setup}
-type=${2:-simple}
+type=${2:-combined}
 
 case $action in
     clean)

@@ -31,6 +31,7 @@
 #include "pfcp_proto_hdl.h"
 #include "utils.h"
 #include "memory.h"
+#include "bitops.h"
 #include "bpf/lib/if_rule-def.h"
 
 
@@ -130,22 +131,6 @@ pfcp_router_get(const char *name)
 }
 
 static void
-_rule_set(void *ud, struct gtp_interface *from, bool from_ingress,
-	  struct gtp_interface *to, bool add)
-{
-	struct if_rule_key_base k = {};
-	struct gtp_if_rule ifr = {
-		.from = from,
-		.to = to,
-		.key = &k,
-		.key_size = sizeof (k),
-		.action = from_ingress ? XDP_IFR_FROM_INGRESS : XDP_IFR_FROM_EGRESS,
-		.prio = from_ingress ? 100 : 500,
-	};
-	gtp_interface_rule_set(&ifr, add);
-}
-
-static void
 pfcp_router_set_up_features(struct pfcp_router *ctx)
 {
 	/* Header Enrichement */
@@ -200,37 +185,36 @@ pfcp_router_alloc(const char *name)
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();
 
-	struct gtp_interface_rules_ops irules_ops = {
-		.rule_set = _rule_set,
-		.ud = new,
-	};
-	new->irules = gtp_interface_rules_ctx_new(&irules_ops);
-
 	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);
 
 	return new;
 }
 
-int
-pfcp_router_ctx_destroy(struct pfcp_router *ctx)
+void
+pfcp_router_ctx_destroy(struct pfcp_router *c)
 {
-	gtp_interface_rules_ctx_release(ctx->irules);
-	list_del(&ctx->bpf_list);
-	list_head_del(&ctx->next);
-	pfcp_server_destroy(&ctx->s);
-	pfcp_teid_destroy(ctx->teid);
-	return 0;
+	list_del(&c->bpf_list);
+	list_del(&c->next);
+	pfcp_server_destroy(&c->s);
+	if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
+		gtp_server_destroy(&c->gtpu);
+	if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
+		gtp_server_destroy(&c->gtpu_s1);
+	if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags))
+		gtp_server_destroy(&c->gtpu_s5);
+	if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
+		gtp_server_destroy(&c->gtpu_s8);
+	if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
+		gtp_server_destroy(&c->gtpu_n9);
+	pfcp_teid_destroy(c->teid);
+	FREE(c);
 }
 
-int
+void
 pfcp_router_destroy(void)
 {
 	struct pfcp_router *c, *_c;
 
-	list_for_each_entry_safe(c, _c, &daemon_data->pfcp_router_ctx, next) {
+	list_for_each_entry_safe(c, _c, &daemon_data->pfcp_router_ctx, next)
 		pfcp_router_ctx_destroy(c);
-		FREE(c);
-	}
-
-	return 0;
 }

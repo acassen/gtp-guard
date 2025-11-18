@@ -19,48 +19,11 @@
  * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
-#include <time.h>
-#include <linux/in.h>
-#include <linux/if_ether.h>
-#include <linux/if_packet.h>
-#include <linux/if_vlan.h>
-#include <linux/types.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
-#include <linux/pkt_cls.h>
-#include <sys/socket.h>
-#include <linux/bpf.h>
-#include <bpf_endian.h>
-#include <bpf_helpers.h>
-#include "gtp.h"
 
-#include "lib/gtp_fwd-def.h"
-#include "lib/if_rule.h"
 #include "lib/gtp_fwd.h"
+#include "lib/gtp_mirror.h"
+#include "lib/if_rule.h"
 
-static __always_inline int
-rule_selection(struct if_rule_data *d, struct iphdr *iph)
-{
-	d->k.saddr = iph->saddr;
-	d->k.daddr = iph->daddr;
-	d->r = bpf_map_lookup_elem(&if_rule, &d->k);
-	if (d->r != NULL)
-		return d->r->action;
-
-	/* direct egress <-> ingress */
-	if (!d->k.b.tun_local) {
-		d->k.saddr = 0;
-		d->k.daddr = 0;
-		d->r = bpf_map_lookup_elem(&if_rule, &d->k);
-		if (d->r != NULL)
-			return d->r->action;
-	}
-
-	return XDP_PASS;
-}
 
 SEC("xdp")
 int gtp_fwd_main(struct xdp_md *ctx)
@@ -68,28 +31,35 @@ int gtp_fwd_main(struct xdp_md *ctx)
 	struct if_rule_data d = { .ctx = ctx };
 	int action, ret;
 
-	action = if_rule_parse_pkt(&d, rule_selection);
-	if (action <= XDP_REDIRECT)
+	action = if_rule_parse_pkt(&d, gtp_fwd_rule_selection);
+
+	switch (action) {
+	case XDP_ABORTED ... XDP_REDIRECT:
 		return action;
 
-	if (action == 13 || action == 14)
-		ret = gtpu_ipip_traffic_selector(&d);
-	else
-		ret = gtpu_traffic_selector(&d);
+	case XDP_IFR_DEFAULT_ROUTE:
+		action = gtp_fwd_traffic_selector(&d);
+		break;
 
-	if (ret == 10)
+	case XDP_GTPFWD_GTPU_XLAT:
+	case XDP_GTPFWD_GTPU_NOXLAT:
+		action = gtp_fwd_handle_gtpu(&d);
+		break;
+
+	case XDP_GTPFWD_TUN_XLAT:
+	case XDP_GTPFWD_TUN_NOXLAT:
+		action = gtp_fwd_handle_ipip(&d);
+		break;
+
+	default:
+		return XDP_PASS;
+	}
+
+	if (action == XDP_IFR_FORWARD)
 		return if_rule_rewrite_pkt(&d);
 
-	return ret;
+	return action;
 }
-
-
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, MAX_MIRROR_ENTRIES);
-	__type(key, __be32);
-	__type(value, struct gtp_mirror_rule);
-} mirror_rules SEC(".maps");
 
 
 SEC("tcx/ingress")
