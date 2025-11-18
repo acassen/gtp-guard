@@ -83,5 +83,5 @@ bool pfcp_router_inuse(void);
 void pfcp_router_foreach(int (*hdl) (struct pfcp_router *, void *), void *arg);
 struct pfcp_router *pfcp_router_get(const char *name);
 struct pfcp_router *pfcp_router_alloc(const char *name);
-int pfcp_router_ctx_destroy(struct pfcp_router *ctx);
-int pfcp_router_destroy(void);
+void pfcp_router_ctx_destroy(struct pfcp_router *ctx);
+void pfcp_router_destroy(void);

@@ -31,6 +31,7 @@
 #include "pfcp_proto_hdl.h"
 #include "utils.h"
 #include "memory.h"
+#include "bitops.h"
 #include "bpf/lib/if_rule-def.h"
 
 
@@ -189,25 +190,31 @@ pfcp_router_alloc(const char *name)
 	return new;
 }
 
-int
-pfcp_router_ctx_destroy(struct pfcp_router *ctx)
+void
+pfcp_router_ctx_destroy(struct pfcp_router *c)
 {
-	list_del(&ctx->bpf_list);
-	list_head_del(&ctx->next);
-	pfcp_server_destroy(&ctx->s);
-	pfcp_teid_destroy(ctx->teid);
-	return 0;
+	list_del(&c->bpf_list);
+	list_del(&c->next);
+	pfcp_server_destroy(&c->s);
+	if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
+		gtp_server_destroy(&c->gtpu);
+	if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
+		gtp_server_destroy(&c->gtpu_s1);
+	if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags))
+		gtp_server_destroy(&c->gtpu_s5);
+	if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
+		gtp_server_destroy(&c->gtpu_s8);
+	if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
+		gtp_server_destroy(&c->gtpu_n9);
+	pfcp_teid_destroy(c->teid);
+	FREE(c);
 }
 
-int
+void
 pfcp_router_destroy(void)
 {
 	struct pfcp_router *c, *_c;
 
-	list_for_each_entry_safe(c, _c, &daemon_data->pfcp_router_ctx, next) {
+	list_for_each_entry_safe(c, _c, &daemon_data->pfcp_router_ctx, next)
 		pfcp_router_ctx_destroy(c);
-		FREE(c);
-	}
-
-	return 0;
 }

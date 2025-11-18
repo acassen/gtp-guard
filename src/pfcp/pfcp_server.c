@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2025 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include "pfcp_server.h"
@@ -95,6 +95,7 @@ pfcp_server_init(struct pfcp_server *s, void *ctx,
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
 		pfcp_msg_free(s->msg);
+		s->msg = NULL;
 		return -1;
 	}
 

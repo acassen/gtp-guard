@@ -678,7 +678,7 @@ inet_server_destroy(struct inet_server *s)
 
 	err = (s->destroy) ? (*s->destroy) (s) : 0;
 	if (err)
-		log_message(LOG_INFO, "%s(): Error destroyinh inet-server..."
+		log_message(LOG_INFO, "%s(): Error destroying inet-server..."
 				    , __FUNCTION__);
 
 	__clear_bit(INET_FL_RUNNING_BIT, &s->flags);

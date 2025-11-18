@@ -119,6 +119,7 @@ pfcp-router pfcp-1
 " || fail "cannot execute vty commands"
 
     gtpg_show "
+show running-config
 show interface
 show interface-rule all
 show interface-rule installed

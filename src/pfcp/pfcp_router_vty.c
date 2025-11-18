@@ -94,7 +94,6 @@ DEFUN(no_pfcp_router,
 	}
 
 	pfcp_router_ctx_destroy(c);
-	FREE(c);
 
 	return CMD_SUCCESS;
 }
