@@ -10,6 +10,7 @@ lib_src = files(
   'disk.c',
   'inet_server.c',
   'inet_utils.c',
+  'ip_pool.c',
   'json_reader.c',
   'json_writer.c',
   'list_head.c',

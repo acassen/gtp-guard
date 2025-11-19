@@ -24,7 +24,6 @@
 #include <errno.h>
 
 #include "gtp_data.h"
-#include "gtp_interface_rule.h"
 #include "pfcp_router.h"
 #include "pfcp_teid.h"
 #include "pfcp_server.h"
@@ -32,7 +31,6 @@
 #include "utils.h"
 #include "memory.h"
 #include "bitops.h"
-#include "bpf/lib/if_rule-def.h"
 
 
 /* Extern data */
