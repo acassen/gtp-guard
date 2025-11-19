@@ -24,11 +24,19 @@
 #include <stdbool.h>
 #include "addr.h"
 
+/* Chunk size for scanning optimization (64 entries per chunk) */
+#define IP_POOL_CHUNK_SHIFT	6
+#define IP_POOL_CHUNK_SIZE	(1 << IP_POOL_CHUNK_SHIFT)
+#define IP_POOL_CHUNK_MASK	(IP_POOL_CHUNK_SIZE - 1)
+
 struct ip_pool {
 	union addr	prefix;
 	uint32_t	prefix_bits;
 	bool		*lease;
-	int		next_lease_idx;
+	uint32_t	*chunk_free;	/* Free count per chunk for fast scanning */
+	uint32_t	num_chunks;	/* Number of chunks */
+	int		next_lease_idx;	/* Hint for next allocation */
+	int		last_freed_idx;	/* Last freed index for quick reuse */
 	uint32_t	size;
 	uint32_t	used;
 	uint64_t	seed;
