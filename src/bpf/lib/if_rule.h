@@ -274,6 +274,7 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 	__u32 flags;
 
 	if (d->r->force_ifindex) {
+		/* can only be used to enter a tunnel */
 		fibp.ifindex = d->r->force_ifindex;
 		fibl_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
 
@@ -291,7 +292,9 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 			fibp.ipv4_dst = d->dst_addr.ip4;
 		}
 
-		flags = BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC;
+		flags = BPF_FIB_LOOKUP_DIRECT;
+		if (d->flags & IF_RULE_FL_FILL_IPV4_SADDR)
+			flags |= BPF_FIB_LOOKUP_SRC;
 		if (d->r->table_id) {
 			flags |= BPF_FIB_LOOKUP_TBID;
 			fibp.tbid = d->r->table_id;

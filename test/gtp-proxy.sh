@@ -8,7 +8,7 @@ clean() {
     ip tunnel del ptun 2>/dev/null && true
     ip link del ptun 2>/dev/null && true
     ip link del gtpp 2>/dev/null && true
-    clean_netns "sgw" "pgw" "cloud" "cloud1" "cloud2"
+    clean_netns "sgw" "pgw" "cloud" "cloud-r2"
 }
 
 # simplest setup, without bells and whistles
@@ -100,63 +100,82 @@ setup_combined() {
 }
 
 
-# 2 physical interfaces, vip ip on dummy interface
+# 2 physical interfaces. remotes are available from any two interface.
+# vip ip on dummy interface
 setup_vip() {
-    setup_netns "cloud1" "cloud2"
+    setup_netns "cloud" "cloud-r2"
     sleep 0.5
 
     # trunk1
-    ip link add dev veth0 netns cloud1 address d2:ad:ca:fe:aa:01 type veth \
+    ip link add dev veth0 netns cloud address d2:ad:ca:fe:aa:01 type veth \
        peer name gtpp1 address d2:f0:0c:ba:bb:01
-    ip -n cloud1 link set dev veth0 up
-    ip -n cloud1 link set dev lo up
+    ip -n cloud link set dev veth0 up
+    ip -n cloud link set dev lo up
     ip link set dev gtpp1 up
-    ip netns exec cloud1 sysctl -q net.ipv4.conf.veth0.forwarding=1
+    ip netns exec cloud sysctl -q net.ipv4.conf.veth0.forwarding=1
     sysctl -q net.ipv4.conf.gtpp1.forwarding=1
+    ip -n cloud link add link veth0 name veth0.100 type vlan id 100
+    ip -n cloud link set veth0.100 up
+    ip link add link gtpp1 name gtpp1.100 type vlan id 100
+    ip link set gtpp1.100 up
 
     # trunk2
-    ip link add dev veth0 netns cloud2 address d2:ad:ca:fe:aa:02 type veth \
+    ip link add dev veth0 netns cloud-r2 address d2:ad:ca:fe:aa:02 type veth \
        peer name gtpp2 address d2:f0:0c:ba:bb:02
-    ip -n cloud2 link set dev veth0 up
-    ip -n cloud2 link set dev lo up
+    ip -n cloud-r2 link set dev veth0 up
+    ip -n cloud-r2 link set dev lo up
     ip link set dev gtpp2 up
-    ip netns exec cloud2 sysctl -q net.ipv4.conf.veth0.forwarding=1
+    ip netns exec cloud-r2 sysctl -q net.ipv4.conf.veth0.forwarding=1
     sysctl -q net.ipv4.conf.gtpp2.forwarding=1
+    ip -n cloud-r2 link add link veth0 name veth0.100 type vlan id 100
+    ip -n cloud-r2 link set veth0.100 up
+    ip link add link gtpp2 name gtpp2.100 type vlan id 100
+    ip link set gtpp2.100 up
 
     # dummy
-    rmmod dummy
+    rmmod dummy 2>/dev/null
     modprobe dummy numdummies=$gtp_proxy_count
-    ip link set dummy0 up
 
-    ip -n cloud1 addr add 192.168.61.192/27 dev veth0
-    ip -n cloud2 addr add 192.168.61.193/27 dev veth0
     for i in `seq 0 $((gtp_proxy_count-1))`; do
-	# gtp-c
-	ip addr add 192.168.61.$((i+194))/27 dev dummy$i
+	ip -n cloud link add dummy$i type dummy
+	ip -n cloud-r2 link add dummy$i type dummy
+	ip -n cloud link set dummy$i up
+	ip -n cloud-r2 link set dummy$i up
+	ip link set dummy$i up
+
+	# gtp-c. not used here, just set dummy for binding
+	ip addr add 192.168.61.$((i+240))/32 dev dummy$i
 
 	# gtp-u
-	ip -n cloud1 addr add 192.168.61.$((i*8+1))/25 dev veth0
-	ip -n cloud1 addr add 192.168.61.$((i*8+2))/25 dev veth0
-	ip -n cloud2 addr add 192.168.61.$((i*8+3))/25 dev veth0
-	ip -n cloud2 addr add 192.168.61.$((i*8+4))/25 dev veth0
-	ip addr add 192.168.61.$((i*8))/25 dev dummy$i
+	ip -n cloud addr add 192.168.61.$((i*4+2))/27 dev veth0.100
+	ip -n cloud-r2 addr add 192.168.61.$((64+i*4+2))/27 dev veth0.100
+	ip -n cloud addr add 192.168.61.$((192+i))/32 dev dummy$i
+	ip -n cloud-r2 addr add 192.168.61.$((192+i))/32 dev dummy$i
+	ip -n cloud addr add 192.168.61.$((210+i))/32 dev dummy$i
+	ip -n cloud-r2 addr add 192.168.61.$((210+i))/32 dev dummy$i
 
-	arp -s 192.168.61.$((i*8+1)) d2:ad:ca:fe:aa:01
-	arp -s 192.168.61.$((i*8+2)) d2:ad:ca:fe:aa:01
-	arp -s 192.168.61.$((i*8+3)) d2:ad:ca:fe:aa:02
-	arp -s 192.168.61.$((i*8+4)) d2:ad:ca:fe:aa:02
+	ip addr add 192.168.61.$((i*4+1))/27 dev gtpp1.100
+	ip addr add 192.168.61.$((64+i*4+1))/27 dev gtpp2.100
+	ip addr add 192.168.61.$((176+i))/32 dev dummy$i   # 176-191
+	ip r add 192.168.61.192/27 via 192.168.61.$((i*4+2)) metric 10 dev gtpp1.100
+	ip r add 192.168.61.192/27 via 192.168.61.$((64+i*4+2)) metric 20 dev gtpp2.100
+	ip -n cloud route add 192.168.61.176/28 via 192.168.61.$((i*4+1)) dev veth0.100
+	ip -n cloud-r2 route add 192.168.61.176/28 via 192.168.61.$((64+i*4+1)) dev veth0.100
+
+	arp -s 192.168.61.$((i*4+2)) d2:ad:ca:fe:aa:01 -i gtpp1.100
+	arp -s 192.168.61.$((64+i*4+2)) d2:ad:ca:fe:aa:02 -i gtpp2.100
     done
 
     # tun
     ns_tun_dev=veth0
     if [ $tun_vlan -ne 0 ]; then
 	ns_tun_dev=veth0.$tun_vlan
-	ip -n cloud1 link add link veth0 name $ns_tun_dev type vlan id $tun_vlan
-	ip -n cloud1 link set $ns_tun_dev up
+	ip -n cloud link add link veth0 name $ns_tun_dev type vlan id $tun_vlan
+	ip -n cloud link set $ns_tun_dev up
     fi
-    ip -n cloud1 addr add 192.168.61.129/30 dev $ns_tun_dev
-    ip -n cloud1 tunnel add ptun mode ipip local 192.168.61.129 remote 192.168.61.130
-    ip -n cloud1 link set ptun up
+    ip -n cloud addr add 192.168.61.129/30 dev $ns_tun_dev
+    ip -n cloud tunnel add ptun mode ipip local 192.168.61.129 remote 192.168.61.130
+    ip -n cloud link set ptun up
 
     tun_dev=gtpp1
     if [ $tun_vlan -ne 0 ]; then
@@ -169,10 +188,10 @@ setup_vip() {
     ip link set ptun up
     arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
 
-    ip netns exec cloud1 ethtool -K veth0 gro on
-    ip netns exec cloud1 ethtool -K veth0 tx-checksumming off >/dev/null
-    ip netns exec cloud2 ethtool -K veth0 gro on
-    ip netns exec cloud2 ethtool -K veth0 tx-checksumming off >/dev/null
+    ip netns exec cloud ethtool -K veth0 gro on
+    ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
+    ip netns exec cloud-r2 ethtool -K veth0 gro on
+    ip netns exec cloud-r2 ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
 
@@ -369,6 +388,10 @@ no gtp-proxy all
 "
 
     gtpg_conf "
+interface gtpp1.100
+ no shutdown
+ exit
+
 bpf-program fwd-1
  path bin/gtp_fwd.bpf
  no shutdown
@@ -381,7 +404,11 @@ interface gtpp2
  bpf-program fwd-1
  no shutdown
 
+interface gtpp2.100
+ no shutdown
+
 interface ptun
+ bpf-packet input disable-rule
  no shutdown
 " || fail "cannot execute vty commands"
 
@@ -389,13 +416,13 @@ interface ptun
 	gtpg_conf "
 gtp-proxy gtpp-undertest-$i
  bpf-program fwd-1
- gtpc-tunnel-endpoint 192.168.61.$((i+194)) port 2123
- gtpu-tunnel-endpoint 192.168.61.$((i*8)) both-sides interfaces gtpp1 gtpp2
+ gtpc-tunnel-endpoint 192.168.61.$((i+240)) port 2123
+ gtpu-tunnel-endpoint 192.168.61.$((i+176)) port 2152 both-sides
  gtpu-ipip interface ptun view egress
-! debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((i*8+2)) ingress
-! debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((i*8+1)) egress
-! debug teid add $((i*10 + 259)) $((i*10 + 3)) 192.168.61.$((i*8+4)) ingress
-! debug teid add $((i*10 + 260)) $((i*10 + 4)) 192.168.61.$((i*8+3)) egress
+ debug teid add $((i*10 + 257)) $((i*10 + 1)) 192.168.61.$((210+i)) ingress
+ debug teid add $((i*10 + 258)) $((i*10 + 2)) 192.168.61.$((192+i)) egress
+ debug teid add $((i*10 + 261)) $((i*10 + 5)) 192.168.61.$((210+i)) ingress
+ debug teid add $((i*10 + 262)) $((i*10 + 6)) 192.168.61.$((192+i)) egress
 
 " || fail "cannot execute vty commands"
     done
@@ -474,16 +501,23 @@ pkt() {
 
     echo "run instance $inst, mode $type"
 
+    pkt_count=1
     if [ $type == "split" ]; then
-	ingress_ns=sgw
+	ingress_ns=("sgw")
+	egress_ns=("pgw")
 	ingress_ip=192.168.61.$((64+inst*4+2))
-	egress_ns=pgw
 	egress_ip=192.168.61.$((inst*4+2))
     elif [ $type == "combined" -o $type == "simple" ]; then
-	ingress_ns=cloud
+	ingress_ns=("cloud")
+	egress_ns=("cloud")
 	ingress_ip=192.168.61.$((inst*8+2))
-	egress_ns=cloud
 	egress_ip=192.168.61.$((inst*8+3))
+    elif [ $type == "vip" ]; then
+	ingress_ns=("cloud" "cloud-r2")
+	egress_ns=${ingress_ns[*]}
+	ingress_ip=192.168.61.$((inst+192))
+	egress_ip=192.168.61.$((inst+210))
+	pkt_count=3
     else
 	return
     fi
@@ -512,44 +546,46 @@ EOF
 	echo "kill $python_pid 2> /dev/null" >> $tmp/cleanup.sh
     fi
 
-    (
-ip netns exec $egress_ns python3 - <<EOF
+    for ns in ${egress_ns[*]}; do
+	(
+ip netns exec $ns python3 - <<EOF
 import socket
 import struct
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 fd.bind(('$egress_ip', 2152))
-data, remote = fd.recvfrom(8096)
-data = bytearray(data)
-teid = struct.unpack('!I', data[4:8])[0]
-rteid = (teid + 1) + 256
-print('PGW: receive data len:%d, teid is 0x%08x, send back 0x%08x' %
-      (len(data),teid,rteid))
-data[4:8] = struct.pack('!I', rteid)
-data = bytes(data)
-fd.sendto(data, remote)
+for i in range(0, $pkt_count):
+    data, remote = fd.recvfrom(8096)
+    data = bytearray(data)
+    teid = struct.unpack('!I', data[4:8])[0]
+    rteid = (teid + 1) + 256
+    print('PGW{$ns}: receive data len:%d, teid is 0x%08x, send back 0x%08x' %
+       (len(data),teid,rteid))
+    data[4:8] = struct.pack('!I', rteid)
+    data = bytes(data)
+    fd.sendto(data, remote)
 fd.close()
 EOF
-    ) &
-    python2_pid=$!
+	) &
+	echo "kill $! 2> /dev/null" >> $tmp/cleanup.sh
+    done
 
-    (
-ip netns exec $ingress_ns python3 - <<EOF
+    for ns in ${ingress_ns[*]}; do
+	(
+ip netns exec $ns python3 - <<EOF
 import socket
 import struct
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 fd.bind(('$ingress_ip', 2152))
-data, remote = fd.recvfrom(1024)
-data = bytearray(data)
-print('SGW: DONE ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
+for i in range(0, $pkt_count):
+    data, remote = fd.recvfrom(1024)
+    data = bytearray(data)
+    print('SGW{$ns}: DONE ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
 fd.close()
 EOF
-    ) &
-    python3_pid=$!
+	) &
+	echo "kill $! 2> /dev/null" >> $tmp/cleanup.sh
+    done
 
-    cat >> $tmp/cleanup.sh <<EOF
-kill $python2_pid 2> /dev/null
-kill $python3_pid 2> /dev/null
-EOF
     sleep 1
 
 
@@ -559,6 +595,21 @@ p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   IP(src='$ingress_ip', dst='192.168.61.$((inst*8+1))') /
   UDP(sport=2152, dport=2152) /
   GTP_U_Header(teid=$((inst*10+257)), gtp_type=255) /
+  $data
+"
+    elif [ $type == "vip" ]; then
+	send_py_pkt cloud veth0.100 "
+p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
+  IP(src='$ingress_ip', dst='192.168.61.$((inst+176))') /
+  UDP(sport=2152, dport=2152) /
+  GTP_U_Header(teid=$((inst*10+257)), gtp_type=255) /
+  $data
+"
+	send_py_pkt cloud-r2 veth0.100 "
+p = [Ether(src='d2:ad:ca:fe:aa:02', dst='d2:f0:0c:ba:bb:02') /
+  IP(src='$ingress_ip', dst='192.168.61.$((inst+176))') /
+  UDP(sport=2152, dport=2152) /
+  GTP_U_Header(teid=$((inst*10+261)), gtp_type=255) /
   $data
 "
     else
@@ -597,8 +648,8 @@ type=${2:-simple}
 tun_vlan=${3:-0}
 gtp_proxy_count=${4:-1}
 
-if [ $gtp_proxy_count -gt 16 ]; then
-    gtp_proxy_count=16
+if [ $gtp_proxy_count -gt 15 ]; then
+    gtp_proxy_count=15
 fi
 
 case $action in

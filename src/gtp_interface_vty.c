@@ -76,6 +76,8 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 			   , addr_stringify(&iface->tunnel_remote
 					    , addr2_str, sizeof (addr2_str))
 			   , VTY_NEWLINE);
+	if (__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags))
+		vty_out(vty, " bpf-input-pkt: rule-disabled\n");
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
 			   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
@@ -133,6 +135,18 @@ DEFUN(no_interface,
 	return CMD_SUCCESS;
 }
 
+DEFUN(interface_description,
+      interface_description_cmd,
+      "description STRING",
+      "Set Interface description\n"
+      "description\n")
+{
+	struct gtp_interface *iface = vty->index;
+
+	snprintf(iface->description, sizeof (iface->description), "%s", argv[0]);
+	return CMD_SUCCESS;
+}
+
 DEFUN(interface_bpf_prog,
       interface_bpf_prog_cmd,
       "bpf-program STRING",
@@ -164,6 +178,27 @@ DEFUN(interface_bpf_prog,
 	return CMD_SUCCESS;
 }
 
+DEFUN(interface_bpf_pkt,
+      interface_bpf_pkt_cmd,
+      "bpf-packet input (disable-rule|default)",
+      "BPF Program packet handling\n"
+      "Set automatic rules that process input packets on this interface\n"
+      "Do not set such rules\n"
+      "Set default rules\n")
+{
+	struct gtp_interface *iface = vty->index;
+	bool set = !strcmp(argv[0], "default");
+
+	if (set)
+		__clear_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
+	else
+		__set_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
+
+	gtp_interface_rule_set_auto_input_rule(iface, set);
+
+	return CMD_SUCCESS;
+}
+
 DEFUN(interface_direct_tx_gw,
       interface_direct_tx_gw_cmd,
       "direct-tx-gw (A.B.C.D|X:X:X:X)",
@@ -173,11 +208,6 @@ DEFUN(interface_direct_tx_gw,
 {
 	struct gtp_interface *iface = vty->index;
 	int err;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	err = addr_parse(argv[0], &iface->direct_tx_gw);
 	if (err) {
@@ -206,22 +236,6 @@ DEFUN(interface_table_id,
 	return CMD_SUCCESS;
 }
 
-DEFUN(interface_description,
-      interface_description_cmd,
-      "description STRING",
-      "Set Interface description\n"
-      "description\n")
-{
-	struct gtp_interface *iface = vty->index;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	bsd_strlcpy(iface->description, argv[0], GTP_PATH_MAX_LEN - 1);
-	return CMD_SUCCESS;
-}
 
 DEFUN(interface_metrics_gtp,
       interface_metrics_gtp_cmd,
@@ -397,6 +411,8 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " description %s%s", iface->description, VTY_NEWLINE);
 		if (iface->bpf_prog)
 			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
+		if (__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags))
+			vty_out(vty, " bpf-packet input disable-rule\n");
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"
 				   , addr_stringify_ip(&iface->direct_tx_gw, addr_str,
@@ -436,6 +452,7 @@ cmd_ext_interface_install(void)
 	install_default(INTERFACE_NODE);
 	install_element(INTERFACE_NODE, &interface_description_cmd);
 	install_element(INTERFACE_NODE, &interface_bpf_prog_cmd);
+	install_element(INTERFACE_NODE, &interface_bpf_pkt_cmd);
 	install_element(INTERFACE_NODE, &interface_direct_tx_gw_cmd);
 	install_element(INTERFACE_NODE, &interface_table_id_cmd);
 	install_element(INTERFACE_NODE, &interface_metrics_gtp_cmd);

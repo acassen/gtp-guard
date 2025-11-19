@@ -41,6 +41,7 @@ struct gtp_if_rule
 
 /* Prototypes */
 int gtp_interface_rule_set(struct gtp_if_rule *, bool add);
+void gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set);
 int gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg);
 int gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg);
 int gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg);

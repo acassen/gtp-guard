@@ -375,17 +375,6 @@ _if_dynrule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *i
 	struct if_rule_attr a;
 	int ifindex, ret, i;
 
-	ifindex = iface->ifindex;
-	_rule_set_attr(iface, &a);
-	ret = bpf_map__update_elem(bir->if_rule_attr,
-				   &ifindex, sizeof (ifindex),
-				   &a, sizeof (a),
-				   BPF_NOEXIST);
-	if (ret) {
-		printf("cannot insert rule_attr ifindex:%d (%d / %m)\n",
-		       ifindex, ret);
-	}
-
 	for (i = 0; i < bir->ifaces_n; i++)
 		if (bir->ifaces[i] == iface)
 			return;
@@ -398,6 +387,17 @@ _if_dynrule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *i
 			return;
 	}
 	bir->ifaces[bir->ifaces_n++] = iface;
+
+	ifindex = iface->ifindex;
+	_rule_set_attr(iface, &a);
+	ret = bpf_map__update_elem(bir->if_rule_attr,
+				   &ifindex, sizeof (ifindex),
+				   &a, sizeof (a),
+				   BPF_NOEXIST);
+	if (ret) {
+		printf("cannot insert rule_attr ifindex:%d (%d / %m)\n",
+		       ifindex, ret);
+	}
 }
 
 static void
@@ -405,19 +405,21 @@ _if_dynrule_attr_del(struct gtp_bpf_interface_rule *bir, struct gtp_interface *i
 {
 	int ifindex, ret, i;
 
+	for (i = 0; i < bir->ifaces_n; i++) {
+		if (bir->ifaces[i] == iface) {
+			bir->ifaces[i] = bir->ifaces[--bir->ifaces_n];
+			break;
+		}
+	}
+	if (i == bir->ifaces_n)
+		return;
+
 	ifindex = iface->ifindex;
 	ret = bpf_map__delete_elem(bir->if_rule_attr,
 				   &ifindex, sizeof (ifindex), 0);
 	if (ret) {
 		printf("cannot delete rule_attr ifindex:%d (%d / %m)\n",
 		       ifindex, ret);
-	}
-
-	for (i = 0; i < bir->ifaces_n; i++) {
-		if (bir->ifaces[i] == iface) {
-			bir->ifaces[i] = bir->ifaces[--bir->ifaces_n];
-			break;
-		}
 	}
 }
 
@@ -427,6 +429,8 @@ _if_dynrule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
 {
 	struct gtp_bpf_interface_rule *bir = udata;
 	struct gtp_interface *child = arg;
+	bool def_route = !__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT,
+				     &child->flags);
 
 	struct gtp_if_rule ifr = {
 		.from = child,
@@ -438,15 +442,40 @@ _if_dynrule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
 		/* printf("add dyn rule on %s:%d (master %s)\n", */
 		/*        child->ifname, child->ifindex, iface->ifname); */
 		_if_dynrule_attr_add(bir, child);
-		_if_rule_add(bir, &ifr, iface->ifindex);
+		if (def_route)
+			_if_rule_add(bir, &ifr, iface->ifindex);
+
 	} else if (type == GTP_INTERFACE_EV_STOP) {
 		/* printf("del dyn rule on %s:%d (master %s)\n", */
 		/*        child->ifname, child->ifindex, iface->ifname); */
-		_if_rule_del(bir, &ifr, iface->ifindex);
+		if (def_route)
+			_if_rule_del(bir, &ifr, iface->ifindex);
 		_if_dynrule_attr_del(bir, child);
 	}
 }
 
+void
+gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set)
+{
+	struct gtp_interface *master = iface->link_iface ?: iface;
+	struct gtp_bpf_interface_rule *bir = master->bpf_irules;
+
+	if (bir != NULL) {
+		struct gtp_if_rule ifr = {
+			.from = iface,
+			.action = XDP_IFR_DEFAULT_ROUTE,
+			.prio = 900,
+		};
+
+		if (set) {
+			_if_dynrule_attr_add(master->bpf_irules, iface);
+			_if_rule_add(bir, &ifr, master->ifindex);
+		} else {
+			_if_rule_del(bir, &ifr, master->ifindex);
+			_if_dynrule_attr_del(master->bpf_irules, iface);
+		}
+	}
+}
 
 
 /*
@@ -457,6 +486,8 @@ int
 gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg)
 {
 	struct gtp_bpf_interface_rule *r = gtp_bpf_prog_tpl_data_get(p, "if_rules");
+	struct gtp_interface *iface;
+	char b1[60], b2[60];
 	int ifindex = 0, err;
 	struct if_rule_attr a;
 	struct vty *vty = arg;
@@ -473,9 +504,22 @@ gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg)
 			break;
 		}
 
-		vty_out(vty, "ifindex:%d => ifindex:%d vlan:%d tun:%x->%x flags:%x\n",
-			ifindex, a.ifindex, a.vlan_id, a.tun_local, a.tun_remote, a.flags);
+		iface = gtp_interface_get_by_ifindex(ifindex, false);
+		vty_out(vty, "%8s (if:%d) => ", iface ? iface->ifname : "<unset>",
+			ifindex);
 
+		if (a.flags & IF_RULE_FL_TUNNEL_MASK) {
+			vty_out(vty, "%s local:%s remote:%s\n",
+				a.flags & IF_RULE_FL_TUNNEL_GRE ? "gre" : "ipip",
+				inet_ntop(AF_INET, &a.tun_local, b1, sizeof (b1)),
+				inet_ntop(AF_INET, &a.tun_remote, b2, sizeof (b2)));
+
+		} else {
+			iface = gtp_interface_get_by_ifindex(a.ifindex, false);
+			vty_out(vty, "%s (if:%d), vlan:%d\n",
+				iface ? iface->ifname : "<unset>",
+				a.ifindex, a.vlan_id);
+		}
 	}
 
 	return 0;
