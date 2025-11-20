@@ -29,14 +29,23 @@
 #define IP_POOL_CHUNK_SIZE	(1 << IP_POOL_CHUNK_SHIFT)
 #define IP_POOL_CHUNK_MASK	(IP_POOL_CHUNK_SIZE - 1)
 
+#define IP_POOL_LRU_SIZE	256	/* Track last 256 freed addresses */
+
+struct ip_pool_lru {
+	int		*ring;		/* Circular buffer of recently freed indices */
+	uint32_t	head;		/* Write position */
+	uint32_t	tail;		/* Read position */
+	uint32_t	count;		/* Number of entries */
+};
+
 struct ip_pool {
 	union addr	prefix;
 	uint32_t	prefix_bits;
 	bool		*lease;
+	struct ip_pool_lru lru;		/* LRU tracking structure */
 	uint32_t	*chunk_free;	/* Free count per chunk for fast scanning */
 	uint32_t	num_chunks;	/* Number of chunks */
 	int		next_lease_idx;	/* Hint for next allocation */
-	int		last_freed_idx;	/* Last freed index for quick reuse */
 	uint32_t	size;
 	uint32_t	used;
 	uint64_t	seed;
