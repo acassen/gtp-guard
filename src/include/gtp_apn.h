@@ -144,10 +144,12 @@ struct gtp_plmn *gtp_apn_hplmn_alloc(struct gtp_apn *, uint8_t *);
 void gtp_apn_hplmn_del(struct gtp_apn *, struct gtp_plmn *);
 void gtp_apn_hplmn_destroy(struct gtp_apn *);
 struct gtp_plmn *gtp_apn_hplmn_get(struct gtp_apn *, uint8_t *);
-struct gtp_apn_ip_pool *gtp_apn_local_ip_pool_get(struct gtp_apn *apn,
-						  const char *name);
-int gtp_apn_local_ip_pool_alloc(struct gtp_apn *apn, const char *name);
-int gtp_apn_local_ip_pool_free(struct gtp_apn_ip_pool *ap);
+struct gtp_apn_ip_pool *gtp_apn_ip_pool_get(struct gtp_apn *apn,
+					    const char *name);
+struct gtp_apn_ip_pool *gtp_apn_ip_pool_get_by_family(struct gtp_apn *apn,
+						      sa_family_t af);
+int gtp_apn_ip_pool_alloc(struct gtp_apn *apn, const char *name);
+int gtp_apn_ip_pool_free(struct gtp_apn_ip_pool *ap);
 struct gtp_apn *gtp_apn_alloc(const char *);
 struct gtp_pco *gtp_apn_pco(struct gtp_apn *);
 int gtp_apn_destroy(void);

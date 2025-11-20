@@ -58,10 +58,14 @@ struct f_seid {
 
 #define UE_IPV4	(1 << 0)
 #define UE_IPV6	(1 << 1)
+#define UE_CHV4	(1 << 2)
+#define UE_CHV6	(1 << 3)
 struct ue_ip_address {
 	uint8_t			flags;
 	struct in_addr		v4;
 	struct in6_addr		v6;
+	struct ip_pool		*pool_v4;
+	struct ip_pool		*pool_v6;
 };
 
 struct traffic_endpoint {

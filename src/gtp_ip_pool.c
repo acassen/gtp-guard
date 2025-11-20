@@ -68,6 +68,7 @@ gtp_ip_pool_alloc(const char *name)
 	new = calloc(1, sizeof(*new));
 	if (!new)
 		return NULL;
+
         INIT_LIST_HEAD(&new->next);
         strncpy(new->name, name, GTP_NAME_MAX_LEN - 1);
         list_add_tail(&new->next, &daemon_data->ip_pool);

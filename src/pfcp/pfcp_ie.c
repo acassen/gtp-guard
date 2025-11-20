@@ -350,17 +350,58 @@ pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
 	return 0;
 }
 
+static int
+pfcp_ie_put_ue_ip_address(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+			  const struct in_addr *ipv4, const struct in6_addr *ipv6)
+{
+	struct pfcp_ie_ue_ip_address *ie;
+	unsigned int length = sizeof(struct pfcp_ie) + 1;
+
+	if (!ipv4 && !ipv6)
+		return 0;
+
+	length += (ipv4) ? sizeof(struct in_addr) : 0;
+	length += (ipv6) ? sizeof(struct in6_addr) : 0;
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_UE_IP_ADDRESS, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_ue_ip_address *) pbuff->data;
+	ie->spare = 0;
+	ie->ipv6pl = 0;
+	ie->chv6 = 0;
+	ie->chv4 = 0;
+	ie->ipv6d = 0;
+	ie->sd = 1;
+	ie->v4 = (ipv4) ? 1 : 0;
+	ie->v6 = (ipv6) ? 1 : 0;
+
+	if (ipv4)
+		ie->ip_address.v4 = *ipv4;
+
+	if (ipv6)
+		memcpy(&ie->ip_address.v6, ipv6, sizeof(struct in6_addr));
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
 int
-pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
-		       const uint32_t teid, const struct in_addr *ipv4,
-		       const struct in6_addr *ipv6)
+pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id, const uint32_t teid,
+		       const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,
+		       const struct in_addr *ue_ipv4, const struct in6_addr *ue_ipv6)
 {
 	struct pfcp_ie *ie_created_te = (struct pfcp_ie *) pbuff->data;
 	int err;
 
 	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_TRAFFIC_ENDPOINT);
 	err = (err) ? : pfcp_ie_put_te_id(pbuff, ie_created_te, id);
-	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_te, teid, ipv4, ipv6);
+	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_te, teid, t_ipv4, t_ipv6);
+	err = (err) ? : pfcp_ie_put_ue_ip_address(pbuff, ie_created_te, ue_ipv4, ue_ipv6);
 
 	return err;
 }

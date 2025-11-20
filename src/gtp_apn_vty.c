@@ -827,7 +827,7 @@ DEFUN(apn_ip_pool,
 		return CMD_WARNING;
 	}
 
-	err = gtp_apn_local_ip_pool_alloc(apn, argv[0]);
+	err = gtp_apn_ip_pool_alloc(apn, argv[0]);
 	if (err) {
 		if (errno == EEXIST)
 			vty_out(vty, "%% ip-pool:'%s' already configured for apn:'%s'%s"
@@ -860,7 +860,7 @@ DEFUN(apn_no_ip_pool,
 		return CMD_WARNING;
 	}
 
-	p = gtp_apn_local_ip_pool_get(apn, argv[0]);
+	p = gtp_apn_ip_pool_get(apn, argv[0]);
 	if (!p) {
 		vty_out(vty, "%% ip-pool:'%s' not configured in apn:'%s'%s"
 			   , argv[0], apn->name
@@ -868,7 +868,7 @@ DEFUN(apn_no_ip_pool,
 		return CMD_WARNING;
 	}
 
-	gtp_apn_local_ip_pool_free(p);
+	gtp_apn_ip_pool_free(p);
 	return CMD_SUCCESS;
 }
 

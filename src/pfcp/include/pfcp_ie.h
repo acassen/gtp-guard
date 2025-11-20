@@ -3476,8 +3476,9 @@ int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
 			    const uint32_t teid, const struct in_addr *ipv4,
 			    const struct in6_addr *ipv6);
 int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
-		           const uint32_t teid, const struct in_addr *ipv4,
-		           const struct in6_addr *ipv6);
+		           const uint32_t teid,
+			   const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,
+			   const struct in_addr *ue_ipv4, const struct in6_addr *ue_ipv6);
 int pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
 			     uint32_t start_time, uint32_t end_time,
 			     struct pfcp_metrics_pkt *uplink,

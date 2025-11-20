@@ -305,27 +305,44 @@ gtp_apn_hplmn_get(struct gtp_apn *apn, uint8_t *plmn)
  *	IP Pool related
  */
 struct gtp_apn_ip_pool *
-gtp_apn_local_ip_pool_get(struct gtp_apn *apn, const char *name)
+gtp_apn_ip_pool_get(struct gtp_apn *apn, const char *name)
 {
 	struct list_head *l = &apn->ip_pool;
-	struct gtp_apn_ip_pool *p;
+	struct gtp_apn_ip_pool *ap;
 
-	list_for_each_entry(p, l, next) {
-		if (!strncmp(p->p->name, name, GTP_NAME_MAX_LEN))
-			return p;
+	list_for_each_entry(ap, l, next) {
+		if (!strncmp(ap->p->name, name, GTP_NAME_MAX_LEN))
+			return ap;
+	}
+
+	return NULL;
+}
+
+struct gtp_apn_ip_pool *
+gtp_apn_ip_pool_get_by_family(struct gtp_apn *apn, sa_family_t af)
+{
+	struct list_head *l = &apn->ip_pool;
+	struct gtp_apn_ip_pool *ap;
+	union addr *pfx;
+
+	list_for_each_entry(ap, l, next) {
+		pfx = &ap->p->pool->prefix;
+		if (pfx->family == af)
+			return ap;
 	}
 
 	return NULL;
 }
 
 
+
 int
-gtp_apn_local_ip_pool_alloc(struct gtp_apn *apn, const char *name)
+gtp_apn_ip_pool_alloc(struct gtp_apn *apn, const char *name)
 {
 	struct gtp_apn_ip_pool *new;
 
 	/* ip-pool are uniq in the same APN */
-	if (gtp_apn_local_ip_pool_get(apn, name)) {
+	if (gtp_apn_ip_pool_get(apn, name)) {
 		errno = EEXIST;
 		return -1;
 	}
@@ -349,7 +366,7 @@ gtp_apn_local_ip_pool_alloc(struct gtp_apn *apn, const char *name)
 }
 
 int
-gtp_apn_local_ip_pool_free(struct gtp_apn_ip_pool *ap)
+gtp_apn_ip_pool_free(struct gtp_apn_ip_pool *ap)
 {
 	gtp_ip_pool_put(ap->p);
 	list_head_del(&ap->next);
@@ -358,13 +375,13 @@ gtp_apn_local_ip_pool_free(struct gtp_apn_ip_pool *ap)
 }
 	
 static int
-gtp_apn_local_ip_pool_destroy(struct gtp_apn *apn)
+gtp_apn_ip_pool_destroy(struct gtp_apn *apn)
 {
 	struct list_head *l = &apn->ip_pool;
 	struct gtp_apn_ip_pool *ap, *_ap;
 
 	list_for_each_entry_safe(ap, _ap, l, next) {
-		gtp_apn_local_ip_pool_free(ap);
+		gtp_apn_ip_pool_free(ap);
 	}
 
 	return 0;
@@ -418,7 +435,7 @@ gtp_apn_destroy(void)
 		gtp_service_destroy(apn);
 		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
 		gtp_rewrite_rule_destroy(apn, &apn->oi_match);
-		gtp_apn_local_ip_pool_destroy(apn);
+		gtp_apn_ip_pool_destroy(apn);
 		gtp_pco_destroy(apn->pco);
 		apn_resolv_cache_destroy(apn);
 		gtp_apn_hplmn_destroy(apn);

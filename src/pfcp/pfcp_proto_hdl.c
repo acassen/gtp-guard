@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 #include <sys/socket.h>
+#include <errno.h>
 #include "gtp.h"
 #include "gtp_utils.h"
 #include "pfcp.h"
@@ -255,6 +256,10 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	err = (err) ? : pfcp_session_put_created_pdr(pbuff, s);
 	err = (err) ? : pfcp_session_put_created_traffic_endpoint(pbuff, s);
 	if (err) {
+		if (errno == ENOSPC)
+			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+						       PFCP_CAUSE_ALL_DYNAMIC_ADDRESS_ARE_OCCUPIED);
+
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
 		return -1;
