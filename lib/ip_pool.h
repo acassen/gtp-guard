@@ -45,5 +45,6 @@ struct ip_pool {
 /* Prototypes */
 int ip_pool_get(struct ip_pool *p, void *addr);
 int ip_pool_put(struct ip_pool *p, void *addr);
+float ip_pool_frag_ratio(struct ip_pool *p);
 struct ip_pool *ip_pool_alloc(const char *ip_pool_str);
 void ip_pool_destroy(struct ip_pool *p);

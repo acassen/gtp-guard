@@ -291,6 +291,36 @@ release:
 	return ip_pool_release_lease(p, idx);
 }
 
+float
+ip_pool_frag_ratio(struct ip_pool *p)
+{
+	uint32_t i, free_count, free_runs = 0, in_free_run = 0;
+
+	if (!p || p->size == p->used || !p->used)
+		return 0.0f;
+
+	free_count = p->size - p->used;
+
+	/* basic free run analysis */
+	for (i = 0; i < p->size; i++) {
+		if (!p->lease[i]) {
+			if (!in_free_run) {
+				/* new free run */
+				free_runs++;
+				in_free_run = 1;
+			}
+			continue;
+		}
+
+		/* end current free run */
+		in_free_run = 0;
+	}
+
+	if (free_count == 1 || free_runs == 1)
+		return 0.0f;
+
+	return ((float)(free_runs - 1) / (float)(free_count - 1)) * 100.0f;
+}
 
 struct ip_pool *
 ip_pool_alloc(const char *ip_pool_str)

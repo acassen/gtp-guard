@@ -159,6 +159,7 @@ test_fragmented(struct ip_pool *pool, int num_ops)
 
 	printf("Pool after fragmentation: %u used / %u total (%.1f%% full)\n",
 	       pool->used, pool->size, (pool->used * 100.0) / pool->size);
+	printf("Fragmentation metric: %.1f%%\n", ip_pool_frag_ratio(pool));
 
 	/* Reallocate to measure fragmented performance */
 	start = get_usec();
@@ -215,6 +216,7 @@ test_random_churn(struct ip_pool *pool, int num_ops)
 
 	printf("Pool at 70%% capacity: %u used / %u total\n",
 	       pool->used, pool->size);
+	printf("Fragmentation before churn: %.1f%%\n", ip_pool_frag_ratio(pool));
 
 	/* Randomly free 30% and reallocate to simulate churn */
 	start = get_usec();
@@ -226,6 +228,7 @@ test_random_churn(struct ip_pool *pool, int num_ops)
 
 	printf("After partial free: %u used / %u total (%.1f%% full)\n",
 	       pool->used, pool->size, (pool->used * 100.0) / pool->size);
+	printf("Fragmentation after churn: %.1f%%\n", ip_pool_frag_ratio(pool));
 
 	/* Reallocate freed slots */
 	start = get_usec();
