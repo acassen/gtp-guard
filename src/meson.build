@@ -54,6 +54,8 @@ src += files(
   'gtp_teid.c',
   'gtp_utils.c',
   'gtp_utils_uli.c',
+  'gtp_ip_pool.c',
+  'gtp_ip_pool_vty.c',
   'gtp_vrf.c',
   'gtp_vrf_vty.c',
   'gtp_vty.c',

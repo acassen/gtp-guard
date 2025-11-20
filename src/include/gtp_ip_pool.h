@@ -20,45 +20,29 @@
  */
 #pragma once
 
-#include <sys/socket.h>
-#include "inet_server.h"
 #include "gtp_stddef.h"
+#include "ip_pool.h"
+#include "list_head.h"
 
-/* Flags */
-enum daemon_flags {
-	GTP_FL_STOP_BIT,
-	GTP_FL_MIRROR_LOADED_BIT,
-	GTP_FL_RESTART_COUNTER_LOADED_BIT,
+/* flags */
+enum gtp_ip_pool_flags {
+	GTP_IP_POOL_FL_SHUTDOWN,
 };
 
-/* Main control block */
-struct data {
-	char			realm[GTP_STR_MAX_LEN];
-	struct sockaddr_storage	nameserver;
-	struct inet_server	request_channel;
-	struct inet_server	metrics_channel;
-	char			restart_counter_filename[GTP_STR_MAX_LEN];
-	uint8_t			restart_counter;
-	unsigned		nl_rcvbuf_size;
+struct gtp_ip_pool {
+	char			name[GTP_NAME_MAX_LEN];
+	char			description[GTP_STR_MAX_LEN];
+	struct ip_pool		*pool;
+	int			refcnt;
 
-	struct list_head	mirror;
-	struct list_head	cgn;
-	struct list_head	pppoe;
-	struct list_head	pppoe_bundle;
-	struct list_head	ip_vrf;
-	struct list_head	ip_pool;
-	struct list_head	bpf_progs;
-	struct list_head	interfaces;
-	struct list_head	gtp_apn;
-	struct list_head	gtp_cdr;
-	struct list_head	gtp_proxy_ctx;
-	struct list_head	gtp_router_ctx;
-	struct list_head	pfcp_router_ctx;;
-
+	struct list_head	next;
 	unsigned long		flags;
 };
 
-
 /* Prototypes */
-struct data *alloc_daemon_data(void);
-void free_daemon_data(void);
+struct gtp_ip_pool *gtp_ip_pool_get(const char *name);
+int gtp_ip_pool_put(struct gtp_ip_pool *p);
+struct gtp_ip_pool *gtp_ip_pool_alloc(const char *name);
+int gtp_ip_pool_free(struct gtp_ip_pool *p);
+int gtp_ip_pool_destroy(void);
+int gtp_ip_pool_init(void);

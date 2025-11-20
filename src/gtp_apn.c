@@ -195,80 +195,6 @@ apn_resolv_cache_destroy(struct gtp_apn *apn)
 	return 0;
 }
 
-
-/*
- *	Static IP Pool related
- */
-struct gtp_ip_pool *
-gtp_ip_pool_alloc(uint32_t network, uint32_t netmask)
-{
-	struct gtp_ip_pool *new;
-
-	PMALLOC(new);
-	if (!new)
-		return NULL;
-	new->network = network;
-	new->netmask = netmask;
-	new->lease = (bool *) MALLOC(ntohl(~netmask) * sizeof(bool));
-	new->next_lease_idx = 10;
-
-	return new;
-}
-
-void
-gtp_ip_pool_destroy(struct gtp_ip_pool *ip_pool)
-{
-	if (!ip_pool)
-		return;
-
-	FREE(ip_pool->lease);
-	FREE(ip_pool);
-}
-
-uint32_t
-gtp_ip_pool_get(struct gtp_apn *apn)
-{
-	struct gtp_ip_pool *ip_pool = apn->ip_pool;
-	int idx;
-
-	if (!ip_pool)
-		return 0;
-
-	/* fast-path */
-	idx = ip_pool->next_lease_idx;
-	if (!ip_pool->lease[idx])
-		goto match;
-
-	/* slow-path */
-	for (idx = 10; idx < ntohl(~ip_pool->netmask)-10; idx++) {
-		if (!ip_pool->lease[idx]) {
-			goto match;
-		}
-	}
-
-	return 0;
-
-  match:
-	ip_pool->lease[idx] = true;
-	ip_pool->next_lease_idx = idx + 1;
-	return htonl(ntohl(ip_pool->network) + idx);
-}
-
-int
-gtp_ip_pool_put(struct gtp_apn *apn, uint32_t addr_ip)
-{
-	struct gtp_ip_pool *ip_pool = apn->ip_pool;
-	int idx;
-
-	if (!ip_pool)
-		return 0;
-
-	idx = ntohl(addr_ip & ~ip_pool->network);
-	ip_pool->lease[idx] = false;
-	ip_pool->next_lease_idx = idx;
-	return 0;
-}
-
 /*
  *	PCO related
  */
@@ -375,6 +301,75 @@ gtp_apn_hplmn_get(struct gtp_apn *apn, uint8_t *plmn)
 	return p;
 }
 
+/*
+ *	IP Pool related
+ */
+struct gtp_apn_ip_pool *
+gtp_apn_local_ip_pool_get(struct gtp_apn *apn, const char *name)
+{
+	struct list_head *l = &apn->ip_pool;
+	struct gtp_apn_ip_pool *p;
+
+	list_for_each_entry(p, l, next) {
+		if (!strncmp(p->p->name, name, GTP_NAME_MAX_LEN))
+			return p;
+	}
+
+	return NULL;
+}
+
+
+int
+gtp_apn_local_ip_pool_alloc(struct gtp_apn *apn, const char *name)
+{
+	struct gtp_apn_ip_pool *new;
+
+	/* ip-pool are uniq in the same APN */
+	if (gtp_apn_local_ip_pool_get(apn, name)) {
+		errno = EEXIST;
+		return -1;
+	}
+
+	new = calloc(1, sizeof(*new));
+	if (!new) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	new->p = gtp_ip_pool_get(name);
+	if (!new->p) {
+		errno = ENOENT;
+		free(new);
+		return -1;
+	}
+
+	INIT_LIST_HEAD(&new->next);
+	list_add_tail(&new->next, &apn->ip_pool);
+	return 0;
+}
+
+int
+gtp_apn_local_ip_pool_free(struct gtp_apn_ip_pool *ap)
+{
+	gtp_ip_pool_put(ap->p);
+	list_head_del(&ap->next);
+	free(ap);
+	return 0;
+}
+	
+static int
+gtp_apn_local_ip_pool_destroy(struct gtp_apn *apn)
+{
+	struct list_head *l = &apn->ip_pool;
+	struct gtp_apn_ip_pool *ap, *_ap;
+
+	list_for_each_entry_safe(ap, _ap, l, next) {
+		gtp_apn_local_ip_pool_free(ap);
+	}
+
+	return 0;
+}
+
 
 /*
  *	APN related
@@ -390,6 +385,7 @@ gtp_apn_alloc(const char *name)
 	INIT_LIST_HEAD(&new->imsi_match);
 	INIT_LIST_HEAD(&new->oi_match);
 	INIT_LIST_HEAD(&new->hplmn);
+	INIT_LIST_HEAD(&new->ip_pool);
 	INIT_LIST_HEAD(&new->next);
         pthread_mutex_init(&new->mutex, NULL);
 	bsd_strlcpy(new->name, name, GTP_APN_MAX_LEN - 1);
@@ -422,7 +418,7 @@ gtp_apn_destroy(void)
 		gtp_service_destroy(apn);
 		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
 		gtp_rewrite_rule_destroy(apn, &apn->oi_match);
-		gtp_ip_pool_destroy(apn->ip_pool);
+		gtp_apn_local_ip_pool_destroy(apn);
 		gtp_pco_destroy(apn->pco);
 		apn_resolv_cache_destroy(apn);
 		gtp_apn_hplmn_destroy(apn);

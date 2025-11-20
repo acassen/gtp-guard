@@ -52,6 +52,7 @@ enum node_type {
 	PPPOE_NODE,					/* PPPoE commands. */
 	PPPOE_BUNDLE_NODE,				/* PPPoE Bundle commands. */
 	IP_VRF_NODE,					/* IP VRF commands. */
+	IP_POOL_NODE,					/* IP POOL commands. */
 	APN_NODE,					/* APN commands. */
 	CDR_NODE,					/* CDR commands. */
 	GTP_PROXY_NODE,					/* GTP Proxy commands. */

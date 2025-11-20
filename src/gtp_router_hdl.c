@@ -1030,6 +1030,7 @@ gtpc_create_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	s->ptype = *ptype;
 	s->srv = srv;
 
+#if 0
 	/* Allocate IP Address from APN pool if configured */
 	s->ipv4 = gtp_ip_pool_get(apn);
 	if (apn->ip_pool && !s->ipv4) {
@@ -1041,6 +1042,7 @@ gtpc_create_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage 
 						   , GTP_CAUSE_ALL_DYNAMIC_ADDRESS_OCCUPIED);
 		goto end;
 	}
+#endif
 
 	teid = gtpc_teid_create(srv, s, msg, true);
 	if (!teid) {
@@ -1049,7 +1051,7 @@ gtpc_create_session_request_hdl(struct gtp_server *srv, struct sockaddr_storage 
 		rc = gtpc_build_errmsg(srv->s.pbuff, teid
 						   , GTP_CREATE_SESSION_RESPONSE_TYPE
 						   , GTP_CAUSE_REQUEST_REJECTED);
-		gtp_ip_pool_put(apn, s->ipv4);
+//		gtp_ip_pool_put(apn, s->ipv4);
 		goto end;
 	}
 

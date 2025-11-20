@@ -813,33 +813,62 @@ DEFUN(apn_pco_selected_bearer_control_mode,
 	return CMD_SUCCESS;
 }
 
-DEFUN(apn_pdn_address_allocation_pool,
-      apn_pdn_address_allocation_pool_cmd,
-      "pdn-address-allocation-pool local network A.B.C.D netmask A.B.C.D",
-      "PDN IP Address Allocation Pool\n"
-      "locally configured\n"
-      "Network\n"
-      "IPv4 Address\n"
-      "Netmask\n"
-      "IPv4 Address\n")
+DEFUN(apn_ip_pool,
+      apn_ip_pool_cmd,
+      "ip pool STRING",
+      "Locally configured IP Pool to use\n"
+      "IP Pool Name\n")
 {
 	struct gtp_apn *apn = vty->index;
-	uint32_t network, netmask;
+	int err;
 
-	if (argc < 2) {
+	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	if (apn->ip_pool) {
-		vty_out(vty, "%% IP Pool already configured%s", VTY_NEWLINE);
+	err = gtp_apn_local_ip_pool_alloc(apn, argv[0]);
+	if (err) {
+		if (errno == EEXIST)
+			vty_out(vty, "%% ip-pool:'%s' already configured for apn:'%s'%s"
+				   , argv[0], apn->name
+				   , VTY_NEWLINE);
+		else if (errno == ENOENT)
+			vty_out(vty, "%% unknown ip-pool:'%s'%s"
+				   , argv[0]
+				   , VTY_NEWLINE);
+		else if (errno == ENOMEM)
+			vty_out(vty, "%% no memory available%s"
+				   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	inet_ston(argv[0], &network);
-	inet_ston(argv[1], &netmask);
-	apn->ip_pool = gtp_ip_pool_alloc(network, netmask);
+	return CMD_SUCCESS;
+}
 
+DEFUN(apn_no_ip_pool,
+      apn_no_ip_pool_cmd,
+      "no ip pool STRING",
+      "Unconfigure Locally configured IP Pool to use\n"
+      "IP Pool Name\n")
+{
+	struct gtp_apn *apn = vty->index;
+	struct gtp_apn_ip_pool *p;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	p = gtp_apn_local_ip_pool_get(apn, argv[0]);
+	if (!p) {
+		vty_out(vty, "%% ip-pool:'%s' not configured in apn:'%s'%s"
+			   , argv[0], apn->name
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_apn_local_ip_pool_free(p);
 	return CMD_SUCCESS;
 }
 
@@ -1060,6 +1089,19 @@ apn_config_apn_oi_match(struct vty *vty, struct gtp_apn *apn)
 }
 
 static int
+apn_config_local_ip_pool(struct vty *vty, struct gtp_apn *apn)
+{
+	struct list_head *l = &apn->ip_pool;
+	struct gtp_apn_ip_pool *ap;
+
+	list_for_each_entry(ap, l, next) {
+		vty_out(vty, " ip pool %s%s" , ap->p->name, VTY_NEWLINE);
+	}
+
+	return 0;
+}
+
+static int
 apn_config_write(struct vty *vty)
 {
         struct list_head *l = &daemon_data->gtp_apn;
@@ -1113,11 +1155,7 @@ apn_config_write(struct vty *vty)
 		if (apn->indication_flags)
 			apn_indication_config_write(vty, apn);
 		apn_pco_config_write(vty, apn->pco);
-		if (apn->ip_pool)
-			vty_out(vty, " pdn-address-allocation-pool local network %u.%u.%u.%u netmask %u.%u.%u.%u%s"
-				   , NIPQUAD(apn->ip_pool->network)
-				   , NIPQUAD(apn->ip_pool->netmask)
-				   , VTY_NEWLINE);
+		apn_config_local_ip_pool(vty, apn);
 		if (apn->vrf)
 			vty_out(vty, " ip vrf forwarding %s%s"
 				   , apn->vrf->name
@@ -1164,7 +1202,8 @@ cmd_ext_apn_install(void)
 	install_element(APN_NODE, &apn_pco_ip_ns_cmd);
 	install_element(APN_NODE, &apn_pco_ip_link_mtu_cmd);
 	install_element(APN_NODE, &apn_pco_selected_bearer_control_mode_cmd);
-	install_element(APN_NODE, &apn_pdn_address_allocation_pool_cmd);
+	install_element(APN_NODE, &apn_ip_pool_cmd);
+	install_element(APN_NODE, &apn_no_ip_pool_cmd);
 	install_element(APN_NODE, &apn_ip_vrf_forwarding_cmd);
 	install_element(APN_NODE, &apn_gtp_session_uniq_ptype_cmd);
 	install_element(APN_NODE, &apn_hplmn_cmd);

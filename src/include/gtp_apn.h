@@ -25,6 +25,7 @@
 #include <sys/socket.h>
 #include "list_head.h"
 #include "gtp_vrf.h"
+#include "gtp_ip_pool.h"
 #include "gtp_cdr.h"
 #include "gtp_cdr_spool.h"
 
@@ -71,13 +72,6 @@ struct gtp_pco {
 	unsigned long		flags;
 };
 
-struct gtp_ip_pool {
-	uint32_t		network;
-	uint32_t		netmask;
-	bool			*lease;
-	int			next_lease_idx;
-};
-
 /* Rewriting rule */
 struct gtp_rewrite_rule {
 	char			match[GTP_MATCH_MAX_LEN];
@@ -91,6 +85,13 @@ struct gtp_rewrite_rule {
 /* HPLMN */
 struct gtp_plmn {
 	uint8_t			plmn[GTP_PLMN_MAX_LEN];
+
+	struct list_head	next;
+};
+
+/* IP Pool used */
+struct gtp_apn_ip_pool {
+	struct gtp_ip_pool	*p;
 
 	struct list_head	next;
 };
@@ -109,7 +110,7 @@ struct gtp_apn {
 	uint8_t			restriction;
 	unsigned long		indication_flags;
 	struct gtp_pco		*pco;
-	struct gtp_ip_pool	*ip_pool;
+	struct list_head	ip_pool;
 	struct ip_vrf		*vrf;
 	struct gtp_plmn		egci_plmn;
 	struct gtp_cdr_spool	*cdr_spool;
@@ -139,14 +140,14 @@ struct gtp_rewrite_rule *gtp_rewrite_rule_alloc(struct gtp_apn *, struct list_he
 int apn_resolv_cache_realloc(struct gtp_apn *);
 void *apn_resolv_cache_task(void *);
 int apn_resolv_cache_signal(struct gtp_apn *);
-struct gtp_ip_pool *gtp_ip_pool_alloc(uint32_t, uint32_t);
-void gtp_ip_pool_destroy(struct gtp_ip_pool *);
-uint32_t gtp_ip_pool_get(struct gtp_apn *);
-int gtp_ip_pool_put(struct gtp_apn *, uint32_t);
 struct gtp_plmn *gtp_apn_hplmn_alloc(struct gtp_apn *, uint8_t *);
 void gtp_apn_hplmn_del(struct gtp_apn *, struct gtp_plmn *);
 void gtp_apn_hplmn_destroy(struct gtp_apn *);
 struct gtp_plmn *gtp_apn_hplmn_get(struct gtp_apn *, uint8_t *);
+struct gtp_apn_ip_pool *gtp_apn_local_ip_pool_get(struct gtp_apn *apn,
+						  const char *name);
+int gtp_apn_local_ip_pool_alloc(struct gtp_apn *apn, const char *name);
+int gtp_apn_local_ip_pool_free(struct gtp_apn_ip_pool *ap);
 struct gtp_apn *gtp_apn_alloc(const char *);
 struct gtp_pco *gtp_apn_pco(struct gtp_apn *);
 int gtp_apn_destroy(void);

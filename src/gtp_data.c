@@ -48,6 +48,7 @@ alloc_daemon_data(void)
 	PMALLOC(new);
 	INIT_LIST_HEAD(&new->mirror);
 	INIT_LIST_HEAD(&new->ip_vrf);
+	INIT_LIST_HEAD(&new->ip_pool);
 	INIT_LIST_HEAD(&new->bpf_progs);
 	INIT_LIST_HEAD(&new->interfaces);
 	INIT_LIST_HEAD(&new->pppoe);
@@ -81,6 +82,7 @@ free_daemon_data(void)
 	gtp_proxy_destroy();
 	gtp_router_destroy();
 	gtp_teid_destroy();
+	gtp_ip_pool_destroy();
 	gtp_vrf_destroy();
 	gtp_mirrors_destroy();
 	gtp_cdr_spool_destroy(NULL);
