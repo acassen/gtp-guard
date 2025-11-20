@@ -327,6 +327,10 @@ gtp_apn_ip_pool_get_by_family(struct gtp_apn *apn, sa_family_t af)
 
 	list_for_each_entry(ap, l, next) {
 		pfx = &ap->p->pool->prefix;
+
+		if (__test_bit(GTP_IP_POOL_FL_SHUTDOWN, &ap->p->flags))
+			continue;
+
 		if (pfx->family == af)
 			return ap;
 	}
