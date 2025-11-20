@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "gtp_data.h"
-#include "gtp_vrf.h"
+#include "gtp_ip_vrf.h"
 #include "memory.h"
 
 

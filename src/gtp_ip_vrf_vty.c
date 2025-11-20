@@ -20,7 +20,7 @@
  */
 
 #include "gtp_data.h"
-#include "gtp_vrf.h"
+#include "gtp_ip_vrf.h"
 #include "gtp_bpf_rt.h"
 #include "gtp_bpf_utils.h"
 #include "command.h"

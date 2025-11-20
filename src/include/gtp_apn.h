@@ -24,7 +24,7 @@
 #include <stdbool.h>
 #include <sys/socket.h>
 #include "list_head.h"
-#include "gtp_vrf.h"
+#include "gtp_ip_vrf.h"
 #include "gtp_ip_pool.h"
 #include "gtp_cdr.h"
 #include "gtp_cdr_spool.h"
