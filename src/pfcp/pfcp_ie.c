@@ -286,11 +286,16 @@ pfcp_ie_put_f_teid(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t t
 	ie->v4 = (ipv4) ? 1 : 0;
 	ie->v6 = (ipv6) ? 1 : 0;
 
-	if (ipv4)
+	if (ipv4 && !ipv6)
 		ie->s.ip.v4 = *ipv4;
 
-	if (ipv6)
+	if (ipv6 && !ipv4)
 		memcpy(&ie->s.ip.v6, ipv6, sizeof(struct in6_addr));
+
+	if (ipv6 && ipv4) {
+		ie->s.ip.both.v4 = *ipv4;
+		memcpy(&ie->s.ip.both.v6, ipv6, sizeof(struct in6_addr));
+	}
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
@@ -375,15 +380,20 @@ pfcp_ie_put_ue_ip_address(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 	ie->chv6 = 0;
 	ie->chv4 = 0;
 	ie->ipv6d = 0;
-	ie->sd = 1;
+	ie->sd = 0;
 	ie->v4 = (ipv4) ? 1 : 0;
 	ie->v6 = (ipv6) ? 1 : 0;
 
-	if (ipv4)
+	if (ipv4 && !ipv6)
 		ie->ip_address.v4 = *ipv4;
 
-	if (ipv6)
+	if (ipv6 && !ipv4)
 		memcpy(&ie->ip_address.v6, ipv6, sizeof(struct in6_addr));
+
+	if (ipv6 && ipv4) {
+		ie->ip_address.both.v4 = *ipv4;
+		memcpy(&ie->ip_address.both.v6, ipv6, sizeof(struct in6_addr));
+	}
 
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
