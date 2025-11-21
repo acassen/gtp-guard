@@ -47,18 +47,21 @@
  *
  * LRU Ring (O(1) - Optimal for Temporal Locality)
  * - Circular buffer with size equal to pool size (full FIFO tracking)
- * - Allocates OLDEST freed address first (only when ring is FULL)
- * - Ensures maximum "cool down" period before reuse
- * - On first allocation: uses sequential allocation to fill pool
- * - On steady-state: pure LRU allocation from ring
+ * - Phase 1 (Initial): Sequential allocation until all leases used once
+ * - Phase 2 (Steady-state): Pure LRU allocation from ring
+ *   - Allocates from tail (OLDEST freed address - least recently used)
+ *   - Releases to head (most recently available)
+ * - Ensures "cool down" period before reuse
  * - Allows CPU caches to naturally evict stale entries
  * - Optimal for high-churn environments (mobile networks)
  *
  * PERFORMANCE CHARACTERISTICS:
  * ----------------------------
- * - Empty pool: O(1) - Sequential allocation
- * - Filling pool: O(1) - Sequential allocation
- * - Steady state: O(1) - LRU ring (after pool has been fully allocated once)
+ * - Phase 1 (Initial fill): O(1) - Sequential allocation
+ * - Phase 2 (Steady state): O(1) - Pure LRU allocation
+ *   - Triggered once all leases allocated at least once (next_lease_idx >= size)
+ *   - Pop from LRU tail for allocation (least recently used)
+ *   - Push to LRU head on release (most recently available)
  * - All operations: O(1) constant time
  *
  * MEMORY OVERHEAD:
@@ -105,11 +108,11 @@ ip_pool_lru_push(struct ip_pool_lru *lru, int idx)
 static int
 ip_pool_lru_pop(struct ip_pool_lru *lru, int *idx)
 {
-	/* Only use LRU when ring is full to ensure maximum cool-down period */
-	if (lru->count < lru->size)
+	/* No freed leases available in LRU ring */
+	if (lru->count == 0)
 		return -1;
 
-	/* Get oldest entry from tail */
+	/* Get oldest entry from tail (least recently used) */
 	*idx = lru->ring[lru->tail];
 	lru->tail = (lru->tail + 1) % lru->size;
 	lru->count--;
@@ -131,10 +134,10 @@ ip_pool_lru_destroy(struct ip_pool_lru *lru)
 
 /*
  * Pure LRU allocation strategy:
- * 0. Try LRU ring - allocate OLDEST freed address (true LRU/FIFO)
- *    Only when ring is FULL (pool_size entries) to ensure maximum cool-down period
- *    Ensures addresses "cool down" before reuse, optimal for cache efficiency
- * 1. Try next sequential allocation (used only during initial pool fill-up)
+ * 0. Sequential allocation during initial pool fill-up (next_lease_idx < size)
+ * 1. Once all leases allocated at least once, switch to pure LRU mode:
+ *    - Allocate from LRU tail (least recently used freed lease)
+ *    - This ensures optimal temporal locality and cache efficiency
  *
  * This provides O(1) performance in all cases.
  */
@@ -147,18 +150,18 @@ ip_pool_alloc_lease(struct ip_pool *p, int *idx)
 	if (__sync_add_and_fetch(&p->used, 0) >= p->size)
 		return -1;
 
-	/* Path 0: Try LRU ring (optimal temporal locality) */
+	/* Path 0: Sequential allocation (only during initial fill-up) */
+	if (p->next_lease_idx < p->size && !p->lease[p->next_lease_idx]) {
+		*idx = p->next_lease_idx;
+		return 0;
+	}
+
+	/* Path 1: Pure LRU allocation (after all leases used at least once) */
 	if (ip_pool_lru_pop(&p->lru, &lru_idx) == 0) {
 		if (lru_idx >= 0 && lru_idx < p->size && !p->lease[lru_idx]) {
 			*idx = lru_idx;
 			return 0;
 		}
-	}
-
-	/* Path 1: Sequential allocation (only during initial fill-up) */
-	if (p->next_lease_idx < p->size && !p->lease[p->next_lease_idx]) {
-		*idx = p->next_lease_idx;
-		return 0;
 	}
 
 	/* Should not reach here if used < size */
@@ -170,7 +173,8 @@ static void
 ip_pool_mark_allocated(struct ip_pool *p, int idx)
 {
 	p->lease[idx] = true;
-	p->next_lease_idx = idx + 1;
+	if (p->next_lease_idx < p->size)
+		p->next_lease_idx = idx + 1;
 	__sync_add_and_fetch(&p->used, 1);
 }
 
