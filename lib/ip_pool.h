@@ -24,18 +24,12 @@
 #include <stdbool.h>
 #include "addr.h"
 
-/* Chunk size for scanning optimization (64 entries per chunk) */
-#define IP_POOL_CHUNK_SHIFT	6
-#define IP_POOL_CHUNK_SIZE	(1 << IP_POOL_CHUNK_SHIFT)
-#define IP_POOL_CHUNK_MASK	(IP_POOL_CHUNK_SIZE - 1)
-
-#define IP_POOL_LRU_SIZE	256	/* Track last 256 freed addresses */
-
 struct ip_pool_lru {
-	int		*ring;		/* Circular buffer of recently freed indices */
+	int		*ring;		/* Circular buffer of freed indices */
 	uint32_t	head;		/* Write position */
 	uint32_t	tail;		/* Read position */
 	uint32_t	count;		/* Number of entries */
+	uint32_t	size;		/* Ring size (same as pool size) */
 };
 
 struct ip_pool {
@@ -43,8 +37,6 @@ struct ip_pool {
 	uint32_t	prefix_bits;
 	bool		*lease;
 	struct ip_pool_lru lru;		/* LRU tracking structure */
-	uint32_t	*chunk_free;	/* Free count per chunk for fast scanning */
-	uint32_t	num_chunks;	/* Number of chunks */
 	int		next_lease_idx;	/* Hint for next allocation */
 	uint32_t	size;
 	uint32_t	used;
@@ -54,6 +46,5 @@ struct ip_pool {
 /* Prototypes */
 int ip_pool_get(struct ip_pool *p, void *addr);
 int ip_pool_put(struct ip_pool *p, void *addr);
-float ip_pool_frag_ratio(struct ip_pool *p);
 struct ip_pool *ip_pool_alloc(const char *ip_pool_str);
 void ip_pool_destroy(struct ip_pool *p);

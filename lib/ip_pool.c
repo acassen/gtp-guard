@@ -42,60 +42,49 @@
  * which degrades performance significantly when the pool is 70%+ utilized with
  * fragmentation.
  *
- * SOLUTION - THREE-TIER ALLOCATION STRATEGY:
- * ------------------------------------------
+ * SOLUTION - PURE LRU ALLOCATION STRATEGY:
+ * -----------------------------------------
  *
- * Tier 0: LRU Ring (O(1) - Optimal for Temporal Locality)
- * - Circular buffer tracking last 256 freed addresses in FIFO order
+ * LRU Ring (O(1) - Optimal for Temporal Locality)
+ * - Circular buffer with size equal to pool size (full FIFO tracking)
  * - Allocates OLDEST freed address first (only when ring is FULL)
- * - Ensures minimum 256-allocation "cool down" period before reuse
+ * - Ensures maximum "cool down" period before reuse
+ * - On first allocation: uses sequential allocation to fill pool
+ * - On steady-state: pure LRU allocation from ring
  * - Allows CPU caches to naturally evict stale entries
- * - Typical hit rate: 60-80% in steady-state with session churn
- * - Memory overhead: 1KB per pool (256 × 4 bytes)
- *
- * Tier 1: Sequential Allocation (O(1) - Common Case)
- * - Use 'next_lease_idx' hint for sequential allocation
- * - Works perfectly during pool fill-up phase
- * - Benefits: Cache-friendly, minimal fragmentation
- * - Typical hit rate: 30-40% when pool isn't fully cycled
- *
- * Tier 2: Chunk-Based Scanning (O(chunks) - Fragmented Case)
- * - Divide pool into 64-address chunks
- * - Track free count per chunk in 'chunk_free' array
- * - Skip entirely full chunks during scan (key optimization!)
- * - Benefits: Reduces worst-case from O(N) to O(N/64)
- * - Example: /24 pool (254 addresses) = 4 chunks vs 254 linear checks
+ * - Optimal for high-churn environments (mobile networks)
  *
  * PERFORMANCE CHARACTERISTICS:
  * ----------------------------
- * - Empty pool: O(1) - Tier 1 sequential hit
- * - Filling pool: O(1) - Tier 1 sequential
- * - Steady state (50% full): O(1) - Tier 0 LRU ring
- * - High fragmentation (90% full): O(chunks) - Tier 2 chunk skip
- * - Worst case: O(chunks × chunk_size), but chunks with free=0 are skipped
+ * - Empty pool: O(1) - Sequential allocation
+ * - Filling pool: O(1) - Sequential allocation
+ * - Steady state: O(1) - LRU ring (after pool has been fully allocated once)
+ * - All operations: O(1) constant time
  *
  * MEMORY OVERHEAD:
  * ----------------
  * - Per address: 1 byte (lease bitmap)
- * - Per chunk: 4 bytes (free counter)
- * - LRU ring: 1024 bytes (256 × 4 bytes)
- * - Example /24: 254 bytes + 16 bytes + 1024 bytes = 1294 bytes total
- * - Overhead: ~10% (excellent trade-off for performance gain)
+ * - LRU ring: pool_size × 4 bytes (full tracking)
+ * - Example /24: 254 bytes + 1016 bytes = 1270 bytes total
+ * - Example /20: 4094 bytes + 16376 bytes = 20470 bytes total
+ * - Example /12: 1048575 bytes + 4194300 bytes = ~5.0 MB total
+ * - Overhead: ~400% but provides perfect LRU behavior
  *
  */
 
 
-/* LRU ring buffer */
+/* LRU ring buffer - full pool size FIFO queue */
 static int
-ip_pool_lru_init(struct ip_pool_lru *lru)
+ip_pool_lru_init(struct ip_pool_lru *lru, uint32_t pool_size)
 {
-	lru->ring = calloc(IP_POOL_LRU_SIZE, sizeof(int));
+	lru->ring = calloc(pool_size, sizeof(int));
 	if (!lru->ring)
 		return -1;
 
 	lru->head = 0;
 	lru->tail = 0;
 	lru->count = 0;
+	lru->size = pool_size;
 	return 0;
 }
 
@@ -103,26 +92,26 @@ static void
 ip_pool_lru_push(struct ip_pool_lru *lru, int idx)
 {
 	/* If ring is full, overwrite oldest entry (move tail forward) */
-	if (lru->count == IP_POOL_LRU_SIZE) {
-		lru->tail = (lru->tail + 1) % IP_POOL_LRU_SIZE;
+	if (lru->count == lru->size) {
+		lru->tail = (lru->tail + 1) % lru->size;
 	} else {
 		lru->count++;
 	}
 
 	lru->ring[lru->head] = idx;
-	lru->head = (lru->head + 1) % IP_POOL_LRU_SIZE;
+	lru->head = (lru->head + 1) % lru->size;
 }
 
 static int
 ip_pool_lru_pop(struct ip_pool_lru *lru, int *idx)
 {
 	/* Only use LRU when ring is full to ensure maximum cool-down period */
-	if (lru->count == 0 || lru->count < IP_POOL_LRU_SIZE)
+	if (lru->count < lru->size)
 		return -1;
 
 	/* Get oldest entry from tail */
 	*idx = lru->ring[lru->tail];
-	lru->tail = (lru->tail + 1) % IP_POOL_LRU_SIZE;
+	lru->tail = (lru->tail + 1) % lru->size;
 	lru->count--;
 	return 0;
 }
@@ -136,32 +125,29 @@ ip_pool_lru_destroy(struct ip_pool_lru *lru)
 	free(lru->ring);
 	lru->ring = NULL;
 	lru->count = 0;
+	lru->size = 0;
 }
 
 
 /*
- * Anti-fragmentation lease allocation strategy:
+ * Pure LRU allocation strategy:
  * 0. Try LRU ring - allocate OLDEST freed address (true LRU/FIFO)
- *    Only when ring is FULL (256 entries) to ensure minimum cool-down period
+ *    Only when ring is FULL (pool_size entries) to ensure maximum cool-down period
  *    Ensures addresses "cool down" before reuse, optimal for cache efficiency
- * 1. Try next sequential allocation (locality of reference)
- * 2. Scan chunks with available slots (fast skip over full chunks)
- * 3. Within chunk, scan for free slot
+ * 1. Try next sequential allocation (used only during initial pool fill-up)
  *
- * This approach provides O(chunks) performance in worst case,
- * but O(1) in common cases with good cache locality.
+ * This provides O(1) performance in all cases.
  */
 static int
 ip_pool_alloc_lease(struct ip_pool *p, int *idx)
 {
-	uint32_t chunk_idx, start_chunk;
-	int i, base, lru_idx;
+	int lru_idx;
 
 	/* Quick check: pool exhausted? */
 	if (__sync_add_and_fetch(&p->used, 0) >= p->size)
 		return -1;
 
-	/* Fast-path 0: Try LRU ring (optimal temporal locality) */
+	/* Path 0: Try LRU ring (optimal temporal locality) */
 	if (ip_pool_lru_pop(&p->lru, &lru_idx) == 0) {
 		if (lru_idx >= 0 && lru_idx < p->size && !p->lease[lru_idx]) {
 			*idx = lru_idx;
@@ -169,45 +155,13 @@ ip_pool_alloc_lease(struct ip_pool *p, int *idx)
 		}
 	}
 
-	/* Fast-path 1: Try next sequential allocation (locality) */
+	/* Path 1: Sequential allocation (only during initial fill-up) */
 	if (p->next_lease_idx < p->size && !p->lease[p->next_lease_idx]) {
 		*idx = p->next_lease_idx;
 		return 0;
 	}
 
-	/* Slow-path: Chunk-based scanning for fragmented pools */
-	start_chunk = p->next_lease_idx >> IP_POOL_CHUNK_SHIFT;
-
-	/* Scan from hint chunk to end */
-	for (chunk_idx = start_chunk; chunk_idx < p->num_chunks; chunk_idx++) {
-		if (p->chunk_free[chunk_idx] == 0)
-			continue;  /* Skip full chunks */
-
-		/* Search within this chunk */
-		base = chunk_idx << IP_POOL_CHUNK_SHIFT;
-		for (i = base; i < base + IP_POOL_CHUNK_SIZE && i < p->size; i++) {
-			if (!p->lease[i]) {
-				*idx = i;
-				return 0;
-			}
-		}
-	}
-
-	/* Wrap around: scan from start to hint chunk */
-	for (chunk_idx = 0; chunk_idx < start_chunk; chunk_idx++) {
-		if (p->chunk_free[chunk_idx] == 0)
-			continue;
-
-		base = chunk_idx << IP_POOL_CHUNK_SHIFT;
-		for (i = base; i < base + IP_POOL_CHUNK_SIZE && i < p->size; i++) {
-			if (!p->lease[i]) {
-				*idx = i;
-				return 0;
-			}
-		}
-	}
-
-	/* Should not reach here if used < size, but handle gracefully */
+	/* Should not reach here if used < size */
 	return -1;
 }
 
@@ -215,24 +169,15 @@ ip_pool_alloc_lease(struct ip_pool *p, int *idx)
 static void
 ip_pool_mark_allocated(struct ip_pool *p, int idx)
 {
-	uint32_t chunk_idx;
-
 	p->lease[idx] = true;
 	p->next_lease_idx = idx + 1;
 	__sync_add_and_fetch(&p->used, 1);
-
-	/* Update chunk metadata */
-	chunk_idx = idx >> IP_POOL_CHUNK_SHIFT;
-	if (p->chunk_free[chunk_idx] > 0)
-		p->chunk_free[chunk_idx]--;
 }
 
 /* Generic helper to release lease */
 static int
 ip_pool_release_lease(struct ip_pool *p, int idx)
 {
-	uint32_t chunk_idx;
-
 	if (idx < 0 || idx >= p->size) {
 		errno = EINVAL;
 		return -1;
@@ -240,10 +185,6 @@ ip_pool_release_lease(struct ip_pool *p, int idx)
 
 	p->lease[idx] = false;
 	__sync_sub_and_fetch(&p->used, 1);
-
-	/* Update chunk metadata */
-	chunk_idx = idx >> IP_POOL_CHUNK_SHIFT;
-	p->chunk_free[chunk_idx]++;
 
 	/* Add to LRU ring for optimal reuse */
 	ip_pool_lru_push(&p->lru, idx);
@@ -342,42 +283,11 @@ release:
 	return ip_pool_release_lease(p, idx);
 }
 
-float
-ip_pool_frag_ratio(struct ip_pool *p)
-{
-	uint32_t i, free_count, free_runs = 0, in_free_run = 0;
-
-	if (!p || p->size == p->used || !p->used)
-		return 0.0f;
-
-	free_count = p->size - p->used;
-
-	/* basic free run analysis */
-	for (i = 0; i < p->size; i++) {
-		if (!p->lease[i]) {
-			if (!in_free_run) {
-				/* new free run */
-				free_runs++;
-				in_free_run = 1;
-			}
-			continue;
-		}
-
-		/* end current free run */
-		in_free_run = 0;
-	}
-
-	if (free_count == 1 || free_runs == 1)
-		return 0.0f;
-
-	return ((float)(free_runs - 1) / (float)(free_count - 1)) * 100.0f;
-}
-
 struct ip_pool *
 ip_pool_alloc(const char *ip_pool_str)
 {
 	struct ip_pool *new;
-	uint32_t size, i, chunk_size;
+	uint32_t size;
 	int err;
 
 	new = calloc(1, sizeof(*new));
@@ -411,30 +321,10 @@ ip_pool_alloc(const char *ip_pool_str)
 		return NULL;
 	}
 
-	/* Allocate and initialize chunk metadata for anti-fragmentation */
-	new->num_chunks = (new->size + IP_POOL_CHUNK_SIZE - 1) >> IP_POOL_CHUNK_SHIFT;
-	new->chunk_free = calloc(new->num_chunks, sizeof(uint32_t));
-	if (!new->chunk_free) {
-		errno = ENOMEM;
-		free(new->lease);
-		free(new);
-		return NULL;
-	}
-
-	/* Initialize chunk free counts */
-	for (i = 0; i < new->num_chunks; i++) {
-		chunk_size = IP_POOL_CHUNK_SIZE;
-		/* Last chunk might be partial */
-		if ((i + 1) * IP_POOL_CHUNK_SIZE > new->size)
-			chunk_size = new->size - (i * IP_POOL_CHUNK_SIZE);
-		new->chunk_free[i] = chunk_size;
-	}
-
-	/* Initialize LRU ring buffer (enabled by default) */
-	err = ip_pool_lru_init(&new->lru);
+	/* Initialize LRU ring buffer with full pool size */
+	err = ip_pool_lru_init(&new->lru, new->size);
 	if (err) {
 		errno = ENOMEM;
-		free(new->chunk_free);
 		free(new->lease);
 		free(new);
 		return NULL;
@@ -455,7 +345,6 @@ ip_pool_destroy(struct ip_pool *p)
 		return;
 
 	ip_pool_lru_destroy(&p->lru);
-	free(p->chunk_free);
 	free(p->lease);
 	free(p);
 }

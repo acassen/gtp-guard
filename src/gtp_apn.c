@@ -338,8 +338,6 @@ gtp_apn_ip_pool_get_by_family(struct gtp_apn *apn, sa_family_t af)
 	return NULL;
 }
 
-
-
 int
 gtp_apn_ip_pool_alloc(struct gtp_apn *apn, const char *name)
 {
