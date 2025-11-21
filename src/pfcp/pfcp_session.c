@@ -296,21 +296,62 @@ pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *
 }
 
 static int
-pfcp_session_release_ip_pool(struct pfcp_session *s)
+pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af)
 {
-	struct traffic_endpoint *te;
-	struct ue_ip_address *ue_ip;
-	int i;
+	struct gtp_apn *apn = s->apn;
+	struct ue_ip_address *ue_ip = &s->ue_ip;
+	struct in_addr *v4 = &ue_ip->v4;
+	struct in6_addr *v6 = &ue_ip->v6;
+	struct gtp_apn_ip_pool *ap;
+	struct ip_pool *p;
+	int err;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
-		te = &s->te[i];
-		ue_ip = &te->ue_ip;
+	ap = gtp_apn_ip_pool_get_by_family(apn, af);
+	if (!ap)
+		goto nospc;
 
-		if ((ue_ip->flags & UE_CHV4) && ue_ip->pool_v4)
-			ip_pool_put(ue_ip->pool_v4, &ue_ip->v4);
+	p = ap->p->pool;
 
-		if ((ue_ip->flags & UE_CHV6) && ue_ip->pool_v6)
-			ip_pool_put(ue_ip->pool_v6, &ue_ip->v6);
+	switch (af) {
+	case AF_INET:
+		err = ip_pool_get(p, v4);
+		if (err)
+			goto nospc;
+		ue_ip->flags |= UE_CHV4;
+		ue_ip->pool_v4 = p;
+		break;
+
+	case AF_INET6:
+		err = ip_pool_get(p, v6);
+		if (err)
+			goto nospc;
+		ue_ip->flags |= UE_CHV6;
+		ue_ip->pool_v6 = p;
+		break;
+
+	default:
+		goto nospc;
+	}
+
+	return 0;
+nospc:
+	errno = ENOSPC;
+	return -1;
+}
+
+static int
+pfcp_session_release_ue_ip(struct pfcp_session *s)
+{
+	struct ue_ip_address *ue_ip = &s->ue_ip;
+
+	if ((ue_ip->flags & UE_CHV4) && ue_ip->pool_v4) {
+		ip_pool_put(ue_ip->pool_v4, &ue_ip->v4);
+		ue_ip->pool_v4 = NULL;
+	}
+
+	if ((ue_ip->flags & UE_CHV6) && ue_ip->pool_v6) {
+		ip_pool_put(ue_ip->pool_v6, &ue_ip->v6);
+		ue_ip->pool_v6 = NULL;
 	}
 
 	return 0;
@@ -325,7 +366,7 @@ pfcp_session_release(struct pfcp_session *s)
 	pfcp_session_bpf_action(s, RULE_DEL);
 	list_head_del(&s->next);
 	pfcp_session_unhash(s);
-	pfcp_session_release_ip_pool(s);
+	pfcp_session_release_ue_ip(s);
 	pfcp_session_free(s);
 	return 0;
 }
@@ -1005,49 +1046,41 @@ pfcp_session_init_teid_values(struct pfcp_teid *t, uint32_t *teid,
 }
 
 static int
-pfcp_session_init_ue_values(struct gtp_apn *apn, struct traffic_endpoint *te,
+pfcp_session_init_ue_values(struct pfcp_session *s, struct traffic_endpoint *te,
 			    struct in_addr **ipv4, struct in6_addr **ipv6)
 {
+	struct ue_ip_address *ue_ip_s = &s->ue_ip;
 	struct ue_ip_address *ue_ip = &te->ue_ip;
-	struct gtp_apn_ip_pool *ap;
-	struct ip_pool *p;
-	struct in_addr *v4 = &ue_ip->v4;
-	struct in6_addr *v6 = &ue_ip->v6;
+	struct in_addr *v4 = &ue_ip_s->v4;
+	struct in6_addr *v6 = &ue_ip_s->v6;
 	int err;
 
 	*ipv4 = NULL;
 	*ipv6 = NULL;
 
 	if (ue_ip->flags & UE_CHV4) {
-		ap = gtp_apn_ip_pool_get_by_family(apn, AF_INET);
-		if (ap) {
-			p = ap->p->pool;
-			err = ip_pool_get(p, v4);
+		/* Session UE IP Address is not initialized */
+		if (!(ue_ip_s->flags & UE_CHV4)) {
+			err = pfcp_session_alloc_ue_ip(s, AF_INET);
 			if (err) {
 				errno = ENOSPC;
 				return -1;
 			}
-			*ipv4 = v4;
-			ue_ip->pool_v4 = p;
 		}
+		*ipv4 = v4;
 	}
 
 	if (ue_ip->flags & UE_CHV6) {
-		ap = gtp_apn_ip_pool_get_by_family(apn, AF_INET6);
-		if (ap) {
-			p = ap->p->pool;
-			err = ip_pool_get(p, v6);
+		/* Session UE IP Address is not initialized */
+		if (!(ue_ip_s->flags & UE_CHV6)) {
+			err = pfcp_session_alloc_ue_ip(s, AF_INET6);
 			if (err) {
-				if (ipv4) {
-					ip_pool_put(ue_ip->pool_v4, ipv4);
-					ue_ip->pool_v4 = NULL;
-				}
+				pfcp_session_release_ue_ip(s);
 				errno = ENOSPC;
 				return -1;
 			}
-			*ipv6 = v6;
-			ue_ip->pool_v6 = p;
 		}
+		*ipv6 = v6;
 	}
 
 	return 0;
@@ -1085,7 +1118,7 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
 		te = &s->te[i];
 		pfcp_session_init_teid_values(te->teid[PFCP_DIR_EGRESS], &teid, &t_ipv4, &t_ipv6);
-		err = pfcp_session_init_ue_values(s->apn, te, &ue_ipv4, &ue_ipv6);
+		err = pfcp_session_init_ue_values(s, te, &ue_ipv4, &ue_ipv6);
 		if (err) {
 			errno = ENOSPC;
 			return -1;

@@ -139,6 +139,7 @@ struct pfcp_session {
 	struct qer		qer[PFCP_MAX_NR_ELEM];
 	struct urr		urr[PFCP_MAX_NR_ELEM];
 	struct traffic_endpoint	te[PFCP_MAX_NR_ELEM];
+	struct ue_ip_address	ue_ip;
 
 	struct gtp_conn		*conn;		/* backpointer */
 	struct pfcp_router	*router;	/* Server used */
