@@ -35,7 +35,6 @@
 #include "logger.h"
 #include "jhash.h"
 
-
 /* Extern data */
 extern struct thread_master *master;
 
@@ -317,7 +316,7 @@ pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af)
 		err = ip_pool_get(p, v4);
 		if (err)
 			goto nospc;
-		ue_ip->flags |= UE_CHV4;
+		ue_ip->flags |= UE_CHV4|UE_IPV4;
 		ue_ip->pool_v4 = p;
 		break;
 
@@ -325,7 +324,7 @@ pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af)
 		err = ip_pool_get(p, v6);
 		if (err)
 			goto nospc;
-		ue_ip->flags |= UE_CHV6;
+		ue_ip->flags |= UE_CHV6|UE_IPV6;
 		ue_ip->pool_v6 = p;
 		break;
 
@@ -615,7 +614,7 @@ pfcp_session_destroy_teid(struct pfcp_session *s, struct traffic_endpoint *te,
 	gtpu_send_end_marker(srv, t);
 
 teid_del:
-	pfcp_bpf_teid_action(r, RULE_DEL, t, &te->ue_ip);
+	pfcp_bpf_teid_action(r, RULE_DEL, t, &s->ue_ip);
 	pfcp_teid_free(t);
 	return 0;
 }
@@ -723,10 +722,13 @@ pfcp_session_create_far(struct pfcp_session *s, struct far *far,
 		ipv4.s_addr = ohc->ip_address.v4.s_addr;
 		t = pfcp_teid_alloc_static(r->teid, interface, ntohl(ohc->teid), &ipv4, NULL);
 		if (t) {
-			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS)
+			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS) {
+				__set_bit(PFCP_TEID_F_INGRESS, &t->flags);
 				far->dst_te->teid[PFCP_DIR_INGRESS] = t;
-			else
-				pfcp_teid_free(t);
+				return 0;
+			}
+
+			pfcp_teid_free(t);
 		}
 	}
 
@@ -794,18 +796,22 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 			if (pfcpsm_flags && pfcpsm_flags->sndem)
 				sndem = 1;
 			pfcp_session_destroy_teid(s, te, t, sndem);
+			te->teid[PFCP_DIR_INGRESS] = NULL;
 		}
 	}
 
-	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {
+	if (ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {
 		ipv4.s_addr = ohc->ip_address.v4.s_addr;
 		t = pfcp_teid_alloc_static(r->teid, interface,
 					   ntohl(ohc->teid), &ipv4, NULL);
 		if (t) {
-			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS)
+			if (far->dst_interface == PFCP_SRC_INTERFACE_TYPE_ACCESS) {
+				__set_bit(PFCP_TEID_F_INGRESS, &t->flags);
 				far->dst_te->teid[PFCP_DIR_INGRESS] = t;
-			else
-				pfcp_teid_free(t);
+				return 0;
+			}
+
+			pfcp_teid_free(t);
 		}
 	}
 
@@ -1205,7 +1211,7 @@ pfcp_session_bpf_action(struct pfcp_session *s, int action)
 
 		for (j = 0; j < PFCP_DIR_MAX; j++)
 			pfcp_session_bpf_teid_action(s, te->teid[j],
-						     &te->ue_ip, action);
+						     &s->ue_ip, action);
 	}
 
 	return 0;

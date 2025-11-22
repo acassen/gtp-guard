@@ -107,7 +107,7 @@ _set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_addre
 					   u, sizeof (u), BPF_NOEXIST);
 		if (err) {
 			log_message(LOG_INFO, "pfcp_bpf: cannot insert "
-				    "user_ingress v4 teid 0x%08x (%m)", u[0].teid);
+				    "user_ingress v4 teid 0x%.8x (%m)", t->id);
 			return -1;
 		}
 	}
@@ -121,7 +121,7 @@ _set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_addre
 					   u, sizeof (u), BPF_NOEXIST);
 		if (err) {
 			log_message(LOG_INFO, "pfcp_bpf: cannot insert "
-				    "user_ingress v6 teid 0x%08x (%m)", u[0].teid);
+				    "user_ingress v6 teid 0x%.8x (%m)", t->id);
 			return -1;
 		}
 	}
