@@ -24,6 +24,7 @@
 #include "ip_pool.h"
 #include "command.h"
 #include "bitops.h"
+#include "table.h"
 
 
 /* Extern data */
@@ -207,6 +208,9 @@ DEFUN(show_ip_pool,
 {
 	struct gtp_ip_pool *p;
 	const char *name = NULL;
+	struct table *tbl;
+	struct ip_pool *pool;
+	char addr_str[INET6_ADDRSTRLEN];
 
 	if (list_empty(&daemon_data->ip_pool)) {
 		vty_out(vty, "%% No ip-pool configured...");
@@ -216,13 +220,29 @@ DEFUN(show_ip_pool,
 	if (argc == 1)
 		name = argv[0];
 
+	tbl = table_init(6, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "Name", "Prefix", "inuse", "total",
+			 "% used", "% fill-up");
+	table_set_column_align(tbl, ALIGN_CENTER, ALIGN_RIGHT,
+			       ALIGN_RIGHT, ALIGN_RIGHT,
+			       ALIGN_RIGHT, ALIGN_RIGHT);
+
 	list_for_each_entry(p, &daemon_data->ip_pool, next) {
-		if (name && strncmp(p->name, name, GTP_NAME_MAX_LEN))
+		if (name && !strstr(p->name, name))
 			continue;
 
-		vty_out(vty, "ip-pool(%s): (%s)%s"
-			   , p->name, p->description, VTY_NEWLINE);
+		pool = p->pool;
+		table_add_row_fmt(tbl, "%s|%s/%d|%u|%u|%.2f%%|%.2f%%"
+				     , p->name
+				     , addr_stringify(&pool->prefix, addr_str, INET6_ADDRSTRLEN)
+				     , pool->prefix_bits
+				     , pool->used
+				     , pool->size
+				     , (pool->used * 100.0) / pool->size
+				     , (pool->next_lease_idx * 100.0) / pool->size);
 	}
+	table_vty_out(tbl, vty);
+	table_destroy(tbl);
 
 	return CMD_SUCCESS;
 }
