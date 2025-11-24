@@ -199,8 +199,8 @@ _rule_set_key_base(struct gtp_bpf_interface_rule *bir, int ifindex, struct gtp_i
 	case GTP_INTERFACE_TUN_IPIP:
 		k->tun_local = addr_toip4(&r->from->tunnel_local);
 		k->tun_remote = addr_toip4(&r->from->tunnel_remote);
-		k->flags = r->from->tunnel_mode ? IF_RULE_FL_TUNNEL_GRE :
-			IF_RULE_FL_TUNNEL_IPIP;
+		k->flags = r->from->tunnel_mode == GTP_INTERFACE_TUN_GRE ?
+			IF_RULE_FL_TUNNEL_GRE : IF_RULE_FL_TUNNEL_IPIP;
 		break;
 	default:
 		return -1;
@@ -460,21 +460,19 @@ gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set)
 	struct gtp_interface *master = iface->link_iface ?: iface;
 	struct gtp_bpf_interface_rule *bir = master->bpf_irules;
 
-	if (bir != NULL) {
-		struct gtp_if_rule ifr = {
-			.from = iface,
-			.action = XDP_IFR_DEFAULT_ROUTE,
-			.prio = 900,
-		};
+	if (bir == NULL)
+		return;
 
-		if (set) {
-			_if_dynrule_attr_add(master->bpf_irules, iface);
-			_if_rule_add(bir, &ifr, master->ifindex);
-		} else {
-			_if_rule_del(bir, &ifr, master->ifindex);
-			_if_dynrule_attr_del(master->bpf_irules, iface);
-		}
-	}
+	struct gtp_if_rule ifr = {
+		.from = iface,
+		.action = XDP_IFR_DEFAULT_ROUTE,
+		.prio = 900,
+	};
+
+	if (set)
+		_if_rule_add(bir, &ifr, master->ifindex);
+	else
+		_if_rule_del(bir, &ifr, master->ifindex);
 }
 
 

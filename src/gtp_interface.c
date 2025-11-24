@@ -316,14 +316,14 @@ gtp_interface_stop(struct gtp_interface *iface)
 		return;
 	}
 
+	_trigger_event_wide(iface, GTP_INTERFACE_EV_PRG_UNBIND, iface->bpf_prog);
+	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_STOP, iface);
+
 	/* stop bpf-program */
 	gtp_bpf_prog_detach(iface->bpf_prog, iface);
 
 	log_message(LOG_INFO, "Success detaching bpf-program:'%s' from interface:'%s'"
 			    , iface->bpf_prog->name, iface->ifname);
-
-	_trigger_event_wide(iface, GTP_INTERFACE_EV_PRG_UNBIND, iface->bpf_prog);
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_STOP, iface);
 }
 
 /* add 'slave' as a sub-interface of 'master' */
