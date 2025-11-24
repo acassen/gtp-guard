@@ -80,7 +80,7 @@ pfcp_teid_cmp(struct pfcp_teid *a, uint32_t id, struct in_addr *ipv4,
 
 	if (ip4_cmp && !__addr_ip4_equal(&a->ipv4, ipv4))
 		return -1;
-		
+
 	if (ip6_cmp && !__addr_ip6_equal(&a->ipv6, ipv6))
 		return -1;
 

@@ -49,7 +49,7 @@ _encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
 	if (bpf_xdp_adjust_head(d->ctx, -adjust_sz) < 0)
 		return XDP_ABORTED;
 
-	d->flags |= IF_RULE_FL_XDP_ADJUSTED | IF_RULE_FL_FILL_IPV4_SADDR;
+	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
 
 	data = (void *)(long)d->ctx->data;
 	data_end = (void *)(long)d->ctx->data_end;
@@ -71,13 +71,13 @@ _encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
 	iph->frag_off = 0;
 	iph->ttl = 64;
 	iph->check = 0;
-	iph->saddr = 0;		/* filled by fib_lookup() */
+	iph->saddr = u->gtpu_local_addr;
 	iph->daddr = u->gtpu_remote_addr;
 	csum_ipv4(iph, sizeof(*iph), &csum);
 	iph->check = csum;
 
 	pkt_len -= sizeof(*iph);
-	udph->source = bpf_htons(GTPU_PORT);
+	udph->source = u->gtpu_local_port;
 	udph->dest = u->gtpu_remote_port;
 	udph->len = bpf_htons(pkt_len);
 	udph->check = 0;	/* hardware checksum feature, save us! */
@@ -93,6 +93,9 @@ _encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
 	/* metrics */
 	++u->packets;
 	u->bytes += pkt_len;
+
+	/* bpf_printk("encap l3 to gtpu teid 0x%08x endpt %pI4 => %pI4", */
+	/* 	   bpf_ntohl(u->teid), &iph->saddr, &iph->daddr); */
 
 	return XDP_IFR_FORWARD;
 
@@ -180,9 +183,12 @@ _handle_gtpu(struct if_rule_data *d, struct iphdr *iph, struct udphdr *udph)
 
 	/* lookup user */
 	k.teid = gtph->teid;
-	k.gtpu_remote_addr = iph->saddr;
-	k.gtpu_remote_port = udph->source;
+	k.gtpu_remote_addr = iph->daddr;
+	k.gtpu_remote_port = udph->dest;
 	u = bpf_map_lookup_elem(&user_egress, &k);
+	/* bpf_printk("lookup %pI4:%d teid:%x => %p", &iph->daddr, */
+	/* 	   bpf_ntohs(udph->dest), */
+	/* 	   bpf_ntohl(k.teid), u); */
 	if (u == NULL)
 		return XDP_PASS;
 
