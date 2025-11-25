@@ -165,6 +165,9 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 	bool xlat_before = false, xlat_after = false;
 	uint32_t local;
 
+	if (ctx->bpf_irules == NULL)
+		return;
+
 	if ((ctx->ipip_xlat == 2 && ingress) ||
 	    (ctx->ipip_xlat == 1 && !ingress) ||
 	    ctx->ipip_xlat == 3)
@@ -334,12 +337,10 @@ gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 	log_message(LOG_DEBUG, "iface:%s ipip event %d\n", iface->ifname, type);
 
 	switch (type) {
-	case GTP_INTERFACE_EV_PRG_BIND:
-	case GTP_INTERFACE_EV_START:
+	case GTP_INTERFACE_EV_PRG_START:
 		ctx->ipip_bind = true;
 		break;
-	case GTP_INTERFACE_EV_PRG_UNBIND:
-	case GTP_INTERFACE_EV_STOP:
+	case GTP_INTERFACE_EV_PRG_STOP:
 	case GTP_INTERFACE_EV_DESTROYING:
 		ctx->ipip_bind = false;
 		break;

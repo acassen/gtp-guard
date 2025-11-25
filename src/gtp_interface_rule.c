@@ -34,12 +34,20 @@
 #include "bpf/lib/if_rule-def.h"
 
 
-/* single rule */
+/* input rule */
 struct stored_rule {
 	struct gtp_if_rule		r;
 	bool				installed;
 	struct list_head		list;
 	struct hlist_node		hlist;
+};
+
+/* output rule */
+struct output_rule {
+	struct gtp_interface		*iface;
+	int				refcnt;
+	bool				installed;
+	struct list_head		list;
 };
 
 /* bpf data, per bpf program */
@@ -50,15 +58,13 @@ struct gtp_bpf_interface_rule {
 	/* single rule that ends up in bpf map */
 	int				key_size;
 	void				*key_cur;
-	//key_stringify_t		key_stringify_cb;
 	bool				rule_list_sorted;
 	struct list_head		rule_list;
 	struct hlist_head		rule_hlist[IF_RULE_MAX_RULE];
 
 	/* started interfaces attached to this bpf-program */
-	struct gtp_interface		**ifaces;
-	int				ifaces_msize;
-	int				ifaces_n;
+	struct list_head		out_rule_list;
+	bool				out_rule_list_sorted;
 };
 
 
@@ -150,6 +156,8 @@ _rule_store(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r)
 	struct stored_rule *sr;
 
 	sr = calloc(1, sizeof (*sr) + r->key_size);
+	if (sr == NULL)
+		return NULL;
 	sr->r = *r;
 	sr->r.key = sr + 1;
 	memcpy(sr + 1, r->key, r->key_size);
@@ -250,9 +258,9 @@ _rule_install(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r,
 	ar->table_id = r->table_id ?: r->from ? r->from->table_id : 0;
 	ar->force_ifindex = r->force_ifindex;
 
-	printf("add acl if:%d vlan:%d ip-table:%d tun:%d/%x/%x sizeof:%d\n",
-	       k->ifindex, k->vlan_id, ar->table_id,
-	       k->flags, k->tun_local, k->tun_remote, r->key_size);
+	/* printf("add input rule if:%d vlan:%d ip-table:%d tun:%d/%x/%x\n", */
+	/*        k->ifindex, k->vlan_id, ar->table_id, */
+	/*        k->flags, k->tun_local, k->tun_remote); */
 
 	for (i = 1; i < nr_cpus; i++)
 		aar[i] = aar[0];
@@ -261,7 +269,7 @@ _rule_install(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r,
 				   ar, sizeof (aar),
 				   overwrite ? 0 : BPF_NOEXIST);
 	if (ret) {
-		printf("cannot %s rule! (%d / %m)\n",
+		log_message(LOG_ERR, "cannot %s rule! (%d / %m)",
 		       overwrite ? "update" : "add", ret);
 		return -1;
 	}
@@ -276,7 +284,7 @@ _rule_uninstall(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r)
 
 	ret = bpf_map__delete_elem(bir->if_rule, r->key, r->key_size, 0);
 	if (ret)
-		printf("cannot delete rule! (%d / %m)\n", ret);
+		log_message(LOG_ERR, "cannot delete rule! (%d / %m)", ret);
 }
 
 static int
@@ -302,6 +310,8 @@ _if_rule_add(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r, int ifin
 			sr->installed = false;
 	}
 	sr = _rule_store(bir, r);
+	if (sr == NULL)
+		return -1;
 	sr->installed = ret == 0;
 
 	return 0;
@@ -345,7 +355,7 @@ gtp_interface_rule_set(struct gtp_if_rule *r, bool add)
 
 
 static void
-gtp_interface_rule_del_iface(struct gtp_interface *iface)
+_rule_del_iface(struct gtp_interface *iface)
 {
 	struct gtp_bpf_interface_rule *bir;
 	struct stored_rule *sr, *sr_tmp;
@@ -366,28 +376,48 @@ gtp_interface_rule_del_iface(struct gtp_interface *iface)
 
 
 /*
- *	dynamic routing
+ *	Output rules
  */
 
-static void
-_if_dynrule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *iface)
+static int
+_out_rule_sort_cb(struct list_head *al, struct list_head *bl)
 {
+	struct output_rule *a = container_of(al, struct output_rule, list);
+	struct output_rule *b = container_of(bl, struct output_rule, list);
+
+	if (a->iface->ifindex < b->iface->ifindex)
+		return -1;
+	if (a->iface->ifindex > b->iface->ifindex)
+		return 1;
+	return 0;
+}
+
+
+static void
+_out_rule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *iface)
+{
+	struct output_rule *or;
 	struct if_rule_attr a;
-	int ifindex, ret, i;
+	int ifindex, ret;
 
-	for (i = 0; i < bir->ifaces_n; i++)
-		if (bir->ifaces[i] == iface)
+	list_for_each_entry(or, &bir->out_rule_list, list) {
+		if (or->iface == iface) {
+			or->refcnt++;
+			if (!or->installed)
+				goto install;
 			return;
-
-	if (bir->ifaces_n >= bir->ifaces_msize) {
-		bir->ifaces_msize = !bir->ifaces_msize ? 4 : bir->ifaces_msize * 2;
-		bir->ifaces = realloc(bir->ifaces,
-				      bir->ifaces_msize * sizeof (*bir->ifaces));
-		if (bir->ifaces == NULL)
-			return;
+		}
 	}
-	bir->ifaces[bir->ifaces_n++] = iface;
+	or = malloc(sizeof (*or));
+	if (or == NULL)
+		return;
+	or->iface = iface;
+	or->refcnt = 1;
+	or->installed = false;
+	list_add(&or->list, &bir->out_rule_list);
+	bir->out_rule_list_sorted = false;
 
+ install:
 	ifindex = iface->ifindex;
 	_rule_set_attr(iface, &a);
 	ret = bpf_map__update_elem(bir->if_rule_attr,
@@ -395,37 +425,46 @@ _if_dynrule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *i
 				   &a, sizeof (a),
 				   BPF_NOEXIST);
 	if (ret) {
-		printf("cannot insert rule_attr ifindex:%d (%d / %m)\n",
+		log_message(LOG_ERR, "cannot insert rule_attr ifindex:%d (%d / %m)",
 		       ifindex, ret);
+	} else {
+		or->installed = true;
 	}
 }
 
 static void
-_if_dynrule_attr_del(struct gtp_bpf_interface_rule *bir, struct gtp_interface *iface)
+_out_rule_attr_del(struct gtp_bpf_interface_rule *bir, struct gtp_interface *iface)
 {
-	int ifindex, ret, i;
+	struct output_rule *or;
+	int ifindex, ret;
 
-	for (i = 0; i < bir->ifaces_n; i++) {
-		if (bir->ifaces[i] == iface) {
-			bir->ifaces[i] = bir->ifaces[--bir->ifaces_n];
+	list_for_each_entry(or, &bir->out_rule_list, list) {
+		if (or->iface == iface) {
+			if (--or->refcnt == 0)
+				goto uninstall;
 			break;
 		}
 	}
-	if (i == bir->ifaces_n)
-		return;
+	return;
 
-	ifindex = iface->ifindex;
-	ret = bpf_map__delete_elem(bir->if_rule_attr,
-				   &ifindex, sizeof (ifindex), 0);
-	if (ret) {
-		printf("cannot delete rule_attr ifindex:%d (%d / %m)\n",
-		       ifindex, ret);
+ uninstall:
+	if (or->installed) {
+		ifindex = iface->ifindex;
+		ret = bpf_map__delete_elem(bir->if_rule_attr,
+					   &ifindex, sizeof (ifindex), 0);
+		if (ret) {
+			log_message(LOG_ERR, "cannot delete rule_attr "
+				    "ifindex:%d (%d / %m)\n", ifindex, ret);
+		}
 	}
+	list_del(&or->list);
+	free(or);
 }
 
+
 static void
-_if_dynrule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
-		    void *udata, void *arg)
+_out_rule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
+		      void *udata, void *arg)
 {
 	struct gtp_bpf_interface_rule *bir = udata;
 	struct gtp_interface *child = arg;
@@ -438,19 +477,15 @@ _if_dynrule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
 		.prio = 900,
 	};
 
-	if (type == GTP_INTERFACE_EV_START) {
-		/* printf("add dyn rule on %s:%d (master %s)\n", */
-		/*        child->ifname, child->ifindex, iface->ifname); */
-		_if_dynrule_attr_add(bir, child);
+	if (type == GTP_INTERFACE_EV_PRG_START) {
+		_out_rule_attr_add(bir, child);
 		if (def_route)
 			_if_rule_add(bir, &ifr, iface->ifindex);
 
-	} else if (type == GTP_INTERFACE_EV_STOP) {
-		/* printf("del dyn rule on %s:%d (master %s)\n", */
-		/*        child->ifname, child->ifindex, iface->ifname); */
+	} else if (type == GTP_INTERFACE_EV_PRG_STOP) {
 		if (def_route)
 			_if_rule_del(bir, &ifr, iface->ifindex);
-		_if_dynrule_attr_del(bir, child);
+		_out_rule_attr_del(bir, child);
 	}
 }
 
@@ -483,42 +518,79 @@ gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set)
 int
 gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg)
 {
-	struct gtp_bpf_interface_rule *r = gtp_bpf_prog_tpl_data_get(p, "if_rules");
-	struct gtp_interface *iface;
+	struct gtp_bpf_interface_rule *bir = gtp_bpf_prog_tpl_data_get(p, "if_rules");
+	struct gtp_interface *to;
+	struct if_rule_attr a;
+	struct output_rule *or;
 	char b1[60], b2[60];
 	int ifindex = 0, err;
-	struct if_rule_attr a;
 	struct vty *vty = arg;
+	struct table *tbl;
 
-	if (r == NULL)
+	if (bir == NULL)
 		return 0;
 
-	while (!bpf_map__get_next_key(r->if_rule_attr, &ifindex, &ifindex,
-				      sizeof (ifindex))) {
-		err = bpf_map__lookup_elem(r->if_rule_attr, &ifindex, sizeof (ifindex),
+	tbl = table_init(3, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column_align(tbl, ALIGN_LEFT, ALIGN_LEFT, ALIGN_LEFT);
+	table_set_column(tbl, "output iface", "encapsulate with", "to iface");
+
+	if (!bir->out_rule_list_sorted) {
+		list_sort(&bir->out_rule_list, _out_rule_sort_cb);
+		bir->out_rule_list_sorted = true;
+	}
+
+	list_for_each_entry(or, &bir->out_rule_list, list) {
+		ifindex = or->iface->ifindex;
+
+		err = bpf_map__lookup_elem(bir->if_rule_attr, &ifindex, sizeof (ifindex),
 					   &a, sizeof (a), 0);
-		if (err) {
+		if (err && errno == EEXIST) {
+			vty_out(vty, "%% !!! Missing ifindex:%d in bpf map "
+				"'if_rule_attr'\n", ifindex);
+			break;
+		} else if (err) {
 			vty_out(vty, "%% error fetching value from table (%m)\n");
 			break;
 		}
 
-		iface = gtp_interface_get_by_ifindex(ifindex, false);
-		vty_out(vty, "%8s (if:%d) => ", iface ? iface->ifname : "<unset>",
-			ifindex);
+		if (!(a.flags & IF_RULE_FL_TUNNEL_MASK)) {
+			to = gtp_interface_get_by_ifindex(a.ifindex, false);
+			b1[0] = 0;
+			if (a.vlan_id)
+				snprintf(b1, sizeof (b1), "vlan:%d", a.vlan_id);
+			table_add_row_fmt(tbl, "(if:%d) %s|%s|(if:%d) %s",
+					  ifindex, or->iface->ifname, b1,
+					  a.ifindex, to ? to->ifname : "<unset>");
+			continue;
+		}
 
-		if (a.flags & IF_RULE_FL_TUNNEL_MASK) {
-			vty_out(vty, "%s local:%s remote:%s\n",
-				a.flags & IF_RULE_FL_TUNNEL_GRE ? "gre" : "ipip",
-				inet_ntop(AF_INET, &a.tun_local, b1, sizeof (b1)),
-				inet_ntop(AF_INET, &a.tun_remote, b2, sizeof (b2)));
+		table_add_row_fmt(tbl, "(if:%d) %s|%s local:%s remote:%s|%s",
+				  ifindex, or->iface->ifname,
+				  a.flags & IF_RULE_FL_TUNNEL_GRE ? "gre" : "ipip",
+				  inet_ntop(AF_INET, &a.tun_local, b1, sizeof (b1)),
+				  inet_ntop(AF_INET, &a.tun_remote, b2, sizeof (b2)),
+				  "fib_lookup");
+	}
 
-		} else {
-			iface = gtp_interface_get_by_ifindex(a.ifindex, false);
-			vty_out(vty, "%s (if:%d), vlan:%d\n",
-				iface ? iface->ifname : "<unset>",
-				a.ifindex, a.vlan_id);
+	/* check for consistency */
+	ifindex = 0;
+	while (!bpf_map__get_next_key(bir->if_rule_attr, &ifindex, &ifindex,
+				      sizeof (ifindex))) {
+		bool found = false;
+		list_for_each_entry(or, &bir->out_rule_list, list) {
+			if (or->iface->ifindex == ifindex) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			vty_out(vty, "%% !!! Unexpected ifindex:%d in bpf map "
+				"'if_rule_attr'\n", ifindex);
 		}
 	}
+
+	table_vty_out(tbl, vty);
+	table_destroy(tbl);
 
 	return 0;
 }
@@ -700,6 +772,7 @@ gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 		if (bir->key_cur == NULL)
 			return -1;
 		INIT_LIST_HEAD(&bir->rule_list);
+		INIT_LIST_HEAD(&bir->out_rule_list);
 	}
 
 	return 0;
@@ -709,8 +782,13 @@ static void
 gtp_ifrule_release(struct gtp_bpf_prog *p, void *udata)
 {
 	struct gtp_bpf_interface_rule *bir = udata;
+	struct stored_rule *sr, *sr_tmp;
+	struct output_rule *or, *or_tmp;
 
-	free(bir->ifaces);
+	list_for_each_entry_safe(sr, sr_tmp, &bir->rule_list, list)
+		free(sr);
+	list_for_each_entry_safe(or, or_tmp, &bir->out_rule_list, list)
+		free(or);
 	free(bir->key_cur);
 	free(bir);
 }
@@ -722,8 +800,7 @@ gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *i
 
 	iface->bpf_irules = bir;
 
-	_if_dynrule_event_cb(iface, GTP_INTERFACE_EV_START, bir, iface);
-	gtp_interface_register_event(iface, _if_dynrule_event_cb, bir);
+	gtp_interface_register_event(iface, _out_rule_event_cb, bir);
 
 	return 0;
 }
@@ -733,9 +810,8 @@ gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface 
 {
 	struct gtp_bpf_interface_rule *bir = udata;
 
-	_if_dynrule_event_cb(iface, GTP_INTERFACE_EV_STOP, bir, iface);
-	gtp_interface_unregister_event(iface, _if_dynrule_event_cb, bir);
-	gtp_interface_rule_del_iface(iface);
+	gtp_interface_unregister_event(iface, _out_rule_event_cb, bir);
+	_rule_del_iface(iface);
 
 	iface->bpf_irules = NULL;
 }

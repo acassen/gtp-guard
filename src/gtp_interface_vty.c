@@ -156,6 +156,25 @@ DEFUN(interface_bpf_prog,
 	struct gtp_interface *iface = vty->index;
 	struct gtp_bpf_prog *p;
 
+	/* BPF-program should only be attached to 'physical' interfaces, in
+	 * native mode, for best perfomance. Attaching to veth is also ok for testing.
+	 * Warn user if trying to attach to vlan/tunnel interface. */
+	if (iface->vlan_id) {
+		vty_out(vty, "%% Warning: attaching bpf:%s to vlan interface:%s is "
+			"not the right gtp-guard way.\n"
+			"You should attach bpf-program only to its master interface '%s'.\n",
+			argv[0], iface->ifname,
+			iface->link_iface ? iface->link_iface->ifname : "<unset>");
+	}
+	if (iface->tunnel_mode) {
+		vty_out(vty, "%% Warning: attaching bpf:%s to tunnel interface:%s is "
+			"not the right gtp-guard way.\n"
+			"You should attach bpf-program to physical interfaces where "
+			"traffic is expected to come from/come to,\nand this tunnel will "
+			"install rules to catch traffic for it.\n",
+			argv[0], iface->ifname);
+	}
+
 	p = gtp_bpf_prog_get(argv[0]);
 	if (!p) {
 		vty_out(vty, "%% unknown bpf-program:'%s'%s", argv[0], VTY_NEWLINE);

@@ -599,6 +599,7 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 				bpf_link__destroy(iface->bpf_xdp_lnk);
 				iface->bpf_xdp_lnk = NULL;
 			}
+			return -1;
 		}
 	}
 

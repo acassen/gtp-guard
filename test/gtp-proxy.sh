@@ -323,7 +323,7 @@ gtp-proxy gtpp-undertest
 show interface
 show bpf forwarding
 show interface-rule all
-show interface-rule installed
+show interface-rule input
 "
 }
 
@@ -374,7 +374,7 @@ gtp-proxy gtpp-undertest-$i
 show interface
 show bpf forwarding
 show interface-rule all
-show interface-rule installed
+show interface-rule input
 "
 }
 
@@ -388,6 +388,10 @@ no gtp-proxy all
 "
 
     gtpg_conf "
+interface ptun
+ bpf-packet input disable-rule
+ no shutdown
+
 interface gtpp1.100
  no shutdown
  exit
@@ -407,9 +411,6 @@ interface gtpp2
 interface gtpp2.100
  no shutdown
 
-interface ptun
- bpf-packet input disable-rule
- no shutdown
 " || fail "cannot execute vty commands"
 
     for i in `seq 0 $((gtp_proxy_count-1))`; do
@@ -431,7 +432,8 @@ gtp-proxy gtpp-undertest-$i
 show interface
 show bpf forwarding
 show interface-rule all
-show interface-rule installed
+show interface-rule input
+show interface-rule output
 "
 }
 
@@ -485,7 +487,7 @@ gtp-proxy gtpp-undertest-$i
 show interface
 show bpf forwarding
 show interface-rule all
-show interface-rule installed
+show interface-rule input
 "
 }
 

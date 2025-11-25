@@ -254,7 +254,7 @@ DEFUN(show_bpf_prog,
 
 DEFUN(show_bpf_interface_rule,
       show_bpf_interface_rule_cmd,
-      "show interface-rule (installed|all|attr) [BPFPROG]",
+      "show interface-rule (all|input|output) [BPFPROG]",
       SHOW_STR
       "Interface rules\n"
       "Show installed rules\n"
@@ -277,9 +277,9 @@ DEFUN(show_bpf_interface_rule,
 		return CMD_SUCCESS;
 	}
 
-	gtp_bpf_prog_foreach_prog(!strcmp(argv[0], "installed") ?
+	gtp_bpf_prog_foreach_prog(!strcmp(argv[0], "input") ?
 				  gtp_interface_rule_show :
-				  !strcmp(argv[0], "attr") ?
+				  !strcmp(argv[0], "output") ?
 				  gtp_interface_rule_show_attr :
 				  gtp_interface_rule_show_stored,
 				  vty, "if_rules");
