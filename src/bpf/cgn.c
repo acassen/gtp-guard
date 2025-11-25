@@ -3,6 +3,11 @@
 #include "lib/if_rule.h"
 #include "lib/cgn.h"
 
+/*
+ * caution: CGN drops all trafic that isn't forwarded.
+ *          nothing is sent back to kernel.
+ *          do not set it up on your administrative interface.
+ */
 
 SEC("xdp")
 int cgn_entry(struct xdp_md *ctx)
@@ -22,8 +27,6 @@ int cgn_entry(struct xdp_md *ctx)
 		}
 		if (ret == 0)
 			action = XDP_IFR_FORWARD;
-		else if (ret == 3)
-			action = XDP_PASS;
 		else
 			action = XDP_DROP;
 	}

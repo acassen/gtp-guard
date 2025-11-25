@@ -276,8 +276,8 @@ cgn_bpf_user_full_dump(struct cgn_ctx *c, uint32_t addr, char *buf, size_t s)
 
 		k += scnprintf(buf + k, s - k,
 			       " bl[%d] used flows  : %lld / %d [%d-%d]\n",
-			       i, bl->refcnt, bl_flow_max, bl->cgn_port_start,
-			       bl->cgn_port_start + c->block_size);
+			       i, bl->refcnt, bl_flow_max,
+			       bl->cgn_port_start, bl->cgn_port_start + c->block_size);
 	}
 
 	k += scnprintf(buf + k, s - k, "user flows:\n");
@@ -547,7 +547,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 		bpf_map__update_elem(m, &i, sizeof (i),
 				     d, block_msize, 0);
 
-		k = htonl(c->cgn_addr[i]);
+		k = c->cgn_addr[i];
 		bpf_map__update_elem(c->v4_pool_addr, &k, sizeof (k),
 				     &uu, sizeof (uu), 0);
 
