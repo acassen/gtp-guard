@@ -27,7 +27,7 @@ struct {
 const volatile __u64 icmp_timeout = FLOW_DEFAULT_TIMEOUT;
 
 
-static inline __u64
+static __always_inline __u64
 flow_udp_timeout_ns(__u16 port)
 {
 	__u32 k = port;
@@ -39,7 +39,7 @@ flow_udp_timeout_ns(__u16 port)
 	return FLOW_DEFAULT_TIMEOUT;
 }
 
-static inline __u64
+static __always_inline __u64
 flow_tcp_timeout_ns(__u16 port, __u8 state)
 {
 	__u32 k = (1 << 16) | port;
@@ -54,13 +54,7 @@ flow_tcp_timeout_ns(__u16 port, __u8 state)
 	return FLOW_DEFAULT_TIMEOUT;
 }
 
-static inline __u64
-flow_icmp_timeout_ns(void)
-{
-	return icmp_timeout;
-}
-
-static inline __u64
+static __always_inline __u64
 flow_timeout_ns(__u8 proto, __u16 port, __u8 state)
 {
 	switch (proto) {
@@ -70,8 +64,9 @@ flow_timeout_ns(__u8 proto, __u16 port, __u8 state)
 		return flow_tcp_timeout_ns(port, state);
 	case IPPROTO_ICMP:
 	case IPPROTO_ICMPV6:
+		return (__u64)icmp_timeout;
 	default:
-		return flow_icmp_timeout_ns();
+		return FLOW_DEFAULT_TIMEOUT;
 	}
 }
 

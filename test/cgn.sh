@@ -432,7 +432,7 @@ cdr-fwd cgn
  spool-path /tmp/spool
  instance-id 2
  remote 127.0.0.1:1900
- no shutdown
+! no shutdown
 
 bpf-program cgn-ng-1
  path bin/cgn.bpf
@@ -441,6 +441,8 @@ bpf-program cgn-ng-1
 carrier-grade-nat cgn-ng-1
  description trop_bien
  ipv4-pool 37.141.0.0/24
+ protocol timeout icmp 2
+ protocol timeout udp 2
 ! interface priv side ingress
 ! interface pub side egress
  cdr-fwd cgn
@@ -464,6 +466,12 @@ interface pub
 show interface
 show carrier-grade-nat flows 10.0.0.1
 "
+    sleep 4
+
+    gtpg_show "
+show carrier-grade-nat flows 10.0.0.1
+"
+
 }
 
 
