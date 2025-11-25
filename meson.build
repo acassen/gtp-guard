@@ -21,6 +21,15 @@ add_project_arguments('-Wstrict-prototypes', language: 'c')
 add_project_arguments('-Wno-extra', language: 'c')
 add_project_arguments('-ggdb', language: 'c')
 
+# config.h header
+build_date = run_command('date', '+%Y/%m/%d', check: true).stdout().strip()
+conf_data = configuration_data()
+conf_data.set('VERSION', meson.project_version())
+conf_data.set('BUILD_DATE', build_date)
+configure_file(input : 'lib/config.h.in',
+               output : 'config.h',
+               configuration : conf_data)
+
 # get programs to compile ebpf
 clang = find_program('clang', required: true)
 llc = find_program('llc', required: true)
