@@ -140,16 +140,16 @@ pfcp-router pfcp-1
  debug teid add ingress 1 192.168.61.2 10.0.0.1
  debug teid add ingress 2 192.168.61.2 1234::1
  debug teid add ingress 3 192.168.61.2 10.0.0.2 1234::2
- debug teid add egress 17 192.168.61.2
- debug teid add egress 18 192.168.61.2
- debug teid add egress 19 192.168.61.2
+ debug teid add egress 17 192.168.61.1
+ debug teid add egress 18 192.168.61.1
+ debug teid add egress 19 192.168.61.1
 " || fail "cannot execute vty commands"
 
     gtpg_show "
 show running-config
 show interface
 show interface-rule all
-show interface-rule installed
+show interface-rule input
 show bpf pfcp
 "
 }

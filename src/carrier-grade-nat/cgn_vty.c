@@ -173,57 +173,57 @@ DEFUN(cgn_block_conf_pool,
 
 DEFUN(cgn_protocol_conf_pool,
       cgn_protocol_conf_cmd,
-      "protocol (icmp|udp) TIMEOUT",
+      "protocol timeout (icmp|udp) TIMEOUT",
       "Configure protocol timeout\n")
 {
 	struct cgn_ctx *c = vty->index;
 
 	if (!strcmp(argv[0], "icmp"))
-		c->timeout_icmp = max(atoi(argv[1]), 20);
+		c->timeout_icmp = max(atoi(argv[1]), 3);
 	else
-		c->timeout.udp = max(atoi(argv[1]), 20);
+		c->timeout.udp = max(atoi(argv[1]), 3);
 
 	return CMD_SUCCESS;
 }
 
 DEFUN(cgn_protocol_tcp_conf_pool,
       cgn_protocol_tcp_conf_cmd,
-      "protocol tcp TIMEOUT synfin STO",
+      "protocol timeout tcp TIMEOUT synfin STO",
       "Configure tcp protocol timeout\n")
 {
 	struct cgn_ctx *c = vty->index;
 
-	c->timeout.tcp_est = max(atoi(argv[0]), 60);
-	c->timeout.tcp_synfin = max(atoi(argv[1]), 20);
+	c->timeout.tcp_est = max(atoi(argv[0]), 10);
+	c->timeout.tcp_synfin = max(atoi(argv[1]), 3);
 
 	return CMD_SUCCESS;
 }
 
 DEFUN(cgn_protocol_udp_port_conf_pool,
       cgn_protocol_udp_port_conf_cmd,
-      "protocol udp TIMEOUT port PORT",
+      "protocol timeout udp TIMEOUT port PORT",
       "Configure udp protocol timeout by port\n")
 {
 	struct cgn_ctx *c = vty->index;
 
 	uint16_t port = atoi(argv[1]);
 	if (port)
-		c->timeout_by_port[port].udp = max(atoi(argv[0]), 20);
+		c->timeout_by_port[port].udp = max(atoi(argv[0]), 3);
 
 	return CMD_SUCCESS;
 }
 
 DEFUN(cgn_protocol_tcp_port_conf_pool,
       cgn_protocol_tcp_port_conf_cmd,
-      "protocol tcp TIMEOUT synfin STO port PORT",
+      "protocol timeout tcp TIMEOUT synfin STO port PORT",
       "Configure tcp protocol timeout by port\n")
 {
 	struct cgn_ctx *c = vty->index;
 
 	uint16_t port = atoi(argv[2]);
 	if (port) {
-		c->timeout_by_port[port].tcp_est = max(atoi(argv[0]), 60);
-		c->timeout_by_port[port].tcp_synfin = max(atoi(argv[1]), 20);
+		c->timeout_by_port[port].tcp_est = max(atoi(argv[0]), 10);
+		c->timeout_by_port[port].tcp_synfin = max(atoi(argv[1]), 3);
 	}
 
 	return CMD_SUCCESS;

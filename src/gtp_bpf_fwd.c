@@ -275,6 +275,7 @@ gtp_bpf_fwd_release(struct gtp_bpf_prog *p, void *udata)
 	list_for_each_entry_safe(proxy, tmp, &pf->gtp_proxy_list, bpf_list) {
 		proxy->bpf_prog = NULL;
 		proxy->bpf_data = NULL;
+		proxy->bpf_irules = NULL;
 		list_del_init(&proxy->bpf_list);
 	}
 	free(pf);

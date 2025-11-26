@@ -89,13 +89,18 @@ _set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_addre
 	uint32_t nr_cpus = bpf_num_possible_cpus();
 	struct upf_user_ingress u[nr_cpus];
 	struct upf_user_ingress_key key = {};
+	union addr *local;
 	int i, err;
+
+	local = (union addr *)pfcp_session_get_addr_by_interface(r, t->interface);
 
 	memset(u, 0x00, sizeof (u));
 	for (i = 0; i < nr_cpus; i++) {
 		u[i].teid = htonl(t->id);
 		u[i].gtpu_remote_addr = t->ipv4.s_addr;
 		u[i].gtpu_remote_port = htons(GTP_U_PORT);
+		u[i].gtpu_local_addr = addr_toip4(local);
+		u[i].gtpu_local_port = htons(addr_get_port(local));
 	}
 
 	if (ue->flags & UE_IPV4) {
@@ -234,16 +239,16 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 	struct upf_user_ingress_key ik = {};
 	struct upf_user_egress eu[nr_cpus];
 	struct upf_user_ingress iu[nr_cpus];
-	union addr addr, addr_ue;
-	char buf1[26], buf2[40];
+	union addr addr, laddr, addr_ue;
+	char buf1[26], buf2[40], buf3[26];
 	uint32_t key = 0;
 	int err = 0, i;
 
 	if (!bd || !bd->user_ingress || !bd->user_egress)
 		return -1;
 
-	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
-	table_set_column(tbl, "TEID", "UE Endpoint", "GTP-U Endpoint",
+	tbl = table_init(6, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "TEID", "UE Endpoint", "GTP-U Remote E.", "GTP-U Local E.",
 			 "Packets", "Bytes");
 
 	vty_out(vty, "bpf-program '%s', ingress:\n", p->name);
@@ -269,10 +274,13 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 			addr_fromip6b(&addr_ue, ik.ue_addr.ip6.addr);
 		addr_fromip4(&addr, iu[0].gtpu_remote_addr);
 		addr_set_port(&addr, ntohs(iu[0].gtpu_remote_port));
-		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
+		addr_fromip4(&laddr, iu[0].gtpu_local_addr);
+		addr_set_port(&laddr, ntohs(iu[0].gtpu_local_port));
+		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%s|%lld|%lld",
 				  ntohl(iu[0].teid),
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
+				  addr_stringify(&laddr, buf3, sizeof (buf3)),
 				  iu[0].packets, iu[0].bytes);
 	}
 	table_vty_out(tbl, vty);

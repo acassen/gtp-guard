@@ -550,7 +550,7 @@ pfcp_session_get_gtp_server_by_interface(struct pfcp_router *r, uint8_t interfac
 	return srv;
 }
 
-static struct sockaddr_storage *
+struct sockaddr_storage *
 pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 {
 	struct gtp_server *srv;

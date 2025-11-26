@@ -64,40 +64,61 @@ gtp_interface_trigger_event(struct gtp_interface *iface,
 }
 
 static void
-_trigger_event_wide(struct gtp_interface *iface,
-		    enum gtp_interface_event type, void *arg)
+_trigger_on_change(struct gtp_interface *iface, enum gtp_interface_event type)
 {
-	struct gtp_interface *if_tmp;
+	struct gtp_interface *master;
 
-	/* trigger on iface, and all running sub-interfaces / tunnels */
-	gtp_interface_trigger_event(iface, type, arg);
-	list_for_each_entry(if_tmp, &daemon_data->interfaces, next) {
-		if (_iface_running(if_tmp) &&
-		    (if_tmp->tunnel_mode || if_tmp->link_iface == iface))
-			gtp_interface_trigger_event(if_tmp, type, arg);
+	if (iface->tunnel_mode) {
+		/* for itself */
+		gtp_interface_trigger_event(iface, type, iface);
+
+		/* for each running master */
+		list_for_each_entry(master, &daemon_data->interfaces, next) {
+			if (master->bpf_prog && _iface_running(master))
+				gtp_interface_trigger_event(master, type, iface);
+		}
+		return;
 	}
-}
 
-static void
-_trigger_event_on_all_bpf_iface(struct gtp_interface *iface,
-				enum gtp_interface_event type)
-{
-	struct gtp_interface *if_tmp;
-
-	/* trigger on all bpf-prog interfaces that may be master of 'iface' */
-	list_for_each_entry(if_tmp, &daemon_data->interfaces, next) {
-		if (if_tmp->bpf_prog && _iface_running(if_tmp) &&
-		    (iface->tunnel_mode || iface->link_iface == if_tmp))
-			gtp_interface_trigger_event(if_tmp, type, iface);
+	if (iface->bpf_prog == NULL) {
+		master = iface->link_iface;
+		if (master && master->bpf_prog && _iface_running(master)) {
+			gtp_interface_trigger_event(iface, type, master);
+			gtp_interface_trigger_event(master, type, iface);
+		}
+		return;
 	}
-}
 
+	master = iface;
+
+	/* on itself */
+	if (type == GTP_INTERFACE_EV_PRG_START)
+		gtp_interface_trigger_event(master, type, master);
+
+	list_for_each_entry(iface, &daemon_data->interfaces, next) {
+		if (!_iface_running(iface))
+			continue;
+
+		/* tunnels */
+		if (iface->tunnel_mode)
+			gtp_interface_trigger_event(master, type, iface);
+
+		/* linked interfaces (vlan) */
+		if (iface->link_iface == master) {
+			gtp_interface_trigger_event(iface, type, master);
+			gtp_interface_trigger_event(master, type, iface);
+		}
+	}
+
+	if (type != GTP_INTERFACE_EV_PRG_START)
+		gtp_interface_trigger_event(master, type, master);
+}
 
 void
 gtp_interface_register_event(struct gtp_interface *iface,
 			     gtp_interface_event_cb_t cb, void *ud)
 {
-	struct gtp_interface *if_tmp, *iprg;
+	struct gtp_interface *master;
 
 	if (iface->ev_n >= iface->ev_msize) {
 		iface->ev_msize = !iface->ev_msize ? 8 : iface->ev_msize * 2;
@@ -109,19 +130,31 @@ gtp_interface_register_event(struct gtp_interface *iface,
 	iface->ev[iface->ev_n].cb_ud = ud;
 	++iface->ev_n;
 
-	/* send PRG_BIND if iface bpf is already started */
-	iprg = iface->link_iface ?: iface;
-	if (iprg->bpf_prog && _iface_running(iprg))
-		gtp_interface_trigger_event(iprg, GTP_INTERFACE_EV_PRG_BIND,
-					    iprg->bpf_prog);
+	if (!_iface_running(iface))
+		return;
 
-	/* send START if there is some started sub-interfaces or tunnels */
-	list_for_each_entry(if_tmp, &daemon_data->interfaces, next) {
-		if (_iface_running(if_tmp) &&
-		    (if_tmp->link_iface == iface || if_tmp->tunnel_mode)) {
-			gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_START,
-						    if_tmp);
-		}
+	/* immediately trigger start event on this callback, as if this
+	 * interface was just started */
+
+	if (iface->tunnel_mode) {
+		cb(iface, GTP_INTERFACE_EV_PRG_START, ud, iface);
+		return;
+	}
+
+	if (iface->bpf_prog == NULL) {
+		master = iface->link_iface;
+		if (master && master->bpf_prog && _iface_running(master))
+			cb(iface, GTP_INTERFACE_EV_PRG_START, ud, master);
+		return;
+	}
+
+	cb(iface, GTP_INTERFACE_EV_PRG_START, ud, iface);
+	master = iface;
+
+	list_for_each_entry(iface, &daemon_data->interfaces, next) {
+		if (_iface_running(iface) && (iface->tunnel_mode ||
+					      iface->link_iface == iface))
+			cb(master, GTP_INTERFACE_EV_PRG_START, ud, iface);
 	}
 }
 
@@ -266,7 +299,7 @@ gtp_interface_start(struct gtp_interface *iface)
 	if (!p) {
 		__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
 		log_message(LOG_INFO, "gtp_interface: started '%s'", iface->ifname);
-		_trigger_event_on_all_bpf_iface(iface, GTP_INTERFACE_EV_START);
+		_trigger_on_change(iface, GTP_INTERFACE_EV_PRG_START);
 		return 0;
 	}
 
@@ -294,8 +327,7 @@ gtp_interface_start(struct gtp_interface *iface)
 	}
 
 	__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
-
-	_trigger_event_wide(iface, GTP_INTERFACE_EV_PRG_BIND, p);
+	_trigger_on_change(iface, GTP_INTERFACE_EV_PRG_START);
 
 	return 0;
 }
@@ -308,11 +340,11 @@ gtp_interface_stop(struct gtp_interface *iface)
 		return;
 
 	__clear_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
+	_trigger_on_change(iface, GTP_INTERFACE_EV_PRG_STOP);
 
 	/* no bpf-program attached */
 	if (iface->bpf_prog == NULL) {
 		log_message(LOG_INFO, "gtp_interface: stopped '%s'", iface->ifname);
-		_trigger_event_on_all_bpf_iface(iface, GTP_INTERFACE_EV_STOP);
 		return;
 	}
 
@@ -321,9 +353,6 @@ gtp_interface_stop(struct gtp_interface *iface)
 
 	log_message(LOG_INFO, "Success detaching bpf-program:'%s' from interface:'%s'"
 			    , iface->bpf_prog->name, iface->ifname);
-
-	_trigger_event_wide(iface, GTP_INTERFACE_EV_PRG_UNBIND, iface->bpf_prog);
-	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_STOP, iface);
 }
 
 /* add 'slave' as a sub-interface of 'master' */
@@ -389,10 +418,10 @@ gtp_interface_destroy(struct gtp_interface *iface)
 {
 	struct gtp_interface *if_child;
 
-	log_message(LOG_INFO, "gtp_interface: deleting '%s'", iface->ifname);
-
 	gtp_interface_stop(iface);
 	gtp_interface_trigger_event(iface, GTP_INTERFACE_EV_DESTROYING, NULL);
+
+	log_message(LOG_INFO, "gtp_interface: deleted '%s'", iface->ifname);
 
 	list_for_each_entry(if_child, &daemon_data->interfaces, next) {
 		if (if_child->link_iface == iface)

@@ -55,7 +55,6 @@ struct {
 #define IF_RULE_FL_SRC_IPV6		0x0001
 #define IF_RULE_FL_DST_IPV6		0x0002
 #define IF_RULE_FL_XDP_ADJUSTED		0x0004
-#define IF_RULE_FL_FILL_IPV4_SADDR	0x0008
 
 struct if_rule_data
 {
@@ -274,6 +273,7 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 	__u32 flags;
 
 	if (d->r->force_ifindex) {
+		/* can only be used to enter a tunnel */
 		fibp.ifindex = d->r->force_ifindex;
 		fibl_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
 
@@ -291,7 +291,7 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 			fibp.ipv4_dst = d->dst_addr.ip4;
 		}
 
-		flags = BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC;
+		flags = BPF_FIB_LOOKUP_DIRECT;
 		if (d->r->table_id) {
 			flags |= BPF_FIB_LOOKUP_TBID;
 			fibp.tbid = d->r->table_id;
@@ -306,33 +306,21 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 #ifdef IF_RULE_DEBUG
 		if (d->flags & IF_RULE_FL_DST_IPV6) {
 			bpf_printk("bpf_fib_lookup(%d): dst:%pI6 if:%d->%d "
-				   "from %pI6 nh %pI6 mac_src:%02x mac_dst:%02x",
+				   "nh %pI6 mac_src:%02x mac_dst:%02x",
 				   fibl_ret, d->dst_addr.ip6.addr4, ctx->ingress_ifindex,
-				   fibp.ifindex, fibp.ipv6_src, fibp.ipv6_dst,
+				   fibp.ifindex, fibp.ipv6_dst,
 				   fibp.smac[5], fibp.dmac[5]);
 		} else {
 			bpf_printk("bpf_fib_lookup(%d): dst:%pI4 if:%d->%d "
-				   "from %pI4 nh %pI4 mac_src:%02x mac_dst:%02x",
+				   "nh %pI4 mac_src:%02x mac_dst:%02x",
 				   fibl_ret, &d->dst_addr.ip4, ctx->ingress_ifindex,
-				   fibp.ifindex, &fibp.ipv4_src, &fibp.ipv4_dst,
+				   fibp.ifindex, &fibp.ipv4_dst,
 				   fibp.smac[5], fibp.dmac[5]);
 		}
 #endif
 		if (fibl_ret != BPF_FIB_LKUP_RET_SUCCESS &&
 		    fibl_ret != BPF_FIB_LKUP_RET_NO_NEIGH)
 			return XDP_DROP;
-
-		if (d->flags & IF_RULE_FL_FILL_IPV4_SADDR) {
-			struct iphdr *ip4h = (void *)(long)ctx->data + d->pl_off;
-			if (d->pl_off > 256 ||
-			    (void *)(ip4h + 1) > (void *)(long)ctx->data_end)
-				return XDP_DROP;
-			if (!ip4h->saddr) {
-				ip4h->saddr = fibp.ipv4_src;
-				__u32 sum = csum_diff32(0, 0, ip4h->saddr);
-				ip4h->check = csum_replace(ip4h->check, sum);
-			}
-		}
 	}
 
 	/* retrieve output interface attributes */

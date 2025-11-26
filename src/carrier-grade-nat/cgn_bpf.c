@@ -189,7 +189,7 @@ _flow_print(struct cgn_ctx *c, char *buf, size_t s,
 {
 	struct cgn_v4_flow_priv f;
 	char spriv[100], scgn[100], spub[100];
-	uint64_t now_ns, timeout;
+	uint64_t now_ns, timeout, upd_ns;
 	struct timespec ts;
 	int ret, k = 0;
 	uint32_t a;
@@ -206,10 +206,11 @@ _flow_print(struct cgn_ctx *c, char *buf, size_t s,
 		return 0;
 	}
 
+	upd_ns = f.updated;
 	timeout = _flow_timeout_ns(c, fk->proto, fk->pub_port, f.proto_state);
-	k += scnprintf(buf + k, s - k, "   %4s  %4lld  ",
+	k += scnprintf(buf + k, s - k, "   %4s  %4ld  ",
 		       proto_to_str(fk->proto),
-		       (f.updated + timeout - now_ns) / NSEC_PER_SEC);
+		       (int64_t)(upd_ns + timeout - now_ns) / NSEC_PER_SEC);
 
 	a = ntohl(fk->priv_addr);
 	inet_ntop(AF_INET, &a, spriv, sizeof (spriv));
@@ -275,8 +276,8 @@ cgn_bpf_user_full_dump(struct cgn_ctx *c, uint32_t addr, char *buf, size_t s)
 
 		k += scnprintf(buf + k, s - k,
 			       " bl[%d] used flows  : %lld / %d [%d-%d]\n",
-			       i, bl->refcnt, bl_flow_max, bl->cgn_port_start,
-			       bl->cgn_port_start + c->block_size);
+			       i, bl->refcnt, bl_flow_max,
+			       bl->cgn_port_start, bl->cgn_port_start + c->block_size);
 	}
 
 	k += scnprintf(buf + k, s - k, "user flows:\n");
@@ -431,7 +432,7 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 		return 1;
 
 	/* set consts */
-	icmp_to = c->timeout_icmp * NSEC_PER_SEC;
+	icmp_to = (uint64_t)c->timeout_icmp * NSEC_PER_SEC;
 	uint32_t bl_flow_max = c->flow_per_user / c->block_per_user;
 	struct gtp_bpf_prog_var consts_var[] = {
 		{ .name = "ipbl_n", .value = &c->cgn_addr_n,
@@ -546,7 +547,7 @@ cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 		bpf_map__update_elem(m, &i, sizeof (i),
 				     d, block_msize, 0);
 
-		k = htonl(c->cgn_addr[i]);
+		k = c->cgn_addr[i];
 		bpf_map__update_elem(c->v4_pool_addr, &k, sizeof (k),
 				     &uu, sizeof (uu), 0);
 

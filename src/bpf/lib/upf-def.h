@@ -17,8 +17,9 @@ struct upf_user_ingress_key {
 struct upf_user_ingress {
 	__be32		teid;
 	__be32		gtpu_remote_addr;
+	__be32		gtpu_local_addr;
 	__be16		gtpu_remote_port;
-	__u16		_pad[3];
+	__be16		gtpu_local_port;
 
 	__u64 		packets;
 	__u64 		bytes;

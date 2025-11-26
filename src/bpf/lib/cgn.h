@@ -471,7 +471,7 @@ _block_release(struct cgn_user *u, struct cgn_v4_ipblock *ipbl,
 	block_n = u->block_n;
 	if (block_n < 1 || block_n > bl_user_max)
 		goto bug;
-	for (i = 0 ; i < block_n - 1; i++) {
+	bpf_for(i, 0, block_n - 1) {
 		if (u->ipblock_idx == ipbl->ipbl_idx &&
 		    u->block_idx[i] == bl->bl_idx)
 			break;
@@ -754,7 +754,7 @@ _flow_alloc(struct cgn_user *u, struct cgn_packet *pp)
 		return NULL;
 	}
 	if (ret > 0) {
-		bpf_printk("racy block alloc");
+		bpf_printk("racy block alloc, abort");
 		pp->racy = 1;
 		return NULL;
 	}
@@ -891,7 +891,6 @@ cgn_flow_handle_priv(struct cgn_packet *cp)
 			f = _flow_alloc_with_cgn_port(u, cp, hf->cgn_port);
 			if (f == NULL)
 				f = _flow_alloc(u, cp);
-			f = NULL;
 		} else {
 			f = _flow_alloc(u, cp);
 		}
@@ -1281,8 +1280,8 @@ cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 	cp->dst_addr = bpf_ntohl(ip4h->daddr);
 	payload = (void *)ip4h + ip4h->ihl * 4;
 
-	bpf_printk("priv:%d parse proto: %d dst: %x ihl %d/%d", from_priv,
-		   cp->proto, ip4h->daddr, ip4h->ihl, ip4h->version);
+	CGN_DBG("priv:%d parse proto: %d dst: %pI4 ihl %d/%d", from_priv,
+		cp->proto, &ip4h->daddr, ip4h->ihl, ip4h->version);
 
 	switch (cp->proto) {
 	case IPPROTO_UDP:
@@ -1336,10 +1335,9 @@ cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 	if (from_priv == 0 || from_priv == 2) {
 		ret = cgn_flow_handle_pub(cp);
 		if (!ret) {
-			ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, payload,
-						  cp->dst_addr, cp->dst_port);
 			d->dst_addr.ip4 = bpf_htonl(cp->dst_addr);
-			return ret;
+			return cgn_pkt_rewrite_dst(ctx, cp, ip4h, payload,
+						   cp->dst_addr, cp->dst_port);
 		}
 		if (cp->from_priv == 0)
 			return ret;
@@ -1347,9 +1345,9 @@ cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
 
 	ret = cgn_flow_handle_priv(cp);
 	if (!ret) {
-		ret = cgn_pkt_rewrite_src(ctx, cp, ip4h, payload,
-					  cp->src_addr, cp->src_port);
 		d->dst_addr.ip4 = bpf_htonl(cp->dst_addr);
+		return cgn_pkt_rewrite_src(ctx, cp, ip4h, payload,
+					   cp->src_addr, cp->src_port);
 	}
 
 	return ret;
