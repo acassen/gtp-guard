@@ -9,6 +9,7 @@ bpf_sources = files(
   'gtp_mirror.c',
   'cgn.c',
   'upf.c',
+  'upf_cgn.c',
   'test_cgn.c',
 )
 

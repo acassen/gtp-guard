@@ -58,7 +58,6 @@ struct {
 
 struct if_rule_data
 {
-	struct xdp_md		*ctx;
 	struct if_rule_key	k;
 	struct if_rule		*r;
 	__u16			flags;
@@ -69,13 +68,14 @@ struct if_rule_data
 
 
 static __always_inline int
-_acl_ipv4(struct if_rule_data *d, rule_selector_t rscb, struct iphdr *iph)
+_acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
+	  rule_selector_t rscb, struct iphdr *iph)
 {
 	struct if_rule_key_base *k = &d->k.b;
 	int action = XDP_PASS;
 
 	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%pI4|%pI4",
-		d->ctx->ingress_ifindex, k->ifindex, k->vlan_id,
+		ctx->ingress_ifindex, k->ifindex, k->vlan_id,
 		&k->tun_local, &k->tun_remote);
 
 #ifdef IF_RULE_CUSTOM_KEY
@@ -102,18 +102,18 @@ _acl_ipv4(struct if_rule_data *d, rule_selector_t rscb, struct iphdr *iph)
 	IFR_DBG("got the rule! action:%d table:%d", d->r->action, d->r->table_id);
 
 	d->r->pkt_in++;
-	d->r->bytes_in += d->ctx->data_end - d->ctx->data;
+	d->r->bytes_in += ctx->data_end - ctx->data;
 
 	return d->r->action;
 }
 
 static __always_inline int
-_acl_ipv6(struct if_rule_data *d, struct ipv6hdr *ip6h)
+_acl_ipv6(struct xdp_md	*ctx, struct if_rule_data *d, struct ipv6hdr *ip6h)
 {
 	struct if_rule_key_base *k = &d->k.b;
 
 	IFR_DBG("acl: in6 if:%d, searching if:%d vlan:%d",
-		d->ctx->ingress_ifindex, k->ifindex, k->vlan_id);
+		ctx->ingress_ifindex, k->ifindex, k->vlan_id);
 
 	d->r = bpf_map_lookup_elem(&if_rule, k);
 
@@ -123,7 +123,7 @@ _acl_ipv6(struct if_rule_data *d, struct ipv6hdr *ip6h)
 	IFR_DBG("got the 6rule! action:%d table:%d", d->r->action, d->r->table_id);
 
 	d->r->pkt_in++;
-	d->r->bytes_in += d->ctx->data_end - d->ctx->data;
+	d->r->bytes_in += ctx->data_end - ctx->data;
 
 	return d->r->action;
 }
@@ -145,10 +145,9 @@ _acl_ipv6(struct if_rule_data *d, struct ipv6hdr *ip6h)
  *   - returns XDP_PASS on unsupported protocols
  *   - returns XDP_DROP on invalid packets
  */
-static __attribute__((noinline)) int
-if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
+static __always_inline int
+if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rscb)
 {
-	struct xdp_md *ctx = d->ctx;
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
 	struct ethhdr *ethh = data;
@@ -201,7 +200,7 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 			if ((void *)(ip4h_in + 1) > data_end)
 				return XDP_DROP;
 			d->pl_off = offset;
-			return _acl_ipv4(d, rscb, ip4h_in);
+			return _acl_ipv4(ctx, d, rscb, ip4h_in);
 		}
 
 		/* may be a gre tunnel */
@@ -224,7 +223,7 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 				d->pl_off = offset;
 				switch (gre->proto) {
 				case __constant_htons(ETH_P_IP):
-					return _acl_ipv4(d, rscb, ip4h_in);
+					return _acl_ipv4(ctx, d, rscb, ip4h_in);
 				default:
 					return XDP_PASS;
 				}
@@ -233,7 +232,7 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 
 		/* handle this ipv4 payload */
 		d->pl_off = offset;
-		return _acl_ipv4(d, rscb, ip4h);
+		return _acl_ipv4(ctx, d, rscb, ip4h);
 
 	case __constant_htons(ETH_P_IPV6):
 		ip6h = data + offset;
@@ -245,7 +244,7 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
 
 		d->pl_off = offset;
 		d->flags |= IF_RULE_FL_SRC_IPV6;
-		return _acl_ipv6(d, ip6h);
+		return _acl_ipv6(ctx, d, ip6h);
 
 	default:
 		return XDP_PASS;
@@ -260,21 +259,21 @@ if_rule_parse_pkt(struct if_rule_data *d, rule_selector_t rscb)
  * if packet is going to be processed locally, then return XDP_PASS
  * before.
  */
-static __attribute__((noinline)) int
-if_rule_rewrite_pkt(struct if_rule_data *d)
+static __always_inline int
+if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	struct xdp_md *ctx = d->ctx;
 	const struct if_rule_key_base *k = &d->k.b;
 	struct bpf_fib_lookup fibp;
 	struct if_rule_attr *a, *ia;
+	struct if_rule *r = d->r;
 	void *data, *data_end, *payload;
 	struct ethhdr *ethh;
 	int fibl_ret, adjust_sz;
 	__u32 flags;
 
-	if (d->r->force_ifindex) {
+	if (r->force_ifindex) {
 		/* can only be used to enter a tunnel */
-		fibp.ifindex = d->r->force_ifindex;
+		fibp.ifindex = r->force_ifindex;
 		fibl_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
 
 	} else {
@@ -292,9 +291,9 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 		}
 
 		flags = BPF_FIB_LOOKUP_DIRECT;
-		if (d->r->table_id) {
+		if (r->table_id) {
 			flags |= BPF_FIB_LOOKUP_TBID;
-			fibp.tbid = d->r->table_id;
+			fibp.tbid = r->table_id;
 		}
 
 		fibl_ret = bpf_fib_lookup(ctx, &fibp, sizeof (fibp), flags);
@@ -455,7 +454,7 @@ if_rule_rewrite_pkt(struct if_rule_data *d)
 	}
 
 	/* metrics */
-	d->r->pkt_fwd++;
+	r->pkt_fwd++;
 
 	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);

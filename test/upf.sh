@@ -95,19 +95,29 @@ setup_split() {
     ip netns exec internet ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
-
 run_split_combined() {
     # start gtp-guard if not yet started
     start_gtpguard
 
     gtpg_conf_nofail "
 no bpf-program upf-1
+no carrier-grade-nat upf-1
 no pfcp-router pfcp-1
 "
 
+    if [ $with_cgn == "no" ]; then
+	prg=upf.bpf
+    else
+	prg=upf_cgn.bpf
+	gtpg_conf "
+carrier-grade-nat upf-1
+ ipv4-pool 37.141.0.0/24
+" || fail "cannot configure cgn"
+    fi
+
     gtpg_conf "
     bpf-program upf-1 
- path bin/upf.bpf
+ path bin/$prg
  no shutdown
 " || fail "cannot load bpf program"
 
@@ -200,7 +210,7 @@ p = [Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
 Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   IP(src='192.168.61.2', dst='192.168.61.1') /
   UDP(sport=2152, dport=2152) /
-  GTP_U_Header(teid=17, gtp_type=255) /
+  GTP_U_Header(teid=18, gtp_type=255) /
   IPv6(src='1234::1',dst='8::8') /
   ICMPv6EchoRequest(id=99),
 ]
@@ -214,6 +224,7 @@ Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
 
 action=${1:-setup}
 type=${2:-combined}
+with_cgn=${3:-no}
 
 case $action in
     clean)
