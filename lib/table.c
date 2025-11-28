@@ -200,7 +200,10 @@ table_set_column(struct table *tbl, ...)
 		len = bsd_strlcpy(column->title, va_arg(args, const char *),
 				  TABLE_MAX_CELL_LEN);
 		tbl->columns[col].width = len;
-		tbl->columns[col].align = ALIGN_LEFT;  /* Default alignment */
+
+		/* Defailt alignment */
+		tbl->columns[col].align = ALIGN_LEFT;
+		tbl->columns[col].h_align = ALIGN_CENTER;
 	}
 	va_end(args);
 

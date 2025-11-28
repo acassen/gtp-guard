@@ -52,9 +52,9 @@ _log_egress_rule(int action, struct pfcp_teid *t, int err)
 		    "{local_teid:0x%.8x, remote_gtpu:'%s'} %s",
 		    (err) ? "Error " : "",
 		    (action == RULE_ADD) ? "adding" : "deleting",
-		     t->id,
-		     inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
-		     (err) ? "" : errmsg);
+		    t->id,
+		    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+		    (err) ? "" : errmsg);
 }
 
 static int
@@ -108,20 +108,20 @@ _log_ingress_rule(int action, int type, struct pfcp_teid *t, struct ue_ip_addres
 			    "{ue_ipv4:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
 			    (err) ? "Error " : "",
 			    (action == RULE_ADD) ? "adding" : "deleting",
-			     inet_ntop(AF_INET, &ue->v4, ue_str, INET6_ADDRSTRLEN),
-			     t->id,
-			     inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
-			     (err) ? "" : errmsg);
+			    inet_ntop(AF_INET, &ue->v4, ue_str, INET6_ADDRSTRLEN),
+			    t->id,
+			    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+			    (err) ? "" : errmsg);
 
 	if (type == UE_IPV6 && ue->flags & UE_IPV6)
 		log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
 			    "{ue_ipv6:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
 			    (err) ? "Error " : "",
 			    (action == RULE_ADD) ? "adding" : "deleting",
-			     inet_ntop(AF_INET6, &ue->v6, ue_str, INET6_ADDRSTRLEN),
-			     t->id,
-			     inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
-			     (err) ? "" : errmsg);
+			    inet_ntop(AF_INET6, &ue->v6, ue_str, INET6_ADDRSTRLEN),
+			    t->id,
+			    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+			    (err) ? "" : errmsg);
 }
 
 static int
@@ -154,7 +154,7 @@ _set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_addre
 		_log_ingress_rule(RULE_ADD, UE_IPV4, t, ue, err);
 	}
 
-	if (!err && ue->flags & UE_IPV6) {
+	if (ue->flags & UE_IPV6) {
 		key.flags = UE_IPV6;
 		memcpy(&key.ue_addr.ip6, &ue->v6, sizeof (ue->v6));
 
@@ -182,7 +182,7 @@ _unset_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_add
 		_log_ingress_rule(RULE_DEL, UE_IPV4, t, ue, err);
 	}
 
-	if (!err && ue->flags & UE_IPV6) {
+	if (ue->flags & UE_IPV6) {
 		key.flags = UE_IPV6;
 		memcpy(&key.ue_addr.ip6, &ue->v6, sizeof (ue->v6));
 
