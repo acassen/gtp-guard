@@ -353,11 +353,11 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p,
 	return 0;
 }
 
-int
-pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
+static void
+pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
+		int argc, const char **argv)
 {
-	struct pfcp_bpf_data *bd = gtp_bpf_prog_tpl_data_get(p, "upf");
-	struct vty *vty = arg;
+	struct pfcp_bpf_data *bd = ud;
 	struct table *tbl;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct upf_user_egress_key ek = {};
@@ -369,8 +369,8 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 	uint32_t key = 0;
 	int err = 0, i;
 
-	if (!bd || !bd->user_ingress || !bd->user_egress)
-		return -1;
+	if (!bd->user_ingress || !bd->user_egress)
+		return;
 
 	tbl = table_init(6, STYLE_SINGLE_LINE_ROUNDED);
 	table_set_column(tbl, "TEID", "UE Endpoint", "GTP-U Remote E.", "GTP-U Local E.",
@@ -441,8 +441,6 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
-
-	return 0;
 }
 
 
@@ -493,6 +491,7 @@ static struct gtp_bpf_prog_tpl pfcp_bpf_tpl = {
 	.alloc = pfcp_bpf_alloc,
 	.loaded = pfcp_bpf_load_maps,
 	.release = pfcp_bpf_release,
+	.vty_out = pfcp_bpf_vty,
 };
 
 static void __attribute__((constructor))

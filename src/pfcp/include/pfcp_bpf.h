@@ -41,4 +41,3 @@ int pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 int pfcp_bpf_session_action(struct pfcp_session *s, int action);
 int pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p,
 		      struct ue_ip_address *ue, struct pfcp_teid *t);
-int pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg);

@@ -49,5 +49,4 @@ struct gtp_teid_rule {
 int gtp_bpf_teid_action(struct gtp_proxy *, int action, struct gtp_teid *t);
 int gtp_bpf_fwd_teid_action(int, struct gtp_teid *);
 int gtp_bpf_fwd_teid_vty(struct vty *, struct gtp_teid *);
-int gtp_bpf_fwd_vty(struct gtp_bpf_prog *, void *);
 int gtp_bpf_fwd_teid_bytes(struct gtp_teid *, uint64_t *);

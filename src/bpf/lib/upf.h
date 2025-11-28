@@ -132,7 +132,7 @@ upf_handle_pubv6(struct if_rule_data *d)
 }
 
 /*
- *	Ingress direction (UE pov), traffic from internet
+ *	Ingress direction (UE pov), ipv4 traffic from internet
  */
 static __always_inline int
 upf_handle_pub(struct if_rule_data *d)

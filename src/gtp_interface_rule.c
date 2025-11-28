@@ -515,20 +515,15 @@ gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set)
  *	vty dump
  */
 
-int
-gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg)
+static void
+gtp_ifrule_vty_output(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 {
-	struct gtp_bpf_interface_rule *bir = gtp_bpf_prog_tpl_data_get(p, "if_rules");
 	struct gtp_interface *to;
 	struct if_rule_attr a;
 	struct output_rule *or;
 	char b1[60], b2[60];
 	int ifindex = 0, err;
-	struct vty *vty = arg;
 	struct table *tbl;
-
-	if (bir == NULL)
-		return 0;
 
 	tbl = table_init(3, STYLE_SINGLE_LINE_ROUNDED);
 	table_set_column_align(tbl, ALIGN_LEFT, ALIGN_LEFT, ALIGN_LEFT);
@@ -591,23 +586,19 @@ gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg)
 
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
-
-	return 0;
 }
 
-int
-gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg)
+static void
+gtp_ifrule_vty_input(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 {
-	struct gtp_bpf_interface_rule *bir = gtp_bpf_prog_tpl_data_get(p, "if_rules");
 	struct gtp_interface *from = NULL;
 	struct if_rule_key_base *k;
 	struct stored_rule *sr;
 	struct gtp_if_rule *r;
-	struct vty *vty = arg;
 	char buf[200], b1[60], b2[60];
 
-	if (bir == NULL || list_empty(&bir->rule_list))
-		return 0;
+	if (list_empty(&bir->rule_list))
+		return;
 
 	if (!bir->rule_list_sorted) {
 		list_sort(&bir->rule_list, _rule_sort_cb);
@@ -656,14 +647,11 @@ gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg)
 
 		vty_out(vty, "%s", VTY_NEWLINE);
 	}
-
-	return 0;
 }
 
-int
-gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
+static void
+gtp_ifrule_vty_all(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 {
-	struct gtp_bpf_interface_rule *bir = gtp_bpf_prog_tpl_data_get(p, "if_rules");
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct if_rule aar[nr_cpus];
 	struct if_rule *ar = &aar[0];
@@ -672,14 +660,10 @@ gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 	struct if_rule_key_base *k;
 	struct stored_rule *sr;
 	struct table *tbl;
-	struct vty *vty = arg;
 	char match[50], iface_buf[50], buf[200], b2[60];
 	void *key = NULL;
 	int i, l, err;
 	uint32_t h;
-
-	if (bir == NULL || bir->if_rule == NULL)
-		return 0;
 
 	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
 	table_set_column(tbl, "iface", "match", "pkt in", "bytes in", "pkt fwd");
@@ -747,14 +731,31 @@ gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg)
 
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
-	return 0;
 }
-
 
 
 /*
  *	eBPF template for interface
  */
+
+
+static void
+gtp_ifrule_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
+	       int argc, const char **argv)
+{
+	struct gtp_bpf_interface_rule *bir = ud;
+
+	if (bir->if_rule == NULL)
+		return;
+
+	if (!strcmp(argv[0], "input"))
+		gtp_ifrule_vty_input(bir, vty);
+	else if (!strcmp(argv[0], "output"))
+		gtp_ifrule_vty_output(bir, vty);
+	else if (!strcmp(argv[0], "all"))
+		gtp_ifrule_vty_all(bir, vty);
+}
+
 
 static int
 gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
@@ -825,6 +826,7 @@ static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 	.loaded = gtp_ifrule_loaded,
 	.iface_bind = gtp_ifrule_bind_itf,
 	.iface_unbind = gtp_ifrule_unbind_itf,
+	.vty_out = gtp_ifrule_vty,
 };
 
 static void __attribute__((constructor))

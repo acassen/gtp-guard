@@ -488,7 +488,7 @@ DEFUN(show_bpf_forwarding,
       SHOW_STR
       "BPF GTP Fowarding Dataplane ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(gtp_bpf_fwd_vty, vty, "gtp_fwd");
+	gtp_bpf_prog_foreach_vty("gtp_fwd", vty, argc, argv);
 	return CMD_SUCCESS;
 }
 

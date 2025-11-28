@@ -462,7 +462,7 @@ DEFUN(show_pfcp_bpf,
       SHOW_STR
       "BPF UPF Dataplane ruleset\n")
 {
-	gtp_bpf_prog_foreach_prog(pfcp_bpf_vty, vty, "upf");
+	gtp_bpf_prog_foreach_vty("upf", vty, argc, argv);
 	return CMD_SUCCESS;
 }
 

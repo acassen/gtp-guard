@@ -188,11 +188,12 @@ gtp_bpf_fwd_teid_bytes(struct gtp_teid *t, uint64_t *bytes)
 	return 0;
 }
 
-int
-gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
+
+static void
+gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
+		int argc, const char **argv)
 {
-	struct gtp_bpf_fwd_data *pf = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
-	struct vty *vty = arg;
+	struct gtp_bpf_fwd_data *pf = ud;
 	struct table *tbl;
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct gtp_teid_rule r[nr_cpus];
@@ -203,8 +204,8 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 	bool egress;
 	int err = 0, i;
 
-	if (!pf || !pf->teid_xlat)
-		return -1;
+	if (!pf->teid_xlat)
+		return;
 
 	tbl = table_init(6, STYLE_SINGLE_LINE_ROUNDED);
 	table_set_column(tbl, "VTEID", "TEID", "Endpoint Address",
@@ -247,11 +248,7 @@ gtp_bpf_fwd_vty(struct gtp_bpf_prog *p, void *arg)
 
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
-
-	return 0;
 }
-
-
 
 static void *
 gtp_bpf_fwd_alloc(struct gtp_bpf_prog *p)
@@ -300,6 +297,7 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_fwd = {
 	.alloc = gtp_bpf_fwd_alloc,
 	.release = gtp_bpf_fwd_release,
 	.loaded = gtp_bpf_fwd_load_maps,
+	.vty_out = gtp_bpf_fwd_vty,
 };
 
 static void __attribute__((constructor))

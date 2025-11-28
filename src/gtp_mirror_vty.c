@@ -37,16 +37,6 @@ extern struct data *daemon_data;
 
 
 /*
- *	VTY helpers
- */
-static int
-gtp_mirror_show(struct gtp_mirror *m, void *arg)
-{
-	return gtp_bpf_mirror_vty((struct vty *) arg, m->bpf_prog);
-}
-
-
-/*
  *	VTY command
  */
 DEFUN(mirror,
@@ -347,25 +337,11 @@ DEFUN(mirror_no_rule,
 /* Show */
 DEFUN(show_bpf_mirror,
       show_bpf_mirror_cmd,
-      "show bpf mirror [STRING]",
+      "show bpf mirror",
       SHOW_STR
       "mirror\n")
 {
-	struct gtp_mirror *m = NULL;
-
-	if (argc >= 1) {
-		m = gtp_mirror_get(argv[0]);
-		if (!m) {
-			vty_out(vty, "%% Unknown mirror:'%s'%s", argv[0], VTY_NEWLINE);
-			return CMD_WARNING;
-		}
-
-		gtp_mirror_show(m, vty);
-		gtp_mirror_put(m);
-		return CMD_SUCCESS;
-	}
-
-	gtp_mirror_foreach(gtp_mirror_show, vty);
+	gtp_bpf_prog_foreach_vty("gtp_mirror", vty, argc, argv);
 	return CMD_SUCCESS;
 }
 

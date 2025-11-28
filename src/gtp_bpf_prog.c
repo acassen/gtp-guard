@@ -912,6 +912,24 @@ gtp_bpf_prog_watch(struct gtp_bpf_prog *p)
  *	BPF progs related
  */
 void
+gtp_bpf_prog_foreach_vty(const char *mode, struct vty *vty, int argc, const char **argv)
+{
+	struct gtp_bpf_prog *p;
+	int i;
+
+	list_for_each_entry(p, &daemon_data->bpf_progs, next) {
+		for (i = 0; i < p->tpl_n; i++) {
+			if (!strcmp(mode, p->tpl[i]->name) &&
+			    p->tpl[i]->vty_out) {
+				p->tpl[i]->vty_out(p, p->tpl_data[i], vty,
+						   argc, argv);
+				break;
+			}
+		}
+	}
+}
+
+void
 gtp_bpf_prog_foreach_prog(int (*hdl) (struct gtp_bpf_prog *, void *), void *arg,
 			  const char *filter_mode)
 {
