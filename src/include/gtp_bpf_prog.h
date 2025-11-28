@@ -101,7 +101,6 @@ int gtp_bpf_prog_obj_update_var(struct bpf_object *,
 struct bpf_map *gtp_bpf_prog_load_map(struct bpf_object *, const char *);
 int gtp_bpf_prog_load(struct gtp_bpf_prog *p);
 int gtp_bpf_prog_attach(struct gtp_bpf_prog *, struct gtp_interface *);
-bool gtp_bpf_prog_is_attached(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_detach(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_unload(struct gtp_bpf_prog *);
 int gtp_bpf_prog_destroy(struct gtp_bpf_prog *);
