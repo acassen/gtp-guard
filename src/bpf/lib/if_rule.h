@@ -145,7 +145,7 @@ _acl_ipv6(struct xdp_md	*ctx, struct if_rule_data *d, struct ipv6hdr *ip6h)
  *   - returns XDP_PASS on unsupported protocols
  *   - returns XDP_DROP on invalid packets
  */
-static __always_inline int
+static __attribute__((noinline)) int
 if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rscb)
 {
 	void *data = (void *)(long)ctx->data;
@@ -259,7 +259,7 @@ if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rs
  * if packet is going to be processed locally, then return XDP_PASS
  * before.
  */
-static __always_inline int
+static __attribute__((noinline)) int
 if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 {
 	const struct if_rule_key_base *k = &d->k.b;

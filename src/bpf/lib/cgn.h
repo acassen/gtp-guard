@@ -1256,8 +1256,7 @@ _handle_pkt_icmp_error(struct cgn_packet *cp, struct iphdr *outer_ip4h,
  *   11: user alloc error
  *   12: flow alloc error
  */
-static __always_inline int
-/* static __attribute__((noinline)) int */
+static __attribute__((noinline)) int
 cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 {
 	void *data = (void *)(long)ctx->data;
