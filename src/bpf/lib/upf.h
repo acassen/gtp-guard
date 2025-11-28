@@ -232,7 +232,7 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 /*
  *	Egress direction (UE pov), traffic from GTP-U endpoint
  */
-static __always_inline int
+static __attribute__((noinline)) int
 upf_handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d)
 {
 	void *data = (void *)(long)ctx->data;
@@ -262,7 +262,7 @@ upf_handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d)
 /*
  *	Choose between gtp-u and l3 side
  */
-static __always_inline int
+static __attribute__((noinline)) int
 upf_traffic_selector(struct xdp_md *ctx, struct if_rule_data *d)
 {
 	void *data = (void *)(long)ctx->data;
