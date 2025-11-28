@@ -287,7 +287,7 @@ DEFUN(bpf_prog_no_shutdown,
 {
 	struct gtp_bpf_prog *p = vty->index;
 
-	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags)) {
+	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) && p->run.obj) {
 		vty_out(vty, "%% bpf-program:'%s' is already running%s"
 			   , p->name
 			   , VTY_NEWLINE);

@@ -100,22 +100,6 @@ _get_datasec_type(struct bpf_object *obj, const char *datasec_name, void **out_d
 	const char *name;
 
 	name = datasec_name;
-#if 0
-	/* sometimes '.rodata' is called 'prgnam.rodata' ? */
-	/* XXX: if it's the case, re-enable this code */
-	bpf_object__for_each_map(map, obj) {
-		if (strstr(bpf_map__name(map), datasec_name)) {
-			name = bpf_map__name(map);
-			break;
-		}
-	}
-	if (!name) {
-		log_message(LOG_INFO, "%s(): cant find DATASEC=%s !!!",
-			    __FUNCTION__, datasec_name);
-		errno = ENOENT;
-		return NULL;
-	}
-#endif
 
 	/* this open() subskeleton is only here to retrieve map's mmap address
 	 * libbpf doesn't provide other way to get this address */
@@ -539,6 +523,7 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 
 /*
  * load bpf program. returns:
+ *   -2 is shutdown
  *   -1 on error
  *    0 on success (or already running)
  *    1 if prepare() template cb says it's not ready for loading
@@ -547,6 +532,9 @@ int
 gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 {
 	int ret;
+
+	if (__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags))
+		return -2;
 
 	if (!p->run.obj && ((ret = gtp_bpf_prog_open(p)) ||
 			    (ret = gtp_bpf_prog_prepare(p)) ||
@@ -612,14 +600,6 @@ gtp_bpf_prog_attach(struct gtp_bpf_prog *p, struct gtp_interface *iface)
 		}
 
 	return 0;
-}
-
-bool
-gtp_bpf_prog_is_attached(struct gtp_bpf_prog *p, struct gtp_interface *iface)
-{
-	return (iface->bpf_prog == p &&
-		(iface->bpf_xdp_lnk || iface->bpf_tc_lnk)) ||
-		(iface->link_iface && gtp_bpf_prog_is_attached(p, iface->link_iface));
 }
 
 
