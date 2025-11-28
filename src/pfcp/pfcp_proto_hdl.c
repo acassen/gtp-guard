@@ -266,7 +266,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	}
 
 	/* Data-Path setup */
-	err = pfcp_session_bpf_action(s, RULE_ADD);
+	err = pfcp_bpf_session_action(s, RULE_ADD);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
 				    , __FUNCTION__);
@@ -324,7 +324,7 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	}
 
 	/* Data-Path setup */
-	err = pfcp_session_bpf_action(s, RULE_ADD);
+	err = pfcp_bpf_session_action(s, RULE_ADD);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
 				    , __FUNCTION__);

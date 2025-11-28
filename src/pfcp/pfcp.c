@@ -31,7 +31,7 @@ int
 pfcp_init(void)
 {
 	pfcp_assoc_init();
-	pfcp_sessions_int();
+	pfcp_sessions_init();
 	return 0;
 }
 

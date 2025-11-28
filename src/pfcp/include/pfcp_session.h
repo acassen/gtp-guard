@@ -173,9 +173,12 @@ struct pfcp_session *pfcp_session_get(uint64_t id);
 struct pfcp_session *pfcp_session_alloc(struct gtp_conn *c,
 					struct gtp_apn *apn,
 					struct pfcp_router *r);
+
+int pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af);
+int pfcp_session_release_ue_ip(struct pfcp_session *s);
 int pfcp_session_destroy(struct pfcp_session *s);
 int pfcp_sessions_free(struct gtp_conn *c);
-int pfcp_sessions_int(void);
+int pfcp_sessions_init(void);
 int pfcp_sessions_destroy(void);
 int pfcp_session_create(struct pfcp_session *s,
 			struct pfcp_session_establishment_request *req,

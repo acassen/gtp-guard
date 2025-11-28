@@ -22,7 +22,6 @@
 #include <assert.h>
 
 #include "gtp_bpf_prog.h"
-#include "gtp_interface.h"
 #include "gtp_interface_rule.h"
 #include "gtp_data.h"
 #include "gtp.h"
@@ -34,9 +33,7 @@
 #include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
-#include "memory.h"
 #include "logger.h"
-#include "utils.h"
 
 /* Extern data */
 extern struct data *daemon_data;
