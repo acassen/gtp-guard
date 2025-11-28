@@ -28,27 +28,27 @@
 SEC("xdp")
 int gtp_fwd_main(struct xdp_md *ctx)
 {
-	struct if_rule_data d = { .ctx = ctx };
+	struct if_rule_data d = { };
 	int action, ret;
 
-	action = if_rule_parse_pkt(&d, gtp_fwd_rule_selection);
+	action = if_rule_parse_pkt(ctx, &d, gtp_fwd_rule_selection);
 
 	switch (action) {
 	case XDP_ABORTED ... XDP_REDIRECT:
 		return action;
 
 	case XDP_IFR_DEFAULT_ROUTE:
-		action = gtp_fwd_traffic_selector(&d);
+		action = gtp_fwd_traffic_selector(ctx, &d);
 		break;
 
 	case XDP_GTPFWD_GTPU_XLAT:
 	case XDP_GTPFWD_GTPU_NOXLAT:
-		action = gtp_fwd_handle_gtpu(&d);
+		action = gtp_fwd_handle_gtpu(ctx, &d);
 		break;
 
 	case XDP_GTPFWD_TUN_XLAT:
 	case XDP_GTPFWD_TUN_NOXLAT:
-		action = gtp_fwd_handle_ipip(&d);
+		action = gtp_fwd_handle_ipip(ctx, &d);
 		break;
 
 	default:
@@ -56,7 +56,7 @@ int gtp_fwd_main(struct xdp_md *ctx)
 	}
 
 	if (action == XDP_IFR_FORWARD)
-		return if_rule_rewrite_pkt(&d);
+		return if_rule_rewrite_pkt(ctx, &d);
 
 	return action;
 }

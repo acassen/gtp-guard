@@ -35,7 +35,7 @@ struct {
 
 
 static __always_inline int
-_encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
+_encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_user_ingress *u)
 {
 	struct iphdr *iph;
 	struct udphdr *udph;
@@ -46,13 +46,13 @@ _encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
 
 	/* encap in gtp-u, make room */
 	adjust_sz = sizeof(*iph) + sizeof(*udph) + sizeof(*gtph);
-	if (bpf_xdp_adjust_head(d->ctx, -adjust_sz) < 0)
+	if (bpf_xdp_adjust_head(ctx, -adjust_sz) < 0)
 		return XDP_ABORTED;
 
 	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
 
-	data = (void *)(long)d->ctx->data;
-	data_end = (void *)(long)d->ctx->data_end;
+	data = (void *)(long)ctx->data;
+	data_end = (void *)(long)ctx->data_end;
 
 	/* then write encap headers */
 	iph = data + d->pl_off;
@@ -105,10 +105,10 @@ _encap_gtpu(struct if_rule_data *d, struct upf_user_ingress *u)
  *	Ingress direction (UE pov), ipv6 traffic from internet
  */
 static __always_inline int
-upf_handle_pubv6(struct if_rule_data *d)
+upf_handle_pubv6(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct upf_user_ingress_key k = {};
 	struct upf_user_ingress *u;
 	struct ipv6hdr *ip6h;
@@ -128,23 +128,23 @@ upf_handle_pubv6(struct if_rule_data *d)
 	if (u == NULL)
 		return XDP_PASS;
 
-	return _encap_gtpu(d, u);
+	return _encap_gtpu(ctx, d, u);
 }
 
 /*
  *	Ingress direction (UE pov), ipv4 traffic from internet
  */
 static __always_inline int
-upf_handle_pub(struct if_rule_data *d)
+upf_handle_pub(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct upf_user_ingress_key k = {};
 	struct upf_user_ingress *u;
 	struct iphdr *iph;
 
 	if (d->flags & IF_RULE_FL_SRC_IPV6)
-		return upf_handle_pubv6(d);
+		return upf_handle_pubv6(ctx, d);
 
 	/* lookup user */
 	iph = (struct iphdr *)(data + d->pl_off);
@@ -157,15 +157,16 @@ upf_handle_pub(struct if_rule_data *d)
 	if (u == NULL)
 		return XDP_PASS;
 
-	return _encap_gtpu(d, u);
+	return _encap_gtpu(ctx, d, u);
 }
 
 
 static __always_inline int
-_handle_gtpu(struct if_rule_data *d, struct iphdr *iph, struct udphdr *udph)
+_handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
+	     struct iphdr *iph, struct udphdr *udph)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct upf_user_egress_key k;
 	struct upf_user_egress *u;
 	struct iphdr *ip4h_inner;
@@ -216,7 +217,7 @@ _handle_gtpu(struct if_rule_data *d, struct iphdr *iph, struct udphdr *udph)
 	payload_len = data_end - data - d->pl_off - adjust_sz;
 
 	/* now decap gtp-u */
-	if (bpf_xdp_adjust_head(d->ctx, adjust_sz) < 0)
+	if (bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
 		return XDP_ABORTED;
 	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
 
@@ -232,17 +233,17 @@ _handle_gtpu(struct if_rule_data *d, struct iphdr *iph, struct udphdr *udph)
  *	Egress direction (UE pov), traffic from GTP-U endpoint
  */
 static __always_inline int
-upf_handle_gtpu(struct if_rule_data *d)
+upf_handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct iphdr *iph;
 	struct udphdr *udph;
 
 	/* check input gtp-u (proto udp and port) */
 	iph = (struct iphdr *)(data + d->pl_off);
 	if (d->pl_off > 256 || (void *)(iph + 1) > data_end)
-		return XDP_PASS;
+		return XDP_DROP;
 
 	if (iph->protocol != IPPROTO_UDP)
 		return XDP_PASS;
@@ -254,7 +255,7 @@ upf_handle_gtpu(struct if_rule_data *d)
 	if (udph->dest != bpf_htons(GTPU_PORT))
 		return XDP_PASS;
 
-	return _handle_gtpu(d, iph, udph);
+	return _handle_gtpu(ctx, d, iph, udph);
 }
 
 
@@ -262,15 +263,15 @@ upf_handle_gtpu(struct if_rule_data *d)
  *	Choose between gtp-u and l3 side
  */
 static __always_inline int
-upf_traffic_selector(struct if_rule_data *d)
+upf_traffic_selector(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct iphdr *iph;
 	struct udphdr *udph;
 
 	if (d->flags & IF_RULE_FL_SRC_IPV6)
-		return upf_handle_pubv6(d);
+		return upf_handle_pubv6(ctx, d);
 
 	/* check input gtp-u (proto udp and port) */
 	iph = (struct iphdr *)(data + d->pl_off);
@@ -278,7 +279,7 @@ upf_traffic_selector(struct if_rule_data *d)
 		return XDP_DROP;
 
 	if (iph->protocol != IPPROTO_UDP)
-		return upf_handle_pub(d);
+		return upf_handle_pub(ctx, d);
 
 	udph = (void *)(iph) + iph->ihl * 4;
 	if (udph + 1 > data_end)
@@ -286,7 +287,7 @@ upf_traffic_selector(struct if_rule_data *d)
 
 	/* this is our gtp-u ! */
 	if (udph->dest == bpf_htons(GTPU_PORT))
-		return _handle_gtpu(d, iph, udph);
+		return _handle_gtpu(ctx, d, iph, udph);
 
-	return upf_handle_pub(d);
+	return upf_handle_pub(ctx, d);
 }

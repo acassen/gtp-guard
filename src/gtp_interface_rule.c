@@ -589,7 +589,7 @@ gtp_ifrule_vty_output(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 }
 
 static void
-gtp_ifrule_vty_input(struct gtp_bpf_interface_rule *bir, struct vty *vty)
+gtp_ifrule_vty_all(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 {
 	struct gtp_interface *from = NULL;
 	struct if_rule_key_base *k;
@@ -650,7 +650,7 @@ gtp_ifrule_vty_input(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 }
 
 static void
-gtp_ifrule_vty_all(struct gtp_bpf_interface_rule *bir, struct vty *vty)
+gtp_ifrule_vty_input(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct if_rule aar[nr_cpus];
@@ -772,26 +772,9 @@ gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 		bir->key_cur = malloc(bir->key_size);
 		if (bir->key_cur == NULL)
 			return -1;
-		INIT_LIST_HEAD(&bir->rule_list);
-		INIT_LIST_HEAD(&bir->out_rule_list);
 	}
 
 	return 0;
-}
-
-static void
-gtp_ifrule_release(struct gtp_bpf_prog *p, void *udata)
-{
-	struct gtp_bpf_interface_rule *bir = udata;
-	struct stored_rule *sr, *sr_tmp;
-	struct output_rule *or, *or_tmp;
-
-	list_for_each_entry_safe(sr, sr_tmp, &bir->rule_list, list)
-		free(sr);
-	list_for_each_entry_safe(or, or_tmp, &bir->out_rule_list, list)
-		free(or);
-	free(bir->key_cur);
-	free(bir);
 }
 
 static int
@@ -817,11 +800,37 @@ gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface 
 	iface->bpf_irules = NULL;
 }
 
+static void *
+gtp_ifrule_alloc(struct gtp_bpf_prog *p)
+{
+	struct gtp_bpf_interface_rule *bir;
+
+	bir = calloc(1, sizeof (struct gtp_bpf_interface_rule));
+	INIT_LIST_HEAD(&bir->rule_list);
+	INIT_LIST_HEAD(&bir->out_rule_list);
+	return bir;
+}
+
+static void
+gtp_ifrule_release(struct gtp_bpf_prog *p, void *udata)
+{
+	struct gtp_bpf_interface_rule *bir = udata;
+	struct stored_rule *sr, *sr_tmp;
+	struct output_rule *or, *or_tmp;
+
+	list_for_each_entry_safe(sr, sr_tmp, &bir->rule_list, list)
+		free(sr);
+	list_for_each_entry_safe(or, or_tmp, &bir->out_rule_list, list)
+		free(or);
+	free(bir->key_cur);
+	free(bir);
+}
+
 
 static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 	.name = "if_rules",
 	.description = "Interface rules dispatcher",
-	.udata_alloc_size = sizeof (struct gtp_bpf_interface_rule),
+	.alloc = gtp_ifrule_alloc,
 	.release = gtp_ifrule_release,
 	.loaded = gtp_ifrule_loaded,
 	.iface_bind = gtp_ifrule_bind_itf,

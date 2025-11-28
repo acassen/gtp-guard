@@ -12,15 +12,15 @@
 SEC("xdp")
 int cgn_entry(struct xdp_md *ctx)
 {
-	struct if_rule_data d = { .ctx = ctx };
+	struct if_rule_data d = { };
 	int action, ret;
 
 	/* phase 1: parse interface encap */
-	action = if_rule_parse_pkt(&d, NULL);
+	action = if_rule_parse_pkt(ctx, &d, NULL);
 
 	/* phase 2: execute action */
 	if (action == XDP_IFR_DEFAULT_ROUTE) {
-		ret = cgn_pkt_handle(&d, 2);
+		ret = cgn_pkt_handle(ctx, &d, 2);
 		if (hit_bug || ret < 0) {
 			hit_bug = 0;
 			return XDP_ABORTED;
@@ -33,7 +33,7 @@ int cgn_entry(struct xdp_md *ctx)
 
 	/* phase 3: rewrite interface encap */
 	if (action == XDP_IFR_FORWARD)
-		return if_rule_rewrite_pkt(&d);
+		return if_rule_rewrite_pkt(ctx, &d);
 
 	return action;
 }

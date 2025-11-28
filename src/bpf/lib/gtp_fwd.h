@@ -220,10 +220,10 @@ gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
  *	IPIP traffic selector
  */
 static __always_inline int
-gtp_fwd_handle_ipip(struct if_rule_data *d)
+gtp_fwd_handle_ipip(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *) (long)d->ctx->data;
-	void *data_end = (void *) (long)d->ctx->data_end;
+	void *data = (void *) (long)ctx->data;
+	void *data_end = (void *) (long)ctx->data_end;
 	struct gtp_teid_frag *gtpf = NULL;
 	struct gtp_teid_rule *rule;
 	struct iphdr *iph;
@@ -295,10 +295,10 @@ gtp_fwd_handle_ipip(struct if_rule_data *d)
  *	GTP-U traffic selector
  */
 static __always_inline int
-gtp_fwd_handle_gtpu(struct if_rule_data *d)
+gtp_fwd_handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct gtp_teid_rule *rule = NULL;
 	struct iphdr *iph;
 	struct udphdr *udph;
@@ -422,10 +422,10 @@ gtp_fwd_handle_gtpu(struct if_rule_data *d)
 
 
 static __always_inline int
-gtp_fwd_traffic_selector(struct if_rule_data *d)
+gtp_fwd_traffic_selector(struct xdp_md *ctx, struct if_rule_data *d)
 {
-	void *data = (void *)(long)d->ctx->data;
-	void *data_end = (void *)(long)d->ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	struct iphdr *iph;
 
 	iph = (struct iphdr *)(data + d->pl_off);
@@ -434,9 +434,9 @@ gtp_fwd_traffic_selector(struct if_rule_data *d)
 
 	switch (iph->protocol) {
 	case IPPROTO_UDP:
-		return gtp_fwd_handle_gtpu(d);
+		return gtp_fwd_handle_gtpu(ctx, d);
 	case IPPROTO_IPIP:
-		return gtp_fwd_handle_ipip(d);
+		return gtp_fwd_handle_ipip(ctx, d);
 	default:
 		return XDP_PASS;
 	}

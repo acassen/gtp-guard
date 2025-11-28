@@ -73,16 +73,16 @@ int test_block_log(struct xdp_md *ctx)
 SEC("xdp")
 int xdp_entry_1(struct xdp_md *ctx)
 {
-	struct if_rule_data d = { .ctx = ctx };
+	struct if_rule_data d = {  };
 	int action, ret;
 
 	/* phase 1: parse interface encap */
-	action = if_rule_parse_pkt(&d, NULL);
+	action = if_rule_parse_pkt(ctx, &d, NULL);
 	if (action <= XDP_REDIRECT)
 		return action;
 
 	/* phase 3: rewrite interface encap */
-	return if_rule_rewrite_pkt(&d);
+	return if_rule_rewrite_pkt(ctx, &d);
 }
 
 SEC("xdp")
@@ -125,11 +125,10 @@ int cgn_test_pkt(struct xdp_md *ctx)
 		return 1;
 
 	struct if_rule_data ifd = {
-		.ctx = ctx,
 		.pl_off = sizeof (*eth),
 	};
 
-	ret = cgn_pkt_handle(&ifd, eth->h_dest[5]);
+	ret = cgn_pkt_handle(ctx, &ifd, eth->h_dest[5]);
 	if (hit_bug || ret < 0) {
 		hit_bug = 0;
 		return XDP_ABORTED;

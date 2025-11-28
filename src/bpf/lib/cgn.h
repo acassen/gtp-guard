@@ -997,8 +997,8 @@ struct {
 
 
 static __always_inline int
-cgn_pkt_rewrite_src(struct xdp_md *ctx, struct cgn_packet *cp, struct iphdr *ip4h, void *payload,
-		    __u32 addr, __u16 port)
+cgn_pkt_rewrite_src(struct xdp_md *ctx, struct cgn_packet *cp, struct iphdr *ip4h,
+		    void *payload, __u32 addr, __u16 port)
 {
 	void *data_end = (void *)(long)ctx->data_end;
 	__u32 sum;
@@ -1158,8 +1158,9 @@ static __always_inline int
 _handle_pkt_icmp_error(struct cgn_packet *cp, struct iphdr *outer_ip4h,
 		       struct icmphdr *outer_icmp, struct iphdr *ip4h)
 {
-	void *data = (void *)(long)cp->ctx->data;
-	void *data_end = (void *)(long)cp->ctx->data_end;
+	struct xdp_md *ctx = cp->ctx;
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
 	__u32 sum, addr;
 	int ret;
 
@@ -1208,7 +1209,7 @@ _handle_pkt_icmp_error(struct cgn_packet *cp, struct iphdr *outer_ip4h,
 	if (cp->from_priv == 0 || cp->from_priv == 2) {
 		ret = cgn_flow_handle_pub(cp);
 		if (!ret) {
-			ret = cgn_pkt_rewrite_src(cp->ctx, cp, ip4h, udp,
+			ret = cgn_pkt_rewrite_src(ctx, cp, ip4h, udp,
 						  cp->dst_addr, cp->dst_port);
 			if (ret)
 				return ret;
@@ -1225,7 +1226,7 @@ _handle_pkt_icmp_error(struct cgn_packet *cp, struct iphdr *outer_ip4h,
 	ret = cgn_flow_handle_priv(cp);
 	if (ret)
 		return ret;
-	ret = cgn_pkt_rewrite_dst(cp->ctx, cp, ip4h, udp, cp->src_addr, cp->src_port);
+	ret = cgn_pkt_rewrite_dst(ctx, cp, ip4h, udp, cp->src_addr, cp->src_port);
 	if (ret)
 		return ret;
 
@@ -1255,25 +1256,27 @@ _handle_pkt_icmp_error(struct cgn_packet *cp, struct iphdr *outer_ip4h,
  *   11: user alloc error
  *   12: flow alloc error
  */
-static __attribute__((noinline)) int
-cgn_pkt_handle(struct if_rule_data *d, __u8 from_priv)
+static __always_inline int
+/* static __attribute__((noinline)) int */
+cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 {
-	struct xdp_md *ctx = d->ctx;
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
-	struct iphdr *ip4h = data + d->pl_off;
 	struct cgn_packet *cp;
+	struct iphdr *ip4h;
 	void *payload;
 	int ret;
 
-	struct cgn_packet cp_static = {
-		.ctx = ctx,
-	};
-	cp = &cp_static;
+	ret = 0;
+	cp = bpf_map_lookup_elem(&cgn_on_stack, &ret);
+	if (cp == NULL)
+		return 1;
 
+	ip4h = data + d->pl_off;
 	if (d->pl_off > 256 || (void *)(ip4h + 1) > data_end)
 		return 2;
 
+	cp->ctx = ctx;
 	cp->proto = ip4h->protocol;
 	cp->from_priv = from_priv;
 	cp->src_addr = bpf_ntohl(ip4h->saddr);
