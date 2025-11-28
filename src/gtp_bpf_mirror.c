@@ -130,11 +130,11 @@ gtp_bpf_mirror_action(int action, void *arg, struct gtp_bpf_prog *p)
 	return 0;
 }
 
-int
-gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
+static void
+gtp_bpf_mirror_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
+		   int argc, const char **argv)
 {
-	struct gtp_bpf_mirror *pm = gtp_bpf_prog_tpl_data_get(p, "gtp_mirror");
-	struct bpf_map *map;
+	struct gtp_bpf_mirror *pm = ud;
 	__be32 key, next_key;
 	struct gtp_bpf_mirror_rule r;
 	size_t sz = sizeof(struct gtp_bpf_mirror_rule);
@@ -142,9 +142,8 @@ gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 	char ipaddr[16], ifname[IF_NAMESIZE];
 	int err = 0;
 
-	if (!p || !pm)
-		return -1;
-	map = pm->mrules;
+	if (!pm->mrules)
+		return;
 
 	vty_out(vty, "+------------------+--------+----------+-------------+%s"
 		     "|      Address     |  Port  | Protocol |  Interface  |%s"
@@ -152,10 +151,10 @@ gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
 
 	/* Walk hashtab */
-	while (bpf_map__get_next_key(map, &key, &next_key, sizeof(uint32_t)) == 0) {
+	while (bpf_map__get_next_key(pm->mrules, &key, &next_key, sizeof(uint32_t)) == 0) {
 		key = next_key;
 		memset(&r, 0, sizeof(struct gtp_bpf_mirror_rule));
-		err = bpf_map__lookup_elem(map, &key, sizeof(uint32_t), &r, sz, 0);
+		err = bpf_map__lookup_elem(pm->mrules, &key, sizeof(uint32_t), &r, sz, 0);
 		if (err) {
 			libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 			vty_out(vty, "%% error fetching value for key:0x%.4x (%s)%s"
@@ -173,7 +172,6 @@ gtp_bpf_mirror_vty(struct vty *vty, struct gtp_bpf_prog *p)
 
 	vty_out(vty, "+------------------+--------+----------+-------------+%s"
 		   , VTY_NEWLINE);
-	return 0;
 }
 
 static struct gtp_bpf_prog_tpl gtp_bpf_tpl_mirror = {
@@ -181,6 +179,7 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_mirror = {
 	.description = "gtp-mirror",
 	.udata_alloc_size = sizeof (struct gtp_bpf_mirror),
 	.loaded = gtp_bpf_mirror_load_maps,
+	.vty_out = gtp_bpf_mirror_vty,
 };
 
 static void __attribute__((constructor))

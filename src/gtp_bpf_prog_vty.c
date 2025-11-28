@@ -254,36 +254,13 @@ DEFUN(show_bpf_prog,
 
 DEFUN(show_bpf_interface_rule,
       show_bpf_interface_rule_cmd,
-      "show interface-rule (all|input|output) [BPFPROG]",
+      "show interface-rule (all|input|output)",
       SHOW_STR
       "Interface rules\n"
       "Show installed rules\n"
-      "Show all rules, with more details\n"
-      "Specific bpf program\n")
+      "Show all rules, with more details\n")
 {
-	struct gtp_bpf_prog *p = NULL;
-
-	if (argc >= 2) {
-		p = gtp_bpf_prog_get(argv[1]);
-		if (!p) {
-			vty_out(vty, "%% Unknown bpf-prog:'%s'%s", argv[1], VTY_NEWLINE);
-			return CMD_WARNING;
-		}
-
-		if (!strcmp(argv[0], "installed"))
-			gtp_interface_rule_show(p, vty);
-		else
-			gtp_interface_rule_show_stored(p, vty);
-		return CMD_SUCCESS;
-	}
-
-	gtp_bpf_prog_foreach_prog(!strcmp(argv[0], "input") ?
-				  gtp_interface_rule_show :
-				  !strcmp(argv[0], "output") ?
-				  gtp_interface_rule_show_attr :
-				  gtp_interface_rule_show_stored,
-				  vty, "if_rules");
-
+	gtp_bpf_prog_foreach_vty("if_rules", vty, argc, argv);
 	return CMD_SUCCESS;
 }
 
