@@ -32,6 +32,7 @@
 #include "utils.h"
 #include "memory.h"
 #include "timer.h"
+#include "table.h"
 #include "pfcp_ie.h"
 
 
@@ -229,50 +230,40 @@ pfcp_assoc_stringify(struct pfcp_assoc *c, char *buf, size_t bsize)
 	return "!!!invalid node_id!!!";
 }
 
-static int
-pfcp_assoc_dump(struct pfcp_assoc *c, char *buf, size_t bsize)
-{
-	char assoc_str[GTP_NAME_MAX_LEN];
-	struct tm *t = &c->creation_time;
-	int k = 0;
-
-	k += scnprintf(buf + k, bsize - k, "pfcp-association(%s):\n",
-		       pfcp_assoc_stringify(c, assoc_str, GTP_NAME_MAX_LEN));
-	k += scnprintf(buf + k, bsize - k, " recovery_ts:0x%.4x"
-					   " creation:%.2d/%.2d/%.2d-%.2d:%.2d:%.2d\n",
-		       ntohl(c->recovery_ts),
-		       t->tm_mday, t->tm_mon+1, t->tm_year+1900,
-		       t->tm_hour, t->tm_min, t->tm_sec);
-	return k;
-}
-
 int
-pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id)
+pfcp_assoc_vty(struct vty *vty, const char *filter)
 {
 	struct pfcp_assoc *a;
-	char buf[4096];
+	struct table *tbl;
+	char assoc_str[GTP_NAME_MAX_LEN];
+	struct tm *t;
 	int i;
 
-	if (node_id) {
-		a = pfcp_assoc_get_by_node_id(node_id);
-		if (!a)
-			return -1;
-
-		pfcp_assoc_dump(a, buf, sizeof(buf));
-		vty_out(vty, "%s", buf);
-		pfcp_assoc_put(a);
+	if (!pfcp_assoc_count) {
+		vty_out(vty, "%% No pfcp associations...%s", VTY_NEWLINE);
 		return 0;
 	}
 
-	/* Iterate */
+	tbl = table_init(3, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "Node ID", "Recovery TS", "Creation Time");
+	table_set_column_align(tbl, ALIGN_RIGHT, ALIGN_RIGHT, ALIGN_RIGHT);
+
 	for (i = 0; i < ASSOC_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry(a, &pfcp_assoc_tab[i], hlist) {
-			pfcp_assoc_get(a);
-			pfcp_assoc_dump(a, buf, sizeof(buf));
-			vty_out(vty, "%s", buf);
-			pfcp_assoc_put(a);
+			pfcp_assoc_stringify(a, assoc_str, GTP_NAME_MAX_LEN);
+			if (filter && !strstr(filter, assoc_str))
+				continue;
+
+			t = &a->creation_time;
+			table_add_row_fmt(tbl, "%s|0x%.8x|%.2d/%.2d/%.2d-%.2d:%.2d:%.2d"
+		     			     , assoc_str, ntohl(a->recovery_ts)
+					     , t->tm_mday, t->tm_mon+1, t->tm_year+1900
+					     , t->tm_hour, t->tm_min, t->tm_sec);
 		}
 	}
+
+	table_vty_out(tbl, vty);
+	table_destroy(tbl);
 
 	return 0;
 }

@@ -449,20 +449,7 @@ DEFUN(show_pfcp_assoc,
       "PFCP Association\n"
       "NodeID")
 {
-//	const char *name = NULL;
-
-	if (list_empty(&daemon_data->pfcp_router_ctx)) {
-		vty_out(vty, "%% No pfcp-router instance configured...");
-		return CMD_SUCCESS;
-	}
-
-	/* TODO: support selective assoc dump */
-#if 0
-	if (argc == 1)
-		name = argv[0];
-#endif
-
-	pfcp_assoc_vty(vty, NULL);
+	pfcp_assoc_vty(vty, (argc >= 1) ? argv[0] : NULL);
 
 	return CMD_SUCCESS;
 }

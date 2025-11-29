@@ -72,6 +72,6 @@ struct pfcp_assoc *pfcp_assoc_get_by_ie(struct pfcp_ie_node_id *ie);
 int pfcp_assoc_hash(struct pfcp_assoc *c);
 int pfcp_assoc_unhash(struct pfcp_assoc *c);
 const char *pfcp_assoc_stringify(struct pfcp_assoc *c, char *buf, size_t bsize);
-int pfcp_assoc_vty(struct vty *vty, struct pfcp_node_id *node_id);
+int pfcp_assoc_vty(struct vty *vty, const char *filter);
 int pfcp_assoc_init(void);
 int pfcp_assoc_destroy(void);
