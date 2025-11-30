@@ -33,8 +33,8 @@ setup_simple() {
     ip -n cloud addr add 192.168.61.2/25 dev veth0
     ip -n cloud addr add 192.168.61.3/25 dev veth0
     ip addr add 192.168.61.1/25 dev gtpp
-    arp -s 192.168.61.2 d2:ad:ca:fe:aa:01
-    arp -s 192.168.61.3 d2:ad:ca:fe:aa:01
+    ip neigh add 192.168.61.2 lladdr d2:ad:ca:fe:aa:01 dev gtpp
+    ip neigh add 192.168.61.3 lladdr d2:ad:ca:fe:aa:01 dev gtpp
 
     ip netns exec cloud ethtool -K veth0 gro on
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
@@ -64,8 +64,8 @@ setup_combined() {
 	ip -n cloud addr add 192.168.61.$((i*8+2))/25 dev veth0
 	ip -n cloud addr add 192.168.61.$((i*8+3))/25 dev veth0
 	ip addr add 192.168.61.$((i*8+1))/25 dev gtpp
-	arp -s 192.168.61.$((i*8+2)) d2:ad:ca:fe:aa:01
-	arp -s 192.168.61.$((i*8+3)) d2:ad:ca:fe:aa:01
+	ip neigh add 192.168.61.$((i*8+2)) lladdr d2:ad:ca:fe:aa:01 dev gtpp
+	ip neigh add 192.168.61.$((i*8+3)) lladdr d2:ad:ca:fe:aa:01 dev gtpp
 
 	# for ipfrag test, when replying
 	ip -n cloud route add 192.168.61.$((i*8+1)) dev veth0 mtu 1480
@@ -93,7 +93,7 @@ setup_combined() {
     ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129
     ip link set ptun up
     # ip addr add 192.168.62.2/30 dev ptun
-    arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
+    ip neigh add 192.168.61.129 lladdr d2:ad:ca:fe:aa:01 dev $tun_dev
 
     ip netns exec cloud ethtool -K veth0 gro on
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
@@ -162,8 +162,8 @@ setup_vip() {
 	ip -n cloud route add 192.168.61.176/28 via 192.168.61.$((i*4+1)) dev veth0.100
 	ip -n cloud-r2 route add 192.168.61.176/28 via 192.168.61.$((64+i*4+1)) dev veth0.100
 
-	arp -s 192.168.61.$((i*4+2)) d2:ad:ca:fe:aa:01 -i gtpp1.100
-	arp -s 192.168.61.$((64+i*4+2)) d2:ad:ca:fe:aa:02 -i gtpp2.100
+	ip neigh add 192.168.61.$((i*4+2)) lladdr d2:ad:ca:fe:aa:01 dev gtpp1.100
+	ip neigh add 192.168.61.$((64+i*4+2)) lladdr d2:ad:ca:fe:aa:02 dev gtpp2.100
     done
 
     # tun
@@ -186,7 +186,7 @@ setup_vip() {
     ip addr add 192.168.61.130/30 dev $tun_dev
     ip tunnel add ptun mode ipip local 192.168.61.130 remote 192.168.61.129 dev $tun_dev
     ip link set ptun up
-    arp -s 192.168.61.129 d2:ad:ca:fe:aa:01
+    ip neigh add 192.168.61.129 lladdr d2:ad:ca:fe:aa:01 dev $tun_dev
 
     ip netns exec cloud ethtool -K veth0 gro on
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
@@ -235,8 +235,8 @@ setup_split() {
 	ip -n sgw addr add 192.168.61.$((64+i*4+2))/27 dev sgw
 	ip addr add 192.168.61.$((64+i*4+1))/27 dev sgw
 
-	arp -s 192.168.61.$((i*4+2)) d2:ad:ca:fe:b4:01
-	arp -s 192.168.61.$((64+i*4+2)) d2:ad:ca:fe:b4:02
+	ip neigh add 192.168.61.$((i*4+2)) lladdr d2:ad:ca:fe:b4:01 dev pgw
+	ip neigh add 192.168.61.$((64+i*4+2)) lladdr d2:ad:ca:fe:b4:02 dev sgw
     done
 
     # tun side
@@ -269,7 +269,7 @@ setup_split() {
 
     # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
     # so add static entries
-    arp -s 192.168.61.129 d2:ad:ca:fe:b4:03
+    ip neigh add 192.168.61.129 lladdr d2:ad:ca:fe:b4:03 dev $tun_dev
 
     # tx-checksumming on means it is offloaded on nic.
     # on veth, it is done on the RX side, but after xdp hook. disable it.

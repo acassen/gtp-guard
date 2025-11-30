@@ -335,7 +335,7 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	if (ia->tun_remote) {
 		__builtin_memset(&fibp, 0x00, sizeof (fibp));
 		flags = BPF_FIB_LOOKUP_DIRECT;
-		fibp.ifindex = ctx->ingress_ifindex;
+		fibp.ifindex = ia->ifindex;
 		fibp.family = AF_INET;
 		fibp.ipv4_dst = ia->tun_remote;
 		fibl_ret = bpf_fib_lookup(ctx, &fibp, sizeof (fibp), flags);
@@ -353,8 +353,6 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		IFR_DBG(" output outer tun to ret:%d if:%d vlan:%d tun:%d",
 			fibl_ret, a->ifindex, a->vlan_id, a->flags);
 	} else {
-		if (fibl_ret != BPF_FIB_LKUP_RET_SUCCESS)
-			return XDP_DROP;
 		a = ia;
 	}
 
