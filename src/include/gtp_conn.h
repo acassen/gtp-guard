@@ -71,6 +71,7 @@ struct gtp_conn *gtp_conn_get_by_msisdn(uint64_t msisdn);
 struct gtp_conn *gtp_conn_alloc(uint64_t imsi, uint64_t imei, uint64_t msisdn);
 int gtp_conn_hash(struct gtp_conn *c);
 int gtp_conn_unhash(struct gtp_conn *c);
-int gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t imsi);
+int gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *, void *),
+		 uint64_t imsi, void *arg);
 int gtp_conn_init(void);
 int gtp_conn_destroy(void);

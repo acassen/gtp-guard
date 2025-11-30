@@ -187,7 +187,8 @@ gtp_conn_unhash(struct gtp_conn *c)
 }
 
 int
-gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *), uint64_t imsi)
+gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *, void *),
+	     uint64_t imsi, void *arg)
 {
 	struct gtp_conn *c;
 	int i;
@@ -197,7 +198,7 @@ gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *),
 		if (!c)
 			return -1;
 
-		(*vty_conn) (vty, c);
+		(*vty_conn) (vty, c, arg);
 		gtp_conn_put(c);
 		return 0;
 	}
@@ -206,7 +207,7 @@ gtp_conn_vty(struct vty *vty, int (*vty_conn) (struct vty *, struct gtp_conn *),
 	for (i = 0; i < CONN_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry(c, &gtp_imsi_tab[i], h_imsi) {
 			gtp_conn_get(c);
-			(*vty_conn) (vty, c);
+			(*vty_conn) (vty, c, arg);
 			gtp_conn_put(c);
 		}
 	}

@@ -162,6 +162,7 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 	if (!t)
 		return NULL;
 
+	__sync_add_and_fetch(&s->teid_cnt, 1);
 	return t;
 }
 
@@ -184,6 +185,7 @@ pfcp_session_destroy_teid(struct pfcp_session *s, struct traffic_endpoint *te,
 teid_del:
 	pfcp_bpf_teid_action(r, RULE_DEL, t, &s->ue_ip);
 	pfcp_teid_free(t);
+	__sync_sub_and_fetch(&s->teid_cnt, 1);
 	return 0;
 }
 

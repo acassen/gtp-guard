@@ -119,10 +119,8 @@ _pfcp_session_get(struct hlist_head *h, uint64_t id)
 	struct pfcp_session *s;
 
 	hlist_for_each_entry(s, head, hlist) {
-		if (s->seid == id) {
-			__sync_add_and_fetch(&s->refcnt, 1);
+		if (s->seid == id)
 			return s;
-		}
 	}
 
 	return NULL;
@@ -132,16 +130,6 @@ struct pfcp_session *
 pfcp_session_get(uint64_t id)
 {
 	return _pfcp_session_get(pfcp_session_tab, id);
-}
-
-int
-pfcp_session_put(struct pfcp_session *s)
-{
-	if (!s)
-		return -1;
-
-	__sync_sub_and_fetch(&s->refcnt, 1);
-	return 0;
 }
 
 static int
@@ -156,7 +144,6 @@ _pfcp_session_hash(struct hlist_head *h, struct pfcp_session *s)
 	}
 
 	hlist_add_head(&s->hlist, head);
-	__sync_add_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -172,7 +159,6 @@ _pfcp_session_unhash(struct hlist_head *h, struct pfcp_session *s)
 		return -1;
 	}
 	hlist_del_init(&s->hlist);
-	__sync_sub_and_fetch(&s->refcnt, 1);
 	return 0;
 }
 
@@ -244,8 +230,6 @@ shoot_again:
 	s = pfcp_session_get(seid);
 	if (!s)
 		return seid;
-
-	pfcp_session_put(s);
 
 	/* allocation active loop prevention */
 	if (retry++ < 5)

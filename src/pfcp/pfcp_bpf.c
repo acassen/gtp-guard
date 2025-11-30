@@ -74,7 +74,7 @@ _set_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
 				   u, sizeof (u), BPF_NOEXIST);
 	_log_egress_rule(RULE_ADD, t, err);
 
-	return (err) ? -1 : 0;
+	return err ? -1 : 0;
 }
 
 static int
@@ -89,7 +89,7 @@ _unset_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
 				       sizeof(key), 0);
 	_log_egress_rule(RULE_DEL, t, err);
 
-	return (err) ? -1 : 0;
+	return err ? -1 : 0;
 }
 
 static void
@@ -152,7 +152,7 @@ _set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_addre
 					   &key, sizeof (key),
 					   u, sizeof (u), BPF_NOEXIST);
 		_log_ingress_rule(RULE_ADD, UE_IPV4, t, ue, err);
-		err_cnt += (err) ? 1 : 0;
+		err_cnt += (bool) err;
 	}
 
 	if (ue->flags & UE_IPV6) {
@@ -163,10 +163,10 @@ _set_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_addre
 					   &key, sizeof (key),
 					   u, sizeof (u), BPF_NOEXIST);
 		_log_ingress_rule(RULE_ADD, UE_IPV6, t, ue, err);
-		err_cnt += (err) ? 1 : 0;
+		err_cnt += (bool) err;
 	}
 
-	return (err_cnt) ? -1 : 0;
+	return err_cnt ? -1 : 0;
 }
 
 static int
@@ -182,7 +182,7 @@ _unset_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_add
 		err = bpf_map__delete_elem(r->bpf_data->user_ingress,
 					   &key, sizeof (key), 0);
 		_log_ingress_rule(RULE_DEL, UE_IPV4, t, ue, err);
-		err_cnt += (err) ? 1 : 0;
+		err_cnt += (bool) err;
 	}
 
 	if (ue->flags & UE_IPV6) {
@@ -192,10 +192,10 @@ _unset_ingress_rule(struct pfcp_router *r, struct pfcp_teid *t, struct ue_ip_add
 		err = bpf_map__delete_elem(r->bpf_data->user_ingress,
 					   &key, sizeof (key), 0);
 		_log_ingress_rule(RULE_DEL, UE_IPV6, t, ue, err);
-		err_cnt += (err) ? 1 : 0;
+		err_cnt += (bool) err;
 	}
 
-	return (err_cnt) ? -1 : 0;
+	return err_cnt ? -1 : 0;
 }
 
 int
@@ -266,6 +266,85 @@ pfcp_bpf_session_action(struct pfcp_session *s, int action)
 		for (j = 0; j < PFCP_DIR_MAX; j++)
 			pfcp_bpf_teid_action(s->router, action, te->teid[j],
 					     &s->ue_ip);
+	}
+
+	return 0;
+}
+
+int
+pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p,
+		  struct ue_ip_address *ue, struct pfcp_teid *t)
+{
+	struct pfcp_bpf_data *bd = gtp_bpf_prog_tpl_data_get(p, "upf");
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct upf_user_egress_key ek = {};
+	struct upf_user_ingress_key ik = {};
+	struct upf_user_egress eu[nr_cpus];
+	struct upf_user_ingress iu[nr_cpus];
+	int err, i;
+
+	if (__test_bit(PFCP_TEID_F_EGRESS, &t->flags)) {
+		memset(eu, 0x00, sizeof(eu));
+		ek.teid = htonl(t->id);
+		ek.gtpu_remote_addr = t->ipv4.s_addr;
+		ek.gtpu_remote_port = htons(GTP_U_PORT);
+
+		err = bpf_map__lookup_elem(bd->user_ingress, &ek, sizeof(ek),
+					   eu, sizeof(eu), 0);
+		if (err) {
+			vty_out(vty, "            no data-plane ?!!%s"
+				   , VTY_NEWLINE);
+		} else {
+			for (i = 1; i < nr_cpus; i++) {
+				eu[0].packets += eu[i].packets;
+				eu[0].bytes += eu[i].bytes;
+			}
+			vty_out(vty, "            packets:%lld bytes:%lld%s"
+				   , eu[0].packets, eu[0].bytes, VTY_NEWLINE);
+		}
+
+		return 0;
+	}
+
+	if (!__test_bit(PFCP_TEID_F_INGRESS, &t->flags))
+		return -1;
+
+	memset(iu, 0x00, sizeof(iu));
+	if (ue->flags & UE_IPV4) {
+		ik.flags = UE_IPV4;
+		ik.ue_addr.ip4 = ue->v4.s_addr;
+		err = bpf_map__lookup_elem(bd->user_ingress, &ik, sizeof(ik),
+					   iu, sizeof(iu), 0);
+		if (err) {
+			vty_out(vty, "              IPv4 - no data-plane ?!!%s"
+				   , VTY_NEWLINE);
+		} else {
+			for (i = 1; i < nr_cpus; i++) {
+				iu[0].packets += iu[i].packets;
+				iu[0].bytes += iu[i].bytes;
+			}
+			vty_out(vty, "              IPv4 - packets:%lld bytes:%lld%s"
+				   , iu[0].packets, iu[0].bytes, VTY_NEWLINE);
+		}
+	}
+
+	memset(iu, 0x00, sizeof(iu));
+	if (ue->flags & UE_IPV6) {
+		ik.flags = UE_IPV6;
+		memcpy(&ik.ue_addr.ip6, &ue->v6, sizeof(ue->v6));
+		err = bpf_map__lookup_elem(bd->user_ingress, &ik, sizeof(ik),
+					   iu, sizeof(iu), 0);
+		if (err) {
+			vty_out(vty, "              IPv6 - no data-plane ?!!%s"
+				   , VTY_NEWLINE);
+		} else {
+			for (i = 1; i < nr_cpus; i++) {
+				iu[0].packets += iu[i].packets;
+				iu[0].bytes += iu[i].bytes;
+			}
+			vty_out(vty, "              IPv6 - packets:%lld bytes:%lld%s"
+				   , iu[0].packets, iu[0].bytes, VTY_NEWLINE);
+		}
 	}
 
 	return 0;
@@ -362,7 +441,6 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *arg)
 
 	return 0;
 }
-
 
 
 static void *

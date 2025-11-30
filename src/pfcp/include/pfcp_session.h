@@ -140,6 +140,7 @@ struct pfcp_session {
 	struct urr		urr[PFCP_MAX_NR_ELEM];
 	struct traffic_endpoint	te[PFCP_MAX_NR_ELEM];
 	struct ue_ip_address	ue_ip;
+	int			teid_cnt;
 
 	struct gtp_conn		*conn;		/* backpointer */
 	struct pfcp_router	*router;	/* Server used */
@@ -160,8 +161,6 @@ struct pfcp_session {
 	struct list_head	next;
 	struct hlist_node	hlist;
 
-	int			refcnt;
-
 	unsigned long		flags;
 };
 
@@ -177,6 +176,7 @@ struct pfcp_session *pfcp_session_alloc(struct gtp_conn *c,
 int pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af);
 int pfcp_session_release_ue_ip(struct pfcp_session *s);
 int pfcp_session_destroy(struct pfcp_session *s);
+int pfcp_sessions_release(struct gtp_conn *c);
 int pfcp_sessions_free(struct gtp_conn *c);
 int pfcp_sessions_init(void);
 int pfcp_sessions_destroy(void);

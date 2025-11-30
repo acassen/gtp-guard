@@ -21,6 +21,7 @@
 
 #include "pfcp.h"
 #include "pfcp_utils.h"
+#include "pfcp_ie.h"
 
 
 static const struct pfcp_msg_type_map pfcp_msg_type2str[1 << 8] = {
@@ -229,4 +230,23 @@ pfcp_cause2str(int cause)
 		return pfcp_msg_cause2str[cause].name;
 
 	return "unknown cause";
+}
+
+const char *
+pfcp_3GPP_interface2str(int type)
+{
+	switch (type) {
+	case PFCP_3GPP_INTERFACE_S1U:
+		return "S1-U";
+	case PFCP_3GPP_INTERFACE_S5U:
+		return "S5/S8-U";
+	case PFCP_3GPP_INTERFACE_SGI:
+		return "SGi";
+	case PFCP_3GPP_INTERFACE_S8U:
+		return "S8-U";
+	case PFCP_3GPP_INTERFACE_N9:
+		return "N9-U";
+	}
+
+	return "unknown";
 }

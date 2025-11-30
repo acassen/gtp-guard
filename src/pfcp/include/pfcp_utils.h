@@ -28,3 +28,4 @@ struct pfcp_msg_type_map {
 /* Prototypes */
 const char *pfcp_msgtype2str(int type);
 const char *pfcp_cause2str(int cause);
+const char *pfcp_3GPP_interface2str(int type);

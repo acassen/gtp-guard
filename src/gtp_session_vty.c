@@ -81,7 +81,7 @@ __gtp_session_teid_up_vty(struct vty *vty, struct list_head *l)
 }
 
 int
-gtp_session_vty(struct vty *vty, struct gtp_conn *c)
+gtp_session_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 {
 	struct list_head *l = &c->gtp_sessions;
 	struct gtp_session *s;
@@ -116,7 +116,7 @@ gtp_session_vty(struct vty *vty, struct gtp_conn *c)
 }
 
 int
-gtp_session_summary_vty(struct vty *vty, struct gtp_conn *c)
+gtp_session_summary_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 {
 	struct list_head *l = &c->gtp_sessions;
 	struct gtp_session *s;
@@ -165,7 +165,7 @@ DEFUN(show_gtp_session,
 
 	if (argc) {
 		imsi = strtoull(argv[0], NULL, 10);
-		gtp_conn_vty(vty, gtp_session_vty, imsi);
+		gtp_conn_vty(vty, gtp_session_vty, imsi, NULL);
 		return CMD_SUCCESS;
 	}
 
@@ -174,7 +174,7 @@ DEFUN(show_gtp_session,
 		     "|      IMSI       |    APN     |                GTP Session Informations                |%s"
 		     "+-----------------+------------+--------------------------------------------------------+%s"
 		   , VTY_NEWLINE, VTY_NEWLINE, VTY_NEWLINE);
-	gtp_conn_vty(vty, gtp_session_summary_vty, 0);
+	gtp_conn_vty(vty, gtp_session_summary_vty, 0, NULL);
 	return CMD_SUCCESS;
 }
 
