@@ -74,8 +74,10 @@ setup_iface() {
 
     # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
     # so add static entries
-    arp -s 192.168.61.1 d2:ad:ca:fe:b4:01
-    arp -s 192.168.61.5 d2:ad:ca:fe:b4:05
+    ip neigh add 192.168.61.1 lladdr d2:ad:ca:fe:b4:01 dev priv
+    ip neigh add 192.168.61.5 lladdr d2:ad:ca:fe:b4:05 dev pub
+    sysctl -q net.ipv4.conf.priv.forwarding=1
+    sysctl -q net.ipv4.conf.pub.forwarding=1
 
     # this script also serve for ip6fw test
     ip -n cgn-pub addr add fc:1::2/64 dev pub
@@ -155,15 +157,15 @@ setup_iface_vlan() {
 	ip link set dev priv up
 	ip link set dev priv.$vlan up
 	ip addr add 192.168.61.2/30 dev priv.$vlan
+	ip neigh add 192.168.61.1 lladdr d2:ad:ca:fe:b4:01 dev priv.$vlan
     done
     ip -n cgn-priv route add default via 192.168.61.2 dev priv.20
     ip route add 10.0.0.0/8 via 192.168.61.1 dev priv.20 table 1320
     ip route add 37.141.0.0/24 via 192.168.61.1 dev priv.20 table 1320
 
-    # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
-    # so add static entries
-    arp -s 192.168.61.1 d2:ad:ca:fe:b4:01
-    arp -s 192.168.61.5 d2:ad:ca:fe:b4:05
+    ip neigh add 192.168.61.5 lladdr d2:ad:ca:fe:b4:05 dev pub.10
+    sysctl -q net.ipv4.conf.priv.forwarding=1
+    sysctl -q net.ipv4.conf.pub.forwarding=1
 
     # this script also serve for ip6fw test
     ip -n cgn-pub addr add fc:1::2/64 dev pub.10
@@ -267,8 +269,8 @@ setup_vlan() {
 
     # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
     # so add static entries
-    arp -s 192.168.61.1 d2:2d:ca:fe:04:01
-    arp -s 192.168.61.5 d2:2d:ca:fe:04:01
+    ip neigh add 192.168.61.1 lladdr d2:2d:ca:fe:04:01 dev priv.20
+    ip neigh add 192.168.61.5 lladdr d2:2d:ca:fe:04:01 dev pub.10
 
     # this script also serve for ip6fw test
     ip -n router-pub addr add fc:1::1/64 dev pub.10
@@ -370,16 +372,17 @@ setup_gre() {
     ip route add default via 192.168.61.1 dev virt-eth0 table 1310
 
     # priv side
-    ip tunnel add gre-priv mode gre local 192.168.61.2 remote 192.168.61.6 #dev virt-eth0
+    ip tunnel add gre-priv mode gre local 192.168.61.2 remote 192.168.61.6
     ip link set gre-priv up
     ip addr add 192.168.62.2/30 dev gre-priv
     ip route add default via 192.168.62.1 dev gre-priv table 1320
     ip route add 192.168.61.4/30 via 192.168.61.1 dev virt-eth0 table 1320
+    sysctl -q net.ipv4.conf.gre-priv.forwarding=1
 
     # bpf_fib_lookup doesn't start arp'ing if there is no neigh entry,
     # so add static entries
-    # arp -s 192.168.61.1 d2:2d:ca:fe:04:01
-    # arp -s 192.168.61.5 d2:2d:ca:fe:04:01
+    # ip neigh add 192.168.61.1 d2:2d:ca:fe:04:01
+    # ip neigh add 192.168.61.5 d2:2d:ca:fe:04:01
 
     # this script also serve for ip6fw test
     # ip -n router-pub addr add fc:1::1/64 dev pub.10

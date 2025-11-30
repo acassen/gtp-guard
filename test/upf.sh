@@ -33,7 +33,7 @@ setup_combined() {
     ip -n cloud addr add fc::2/64 dev veth0
     ip addr add 192.168.61.1/25 dev upf
     ip addr add fc::1/64 dev upf
-    arp -s 192.168.61.2 d2:ad:ca:fe:aa:01
+    ip neigh add 192.168.61.2 lladdr d2:ad:ca:fe:aa:01 dev upf
     ip -6 neigh add fc::2 lladdr d2:ad:ca:fe:aa:01 nud permanent dev upf
 
     # outside
@@ -79,7 +79,7 @@ setup_split() {
     # gtp-u, on access
     ip -n access addr add 192.168.61.2/25 dev veth0
     ip addr add 192.168.61.1/25 dev ran
-    arp -s 192.168.61.2 d2:ad:ca:fe:aa:01
+    ip neigh add 192.168.61.2 lladdr d2:ad:ca:fe:aa:01 dev ran
 
     # (almost) whole internet
     ip -n internet addr add 192.168.62.1/24 dev veth0
@@ -87,7 +87,7 @@ setup_split() {
     ip -n internet addr add 8.8.8.8/32 dev veth0
     ip -n internet route add default via 192.168.62.2 dev veth0
     ip route add default via 192.168.62.1 dev pub table 1020
-    arp -s 192.168.62.1 d2:ad:ca:fe:aa:02
+    ip neigh add 192.168.62.1 lladdr d2:ad:ca:fe:aa:02 dev pub
 
     ip netns exec access ethtool -K veth0 gro on
     ip netns exec access ethtool -K veth0 tx-checksumming off >/dev/null
