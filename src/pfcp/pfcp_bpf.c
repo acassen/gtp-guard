@@ -289,7 +289,7 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p,
 		ek.gtpu_remote_addr = t->ipv4.s_addr;
 		ek.gtpu_remote_port = htons(GTP_U_PORT);
 
-		err = bpf_map__lookup_elem(bd->user_ingress, &ek, sizeof(ek),
+		err = bpf_map__lookup_elem(bd->user_egress, &ek, sizeof(ek),
 					   eu, sizeof(eu), 0);
 		if (err) {
 			vty_out(vty, "            no data-plane ?!!%s"
