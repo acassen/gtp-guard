@@ -23,6 +23,7 @@
 
 /* local includes */
 #include "gtp_interface.h"
+#include "gtp_bpf_ifrules.h"
 #include "gtp_bpf_utils.h"
 #include "utils.h"
 #include "jhash.h"
@@ -51,7 +52,7 @@ struct output_rule {
 };
 
 /* bpf data, per bpf program */
-struct gtp_bpf_interface_rule {
+struct gtp_bpf_ifrules {
 	struct bpf_map			*if_rule;
 	struct bpf_map			*if_rule_attr;
 
@@ -69,7 +70,7 @@ struct gtp_bpf_interface_rule {
 
 
 
-static inline struct gtp_bpf_interface_rule *
+static inline struct gtp_bpf_ifrules *
 _get_bir(struct gtp_interface *iface, int *ifindex)
 {
 	/* retrieve 'physical' interface, where bpf map are located */
@@ -77,7 +78,7 @@ _get_bir(struct gtp_interface *iface, int *ifindex)
 		iface = iface->link_iface;
 	if (ifindex)
 		*ifindex = iface->ifindex;
-	return iface->bpf_irules && iface->bpf_irules->if_rule ? iface->bpf_irules : NULL;
+	return iface->bpf_ifrules && iface->bpf_ifrules->if_rule ? iface->bpf_ifrules : NULL;
 }
 
 static int
@@ -110,7 +111,7 @@ _rule_hash(const struct gtp_if_rule *r)
 }
 
 static inline struct stored_rule *
-_rule_find(struct gtp_bpf_interface_rule *bir, const struct gtp_if_rule *r)
+_rule_find(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r)
 {
 	struct stored_rule *sr;
 	uint32_t h = _rule_hash(r);
@@ -126,7 +127,7 @@ _rule_find(struct gtp_bpf_interface_rule *bir, const struct gtp_if_rule *r)
 }
 
 static inline struct stored_rule *
-_rule_find_first(struct gtp_bpf_interface_rule *bir, const struct gtp_if_rule *r,
+_rule_find_first(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r,
 		 uint32_t h)
 {
 	struct stored_rule *sr;
@@ -139,7 +140,7 @@ _rule_find_first(struct gtp_bpf_interface_rule *bir, const struct gtp_if_rule *r
 }
 
 static struct stored_rule *
-_rule_find_next(struct gtp_bpf_interface_rule *bir, const struct gtp_if_rule *r,
+_rule_find_next(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r,
 		uint32_t h, struct stored_rule *sr)
 {
 	hlist_for_each_entry_continue(sr, hlist) {
@@ -150,7 +151,7 @@ _rule_find_next(struct gtp_bpf_interface_rule *bir, const struct gtp_if_rule *r,
 }
 
 static struct stored_rule *
-_rule_store(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r)
+_rule_store(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r)
 {
 	uint32_t h = jhash(r->key, r->key_size, 0) % IF_RULE_MAX_RULE;
 	struct stored_rule *sr;
@@ -176,7 +177,7 @@ _rule_del(struct stored_rule *sr)
 }
 
 static int
-_rule_set_key_base(struct gtp_bpf_interface_rule *bir, int ifindex, struct gtp_if_rule *r)
+_rule_set_key_base(struct gtp_bpf_ifrules *bir, int ifindex, struct gtp_if_rule *r)
 {
 	struct if_rule_key_base *k;
 
@@ -242,7 +243,7 @@ _rule_set_attr(struct gtp_interface *iface, struct if_rule_attr *a)
 }
 
 static int
-_rule_install(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r,
+_rule_install(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r,
 	      bool overwrite)
 {
 	uint32_t nr_cpus = bpf_num_possible_cpus();
@@ -278,7 +279,7 @@ _rule_install(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r,
 }
 
 static void
-_rule_uninstall(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r)
+_rule_uninstall(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r)
 {
 	int ret;
 
@@ -288,7 +289,7 @@ _rule_uninstall(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r)
 }
 
 static int
-_if_rule_add(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r, int ifindex)
+_if_rule_add(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r, int ifindex)
 {
 	struct stored_rule *sr;
 	int ret = -1;
@@ -319,7 +320,7 @@ _if_rule_add(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r, int ifin
 
 
 static void
-_if_rule_del(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r, int ifindex)
+_if_rule_del(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r, int ifindex)
 {
 	struct stored_rule *sr;
 
@@ -335,9 +336,9 @@ _if_rule_del(struct gtp_bpf_interface_rule *bir, struct gtp_if_rule *r, int ifin
 }
 
 int
-gtp_interface_rule_set(struct gtp_if_rule *r, bool add)
+gtp_bpf_ifrules_set(struct gtp_if_rule *r, bool add)
 {
-	struct gtp_bpf_interface_rule *bir = r->bir;
+	struct gtp_bpf_ifrules *bir = r->bir;
 	int ifindex = 0;
 
 	if (bir == NULL) {
@@ -357,7 +358,7 @@ gtp_interface_rule_set(struct gtp_if_rule *r, bool add)
 static void
 _rule_del_iface(struct gtp_interface *iface)
 {
-	struct gtp_bpf_interface_rule *bir;
+	struct gtp_bpf_ifrules *bir;
 	struct stored_rule *sr, *sr_tmp;
 
 	bir = _get_bir(iface, NULL);
@@ -394,7 +395,7 @@ _out_rule_sort_cb(struct list_head *al, struct list_head *bl)
 
 
 static void
-_out_rule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *iface)
+_out_rule_attr_add(struct gtp_bpf_ifrules *bir, struct gtp_interface *iface)
 {
 	struct output_rule *or;
 	struct if_rule_attr a;
@@ -433,7 +434,7 @@ _out_rule_attr_add(struct gtp_bpf_interface_rule *bir, struct gtp_interface *ifa
 }
 
 static void
-_out_rule_attr_del(struct gtp_bpf_interface_rule *bir, struct gtp_interface *iface)
+_out_rule_attr_del(struct gtp_bpf_ifrules *bir, struct gtp_interface *iface)
 {
 	struct output_rule *or;
 	int ifindex, ret;
@@ -466,7 +467,7 @@ static void
 _out_rule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
 		      void *udata, void *arg)
 {
-	struct gtp_bpf_interface_rule *bir = udata;
+	struct gtp_bpf_ifrules *bir = udata;
 	struct gtp_interface *child = arg;
 	bool def_route = !__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT,
 				     &child->flags);
@@ -490,10 +491,10 @@ _out_rule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
 }
 
 void
-gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set)
+gtp_bpf_ifrules_set_auto_input_rule(struct gtp_interface *iface, bool set)
 {
 	struct gtp_interface *master = iface->link_iface ?: iface;
-	struct gtp_bpf_interface_rule *bir = master->bpf_irules;
+	struct gtp_bpf_ifrules *bir = master->bpf_ifrules;
 
 	if (bir == NULL)
 		return;
@@ -516,7 +517,7 @@ gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set)
  */
 
 static void
-gtp_ifrule_vty_output(struct gtp_bpf_interface_rule *bir, struct vty *vty)
+gtp_ifrule_vty_output(struct gtp_bpf_ifrules *bir, struct vty *vty)
 {
 	struct gtp_interface *to;
 	struct if_rule_attr a;
@@ -589,7 +590,7 @@ gtp_ifrule_vty_output(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 }
 
 static void
-gtp_ifrule_vty_all(struct gtp_bpf_interface_rule *bir, struct vty *vty)
+gtp_ifrule_vty_all(struct gtp_bpf_ifrules *bir, struct vty *vty)
 {
 	struct gtp_interface *from = NULL;
 	struct if_rule_key_base *k;
@@ -650,7 +651,7 @@ gtp_ifrule_vty_all(struct gtp_bpf_interface_rule *bir, struct vty *vty)
 }
 
 static void
-gtp_ifrule_vty_input(struct gtp_bpf_interface_rule *bir, struct vty *vty)
+gtp_ifrule_vty_input(struct gtp_bpf_ifrules *bir, struct vty *vty)
 {
 	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct if_rule aar[nr_cpus];
@@ -743,7 +744,7 @@ static void
 gtp_ifrule_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	       int argc, const char **argv)
 {
-	struct gtp_bpf_interface_rule *bir = ud;
+	struct gtp_bpf_ifrules *bir = ud;
 
 	if (bir->if_rule == NULL)
 		return;
@@ -760,7 +761,7 @@ gtp_ifrule_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 static int
 gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
-	struct gtp_bpf_interface_rule *bir = udata;
+	struct gtp_bpf_ifrules *bir = udata;
 
 	bir->if_rule = gtp_bpf_prog_load_map(p->load.obj, "if_rule");
 	bir->if_rule_attr = gtp_bpf_prog_load_map(p->load.obj, "if_rule_attr");
@@ -780,9 +781,9 @@ gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 static int
 gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	struct gtp_bpf_interface_rule *bir = udata;
+	struct gtp_bpf_ifrules *bir = udata;
 
-	iface->bpf_irules = bir;
+	iface->bpf_ifrules = bir;
 
 	gtp_interface_register_event(iface, _out_rule_event_cb, bir);
 
@@ -792,20 +793,20 @@ gtp_ifrule_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *i
 static void
 gtp_ifrule_unbind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	struct gtp_bpf_interface_rule *bir = udata;
+	struct gtp_bpf_ifrules *bir = udata;
 
 	gtp_interface_unregister_event(iface, _out_rule_event_cb, bir);
 	_rule_del_iface(iface);
 
-	iface->bpf_irules = NULL;
+	iface->bpf_ifrules = NULL;
 }
 
 static void *
 gtp_ifrule_alloc(struct gtp_bpf_prog *p)
 {
-	struct gtp_bpf_interface_rule *bir;
+	struct gtp_bpf_ifrules *bir;
 
-	bir = calloc(1, sizeof (struct gtp_bpf_interface_rule));
+	bir = calloc(1, sizeof (struct gtp_bpf_ifrules));
 	INIT_LIST_HEAD(&bir->rule_list);
 	INIT_LIST_HEAD(&bir->out_rule_list);
 	return bir;
@@ -814,7 +815,7 @@ gtp_ifrule_alloc(struct gtp_bpf_prog *p)
 static void
 gtp_ifrule_release(struct gtp_bpf_prog *p, void *udata)
 {
-	struct gtp_bpf_interface_rule *bir = udata;
+	struct gtp_bpf_ifrules *bir = udata;
 	struct stored_rule *sr, *sr_tmp;
 	struct output_rule *or, *or_tmp;
 
@@ -827,7 +828,7 @@ gtp_ifrule_release(struct gtp_bpf_prog *p, void *udata)
 }
 
 
-static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
+static struct gtp_bpf_prog_tpl gtp_bpf_ifrules_module = {
 	.name = "if_rules",
 	.description = "Interface rules dispatcher",
 	.alloc = gtp_ifrule_alloc,
@@ -839,7 +840,7 @@ static struct gtp_bpf_prog_tpl gtp_interface_rule_module = {
 };
 
 static void __attribute__((constructor))
-gtp_interface_rule_init(void)
+gtp_bpf_ifrules_init(void)
 {
-	gtp_bpf_prog_tpl_register(&gtp_interface_rule_module);
+	gtp_bpf_prog_tpl_register(&gtp_bpf_ifrules_module);
 }

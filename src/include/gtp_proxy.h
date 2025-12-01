@@ -31,6 +31,9 @@
 
 #define GTP_PROXY_REMOTE_ADDR_HSIZE	1000
 
+struct gtp_bpf_ifrules;
+struct gtp_if_rule;
+
 struct gtp_proxy_remote_addr {
 	uint32_t		addr;
 	struct hlist_node	hlist;
@@ -44,7 +47,7 @@ struct gtp_proxy {
 	struct list_head	bpf_list;
 
 	/* datapath/if_rule */
-	struct gtp_bpf_interface_rule *bpf_irules;
+	struct gtp_bpf_ifrules	*bpf_ifrules;
 	struct gtp_interface	*ipip_iface;
 	bool			ipip_bind;
 	int			ipip_xlat;

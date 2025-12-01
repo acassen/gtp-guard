@@ -22,7 +22,6 @@
 #include <assert.h>
 
 #include "gtp_bpf_prog.h"
-#include "gtp_interface_rule.h"
 #include "gtp_data.h"
 #include "gtp.h"
 #include "gtp_bpf_utils.h"

@@ -20,28 +20,28 @@
  */
 #pragma once
 
-struct gtp_bpf_interface_rule;
+struct gtp_bpf_ifrules;
 struct gtp_bpf_prog;
 
 struct gtp_if_rule
 {
-	struct gtp_bpf_interface_rule	*bir;
-	struct gtp_interface		*from;
-	int				prio;
+	struct gtp_bpf_ifrules	*bir;
+	struct gtp_interface	*from;
+	int			prio;
 
 	int (*key_stringify)(const struct gtp_if_rule *, char *, int, bool);
-	void				*key;
-	int				key_size;
+	void			*key;
+	int			key_size;
 
-	int				action;
-	int				table_id;
-	uint32_t			force_ifindex;
+	int			action;
+	int			table_id;
+	uint32_t		force_ifindex;
 };
 
 
 /* Prototypes */
-int gtp_interface_rule_set(struct gtp_if_rule *, bool add);
-void gtp_interface_rule_set_auto_input_rule(struct gtp_interface *iface, bool set);
-int gtp_interface_rule_show_attr(struct gtp_bpf_prog *p, void *arg);
-int gtp_interface_rule_show_stored(struct gtp_bpf_prog *p, void *arg);
-int gtp_interface_rule_show(struct gtp_bpf_prog *p, void *arg);
+int gtp_bpf_ifrules_set(struct gtp_if_rule *, bool add);
+void gtp_bpf_ifrules_set_auto_input_rule(struct gtp_interface *iface, bool set);
+int gtp_bpf_ifrules_show_attr(struct gtp_bpf_prog *p, void *arg);
+int gtp_bpf_ifrules_show_stored(struct gtp_bpf_prog *p, void *arg);
+int gtp_bpf_ifrules_show(struct gtp_bpf_prog *p, void *arg);
