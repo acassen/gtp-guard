@@ -31,6 +31,7 @@
 #include "gtp_sqn.h"
 #include "gtp_bpf_utils.h"
 #include "gtp_proxy_hdl.h"
+#include "gtp_bpf_ifrules.h"
 #include "bitops.h"
 #include "memory.h"
 #include "inet_utils.h"
@@ -165,7 +166,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 	bool xlat_before = false, xlat_after = false;
 	uint32_t local;
 
-	if (ctx->bpf_irules == NULL)
+	if (ctx->bpf_ifrules == NULL)
 		return;
 
 	if ((ctx->ipip_xlat == 2 && ingress) ||
@@ -186,7 +187,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 		.daddr = local,
 	};
 	struct gtp_if_rule ifr = {
-		.bir = ctx->bpf_irules,
+		.bir = ctx->bpf_ifrules,
 		.prio = 100,
 		.key_stringify = _show_key,
 		.key = &k,
@@ -194,7 +195,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 		.action = xlat_before ? XDP_GTPFWD_GTPU_XLAT : XDP_GTPFWD_GTPU_NOXLAT,
 		.force_ifindex = tun->ifindex,
 	};
-	gtp_interface_rule_set(&ifr, add);
+	gtp_bpf_ifrules_set(&ifr, add);
 
 	/* rules from tunnel */
 	k.b.tun_local = addr_toip4(&tun->tunnel_local);
@@ -204,7 +205,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 	if (!xlat_before) {
 		/* same packet, will xlat */
 		struct gtp_if_rule ifr = {
-			.bir = ctx->bpf_irules,
+			.bir = ctx->bpf_ifrules,
 			.from = tun,
 			.prio = 100,
 			.key_stringify = _show_key,
@@ -212,7 +213,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 			.key_size = sizeof (k),
 			.action = XDP_GTPFWD_TUN_XLAT,
 		};
-		gtp_interface_rule_set(&ifr, add);
+		gtp_bpf_ifrules_set(&ifr, add);
 	}
 
 	if (xlat_after) {
@@ -220,7 +221,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 		k.saddr = local;
 		k.daddr = addr;
 		struct gtp_if_rule ifr = {
-			.bir = ctx->bpf_irules,
+			.bir = ctx->bpf_ifrules,
 			.from = tun,
 			.prio = 100,
 			.key_stringify = _show_key,
@@ -228,7 +229,7 @@ _set_tun_rules(struct gtp_proxy *ctx, bool add, bool ingress, uint32_t addr)
 			.key_size = sizeof (k),
 			.action = XDP_GTPFWD_TUN_NOXLAT,
 		};
-		gtp_interface_rule_set(&ifr, add);
+		gtp_bpf_ifrules_set(&ifr, add);
 	}
 }
 
@@ -365,7 +366,7 @@ gtp_proxy_rules_set(void *ud, struct gtp_interface *from, bool from_ingress,
 	};
 	if (from == to)
 		ifr.prio -= 10;
-	gtp_interface_rule_set(&ifr, add);
+	gtp_bpf_ifrules_set(&ifr, add);
 }
 
 
@@ -430,7 +431,7 @@ gtp_proxy_ctx_server_stop(struct gtp_proxy *ctx)
 	if (ctx->bpf_prog != NULL) {
 		ctx->bpf_prog = NULL;
 		ctx->bpf_data = NULL;
-		ctx->bpf_irules = NULL;
+		ctx->bpf_ifrules = NULL;
 		list_del(&ctx->bpf_list);
 	}
 

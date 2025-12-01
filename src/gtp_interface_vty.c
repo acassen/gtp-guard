@@ -25,6 +25,7 @@
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_bpf_rt.h"
+#include "gtp_bpf_ifrules.h"
 #include "gtp_interface.h"
 #include "inet_utils.h"
 #include "command.h"
@@ -213,7 +214,7 @@ DEFUN(interface_bpf_pkt,
 	else
 		__set_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
 
-	gtp_interface_rule_set_auto_input_rule(iface, set);
+	gtp_bpf_ifrules_set_auto_input_rule(iface, set);
 
 	return CMD_SUCCESS;
 }

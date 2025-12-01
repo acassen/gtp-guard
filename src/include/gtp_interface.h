@@ -28,7 +28,6 @@
 #include <netinet/if_ether.h>
 #include "addr.h"
 #include "gtp_bpf_prog.h"
-#include "gtp_interface_rule.h"
 
 /* Interface events */
 enum gtp_interface_event {
@@ -42,7 +41,7 @@ typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
 					 void *user_data,
 					 void *arg);
 struct gtp_interface_event_storage;
-
+struct gtp_bpf_ifrules;
 
 enum gtp_interface_tunnel_mode {
 	GTP_INTERFACE_TUN_NONE = 0,
@@ -77,9 +76,11 @@ struct gtp_interface {
 	/* only set if bfp-prog is attached to this device */
 	struct gtp_bpf_prog		*bpf_prog;
 	struct list_head		bpf_prog_list;
+	struct gtp_bpf_ifrules		*bpf_ifrules;
+
+	/* running program */
 	struct bpf_link			*bpf_xdp_lnk;
 	struct bpf_link			*bpf_tc_lnk;
-	struct gtp_bpf_interface_rule	*bpf_irules;
 
 	/* point to real device if it's a virtual device */
 	struct gtp_interface		*link_iface;

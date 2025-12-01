@@ -116,8 +116,8 @@ DEFUN(gtp_proxy_bpf_program,
 	}
 
 	ctx->bpf_data = gtp_bpf_prog_tpl_data_get(p, "gtp_fwd");
-	ctx->bpf_irules = gtp_bpf_prog_tpl_data_get(p, "if_rules");
-	if (ctx->bpf_data == NULL || ctx->bpf_irules == NULL) {
+	ctx->bpf_ifrules = gtp_bpf_prog_tpl_data_get(p, "if_rules");
+	if (ctx->bpf_data == NULL || ctx->bpf_ifrules == NULL) {
 		vty_out(vty, "%% bpf-program '%s' is not implementing "
 			"template 'gtp_fwd' and 'if_rules'\n", argv[0]);
 		return CMD_WARNING;

@@ -44,7 +44,6 @@
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
-#include "gtp_interface_rule.h"
 #include "cgn.h"
 #include "bpf/lib/cgn-def.h"
 #include "bpf/lib/flow-def.h"
