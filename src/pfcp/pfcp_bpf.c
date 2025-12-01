@@ -92,36 +92,39 @@ _unset_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
 	return err ? -1 : 0;
 }
 
-static void
+static int
 _log_ingress_rule(int action, int type, struct pfcp_teid *t, struct ue_ip_address *ue,
 		  int err)
 {
 	char ue_str[INET6_ADDRSTRLEN];
 	char gtpu_str[INET6_ADDRSTRLEN];
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	sa_family_t family = 0;
 
 	if (err)
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 
 	if (type == UE_IPV4 && ue->flags & UE_IPV4)
-		log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
-			    "{ue_ipv4:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
-			    (err) ? "Error " : "",
-			    (action == RULE_ADD) ? "adding" : "deleting",
-			    inet_ntop(AF_INET, &ue->v4, ue_str, INET6_ADDRSTRLEN),
-			    t->id,
-			    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
-			    (err) ? errmsg : "");
+		family = AF_INET;
 
 	if (type == UE_IPV6 && ue->flags & UE_IPV6)
-		log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
-			    "{ue_ipv6:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
-			    (err) ? "Error " : "",
-			    (action == RULE_ADD) ? "adding" : "deleting",
-			    inet_ntop(AF_INET6, &ue->v6, ue_str, INET6_ADDRSTRLEN),
-			    t->id,
-			    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
-			    (err) ? errmsg : "");
+		family = AF_INET6;
+
+	if (!family)
+		return -1;
+
+	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
+		    "{ue_ipv%d:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
+		    (err) ? "Error " : "",
+		    (action == RULE_ADD) ? "adding" : "deleting",
+		    (family == AF_INET) ? 4 : 6,
+		    inet_ntop(family, (family == AF_INET) ? (void *)&ue->v4 : (void *)&ue->v6,
+			      ue_str, INET6_ADDRSTRLEN),
+		    t->id,
+		    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+		    (err) ? errmsg : "");
+
+	return 0;
 }
 
 static int
