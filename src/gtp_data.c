@@ -58,6 +58,7 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_cdr);
 	INIT_LIST_HEAD(&new->gtp_proxy_ctx);
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
+	INIT_LIST_HEAD(&new->pfcp_peers);
 	INIT_LIST_HEAD(&new->pfcp_router_ctx);
 	gtp_bpf_progs_init();
 	pppoe_init();

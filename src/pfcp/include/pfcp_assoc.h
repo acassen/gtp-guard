@@ -25,6 +25,7 @@
 #include "gtp_stddef.h"
 #include "pfcp_ie.h"
 #include "list_head.h"
+#include "addr.h"
 #include "vty.h"
 
 /* Hash table */

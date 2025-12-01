@@ -57,6 +57,7 @@ enum node_type {
 	CDR_NODE,					/* CDR commands. */
 	GTP_PROXY_NODE,					/* GTP Proxy commands. */
 	GTP_ROUTER_NODE,				/* GTP Router commands. */
+	PFCP_PEER_LIST_NODE,				/* PFCP Peer List commands. */
 	PFCP_PROXY_NODE,				/* PFCP Proxy commands. */
 	PFCP_ROUTER_NODE,				/* PFCP Router commands. */
 

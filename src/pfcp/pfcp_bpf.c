@@ -496,7 +496,7 @@ static struct gtp_bpf_prog_tpl pfcp_bpf_tpl = {
 };
 
 static void __attribute__((constructor))
-gtp_bpf_fwd_init(void)
+pfcp_bpf_init(void)
 {
 	gtp_bpf_prog_tpl_register(&pfcp_bpf_tpl);
 }

@@ -53,6 +53,7 @@ struct data {
 	struct list_head	gtp_cdr;
 	struct list_head	gtp_proxy_ctx;
 	struct list_head	gtp_router_ctx;
+	struct list_head	pfcp_peers;;
 	struct list_head	pfcp_router_ctx;;
 
 	unsigned long		flags;

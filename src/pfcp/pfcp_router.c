@@ -39,6 +39,58 @@ extern struct thread_master *master;
 
 
 /*
+ *	PFCP Peer utilities
+ */
+struct pfcp_peer_list *
+pfcp_peer_list_get(const char *name)
+{
+	struct pfcp_peer_list *p;
+	size_t len = strlen(name);
+
+	list_for_each_entry(p, &daemon_data->pfcp_peers, next) {
+		if (!strncmp(p->name, name, len))
+			return p;
+	}
+
+	return NULL;
+}
+
+struct pfcp_peer_list *
+pfcp_peer_list_alloc(const char *name)
+{
+	struct pfcp_peer_list *new;
+
+	PMALLOC(new);
+	if (!new) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	INIT_LIST_HEAD(&new->next);
+	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
+
+	list_add_tail(&new->next, &daemon_data->pfcp_peers);
+
+	return new;
+}
+
+void
+pfcp_peer_list_ctx_destroy(struct pfcp_peer_list *p)
+{
+	list_del(&p->next);
+	FREE(p);
+}
+
+void
+pfcp_peer_list_destroy(void)
+{
+	struct pfcp_peer_list *p, *_p;
+
+	list_for_each_entry_safe(p, _p, &daemon_data->pfcp_peers, next)
+		pfcp_peer_list_ctx_destroy(p);
+}
+
+
+/*
  *	Helpers
  */
 int

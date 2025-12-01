@@ -27,6 +27,7 @@
 #include "gtp_bpf_prog.h"
 
 #define PFCP_ROUTER_DELAYED	2
+#define PFCP_PEER_MAX		16
 
 enum pfcp_flags {
 	PFCP_ROUTER_FL_LISTEN,
@@ -71,7 +72,21 @@ struct pfcp_router {
 	struct list_head	next;
 };
 
+struct pfcp_peer_list {
+	char			name[GTP_NAME_MAX_LEN];
+	char			description[GTP_STR_MAX_LEN];
+	union addr		addr[PFCP_PEER_MAX];
+	int			nr_addr;
+
+	struct list_head	next;
+};
+
+
 /* Prototypes */
+struct pfcp_peer_list *pfcp_peer_list_get(const char *name);
+struct pfcp_peer_list *pfcp_peer_list_alloc(const char *name);
+void pfcp_peer_list_ctx_destroy(struct pfcp_peer_list *ctx);
+void pfcp_peer_list_destroy(void);
 int pfcp_gtpu_ingress_init(struct inet_server *srv);
 int pfcp_gtpu_ingress_process(struct inet_server *srv,
 			      struct sockaddr_storage *addr_from);
