@@ -44,6 +44,15 @@ enum pfcp_debug_flags {
 	PFCP_DEBUG_FL_EGRESS_MSG,
 };
 
+struct pfcp_peer_list {
+	char			name[GTP_NAME_MAX_LEN];
+	char			description[GTP_STR_MAX_LEN];
+	union addr		addr[PFCP_PEER_MAX];
+	int			nr_addr;
+
+	struct list_head	next;
+};
+
 struct pfcp_router {
 	char			name[GTP_NAME_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
@@ -51,6 +60,7 @@ struct pfcp_router {
 	struct gtp_bpf_prog	*bpf_prog;
 	struct pfcp_bpf_data	*bpf_data;
 	struct list_head	bpf_list;
+	struct pfcp_peer_list	*peer_list;
 	struct pfcp_server	s;
 	unsigned long		debug;
 
@@ -68,15 +78,6 @@ struct pfcp_router {
 
 	uint64_t		seed;
 	unsigned long		flags;
-
-	struct list_head	next;
-};
-
-struct pfcp_peer_list {
-	char			name[GTP_NAME_MAX_LEN];
-	char			description[GTP_STR_MAX_LEN];
-	union addr		addr[PFCP_PEER_MAX];
-	int			nr_addr;
 
 	struct list_head	next;
 };

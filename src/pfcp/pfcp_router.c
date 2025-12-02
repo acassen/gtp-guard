@@ -39,7 +39,7 @@ extern struct thread_master *master;
 
 
 /*
- *	PFCP Peer utilities
+ *	PFCP Peer list utilities
  */
 struct pfcp_peer_list *
 pfcp_peer_list_get(const char *name)

@@ -144,6 +144,53 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	return 0;
 }
 
+static int
+pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv,
+			  struct sockaddr_storage *addr)
+{
+
+
+	return 0;
+}
+
+void
+pfcp_assoc_setup_request_send(struct thread *t)
+{
+	struct pfcp_router *ctx = THREAD_ARG(t);
+	struct pfcp_peer_list *plist = ctx->peer_list;
+	struct pkt_buffer *pbuff;
+	struct pfcp_hdr *pfcph;
+	int err = 0, i;
+
+	/* Prepare pkt */
+	pbuff = pkt_buffer_alloc(INET_BUFFER_SIZE);
+	pfcph = (struct pfcp_hdr *) pbuff->head;
+	pfcph->version = 1;
+	pfcph->type = PFCP_ASSOCIATION_SETUP_REQUEST;
+	pfcph->sqn_only = htonl(1 << 8);
+
+	err = pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
+	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
+	err = (err) ? : pfcp_ie_put_up_function_features(pbuff, ctx->supported_features);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		goto end;
+	}
+
+	/* Broadcast pkt to peer list */
+	for (i = 0; i < plist->nr_addr; i++) {
+		/* TODO: only support IPv4 peer from now */
+		if (plist->addr[i].family != AF_INET)
+			continue;
+
+		inet_server_snd(&ctx->s.s, ctx->s.s.fd, pbuff, &plist->addr[i].sin);
+	}
+
+end:
+	pkt_buffer_free(pbuff);
+}
+
 
 /* Session Establishment */
 static struct gtp_apn *
@@ -387,6 +434,7 @@ static const struct {
 	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_request },
 	[PFCP_PFD_MANAGEMENT_REQUEST]		= { pfcp_pfd_management_request },
 	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { pfcp_assoc_setup_request },
+	[PFCP_ASSOCIATION_SETUP_RESPONSE]	= { pfcp_assoc_setup_response },
 	[PFCP_ASSOCIATION_UPDATE_REQUEST]	= { NULL },
 	[PFCP_ASSOCIATION_RELEASE_REQUEST]	= { NULL },
 	[PFCP_NODE_REPORT_REQUEST]		= { NULL },

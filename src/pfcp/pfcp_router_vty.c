@@ -28,6 +28,7 @@
 #include "pfcp_router.h"
 #include "inet_server.h"
 #include "pfcp_assoc.h"
+#include "pfcp_proto_hdl.h"
 #include "pfcp.h"
 #include "inet_utils.h"
 #include "command.h"
@@ -158,6 +159,33 @@ DEFUN(pfcp_router_bpf_prog,
 	c->bpf_prog = p;
 	c->bpf_data = bpf_data;
 	list_add(&c->bpf_list, &bpf_data->pfcp_router_list);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(pfcp_router_peer_list,
+      pfcp_router_peer_list_cmd,
+      "pfcp-peer-list STRING",
+      "Use Specific PFCP Peer list\n"
+      "PFCP Peer list name")
+{
+	struct pfcp_router *c = vty->index;
+	struct pfcp_peer_list *plist;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	plist = pfcp_peer_list_get(argv[0]);
+	if (!plist) {
+		vty_out(vty, "%% unknown pfcp-peer-list:'%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	c->peer_list = plist;
+	thread_add_event(master, pfcp_assoc_setup_request_send, c, 0);
 
 	return CMD_SUCCESS;
 }
@@ -479,7 +507,7 @@ DEFUN(pfcp_peer_list,
 		return CMD_WARNING;
 	}
 
-	vty->node = PFCP_ROUTER_NODE;
+	vty->node = PFCP_PEER_LIST_NODE;
 	vty->index = new;
 	return CMD_SUCCESS;
 }
@@ -524,9 +552,10 @@ DEFUN(pfcp_peer_list_desciption,
 
 DEFUN(pfcp_peer,
       pfcp_peer_cmd,
-      "peer STRING",
+      "peer (A.B.C.D|X:X::X:X)",
       "Create a PFCP Peer\n"
-      "PFCP Peer")
+      "PFCP IPv4 Peer\n"
+      "PFCP IPv6 Peer\n")
 {
 	struct pfcp_peer_list *p = vty->index;
 	int err;
@@ -539,6 +568,12 @@ DEFUN(pfcp_peer,
 	err = addr_parse(argv[0], &p->addr[p->nr_addr]);
 	if (err) {
 		vty_out(vty, "%% invalid peer:'%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (p->nr_addr >= PFCP_PEER_MAX) {
+		vty_out(vty, "%% Maximum peer per list reached:%d%s"
+			   , p->nr_addr, VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
@@ -609,6 +644,9 @@ config_pfcp_router_write(struct vty *vty)
 		if (c->bpf_prog)
 			vty_out(vty, " bpf-program %s%s"
 				   , c->bpf_prog->name, VTY_NEWLINE);
+		if (c->peer_list)
+			vty_out(vty, " pfcp-peer-list %s%s"
+				   , c->peer_list->name, VTY_NEWLINE);
 		srv = &c->s;
 		if (srv->s.addr.ss_family)
 			vty_out(vty, " listen %s port %d%s"
@@ -664,6 +702,7 @@ config_pfcp_peer_list_write(struct vty *vty)
 				   , VTY_NEWLINE);
 		}
 
+		vty_out(vty, "!\n");
 	}
 
 	return 0;
@@ -684,6 +723,7 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_description_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_node_id_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_bpf_prog_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_router_peer_list_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_teid_cmd);
@@ -703,7 +743,7 @@ cmd_ext_pfcp_router_install(void)
 }
 
 static int
-cmd_ext_pfcp_peer_install(void)
+cmd_ext_pfcp_peer_list_install(void)
 {
 	/* Install PFCP Router commands. */
 	install_element(CONFIG_NODE, &pfcp_peer_list_cmd);
@@ -738,7 +778,7 @@ struct cmd_node pfcp_peer_list_node = {
 
 static struct cmd_ext cmd_ext_pfcp_peer_list = {
 	.node = &pfcp_peer_list_node,
-	.install = cmd_ext_pfcp_peer_install,
+	.install = cmd_ext_pfcp_peer_list_install,
 };
 
 static void __attribute__((constructor))
