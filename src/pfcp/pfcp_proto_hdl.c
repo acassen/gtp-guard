@@ -148,7 +148,31 @@ static int
 pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv,
 			  struct sockaddr_storage *addr)
 {
+	struct pfcp_association_setup_response *rsp;
+	struct pfcp_assoc *assoc;
+	char assoc_str[GTP_NAME_MAX_LEN];
 
+	rsp = msg->association_setup_response;
+
+	if (rsp->cause->value != PFCP_CAUSE_REQUEST_ACCEPTED) {
+		log_message(LOG_INFO, "%s(): remote PFCP peer:'%s' rejection (%s)"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , pfcp_cause2str(rsp->cause->value));
+		return 0;
+	}
+
+	/* Already exit... ignore... */
+	assoc = pfcp_assoc_get_by_ie(rsp->node_id);
+	if (assoc)
+		return 0;
+
+	/* Create this brand new one ! */
+	assoc = pfcp_assoc_alloc(rsp->node_id, rsp->recovery_time_stamp);
+	log_message(LOG_INFO, "%s(): %s Creating PFCP association:'%s"
+			    , __FUNCTION__
+			    , (assoc) ? "Success" : "Error"
+			    , pfcp_assoc_stringify(assoc, assoc_str, GTP_NAME_MAX_LEN));
 
 	return 0;
 }

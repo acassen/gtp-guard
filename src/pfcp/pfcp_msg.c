@@ -366,6 +366,79 @@ pfcp_parse_association_setup_request(struct pfcp_msg *msg, const uint8_t *cp, in
 }
 
 /*
+ * 	PFCP Association Setup Response
+ */
+static void
+pfcp_parse_association_setup_response(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_association_setup_response *rsp = msg->association_setup_response;
+
+	if (!rsp) {
+		rsp = mpool_zalloc(&msg->mp, sizeof(*rsp));
+		if (!rsp)
+			return;
+		msg->association_setup_response = rsp;
+	}
+
+	switch (ie_type) {
+	case PFCP_IE_NODE_ID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->node_id, cp, size);
+		*mandatory |= (1 << 0);
+		break;
+
+	case PFCP_IE_CAUSE:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->cause, cp, size);
+		*mandatory |= (1 << 1);
+		break;
+
+	case PFCP_IE_RECOVERY_TIME_STAMP:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->recovery_time_stamp, cp, size);
+		*mandatory |= (1 << 2);
+		break;
+
+	case PFCP_IE_UP_FUNCTION_FEATURES:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->up_function_features, cp, size);
+		break;
+
+	case PFCP_IE_CP_FUNCTION_FEATURES:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->cp_function_features, cp, size);
+		break;
+
+	case PFCP_IE_USER_PLANE_IP_RESOURCE_INFORMATION:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->user_plane_ip_resource_info, cp, size);
+		break;
+
+	case PFCP_IE_ALTERNATIVE_SMF_IP_ADDRESS:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->alternative_smf_ip_address, cp, size);
+		break;
+
+	case PFCP_IE_SMF_SET_ID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->smf_set_id, cp, size);
+		break;
+
+	case PFCP_IE_PFCPASRSP_FLAGS:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->pfcpasrsp_flags, cp, size);
+		break;
+
+	case PFCP_IE_NF_INSTANCE_ID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->upf_instance_id, cp, size);
+		break;
+
+	case PFCP_IE_UE_IP_ADDRESS_POOL_INFORMATION:
+		pfcp_parse_alloc_ie(msg, cp, (void **)&rsp->ue_ip_address_pool_info,
+				    sizeof(*rsp->ue_ip_address_pool_info),
+				    pfcp_parse_ie_ue_ip_address_pool_information);
+		break;
+
+	default:
+		break;
+	}
+}
+
+/*
  * 	PFCP Association Update Request
  */
 static int
@@ -2879,6 +2952,9 @@ static const struct {
 						  },
 	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { 3,
 						    pfcp_parse_association_setup_request
+						  },
+	[PFCP_ASSOCIATION_SETUP_RESPONSE]	= { 3,
+						    pfcp_parse_association_setup_response
 						  },
 	[PFCP_ASSOCIATION_UPDATE_REQUEST]	= { 1,
 						    pfcp_parse_association_update_request
