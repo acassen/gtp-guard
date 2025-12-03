@@ -2953,7 +2953,7 @@ static const struct {
 	[PFCP_ASSOCIATION_SETUP_REQUEST]	= { 3,
 						    pfcp_parse_association_setup_request
 						  },
-	[PFCP_ASSOCIATION_SETUP_RESPONSE]	= { 3,
+	[PFCP_ASSOCIATION_SETUP_RESPONSE]	= { 7,
 						    pfcp_parse_association_setup_response
 						  },
 	[PFCP_ASSOCIATION_UPDATE_REQUEST]	= { 1,

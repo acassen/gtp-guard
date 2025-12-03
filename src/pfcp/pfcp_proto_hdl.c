@@ -159,22 +159,22 @@ pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv,
 				    , __FUNCTION__
 				    , inet_sockaddrtos(addr)
 				    , pfcp_cause2str(rsp->cause->value));
-		return 0;
+		return -1;
 	}
 
 	/* Already exit... ignore... */
 	assoc = pfcp_assoc_get_by_ie(rsp->node_id);
 	if (assoc)
-		return 0;
+		return -1;
 
 	/* Create this brand new one ! */
 	assoc = pfcp_assoc_alloc(rsp->node_id, rsp->recovery_time_stamp);
-	log_message(LOG_INFO, "%s(): %s Creating PFCP association:'%s"
+	log_message(LOG_INFO, "%s(): %s Creating PFCP association:'%s'"
 			    , __FUNCTION__
 			    , (assoc) ? "Success" : "Error"
 			    , pfcp_assoc_stringify(assoc, assoc_str, GTP_NAME_MAX_LEN));
 
-	return 0;
+	return -1;
 }
 
 void
@@ -192,6 +192,7 @@ pfcp_assoc_setup_request_send(struct thread *t)
 	pfcph->version = 1;
 	pfcph->type = PFCP_ASSOCIATION_SETUP_REQUEST;
 	pfcph->sqn_only = htonl(1 << 8);
+	pfcp_msg_reset_hlen(pbuff);
 
 	err = pfcp_ie_put_node_id(pbuff, ctx->node_id, ctx->node_id_len);
 	err = (err) ? : pfcp_ie_put_recovery_ts(pbuff, ctx->recovery_ts);
