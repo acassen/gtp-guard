@@ -18,6 +18,7 @@ src += files(
   'gtp_bpf_prog.c',
   'gtp_bpf_prog_vty.c',
   'gtp_bpf_rt.c',
+  'gtp_bpf_xsk.c',
   'gtp_cdr_asn1.c',
   'gtp_cdr.c',
   'gtp_cdr_file.c',
