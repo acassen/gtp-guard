@@ -38,7 +38,7 @@ llc = find_program('llc', required: true)
 libelf_dep = dependency('libelf')
 libpcap_dep = dependency('libpcap')
 
-# check for system's libbpf 
+# check for system's libbpf
 # if not found or version too old, fetch and compile libbpf from git
 libbpf_dep = dependency('libbpf', version : '>=1.5.0', fallback: ['libbpf', 'libbpf_dep'])
 libbpf_inc = libbpf_dep.get_variable('includedir') + '/bpf'
@@ -50,6 +50,9 @@ libbpf_uapi_inc = libbpf_dep.get_variable('includeuapidir', default_value: '')
 if libbpf_uapi_inc != ''
   add_project_arguments('-I' + libbpf_uapi_inc, language: 'c')
 endif
+
+# need libxdp only for xsks
+libxdp_dep = dependency('libxdp', version : '>=1.5.0', fallback: ['libxdp', 'libxdp_dep'])
 
 # get Clang's default include paths, to compile bpf
 clang_includes = []
@@ -77,7 +80,7 @@ subdir('src')
 gtp_guard_exe = executable(
   'gtp-guard', src,
   include_directories: inc,
-  dependencies: [libbpf_dep, libelf_dep],
+  dependencies: [libbpf_dep, libxdp_dep, libelf_dep],
   link_args: [ '-lresolv' ],
   install_dir: get_option('sbindir'),
   install: true,
