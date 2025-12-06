@@ -204,6 +204,128 @@ gtp_bpf_prog_obj_get_mode_list(struct bpf_object *obj, char **out_buf, char **tp
 }
 
 
+/*
+ * Modify map 'value' size. This allow something like, in bpf:
+ *
+ * struct {
+ * 	__uint(type, BPF_MAP_TYPE_ARRAY);
+ * 	__type(key, __u32);
+ *	__type(value, __u32[]);
+ * } map_name SEC(".maps");
+ *
+ * OR
+ *
+ * struct mydata {
+ *   __u32  somefields;
+ *   __u32  last_member_array[];
+ * }
+ *
+ * struct {
+ * 	__uint(type, BPF_MAP_TYPE_HASH);
+ * 	__type(key, __u32);
+ *	__type(value, struct mydata);
+ * } map_name SEC(".maps");
+ *
+ * Compile program as this, and then set array size dynamically (from config)
+ * when loading program, using this function.
+ *
+ * It modifies map attribute _and_ BTF associated to this map, to keep
+ * libbpf/verifier happy.
+ */
+size_t
+gtp_bpf_prog_dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
+			    uint32_t new_array_size)
+{
+	const struct btf_type *t, *st_t, *ptr_t;
+	struct btf_member *mb;
+	struct btf_array *a;
+	struct btf *btf;
+	int vlen, svlen, id, i;
+	size_t new_size;
+
+	/* dig into btf */
+	btf = bpf_object__btf(obj);
+	if (btf == NULL)
+		return -1;
+
+	/* btf info for map (VAR -> STRUCT <map_name>) */
+	id = btf__find_by_name(btf, bpf_map__name(m));
+	if (id < 0)
+		return -1;
+	t = btf__type_by_id(btf, id);
+	if (t == NULL || !btf_is_var(t))
+		return -1;
+	st_t = btf__type_by_id(btf, t->type);
+	if (st_t == NULL || !btf_is_struct(st_t))
+		return -1;
+
+	/* find 'value' struct member in map. fields are listed in
+	 * libbpf.c:parse_btf_map_def() */
+	vlen = btf_vlen(st_t);
+	mb = btf_members(st_t);
+	for (i = 0; i < vlen; i++, mb++) {
+		const char *name = btf__name_by_offset(btf, mb->name_off);
+		if (!name || strcmp(name, "value"))
+			continue;
+
+		/* 'value' is PTR -> {STRUCT|ARRAY} */
+		ptr_t = btf__type_by_id(btf, mb->type);
+		if (!btf_is_ptr(ptr_t) ||
+		    !(t = btf__type_by_id(btf, ptr_t->type)))
+			continue;
+
+		switch (btf_kind(t)) {
+		case BTF_KIND_STRUCT:
+			st_t = t;
+
+			/* last member should contains the array to resize */
+			svlen = btf_vlen(st_t);
+			mb = btf_members(st_t);
+			if (!svlen ||
+			    !(t = btf__type_by_id(btf, mb[svlen - 1].type)) ||
+			    !btf_is_array(t))
+				return -1;
+
+			a = btf_array(t);
+			if (a->nelems == new_array_size)
+				return st_t->size;
+			new_size = st_t->size
+				- a->nelems * btf__resolve_size(btf, a->type)
+				+ new_array_size * btf__resolve_size(btf, a->type);
+
+			/* update array and struct size */
+			a->nelems = new_array_size;
+			((struct btf_type *)st_t)->size = new_size;
+			break;
+
+		case BTF_KIND_ARRAY:
+			a = btf_array(t);
+			new_size = new_array_size * btf__resolve_size(btf, a->type);
+			if (a->nelems == new_array_size)
+				return new_size;
+			a->nelems = new_array_size;
+			break;
+
+		default:
+			log_message(LOG_DEBUG, "%s: kind %d not handled as map value",
+				    bpf_map__name(m), btf_kind(t));
+			return -1;
+		}
+		break;
+	}
+	if (i == vlen)
+		return -1;
+
+	/* the easiest part: modify map value size */
+	if (bpf_map__set_value_size(m, new_size) != 0) {
+		log_message(LOG_DEBUG, "set %s.value_size failed: %m",
+			    bpf_map__name(m));
+		return -1;
+	}
+	return new_size;
+}
+
+
 
 /*
  *	BPF helpers
