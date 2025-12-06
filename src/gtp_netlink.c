@@ -21,10 +21,13 @@
 
 #include <unistd.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <errno.h>
 #include <linux/rtnetlink.h>
+#include <linux/if_link.h>
 #include <linux/if_ether.h>
 #include <linux/if_tunnel.h>
+#include <linux/veth.h>
 
 #include "gtp_data.h"
 #include "gtp_netlink.h"
@@ -40,7 +43,7 @@ static int netlink_if_link_del(struct nlmsghdr *h);
 
 /* Local data */
 static struct nl_handle nl_kernel = { .fd = -1 };	/* Kernel reflection channel */
-static struct nl_handle nl_cmd = { .fd = -1 };	/* Kernel command channel */
+static struct nl_handle nl_cmd = { .fd = -1 };		/* Kernel command channel */
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -268,17 +271,18 @@ netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *, void 
 
 /* Open Netlink channel with kernel */
 static int
-netlink_open(struct nl_handle *nl, unsigned rcvbuf_size, int flags, int protocol, unsigned group, ...)
+netlink_open(struct nl_handle *nl, unsigned group, ...)
 {
 	socklen_t addr_len;
 	struct sockaddr_nl snl;
-	unsigned rcvbuf_sz = rcvbuf_size ? : NL_DEFAULT_BUFSIZE;
+	unsigned rcvbuf_sz = NL_DEFAULT_BUFSIZE;
 	va_list gp;
 	int err = 0;
 
 	memset(nl, 0, sizeof (*nl));
 
-	nl->fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC | flags, protocol);
+	nl->fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK,
+			NETLINK_ROUTE);
 	if (nl->fd < 0) {
 		log_message(LOG_INFO, "Netlink: Cannot open netlink socket : (%m)");
 		return -1;
@@ -298,10 +302,11 @@ netlink_open(struct nl_handle *nl, unsigned rcvbuf_size, int flags, int protocol
 	/* Join the requested groups */
 	va_start(gp, group);
 	while (group) {
-		err = setsockopt(nl->fd, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group));
+		err = setsockopt(nl->fd, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP,
+				 &group, sizeof(group));
 		if (err)
-			log_message(LOG_INFO, "Netlink: Cannot add group %u membership on netlink socket : (%m)"
-					    , group);
+			log_message(LOG_INFO, "Netlink: Cannot add group %u membership "
+				    "on netlink socket : (%m)", group);
 
 		group = va_arg(gp, unsigned);
 	}
@@ -327,7 +332,7 @@ netlink_open(struct nl_handle *nl, unsigned rcvbuf_size, int flags, int protocol
 	nl->nl_pid = snl.nl_pid;
 	nl->seq = (uint32_t)time(NULL);
 
-	err = setsockopt(nl->fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf_sz, sizeof(rcvbuf_size));
+	err = setsockopt(nl->fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf_sz, sizeof(rcvbuf_sz));
 	if (err)
 		log_message(LOG_INFO, "Cannot set SO_RCVBUF IP option. errno=%d (%m)", errno);
 
@@ -338,9 +343,6 @@ netlink_open(struct nl_handle *nl, unsigned rcvbuf_size, int flags, int protocol
 static void
 netlink_close(struct nl_handle *nl)
 {
-	if (!nl)
-		return;
-
 	if (nl->thread) {
 		thread_del(nl->thread);
 		nl->thread = NULL;
@@ -351,6 +353,176 @@ netlink_close(struct nl_handle *nl)
 
 	nl->fd = -1;
 }
+
+
+/*
+ *	Netlink veth creation
+ */
+
+static void *
+nl_attr_put(struct nlmsghdr *nlh, int type, const void *data, int len)
+{
+	struct nlattr *nla;
+
+	nla = (struct nlattr *)(((char *)nlh) + NLMSG_ALIGN(nlh->nlmsg_len));
+	nla->nla_type = type;
+	nla->nla_len  = NLA_HDRLEN + len;
+	if (data)
+		memcpy((char *)nla + NLA_HDRLEN, data, len);
+	nlh->nlmsg_len = NLMSG_ALIGN(nlh->nlmsg_len) + NLA_ALIGN(nla->nla_len);
+	return nla;
+}
+
+static inline struct nlattr *
+nl_attr_nest_start(struct nlmsghdr *nlh, int type)
+{
+	return nl_attr_put(nlh, type, NULL, 0);
+}
+
+static inline void
+nl_attr_nest_end(struct nlmsghdr *nlh, struct nlattr *start)
+{
+	start->nla_len = (char *)nlh + nlh->nlmsg_len - (char *)start;
+}
+
+static int
+nl_send_and_recv_ack(struct nl_handle *nl, struct nlmsghdr *nlh)
+{
+	struct sockaddr_nl sa = { .nl_family = AF_NETLINK };
+	struct iovec iov = { nlh, nlh->nlmsg_len };
+	struct msghdr msg = {
+		.msg_name = &sa,
+		.msg_namelen = sizeof(sa),
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+	};
+	char buf[1024];
+
+	if (sendmsg(nl->fd, &msg, 0) < 0) {
+		log_message(LOG_INFO, "Netlink: sendmsg() failed: %m");
+		return -1;
+	}
+
+	/* read reply */
+	iov.iov_base = buf;
+	iov.iov_len = sizeof(buf);
+	int len = recvmsg(nl->fd, &msg, 0);
+	if (len < 0) {
+		log_message(LOG_INFO, "Netlink: recvmsg() failed: %m");
+		return -1;
+	}
+
+	struct nlmsghdr *h;
+	for (h = (struct nlmsghdr *)buf; NLMSG_OK(h, len); h = NLMSG_NEXT(h, len)) {
+		if (h->nlmsg_type == NLMSG_ERROR) {
+			struct nlmsgerr *err = NLMSG_DATA(h);
+			if (err->error == 0)
+				return 0;
+			errno = -err->error;
+			log_message(LOG_INFO, "Netlink: ack error: %m");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int
+nl_bring_up(struct nl_handle *nl, const char *name)
+{
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifm;
+	char buf[1024] = {};
+
+	nlh = (struct nlmsghdr *)buf;
+	nlh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	nlh->nlmsg_seq = ++nl->seq;
+
+	ifm = NLMSG_DATA(nlh);
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_change = IFF_UP;
+	ifm->ifi_flags  = IFF_UP;
+
+	nl_attr_put(nlh, IFLA_IFNAME, name, strlen(name) + 1);
+
+	if (nl_send_and_recv_ack(nl, nlh) < 0)
+		return -1;
+	return 0;
+}
+
+
+int
+gtp_netlink_link_create_veth(const char *name, const char *peer_name)
+{
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifm, *peer_ifm;
+	struct nlattr *linkinfo, *peer, *info_data;
+	char buf[1024] = {};
+
+	nlh = (struct nlmsghdr *)buf;
+	nlh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL | NLM_F_ACK;
+	nlh->nlmsg_seq = ++nl_cmd.seq;
+
+	ifm = NLMSG_DATA(nlh);
+	ifm->ifi_family = AF_UNSPEC;
+
+	nl_attr_put(nlh, IFLA_IFNAME, name, strlen(name) + 1);
+
+	linkinfo = nl_attr_nest_start(nlh, IFLA_LINKINFO);
+	nl_attr_put(nlh, IFLA_INFO_KIND, "veth", strlen("veth") + 1);
+	info_data = nl_attr_nest_start(nlh, IFLA_INFO_DATA);
+
+	/* Add peer ifinfomsg */
+	peer = nl_attr_nest_start(nlh, VETH_INFO_PEER);
+	peer_ifm = (struct ifinfomsg *)(((char *)nlh) + NLMSG_ALIGN(nlh->nlmsg_len));
+	memset(peer_ifm, 0, sizeof(*peer_ifm));
+	peer_ifm->ifi_family = AF_UNSPEC;
+	nlh->nlmsg_len += NLMSG_ALIGN(sizeof(*peer_ifm));
+	nl_attr_put(nlh, IFLA_IFNAME, peer_name, strlen(peer_name) + 1);
+	nl_attr_nest_end(nlh, peer);
+
+	nl_attr_nest_end(nlh, info_data);
+	nl_attr_nest_end(nlh, linkinfo);
+
+	/* send request (create veth) */
+	if (nl_send_and_recv_ack(&nl_cmd, nlh) < 0)
+		return -1;
+
+	nl_bring_up(&nl_cmd, name);
+	nl_bring_up(&nl_cmd, peer_name);
+
+	return 0;
+}
+
+
+int
+gtp_netlink_link_delete(int ifindex)
+{
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifm;
+	char buf[128] = {};
+
+	nlh = (struct nlmsghdr *)buf;
+	nlh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
+	nlh->nlmsg_type = RTM_DELLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	nlh->nlmsg_seq = ++nl_cmd.seq;
+
+	ifm = NLMSG_DATA(nlh);
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	/* send request */
+	if (nl_send_and_recv_ack(&nl_cmd, nlh) < 0)
+		return -1;
+
+	return 0;
+}
+
 
 /*
  *	Netlink neighbour lookup
@@ -427,6 +599,7 @@ kernel_netlink(struct thread *thread)
 /*
  *	Netlink Interface lookup
  */
+
 static int
 netlink_if_link_del(struct nlmsghdr *h)
 {
@@ -574,9 +747,13 @@ netlink_if_link_info(struct rtattr *tb, struct gtp_interface *iface)
 			     *(uint32_t *)RTA_DATA(attr[IFLA_IPTUN_LOCAL]));
 		addr_fromip4(&iface->tunnel_remote,
 			     *(uint32_t *)RTA_DATA(attr[IFLA_IPTUN_REMOTE]));
+
+	} else {
+		/* not handled */
+		return 0;
 	}
 
-	return 0;
+	return 1;
 }
 
 static int
@@ -585,10 +762,10 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 	struct ifinfomsg *ifi = NLMSG_DATA(h);
 	struct rtattr *tb[IFLA_MAX + 1];
 	bool create = arg == (void*)1;
-	struct gtp_interface *iface, *link_iface;
+	struct gtp_interface *iface, *li;
 	int link_ifindex;
 	int len = h->nlmsg_len;
-	int err = 0;
+	int ret = 0;
 
 	if (h->nlmsg_type != RTM_NEWLINK)
 		return 0;
@@ -612,27 +789,29 @@ netlink_if_link_filter(__attribute__((unused)) struct sockaddr_nl *snl, struct n
 			return -1;
 
 		/* get mac address (if it's a device) */
-		err = netlink_if_get_ll_addr(iface, tb);
-		if (err) {
+		ret = netlink_if_get_ll_addr(iface, tb);
+		if (ret) {
 			log_message(LOG_INFO, "%s(): Error getting ll_addr for interface:'%s'"
 					    , __FUNCTION__
 					    , iface->ifname);
 			gtp_interface_destroy(iface);
-			return err;
+			return ret;
 		}
 
-		/* IFLA_LINK point to physical interface (real device) in the same netns.
-		 * used to point vlan devices to their physical devices */
-		if (tb[IFLA_LINK] != NULL &&
-		    tb[IFLA_LINK_NETNSID] == NULL &&
-		    RTA_PAYLOAD(tb[IFLA_LINK]) == sizeof (uint32_t)) {
-			link_ifindex = *(uint32_t *)RTA_DATA(tb[IFLA_LINK]);
-			link_iface = gtp_interface_get_by_ifindex(link_ifindex, true);
-			if (link_iface != NULL)
-				gtp_interface_link(link_iface, iface);
+		ret = netlink_if_link_info(tb[IFLA_LINKINFO], iface);
+		if (ret == 1) {
+			/* IFLA_LINK point to physical interface (real device)
+			 * in the same netns. Use it to link vlan devices to their
+			 * physical devices */
+			if (tb[IFLA_LINK] != NULL &&
+			    tb[IFLA_LINK_NETNSID] == NULL &&
+			    RTA_PAYLOAD(tb[IFLA_LINK]) == sizeof (uint32_t)) {
+				link_ifindex = *(uint32_t *)RTA_DATA(tb[IFLA_LINK]);
+				li = gtp_interface_get_by_ifindex(link_ifindex, true);
+				if (li != NULL)
+					gtp_interface_link(li, iface);
+			}
 		}
-
-		netlink_if_link_info(tb[IFLA_LINKINFO], iface);
 	}
 
 	if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
@@ -648,8 +827,7 @@ netlink_if_stats_update(__attribute__((unused)) struct thread *t)
 	int err;
 
 	if (nl_cmd.fd == -1) {
-		err = netlink_open(&nl_cmd, daemon_data->nl_rcvbuf_size
-					  , SOCK_NONBLOCK, NETLINK_ROUTE, 0, 0);
+		err = netlink_open(&nl_cmd, 0, 0);
 		if (err) {
 			log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
 			goto end;
@@ -677,23 +855,6 @@ gtp_netlink_if_lookup(int ifindex)
 	return 0;
 }
 
-static int
-netlink_if_init(void)
-{
-	int err;
-
-	err = netlink_open(&nl_cmd, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
-				  , 0, 0);
-	if (err) {
-		log_message(LOG_INFO, "Error while creating Kernel netlink command channel");
-		return -1;
-	}
-
-	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update
-					       , NULL, TIMER_HZ);
-	return 0;
-}
-
 
 /*
  *	Kernel Netlink channel init
@@ -703,32 +864,45 @@ gtp_netlink_init(void)
 {
 	int err;
 
-	/* Interface init */
-	err = netlink_if_init();
+	/* Netlink command interface init */
+	err = netlink_open(&nl_cmd, 0, 0);
 	if (err) {
-		log_message(LOG_INFO, "Error while probing Kernel netlink command channel");
+		log_message(LOG_INFO, "Error while creating Kernel netlink "
+			    "command channel");
 		return -1;
 	}
+	nl_cmd.thread = thread_add_timer(master, netlink_if_stats_update,
+					 NULL, TIMER_HZ);
 
 	/* Register Kernel netlink reflector */
-	err = netlink_open(&nl_kernel, daemon_data->nl_rcvbuf_size, SOCK_NONBLOCK, NETLINK_ROUTE
-				     , RTNLGRP_NEIGH, RTNLGRP_LINK, 0);
+	err = netlink_open(&nl_kernel, RTNLGRP_NEIGH, RTNLGRP_LINK, 0);
 	if (err) {
-		log_message(LOG_INFO, "Error while registering Kernel netlink reflector channel");
+		log_message(LOG_INFO, "Error while registering Kernel netlink "
+			    "reflector channel");
 		return -1;
 	}
 
 	log_message(LOG_INFO, "Registering Kernel netlink reflector");
-	nl_kernel.thread = thread_add_read(master, kernel_netlink, &nl_kernel, nl_kernel.fd,
-					   TIMER_NEVER, 0);
+	nl_kernel.thread = thread_add_read(master, kernel_netlink, &nl_kernel,
+					   nl_kernel.fd, TIMER_NEVER, 0);
 	return 0;
 }
 
-int
+void
 gtp_netlink_destroy(void)
 {
 	log_message(LOG_INFO, "Unregistering Kernel netlink reflector");
 	netlink_close(&nl_kernel);
+
+	/* stop if_stats_update, and allow netlink commands to be performed
+	 * until destructor is called */
+	thread_del(nl_cmd.thread);
+	nl_cmd.thread = NULL;
+}
+
+
+static void __attribute__((destructor))
+gtp_netlink_destructor(void)
+{
 	netlink_close(&nl_cmd);
-	return 0;
 }
