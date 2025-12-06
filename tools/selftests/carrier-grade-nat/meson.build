@@ -2,6 +2,9 @@
 
 test_src = files(
   'main.c',
+  'glue.c',
+  '../../../src/carrier-grade-nat/cgn.c',
+  '../../../src/carrier-grade-nat/cgn_flow.c',
 )
 
 gtpg_obj = gtp_guard_exe.extract_objects(lib_src)

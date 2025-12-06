@@ -426,7 +426,7 @@ run_iface() {
 
     gtpg_conf_nofail "
 no carrier-grade-nat cgn-ng-1
-no bpf-program cgn-ng-1
+no bpf-program cgn
 no cdr-fwd cgn
 "
 
@@ -437,30 +437,32 @@ cdr-fwd cgn
  remote 127.0.0.1:1900
 ! no shutdown
 
-bpf-program cgn-ng-1
+bpf-program cgn
  path bin/cgn.bpf
  no shutdown
 
 carrier-grade-nat cgn-ng-1
  description trop_bien
+ bpf-program cgn
  ipv4-pool 37.141.0.0/24
  protocol timeout icmp 2
  protocol timeout udp 2
 ! interface priv side ingress
 ! interface pub side egress
- cdr-fwd cgn
+! cdr-fwd cgn
 
 interface priv
  description priv_itf
- bpf-program cgn-ng-1
+ bpf-program cgn
  ip route table-id 1290
  no shutdown
 
 interface pub
  description pub_itf
- bpf-program cgn-ng-1
+ bpf-program cgn
  ip route table-id 1290
  no shutdown
+
 " || fail "cannot execute vty commands"
 
     ip netns exec cgn-priv ping -c 1 -W 2 -I 10.0.0.1 8.8.8.8
@@ -468,12 +470,13 @@ interface pub
     gtpg_show "
 show interface
 show carrier-grade-nat flows 10.0.0.1
+show bpf-program
 "
-    sleep 4
+#     sleep 4
 
-    gtpg_show "
-show carrier-grade-nat flows 10.0.0.1
-"
+#     gtpg_show "
+# show carrier-grade-nat flows 10.0.0.1
+# "
 
 }
 

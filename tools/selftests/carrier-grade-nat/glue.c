@@ -8,8 +8,7 @@
  *              to inter-connect and a Firewall feature for filtering,
  *              rewriting and redirecting.
  *
- * Authors:     Alexandre Cassen, <acassen@gmail.com>
- *              Olivier Gournet, <gournet.olivier@gmail.com>
+ * Authors:     Olivier Gournet, <gournet.olivier@gmail.com>
  *
  *              This program is free software; you can redistribute it and/or
  *              modify it under the terms of the GNU Affero General Public
@@ -20,7 +19,47 @@
  * Copyright (C) 2025 Olivier Gournet, <gournet.olivier@gmail.com>
  */
 
-#pragma once
+#include <stdlib.h>
+#include <stdio.h>
 
-int cgn_init(void);
-int cgn_destroy(void);
+#include "gtp_bpf_xsk.h"
+#include "cdr_fwd.h"
+
+void
+cdr_fwd_send_ticket(struct cdr_fwd_context *ctx,
+		    const uint8_t *data, int size)
+{
+	printf("%s\n", __func__);
+}
+
+void
+cdr_fwd_entry_release(void)
+{
+}
+
+
+struct gtp_xsk_ctx *
+gtp_xsk_create(struct gtp_bpf_prog *p, struct gtp_xsk_cfg *cfg)
+{
+	return NULL;
+}
+
+void
+gtp_xsk_release(struct gtp_xsk_ctx *xc)
+{
+}
+
+void
+gtp_xsk_send_notif(struct gtp_xsk_ctx *xc, gtp_xsk_notif_t cb, void *cb_ud,
+		   const void *data, size_t size)
+{
+	printf("%s\n", __func__);
+}
+
+
+struct thread_master *
+gtp_xsk_thread_master(struct gtp_xsk_ctx *xc)
+{
+	printf("%s\n", __func__);
+	return NULL;
+}

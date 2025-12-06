@@ -58,11 +58,6 @@ int xdp_entry(struct xdp_md *ctx)
 		}
 	}
 
-	if (hit_bug || ret < 0) {
-		hit_bug = 0;
-		return XDP_ABORTED;
-	}
-
  phase3:
 	/* phase 3: rewrite to dst interface */
 	if (action == XDP_IFR_FORWARD)

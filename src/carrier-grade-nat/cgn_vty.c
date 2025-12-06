@@ -40,6 +40,7 @@
 #include "gtp_interface.h"
 #include "cdr_fwd.h"
 #include "cgn.h"
+#include "cgn-priv.h"
 
 
 /* Extern data */
@@ -60,11 +61,8 @@ DEFUN(cgn,
 	c = cgn_ctx_get_by_name(argv[0]);
 	if (c == NULL) {
 		c = cgn_ctx_alloc(argv[0]);
-		if (c == NULL) {
-			log_message(LOG_WARNING, "cannot create carrier-grade-nat"
-				    "bloc %s", argv[0]);
+		if (c == NULL)
 			return CMD_WARNING;
-		}
 	}
 	vty->node = CGN_NODE;
 	vty->index = c;
@@ -100,10 +98,43 @@ DEFUN(cgn_description,
 {
 	struct cgn_ctx *c = vty->index;
 
-	snprintf(c->description, GTP_STR_MAX_LEN, "%s", argv[0]);
+	snprintf(c->description, sizeof (c->description), "%s", argv[0]);
 
 	return CMD_SUCCESS;
 }
+
+DEFUN(cgn_bpf_program,
+      cgn_bpf_program_cmd,
+      "bpf-program NAME",
+      "Use BPF Program\n"
+      "BPF Program name\n")
+{
+	struct cgn_ctx *c = vty->index;
+	struct gtp_bpf_prog *p;
+
+	if (c->bpf_data != NULL) {
+		vty_out(vty, "%% bpf-program already set\n");
+		return CMD_WARNING;
+	}
+
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% unknown bpf-program '%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	c->bpf_data = gtp_bpf_prog_tpl_data_get(p, "cgn");
+	c->bpf_ifrules = gtp_bpf_prog_tpl_data_get(p, "if_rules");
+	if (c->bpf_data == NULL || c->bpf_ifrules == NULL) {
+		vty_out(vty, "%% bpf-program '%s' is not implementing "
+			"template 'cgn' and 'if_rules'\n", argv[0]);
+		return CMD_WARNING;
+	}
+	list_add(&c->bpf_list, &c->bpf_data->cgn_list);
+
+	return CMD_SUCCESS;
+}
+
 
 DEFUN(cgn_ip_pool,
       cgn_ip_pool_cmd,
@@ -114,6 +145,12 @@ DEFUN(cgn_ip_pool,
 	union addr addr;
 	uint64_t count;
 	uint32_t base, ns, i;
+
+	if (c->initialized) {
+		vty_out(vty, "%% carrier-grade-nat:'%s' cannot configure, "
+			"already initialized\n", c->name);
+		return CMD_WARNING;
+	}
 
 	if (addr_parse_ip(argv[0], &addr, NULL, &count, 1)) {
 		vty_out(vty, "%% carrier-grade-nat:'%s' cannot "
@@ -141,14 +178,51 @@ DEFUN(cgn_ip_pool,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cgn_user_conf,
+      cgn_user_conf_cmd,
+      "user max <1-2000000> block <1-63> flow <10-16000>",
+      "Configure CGN users\n"
+      "Set maximum users allowed\n"
+      "Value\n"
+      "Set maximum ipblock allowed per users\n"
+      "Value\n"
+      "Set maximum flow allowed per users\n"
+      "Value\n")
+{
+	struct cgn_ctx *c = vty->index;
+
+	if (c->initialized) {
+		vty_out(vty, "%% carrier-grade-nat:'%s' cannot configure, "
+			"already initialized\n", c->name);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("Max user", c->max_user,
+			      argv[1], 1, 2000000);
+	c->max_user = atoi(argv[0]);
+	VTY_GET_INTEGER_RANGE("Max block per user", c->block_per_user,
+			      argv[1], 1, 63);
+	VTY_GET_INTEGER_RANGE("Max flow per user", c->flow_per_user,
+			      argv[2], 1, 16000);
+
+	c->max_flow = (c->max_user * c->flow_per_user) / 100;
+
+	return CMD_SUCCESS;
+}
 
 DEFUN(cgn_block_conf_pool,
       cgn_block_conf_cmd,
-      "block-port-config start START end END size SIZE",
+      "block-port start START end END size SIZE",
       "Configure block ports\n")
 {
 	struct cgn_ctx *c = vty->index;
 	uint16_t port_start, port_end, block_size;
+
+	if (c->initialized) {
+		vty_out(vty, "%% carrier-grade-nat:'%s' cannot configure, "
+			"already initialized\n", c->name);
+		return CMD_WARNING;
+	}
 
 	port_start = atoi(argv[0]);
 	port_end = atoi(argv[1]);
@@ -326,7 +400,7 @@ DEFUN(show_cgn_block_alloc,
 		if (name != NULL && strcmp(c->name, name))
 			continue;
 
-		cgn_bpf_block_alloc_dump(c, buf, sizeof (buf));
+		cgn_flow_dump_block_alloc(c, buf, sizeof (buf));
 		vty_out(vty, "%s", buf);
 	}
 
@@ -356,7 +430,7 @@ DEFUN(show_cgn_user_flow,
 		if (name != NULL && strcmp(c->name, name))
 			continue;
 
-		cgn_bpf_user_full_dump(c, addr, buf, sizeof (buf));
+		cgn_flow_dump_user_full(c, addr, buf, sizeof (buf));
 		vty_out(vty, "%s", buf);
 	}
 
@@ -379,8 +453,15 @@ config_cgn_write(struct vty *vty)
 		vty_out(vty, "carrier-grade-nat %s\n", c->name);
 		if (c->description[0])
 			vty_out(vty, " description %s\n", c->description);
-		vty_out(vty, " block-port-config start %d end %d size %d\n",
-			c->port_start, c->port_end, c->block_size);
+		if (c->block_size != CGN_BLOCK_SIZE_DEF ||
+		    c->port_start != 1025 ||  c->port_end != 65535)
+			vty_out(vty, " block-port start %d end %d size %d\n",
+				c->port_start, c->port_end, c->block_size);
+		if (c->max_user != CGN_USER_MAX_DEF ||
+		    c->block_per_user != CGN_BLOCK_PER_USER_DEF ||
+		    c->flow_per_user != CGN_FLOW_PER_USER_DEF)
+			vty_out(vty, "user max %d block-per-user %d flow-per-user %d\n",
+				c->max_user, c->block_per_user, c->flow_per_user);
 		uint64_t cgn_addr[c->cgn_addr_n];
 		k = cgn_ctx_compact_cgn_addr(c, cgn_addr);
 		for (i = 0; i < k; i++) {
@@ -429,8 +510,10 @@ cmd_ext_cgn_install(void)
 
 	install_default(CGN_NODE);
 	install_element(CGN_NODE, &cgn_description_cmd);
+	install_element(CGN_NODE, &cgn_bpf_program_cmd);
 	install_element(CGN_NODE, &cgn_ip_pool_cmd);
 	install_element(CGN_NODE, &cgn_block_conf_cmd);
+	install_element(CGN_NODE, &cgn_user_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_tcp_conf_cmd);
 	install_element(CGN_NODE, &cgn_protocol_udp_port_conf_cmd);

@@ -135,7 +135,7 @@ _acl_ipv6(struct xdp_md	*ctx, struct if_rule_data *d, struct ipv6hdr *ip6h)
  *
  * looks in 'if_rule' a rule that can match incoming trafic.
  *
- * thes rules are set by userapp. if found, rule gives an 'action'.
+ * if_rules are set by userapp. if found, rule gives an 'action'.
  * action is either XDP_*, or a custom value that caller will know.
  *
  * eg. for cgn: 10 for traffic coming from 'network-in', 11 for

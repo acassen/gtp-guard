@@ -11,7 +11,7 @@ bpf_sources = files(
   'mape.c',
   'upf.c',
   'upf_cgn.c',
-  'test_cgn.c',
+#  'test_cgn.c',
 )
 
 clang_bpf_flags = [

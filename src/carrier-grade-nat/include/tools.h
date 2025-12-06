@@ -37,12 +37,3 @@
 #define notice(Mod, Fmt, ...)	log_message(LOG_NOTICE, Fmt, ## __VA_ARGS__)
 #define warn(Mod, Fmt, ...)	log_message(LOG_WARNING, Fmt, ## __VA_ARGS__)
 #define err(Mod, Fmt, ...)	log_message(LOG_ERR, Fmt, ## __VA_ARGS__)
-
-
-/* always useful */
-#ifndef min
-# define min(A, B) ((A) > (B) ? (B) : (A))
-#endif
-#ifndef max
-# define max(A, B) ((A) > (B) ? (A) : (B))
-#endif

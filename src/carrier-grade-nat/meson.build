@@ -7,10 +7,9 @@ src += files(
   'cdr_fwd_spool.c',
   'cdr_fwd_vty.c',
   'cgn.c',
-  'cgn_blog.c',
   'cgn_bpf.c',
+  'cgn_flow.c',
   'cgn_vty.c',
-  'tools.c',
 )
 
 inc += include_directories('include', '..')
