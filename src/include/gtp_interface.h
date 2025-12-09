@@ -58,7 +58,7 @@ enum gtp_interface_flags {
 	GTP_INTERFACE_FL_DIRECT_TX_GW_BIT,
 	GTP_INTERFACE_FL_SHUTDOWN_BIT,
 	GTP_INTERFACE_FL_RUNNING_BIT,
-	GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT,
+	GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT,
 };
 
 /* Interface structure */
@@ -73,12 +73,12 @@ struct gtp_interface {
 	int				ifindex;
 	char				description[GTP_STR_MAX_LEN];
 
-	/* only set if bfp-prog is attached to this device */
+	/* attached bfp-prog. if not set, all the following are unused */
 	struct gtp_bpf_prog		*bpf_prog;
 	struct list_head		bpf_prog_list;
 	struct gtp_bpf_ifrules		*bpf_ifrules;
-
-	/* running program */
+	char				xdp_progname[32];	/* if specific */
+	char				tc_progname[32];	/* if specific */
 	struct bpf_link			*bpf_xdp_lnk;
 	struct bpf_link			*bpf_tc_lnk;
 

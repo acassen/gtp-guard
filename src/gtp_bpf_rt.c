@@ -57,27 +57,27 @@ gtp_bpf_rt_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 	struct gtp_bpf_rt *pr = udata;
 
 	/* MAP ref for faster access */
-	pr->teid_ingress = gtp_bpf_prog_load_map(p->load.obj, "teid_ingress");
+	pr->teid_ingress = gtp_bpf_prog_load_map(p->obj_load, "teid_ingress");
 	if (!pr->teid_ingress)
 		return -1;
 
-	pr->teid_egress = gtp_bpf_prog_load_map(p->load.obj, "teid_egress");
+	pr->teid_egress = gtp_bpf_prog_load_map(p->obj_load, "teid_egress");
 	if (!pr->teid_egress)
 		return -1;
 
-	pr->ppp_ingress = gtp_bpf_prog_load_map(p->load.obj, "ppp_ingress");
+	pr->ppp_ingress = gtp_bpf_prog_load_map(p->obj_load, "ppp_ingress");
 	if (!pr->ppp_ingress)
 		return -1;
 
-	pr->iptnl_info = gtp_bpf_prog_load_map(p->load.obj, "iptnl_info");
+	pr->iptnl_info = gtp_bpf_prog_load_map(p->obj_load, "iptnl_info");
 	if (!pr->iptnl_info)
 		return -1;
 
-	pr->if_lladdr = gtp_bpf_prog_load_map(p->load.obj, "if_lladdr");
+	pr->if_lladdr = gtp_bpf_prog_load_map(p->obj_load, "if_lladdr");
 	if (!pr->if_lladdr)
 		return -1;
 
-	pr->if_stats = gtp_bpf_prog_load_map(p->load.obj, "if_stats");
+	pr->if_stats = gtp_bpf_prog_load_map(p->obj_load, "if_stats");
 	if (!pr->if_stats)
 		return -1;
 

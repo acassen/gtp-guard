@@ -307,8 +307,8 @@ gtp_interface_start(struct gtp_interface *iface)
 	if (gtp_bpf_prog_attach(p, iface) < 0)
 		return -1;
 
-	log_message(LOG_INFO, "Success attaching bpf-program:'%s' to interface:'%s'"
-			    , p->name, iface->ifname);
+	log_message(LOG_INFO, "gtp_interface: started '%s' with bpf-program:'%s'"
+			    , iface->ifname, p->name);
 
 	/* Metrics init */
 	err = 0;

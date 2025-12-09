@@ -473,8 +473,8 @@ pfcp_bpf_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct pfcp_bpf_data *bd = udata;
 
-	bd->user_egress = gtp_bpf_prog_load_map(p->load.obj, "user_egress");
-	bd->user_ingress = gtp_bpf_prog_load_map(p->load.obj, "user_ingress");
+	bd->user_egress = gtp_bpf_prog_load_map(p->obj_load, "user_egress");
+	bd->user_ingress = gtp_bpf_prog_load_map(p->obj_load, "user_ingress");
 	if (bd->user_egress == NULL || bd->user_ingress == NULL)
 		return -1;
 

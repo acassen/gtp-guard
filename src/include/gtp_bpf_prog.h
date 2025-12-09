@@ -67,23 +67,17 @@ enum gtp_bpf_prog_flags {
 	GTP_BPF_PROG_FL_LOAD_ERR_BIT,
 };
 
-struct gtp_bpf_prog_obj {
-	char			tc_progname[GTP_STR_MAX_LEN];
-	char			xdp_progname[GTP_STR_MAX_LEN];
-	struct bpf_object	*obj;
-	struct bpf_program	*tc;
-	struct bpf_program	*xdp;
-};
-
 struct gtp_bpf_prog {
 	char			name[GTP_STR_MAX_LEN];
 	char			description[GTP_STR_MAX_LEN];
 	char			path[GTP_PATH_MAX_LEN];
+	char			tc_progname[32];
+	char			xdp_progname[32];
 	const struct gtp_bpf_prog_tpl *tpl[BPF_PROG_TPL_MAX];
 	void			*tpl_data[BPF_PROG_TPL_MAX];
 	int			tpl_n;
-	struct gtp_bpf_prog_obj	run;	/* running bpf */
-	struct gtp_bpf_prog_obj	load;	/* bpf being loaded */
+	struct bpf_object	*obj_load;	/* bpf being loaded */
+	struct bpf_object	*obj_run;	/* running bpf */
 	char			*log_buf;
 
 	struct list_head	iface_bind_list;

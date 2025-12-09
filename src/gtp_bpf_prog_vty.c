@@ -19,12 +19,16 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include "gtp_data.h"
-#include "gtp_bpf_prog.h"
-#include "gtp_interface.h"
+#include <unistd.h>
+#include <bpf.h>
+
+#include "logger.h"
 #include "command.h"
 #include "bitops.h"
 #include "utils.h"
+#include "gtp_data.h"
+#include "gtp_bpf_prog.h"
+#include "gtp_interface.h"
 
 
 /* Extern data */
@@ -35,9 +39,8 @@ extern struct data *daemon_data;
  *	VTY helpers
  */
 static void
-_show_bpf(struct vty *vty, struct gtp_bpf_prog_obj *po)
+_show_bpf(struct vty *vty, struct gtp_bpf_prog *p, struct bpf_object *obj)
 {
-	struct bpf_object *obj = po->obj;
 	struct bpf_map *map;
 	struct bpf_program *prg;
 	bool have_tc = false, have_xdp = false;
@@ -59,21 +62,22 @@ _show_bpf(struct vty *vty, struct gtp_bpf_prog_obj *po)
 		switch (bpf_program__expected_attach_type(prg)) {
 		case BPF_XDP:
 			if (!have_xdp &&
-			    (!po->xdp_progname[0] ||
-			     !strcmp(bpf_program__name(prg), po->xdp_progname))) {
+			    (!p->xdp_progname[0] ||
+			     !strcmp(bpf_program__name(prg), p->xdp_progname))) {
 				have_xdp = true;
 				loaded = '*';
 			}
 			break;
 		case BPF_TCX_INGRESS:
 			if (!have_tc &&
-			    (!po->tc_progname[0] ||
-			     !strcmp(bpf_program__name(prg), po->tc_progname))) {
+			    (!p->tc_progname[0] ||
+			     !strcmp(bpf_program__name(prg), p->tc_progname))) {
 				have_tc = true;
 				loaded = '*';
 			}
 			break;
 		default:
+			loaded = '?';
 			break;
 		}
 
@@ -87,12 +91,48 @@ _show_bpf(struct vty *vty, struct gtp_bpf_prog_obj *po)
 }
 
 static int
+_get_prg_info(struct bpf_link *lnk, struct bpf_prog_info *info)
+{
+	struct bpf_link_info lnk_info = {};
+	uint32_t info_len = sizeof(*info);
+	int ret, fd;
+
+	if (lnk == NULL)
+		return 0;
+
+	info_len = sizeof(lnk_info);
+	ret = bpf_link_get_info_by_fd(bpf_link__fd(lnk), &lnk_info, &info_len);
+	if (ret < 0) {
+		log_message(LOG_INFO, "bpf_link_get_info_by_fd: %m");
+		return 0;
+	}
+
+	fd = bpf_prog_get_fd_by_id(lnk_info.prog_id);
+	if (fd < 0) {
+		log_message(LOG_INFO, "bpf_prog_get_fd_by_id: %m");
+		return 0;
+	}
+
+	memset(info, 0x00, sizeof (*info));
+	info_len = sizeof(*info);
+	ret = bpf_prog_get_info_by_fd(fd, info, &info_len);
+	if (ret < 0) {
+		log_message(LOG_INFO, "bpf_prog_get_info_by_fd: %m");
+		close(fd);
+		return 0;
+	}
+	close(fd);
+	return 1;
+}
+
+static int
 gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 {
 	struct gtp_interface *iface;
+	struct bpf_prog_info pi;
 	struct vty *vty = arg;
 	char buf[64];
-	int i;
+	int i, k;
 
 	vty_out(vty, "gtp-program '%s':\n", p->name);
 	vty_out(vty, "  flags               :");
@@ -109,22 +149,33 @@ gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 	vty_out(vty, "%s  template modes      :\n", VTY_NEWLINE);
 	for (i = 0; i < p->tpl_n; i++)
 		vty_out(vty, "    - %s\n", p->tpl[i]->description);
-	if (p->load.obj) {
+	if (p->obj_load) {
 		vty_out(vty, "  opened bpf          :\n");
-		_show_bpf(vty, &p->load);
+		_show_bpf(vty, p, p->obj_load);
 	}
-	if (p->run.obj) {
+	if (p->obj_run) {
 		vty_out(vty, "  running bpf         :\n");
-		_show_bpf(vty, &p->run);
+		_show_bpf(vty, p, p->obj_run);
 	}
 	vty_out(vty, "  attached interfaces :\n");
 	list_for_each_entry(iface, &p->iface_bind_list, bpf_prog_list) {
 		if (iface->flags & GTP_INTERFACE_FL_SHUTDOWN_BIT)
 			snprintf(buf, sizeof(buf), "interface down");
-		else if (iface->bpf_prog == p)
-			snprintf(buf, sizeof(buf), "bpf running");
-		else
+		else if (!iface->bpf_prog)
 			snprintf(buf, sizeof(buf), "bpf not loaded");
+		else if (iface->bpf_prog != p)
+			snprintf(buf, sizeof(buf), "!!! bpf load BUG !!!");
+		else {
+			k = scnprintf(buf, sizeof (buf), "bpf run");
+			if (_get_prg_info(iface->bpf_xdp_lnk, &pi)) {
+				k += snprintf(buf + k, sizeof (buf) - k,
+					      " xdp=%s", pi.name);
+			}
+			if (_get_prg_info(iface->bpf_tc_lnk, &pi)) {
+				k += snprintf(buf + k, sizeof (buf) - k,
+					      " tcx=%s", pi.name);
+			}
+		}
 		vty_out(vty, "     - %s; %s\n", iface->ifname, buf);
 	}
 	return 0;
@@ -215,15 +266,17 @@ DEFUN(bpf_prog_path,
 DEFUN(bpf_prog_progname,
       bpf_prog_progname_cmd,
       "prog-name (xdp|tc) NAME",
-      "Set BPF Program name\n"
-      "name\n")
+      "Set default bpf program name\n"
+      "XDP program\n"
+      "TC program on ingress\n"
+      "Program name\n")
 {
 	struct gtp_bpf_prog *p = vty->index;
 
 	if (!strcmp(argv[0], "xdp"))
-		bsd_strlcpy(p->load.xdp_progname, argv[1], GTP_STR_MAX_LEN - 1);
+		snprintf(p->xdp_progname, sizeof (p->xdp_progname), "%s", argv[1]);
 	else
-		bsd_strlcpy(p->load.tc_progname, argv[1], GTP_STR_MAX_LEN - 1);
+		snprintf(p->tc_progname, sizeof (p->tc_progname), "%s", argv[1]);
 	return CMD_SUCCESS;
 }
 
@@ -287,7 +340,7 @@ DEFUN(bpf_prog_no_shutdown,
 {
 	struct gtp_bpf_prog *p = vty->index;
 
-	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) && p->run.obj) {
+	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) && p->obj_run) {
 		vty_out(vty, "%% bpf-program:'%s' is already running%s"
 			   , p->name
 			   , VTY_NEWLINE);
@@ -313,10 +366,10 @@ bpf_prog_config_write(struct vty *vty)
 		if (p->description[0])
 			vty_out(vty, " description %s%s", p->description, VTY_NEWLINE);
 		vty_out(vty, " path %s%s", p->path, VTY_NEWLINE);
-		if (p->load.xdp_progname[0])
-			vty_out(vty, " prog-name xdp %s%s", p->load.xdp_progname, VTY_NEWLINE);
-		if (p->load.tc_progname[0])
-			vty_out(vty, " prog-name tc %s%s", p->load.tc_progname, VTY_NEWLINE);
+		if (p->xdp_progname[0])
+			vty_out(vty, " prog-name xdp %s%s", p->xdp_progname, VTY_NEWLINE);
+		if (p->tc_progname[0])
+			vty_out(vty, " prog-name tc %s%s", p->tc_progname, VTY_NEWLINE);
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) ? "" : "no "
 			   , VTY_NEWLINE);

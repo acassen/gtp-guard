@@ -78,7 +78,7 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 			   , addr_stringify(&iface->tunnel_remote
 					    , addr2_str, sizeof (addr2_str))
 			   , VTY_NEWLINE);
-	if (__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags))
+	if (__test_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags))
 		vty_out(vty, " bpf-input-pkt: rule-disabled\n");
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
@@ -211,9 +211,9 @@ DEFUN(interface_bpf_pkt,
 	bool set = !strcmp(argv[0], "default");
 
 	if (set)
-		__clear_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
+		__clear_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags);
 	else
-		__set_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
+		__set_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags);
 
 	gtp_bpf_ifrules_set_auto_input_rule(iface, set);
 
@@ -463,7 +463,7 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " description %s%s", iface->description, VTY_NEWLINE);
 		if (iface->bpf_prog)
 			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
-		if (__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags))
+		if (__test_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags))
 			vty_out(vty, " bpf-packet input disable-rule\n");
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"

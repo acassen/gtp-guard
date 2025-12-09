@@ -218,30 +218,6 @@ _rule_set_key_base(struct gtp_bpf_ifrules *bir, int ifindex, struct gtp_if_rule 
 	return 0;
 }
 
-static void
-_rule_set_attr(struct gtp_interface *iface, struct if_rule_attr *a)
-{
-	if (iface->tunnel_mode == GTP_INTERFACE_TUN_GRE) {
-		a->tun_local = addr_toip4(&iface->tunnel_local);
-		a->tun_remote = addr_toip4(&iface->tunnel_remote);
-		a->flags = IF_RULE_FL_TUNNEL_GRE;
-	} else if (iface->tunnel_mode == GTP_INTERFACE_TUN_IPIP) {
-		a->tun_local = addr_toip4(&iface->tunnel_local);
-		a->tun_remote = addr_toip4(&iface->tunnel_remote);
-		a->flags = IF_RULE_FL_TUNNEL_IPIP;
-	} else {
-		a->tun_local = 0;
-		a->tun_remote = 0;
-		a->flags = 0;
-	}
-
-	a->vlan_id = iface->vlan_id;
-
-	a->ifindex = iface->ifindex;
-	if (iface->link_iface)
-		a->ifindex = iface->link_iface->ifindex;
-}
-
 static int
 _rule_install(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r,
 	      bool overwrite)
@@ -258,6 +234,7 @@ _rule_install(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r,
 	ar->action = r->action;
 	ar->table_id = r->table_id ?: r->from ? r->from->table_id : 0;
 	ar->force_ifindex = r->force_ifindex;
+	ar->xsk_base_idx = ~0;
 
 	/* printf("add input rule if:%d vlan:%d ip-table:%d tun:%d/%x/%x\n", */
 	/*        k->ifindex, k->vlan_id, ar->table_id, */
@@ -393,6 +370,29 @@ _out_rule_sort_cb(struct list_head *al, struct list_head *bl)
 	return 0;
 }
 
+static void
+_rule_set_attr(struct gtp_interface *iface, struct if_rule_attr *a)
+{
+	if (iface->tunnel_mode == GTP_INTERFACE_TUN_GRE) {
+		a->tun_local = addr_toip4(&iface->tunnel_local);
+		a->tun_remote = addr_toip4(&iface->tunnel_remote);
+		a->flags = IF_RULE_FL_TUNNEL_GRE;
+	} else if (iface->tunnel_mode == GTP_INTERFACE_TUN_IPIP) {
+		a->tun_local = addr_toip4(&iface->tunnel_local);
+		a->tun_remote = addr_toip4(&iface->tunnel_remote);
+		a->flags = IF_RULE_FL_TUNNEL_IPIP;
+	} else {
+		a->tun_local = 0;
+		a->tun_remote = 0;
+		a->flags = 0;
+	}
+
+	a->vlan_id = iface->vlan_id;
+
+	a->ifindex = iface->ifindex;
+	if (iface->link_iface)
+		a->ifindex = iface->link_iface->ifindex;
+}
 
 static void
 _out_rule_attr_add(struct gtp_bpf_ifrules *bir, struct gtp_interface *iface)
@@ -469,7 +469,7 @@ _out_rule_event_cb(struct gtp_interface *iface, enum gtp_interface_event type,
 {
 	struct gtp_bpf_ifrules *bir = udata;
 	struct gtp_interface *child = arg;
-	bool def_route = !__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT,
+	bool def_route = !__test_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT,
 				     &child->flags);
 
 	struct gtp_if_rule ifr = {
@@ -763,8 +763,8 @@ gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct gtp_bpf_ifrules *bir = udata;
 
-	bir->if_rule = gtp_bpf_prog_load_map(p->load.obj, "if_rule");
-	bir->if_rule_attr = gtp_bpf_prog_load_map(p->load.obj, "if_rule_attr");
+	bir->if_rule = gtp_bpf_prog_load_map(p->obj_load, "if_rule");
+	bir->if_rule_attr = gtp_bpf_prog_load_map(p->obj_load, "if_rule_attr");
 	if (bir->if_rule == NULL || bir->if_rule_attr == NULL)
 		return -1;
 
