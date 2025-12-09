@@ -57,42 +57,6 @@ static void gtp_bpf_prog_watch(struct gtp_bpf_prog *p);
  */
 
 
-/*
- * split given buffer into array using delimiters, consecutive
- * delimiters occurence are merged
- * does *NOT* remove leading occurence of delimiter
- */
-static void
-split_line(char *buf, int *argc, char **argv, const char *delim,
-	   int max_args)
-{
-	int scan;
-
-	*argc = 1;
-	argv[0] = buf;
-
-	scan = 0;
-	while (*buf) {
-		if (!scan) {
-			if (strchr(delim, *buf)) {
-				*buf = 0;
-				scan = 1;
-			}
-		} else {
-			if (!strchr(delim, *buf)) {
-				(*argc)++;
-				argv[*argc - 1] = buf;
-				scan = 0;
-
-				if (*argc == max_args)
-					return;
-			}
-		}
-		buf++;
-	}
-}
-
-
 static const struct btf_type *
 _get_datasec_type(struct bpf_object *obj, const char *datasec_name, void **out_data)
 {

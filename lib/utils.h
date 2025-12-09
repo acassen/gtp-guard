@@ -105,6 +105,7 @@ size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
 char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);
 int open_pipe(int pipe_arr[2]);
 uint32_t fnv1a_hash(const uint8_t *buffer, size_t size);
+void split_line(char *buf, int *argc, char **argv, const char *delim, int max_args);
 
 static inline uint32_t
 next_power_of_2(uint32_t n)

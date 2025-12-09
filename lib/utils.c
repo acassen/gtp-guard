@@ -196,7 +196,7 @@ char
 hextochar(char c)
 {
 	char pseudo[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8',
-                          '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+			  '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
 	return pseudo[(int) c];
 }
@@ -206,38 +206,38 @@ hextostring(char *data, int size, char *buffer_out)
 	char ch = 0x00;
 	int i = 0, j = 0;
 
-        for (i = 0; i < size; i++) {
-                ch = (char) (data[i] & 0xf0);		/* Strip off high nibble */
-                ch = (char) (ch >> 4);			/* shift the bits down */
-                ch = (char) (ch & 0x0f);		/* must do this is high order bit is on! */
-                buffer_out[j++] = hextochar(ch);	/* convert the nibble to a String Character */
+	for (i = 0; i < size; i++) {
+		ch = (char) (data[i] & 0xf0);		/* Strip off high nibble */
+		ch = (char) (ch >> 4);			/* shift the bits down */
+		ch = (char) (ch & 0x0f);		/* must do this is high order bit is on! */
+		buffer_out[j++] = hextochar(ch);	/* convert the nibble to a String Character */
 
-                ch = (char) (data[i] & 0x0f);		/* Strip off low nibble */
-                buffer_out[j++] = hextochar(ch);	/* convert the nibble to a String Character */
-        }
+		ch = (char) (data[i] & 0x0f);		/* Strip off low nibble */
+		buffer_out[j++] = hextochar(ch);	/* convert the nibble to a String Character */
+	}
 
-        buffer_out[j++] = '\0';
-        return 0;
+	buffer_out[j++] = '\0';
+	return 0;
 }
 int
 stringtohex(const char *buffer_in, int size_in, char *buffer_out, int size_out)
 {
-        static char digits[] = "0123456789abcdef";
-        const char *cp = buffer_in;
-        int i=0, ch;
+	static char digits[] = "0123456789abcdef";
+	const char *cp = buffer_in;
+	int i=0, ch;
 
-	if (size_in > 2*size_out) {
+	if (size_in > 2 * size_out) {
 		errno = ENOSPC;
 		return -1;
 	}
 
-        while ((ch = *cp++) != '\0' && i < size_in) {
-                const char *pch;
-                if ((pch = strchr(digits, tolower(ch))) != NULL) {
-                        buffer_out[i/2] |= (pch - digits) << 4 * (1 - (i % 2));
-                        i++;
-                }
-        }
+	while ((ch = *cp++) != '\0' && i < size_in) {
+		const char *pch;
+		if ((pch = strchr(digits, tolower(ch))) != NULL) {
+			buffer_out[i/2] |= (pch - digits) << 4 * (1 - (i % 2));
+			i++;
+		}
+	}
 
 	return 0;
 }
@@ -270,31 +270,31 @@ swapbuffer(uint8_t *buffer_in, int size_in, uint8_t *buffer_out)
 uint32_t
 adler_crc32(uint8_t *data, size_t len)
 {
-        uint32_t a = 1, b = 0;
+	uint32_t a = 1, b = 0;
 
-        while (len) {
-                size_t tlen = len > 5550 ? 5550 : len;
-                len -= tlen;
-                do {
-                        a += *data++;
-                        b += a;
-                } while (--tlen);
+	while (len) {
+		size_t tlen = len > 5550 ? 5550 : len;
+		len -= tlen;
+		do {
+			a += *data++;
+			b += a;
+		} while (--tlen);
 
-                a = (a & 0xffff) + (a >> 16) * (65536-MOD_ADLER);
-                b = (b & 0xffff) + (b >> 16) * (65536-MOD_ADLER);
-        }
+		a = (a & 0xffff) + (a >> 16) * (65536-MOD_ADLER);
+		b = (b & 0xffff) + (b >> 16) * (65536-MOD_ADLER);
+	}
 
-        /* It can be shown that a <= 0x1013a here, so a single subtract will do. */
-        if (a >= MOD_ADLER)
-                a -= MOD_ADLER;
+	/* It can be shown that a <= 0x1013a here, so a single subtract will do. */
+	if (a >= MOD_ADLER)
+		a -= MOD_ADLER;
 
-        /* It can be shown that b can reach 0xffef1 here. */
-        b = (b & 0xffff) + (b >> 16) * (65536-MOD_ADLER);
+	/* It can be shown that b can reach 0xffef1 here. */
+	b = (b & 0xffff) + (b >> 16) * (65536-MOD_ADLER);
 
-        if (b >= MOD_ADLER)
-                b -= MOD_ADLER;
+	if (b >= MOD_ADLER)
+		b -= MOD_ADLER;
 
-        return (b << 16) | a;
+	return (b << 16) | a;
 }
 
 /*
@@ -303,24 +303,24 @@ adler_crc32(uint8_t *data, size_t len)
 uint32_t
 fletcher_crc32(uint8_t *data, size_t len)
 {
-        uint32_t sum1 = 0xffff, sum2 = 0xffff;
+	uint32_t sum1 = 0xffff, sum2 = 0xffff;
 
-        while (len) {
-                unsigned tlen = len > 360 ? 360 : len;
-                len -= tlen;
-                do {
-                        sum1 += *data++;
-                        sum2 += sum1;
-                } while (--tlen);
-                sum1 = (sum1 & 0xffff) + (sum1 >> 16);
-                sum2 = (sum2 & 0xffff) + (sum2 >> 16);
-        }
+	while (len) {
+		unsigned tlen = len > 360 ? 360 : len;
+		len -= tlen;
+		do {
+			sum1 += *data++;
+			sum2 += sum1;
+		} while (--tlen);
+		sum1 = (sum1 & 0xffff) + (sum1 >> 16);
+		sum2 = (sum2 & 0xffff) + (sum2 >> 16);
+	}
 
-        /* Second reduction step to reduce sums to 16 bits */
-        sum1 = (sum1 & 0xffff) + (sum1 >> 16);
-        sum2 = (sum2 & 0xffff) + (sum2 >> 16);
+	/* Second reduction step to reduce sums to 16 bits */
+	sum1 = (sum1 & 0xffff) + (sum1 >> 16);
+	sum2 = (sum2 & 0xffff) + (sum2 >> 16);
 
-        return sum2 << 16 | sum1;
+	return sum2 << 16 | sum1;
 }
 
 
@@ -328,17 +328,17 @@ fletcher_crc32(uint8_t *data, size_t len)
 int
 integer_to_string(const int value, char *str, size_t size)
 {
-        int i, len = 0, t = value, s = size;
+	int i, len = 0, t = value, s = size;
 
-        for (i = value; i; i/=10) {
-                if (++len > s)
-                        return -1;
-        }
+	for (i = value; i; i/=10) {
+		if (++len > s)
+			return -1;
+	}
 
-        for (i = 0; i < len; i++,t/=10)
-                str[len - (i + 1)] = t % 10 + '0';
+	for (i = 0; i < len; i++,t/=10)
+		str[len - (i + 1)] = t % 10 + '0';
 
-        return len;
+	return len;
 }
 
 /*
@@ -485,4 +485,40 @@ fnv1a_hash(const uint8_t *buffer, size_t size)
 	}
 
 	return hash;
+}
+
+
+/*
+ * split given buffer into array using delimiters, consecutive
+ * delimiters occurence are merged
+ * does *NOT* remove leading occurence of delimiter
+ */
+void
+split_line(char *buf, int *argc, char **argv, const char *delim,
+	   int max_args)
+{
+	int scan;
+
+	*argc = 1;
+	argv[0] = buf;
+
+	scan = 0;
+	while (*buf) {
+		if (!scan) {
+			if (strchr(delim, *buf)) {
+				*buf = 0;
+				scan = 1;
+			}
+		} else {
+			if (!strchr(delim, *buf)) {
+				(*argc)++;
+				argv[*argc - 1] = buf;
+				scan = 0;
+
+				if (*argc == max_args)
+					return;
+			}
+		}
+		buf++;
+	}
 }
