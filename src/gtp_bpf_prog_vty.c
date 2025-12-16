@@ -165,6 +165,8 @@ gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 			snprintf(buf, sizeof(buf), "bpf not loaded");
 		else if (iface->bpf_prog != p)
 			snprintf(buf, sizeof(buf), "!!! bpf load BUG !!!");
+		else if (!iface->bpf_xdp_lnk && !iface->bpf_tc_lnk)
+			k = sprintf(buf, "bpf set, not started");
 		else {
 			k = scnprintf(buf, sizeof (buf), "bpf run");
 			if (_get_prg_info(iface->bpf_xdp_lnk, &pi)) {

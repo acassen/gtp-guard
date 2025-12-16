@@ -44,6 +44,7 @@
 #include "gtp_data.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
+#include "gtp_bpf_xsk.h"
 #include "cgn-priv.h"
 #include "bpf/lib/cgn-def.h"
 
@@ -77,6 +78,8 @@ cgn_bpf_release(struct gtp_bpf_prog *p, void *udata)
 		c->bpf_ifrules = NULL;
 		list_del_init(&c->bpf_list);
 	}
+	if (x->xc != NULL)
+		gtp_xsk_release(x->xc);
 	free(x);
 }
 

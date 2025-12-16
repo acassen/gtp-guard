@@ -7,6 +7,9 @@
 
 /* #define CGN_DEBUG */
 
+#define XDP_CGN_FROM_PRIV	10
+#define XDP_CGN_FROM_PUB	11
+
 
 /*
  * ipv4 flow

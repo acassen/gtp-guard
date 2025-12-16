@@ -478,7 +478,7 @@ static int
 gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 {
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	int i, err;
+	int i = 0, err;
 
 	if (__test_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags))
 		return -1;
@@ -516,6 +516,10 @@ gtp_bpf_prog_load_prg(struct gtp_bpf_prog *p)
 	return 0;
 
  err:
+	for (--i; i >= 0; i--)
+		if (p->tpl[i]->closed != NULL)
+			p->tpl[i]->closed(p, p->tpl_data[i]);
+
 	bpf_object__close(p->obj_load);
 	p->obj_load = NULL;
 	__set_bit(GTP_BPF_PROG_FL_LOAD_ERR_BIT, &p->flags);

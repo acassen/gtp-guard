@@ -36,11 +36,13 @@
 #include "list_head.h"
 #include "command.h"
 #include "gtp_data.h"
+#include "gtp_bpf_ifrules.h"
 #include "gtp_bpf_prog.h"
 #include "gtp_interface.h"
 #include "cdr_fwd.h"
 #include "cgn.h"
 #include "cgn-priv.h"
+#include "bpf/lib/cgn-def.h"
 
 
 /* Extern data */
@@ -132,6 +134,36 @@ DEFUN(cgn_bpf_program,
 	}
 	list_add(&c->bpf_list, &c->bpf_data->cgn_list);
 
+	return CMD_SUCCESS;
+}
+
+DEFUN(cgn_interface,
+      cgn_interface_cmd,
+      "interface (ingress|egress) .IFACES",
+      "Configure interface to listen for trafic\n"
+      "Use interfaces in ingress\n"
+      "Use interfaces in egress\n"
+      "Interfaces name\n")
+{
+	struct gtp_interface *iface;
+	bool ingress = !strcmp(argv[0], "ingress");
+	int i, ret;
+
+	for (i = 1; i < argc; i++) {
+		iface = gtp_interface_get(argv[i], true);
+		if (iface == NULL) {
+			vty_out(vty, "%% iface '%s' not found\n", argv[i]);
+			continue;
+		}
+		struct gtp_if_rule ifr = {
+			.from = iface,
+			.prio = ingress ? 100 : 500,
+			.action = ingress ? XDP_CGN_FROM_PRIV : XDP_CGN_FROM_PUB,
+		};
+		ret = gtp_bpf_ifrules_set(&ifr, true);
+		if (ret < 0 && ret != -EEXIST)
+			vty_out(vty, "%% error binding interface '%s' to cgn\n", argv[i]);
+	}
 	return CMD_SUCCESS;
 }
 
@@ -511,6 +543,7 @@ cmd_ext_cgn_install(void)
 	install_default(CGN_NODE);
 	install_element(CGN_NODE, &cgn_description_cmd);
 	install_element(CGN_NODE, &cgn_bpf_program_cmd);
+	install_element(CGN_NODE, &cgn_interface_cmd);
 	install_element(CGN_NODE, &cgn_ip_pool_cmd);
 	install_element(CGN_NODE, &cgn_block_conf_cmd);
 	install_element(CGN_NODE, &cgn_user_conf_cmd);

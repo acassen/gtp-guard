@@ -17,9 +17,9 @@ cgn_do(struct xdp_md *ctx, struct if_rule_data *d, int action)
 
 	if (action == XDP_IFR_DEFAULT_ROUTE)
 		ret = cgn_pkt_handle(ctx, d, 2);
-	else if (action == 10)
+	else if (action == XDP_CGN_FROM_PRIV)
 		ret = cgn_pkt_handle(ctx, d, 1);
-	else if (action == 11)
+	else if (action == XDP_CGN_FROM_PUB)
 		ret = cgn_pkt_handle(ctx, d, 0);
 	else
 		return action;
@@ -59,5 +59,5 @@ int cgn_xsk(struct xdp_md *ctx)
 }
 
 
-const char _mode[] = "if_rules,cgn,xsks";
+const char _mode[] = "if_rules,xsks,cgn";
 char _license[] SEC("license") = "GPL";

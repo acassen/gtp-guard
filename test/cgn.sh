@@ -447,8 +447,8 @@ carrier-grade-nat cgn-ng-1
  ipv4-pool 37.141.0.0/24
  protocol timeout icmp 2
  protocol timeout udp 2
-! interface priv side ingress
-! interface pub side egress
+ interface ingress priv
+ interface egress pub
 ! cdr-fwd cgn
 
 interface priv
@@ -468,16 +468,9 @@ interface pub
     ip netns exec cgn-priv ping -c 1 -W 2 -I 10.0.0.1 8.8.8.8
 
     gtpg_show "
-show interface
+show carrier-grade-nat config
 show carrier-grade-nat flows 10.0.0.1
-show bpf-program
 "
-#     sleep 4
-
-#     gtpg_show "
-# show carrier-grade-nat flows 10.0.0.1
-# "
-
 }
 
 
@@ -493,18 +486,16 @@ no bpf-program cgn-ng-1
 "
 
     gtpg_conf "
-carrier-grade-nat cgn-ng-1
- description doit_avoir_le_meme_nom_que_le_prog_bpf
- ipv4-pool 37.141.0.0/24
-! interface priv.20 side ingress
-! interface priv.21 side ingress
-! interface priv.22 side ingress
-! interface priv.23 side ingress
-! interface pub.10 side egress
-
 bpf-program cgn-ng-1
  path bin/cgn.bpf
  no shutdown
+
+carrier-grade-nat cgn-ng-1
+ bpf-program cgn-ng-1
+ description doit_avoir_le_meme_nom_que_le_prog_bpf
+ ipv4-pool 37.141.0.0/24
+ interface ingress priv.20 priv.21 priv.22 priv.23
+ interface egress pub.10
 
 interface priv.20
  ip route table-id 1310
@@ -565,9 +556,10 @@ bpf-program cgn-ng-1
 
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
+ bpf-program cgn-ng-1
  ipv4-pool 37.141.0.0/24
-! interface priv.20 side ingress
-! interface pub.10 side egress
+! interface ingress priv.20
+! interface egress pub.10
 
 interface priv.20
  description priv_itf

@@ -196,6 +196,11 @@ cgn_ctx_dump(struct cgn_ctx *c, char *b, size_t s)
 			       (int)(cgn_addr[i] >> 32));
 	}
 
+	k += scnprintf(b + k, s - k,"  limits:\n");
+	k += scnprintf(b + k, s - k,"    block per user : %d\n", c->block_per_user);
+	k += scnprintf(b + k, s - k,"    flow per user  : %d\n", c->flow_per_user);
+	k += scnprintf(b + k, s - k,"    max users      : %d\n", c->max_user);
+	k += scnprintf(b + k, s - k,"    max flows      : %d\n", c->max_flow);
 	k += scnprintf(b + k, s - k,"  flow timeouts:\n");
 	k += scnprintf(b + k, s - k,"    icmp : %d\n", c->timeout_icmp);
 	k += scnprintf(b + k, s - k,"    udp  : %d\n", c->timeout.udp);
@@ -311,6 +316,7 @@ cgn_ctx_release(struct cgn_ctx *c)
 	if (c->bpf_data != NULL) {
 		if (c->bpf_data->xc != NULL)
 			gtp_xsk_release(c->bpf_data->xc);
+		c->bpf_data->xc = NULL;
 		c->bpf_data = NULL;
 		c->bpf_ifrules = NULL;
 		list_del(&c->bpf_list);
