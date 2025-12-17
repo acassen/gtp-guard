@@ -17,10 +17,8 @@ int xdp_entry(struct xdp_md *ctx)
 	struct if_rule_data d = { };
 	int action, ret = 0;
 
-	/* phase 1: get from interface */
-	action = if_rule_parse_pkt(ctx, &d, NULL);
-	if (action <= XDP_REDIRECT)
-		return action;
+	/* phase 1: from interface */
+	action = if_rule_parse_pkt(ctx, &d);
 
 	/* phase 2: execute action */
 	if (action == XDP_IFR_DEFAULT_ROUTE) {
@@ -48,13 +46,14 @@ int xdp_entry(struct xdp_md *ctx)
 				ret = cgn_pkt_handle(ctx, &d, 1);
 				if (ret == 0)
 					action = XDP_IFR_FORWARD;
+				else if (ret == 2)
+					return XDP_REDIRECT;
 				else
 					action = XDP_DROP;
 			}
 			break;
 		default:
-			action = XDP_DROP;
-			break;
+			return XDP_DROP;
 		}
 	}
 
@@ -66,6 +65,30 @@ int xdp_entry(struct xdp_md *ctx)
 	return action;
 }
 
-const char _mode[] = "if_rules,cgn,upf";
+
+/* called from userspace after cgn flow creation */
+SEC("xdp")
+int cgn_xsk(struct xdp_md *ctx)
+{
+	struct gtp_xsk_metadata md;
+	struct if_rule_data d = { };
+	int action, ret;
+
+	if (xsk_from_userspace(ctx, &md, NULL, NULL) < 0)
+		return XDP_DROP;
+
+	action = if_rule_parse_pkt(ctx, &d);
+	if (action == XDP_IFR_DEFAULT_ROUTE) {
+		ret = cgn_pkt_handle(ctx, &d, 1);
+		if (ret == 0)
+			return if_rule_rewrite_pkt(ctx, &d);
+	}
+
+	return action;
+}
+
+
+
+const char _mode[] = "if_rules,xsks,cgn,upf";
 
 char _license[] SEC("license") = "GPL";

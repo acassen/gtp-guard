@@ -56,47 +56,45 @@
 static void *
 cgn_bpf_alloc(struct gtp_bpf_prog *p)
 {
-	struct cgn_bpf_ctx *x;
+	struct cgn_bpf_ctx *bc;
 
-	x = calloc(1, sizeof (struct cgn_bpf_ctx));
-	if (x == NULL)
+	bc = calloc(1, sizeof (struct cgn_bpf_ctx));
+	if (bc == NULL)
 		return NULL;
-	x->p = p;
-	INIT_LIST_HEAD(&x->cgn_list);
+	bc->p = p;
+	INIT_LIST_HEAD(&bc->cgn_list);
 
-	return x;
+	return bc;
 }
 
 static void
 cgn_bpf_release(struct gtp_bpf_prog *p, void *udata)
 {
-	struct cgn_bpf_ctx *x = udata;
+	struct cgn_bpf_ctx *bc = udata;
 	struct cgn_ctx *c, *c_tmp;
 
-	list_for_each_entry_safe(c, c_tmp, &x->cgn_list, bpf_list) {
+	list_for_each_entry_safe(c, c_tmp, &bc->cgn_list, bpf_list) {
 		c->bpf_data = NULL;
 		c->bpf_ifrules = NULL;
 		list_del_init(&c->bpf_list);
 	}
-	if (x->xc != NULL)
-		gtp_xsk_release(x->xc);
-	free(x);
+	free(bc);
 }
 
 
 static int
 cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 {
-	struct cgn_bpf_ctx *x = udata;
+	struct cgn_bpf_ctx *bc = udata;
 	struct cgn_ctx *c;
 	struct bpf_map *m;
 	uint32_t max_flow = 0;
 	int cpt = 1;
 
-	if (list_empty(&x->cgn_list))
+	if (list_empty(&bc->cgn_list))
 		return 1;
 
-	list_for_each_entry(c, &x->cgn_list, bpf_list) {
+	list_for_each_entry(c, &bc->cgn_list, bpf_list) {
 		cpt += c->cgn_addr_n;
 		max_flow += c->max_flow;
 	}
@@ -133,26 +131,36 @@ cgn_bpf_prepare(struct gtp_bpf_prog *p, void *udata)
 static int
 cgn_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reloading)
 {
-	struct cgn_bpf_ctx *x = udata;
+	struct cgn_bpf_ctx *bc = udata;
 
 	/* index bpf maps */
-	x->v4_priv_flows = gtp_bpf_prog_load_map(p->obj_load, "v4_priv_flows");
-	x->v4_pub_flows = gtp_bpf_prog_load_map(p->obj_load, "v4_pub_flows");
-	x->v4_pool_addr = gtp_bpf_prog_load_map(p->obj_load, "v4_pool_addr");
-	if (!x->v4_priv_flows || !x->v4_pub_flows || !x->v4_pool_addr)
+	bc->v4_priv_flows = gtp_bpf_prog_load_map(p->obj_load, "v4_priv_flows");
+	bc->v4_pub_flows = gtp_bpf_prog_load_map(p->obj_load, "v4_pub_flows");
+	bc->v4_pool_addr = gtp_bpf_prog_load_map(p->obj_load, "v4_pool_addr");
+	if (!bc->v4_priv_flows || !bc->v4_pub_flows || !bc->v4_pool_addr)
 		return -1;
 
 	return 0;
 }
 
+static void
+cgn_bpf_closed(struct gtp_bpf_prog *p, void *udata)
+{
+	struct cgn_bpf_ctx *bc = udata;
+
+	if (bc->xc != NULL)
+		gtp_xsk_release(bc->xc);
+	bc->xc = NULL;
+}
+
 static int
 cgn_bpf_bind_itf(struct gtp_bpf_prog *p, void *udata, struct gtp_interface *iface)
 {
-	struct cgn_bpf_ctx *x = udata;
+	struct cgn_bpf_ctx *bc = udata;
 	struct cgn_ctx *c;
 
 	/* lazy start: initialize whole cgn contexts on first use */
-	list_for_each_entry(c, &x->cgn_list, bpf_list) {
+	list_for_each_entry(c, &bc->cgn_list, bpf_list) {
 		if (cgn_ctx_start(c) < 0)
 			return -1;
 	}
@@ -173,6 +181,7 @@ static struct gtp_bpf_prog_tpl gtp_bpf_tpl_cgn = {
 	.release = cgn_bpf_release,
 	.prepare = cgn_bpf_prepare,
 	.loaded = cgn_bpf_loaded,
+	.closed = cgn_bpf_closed,
 	.iface_bind = cgn_bpf_bind_itf,
 	.iface_unbind = cgn_bpf_unbind_itf,
 };

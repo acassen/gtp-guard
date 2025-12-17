@@ -36,9 +36,24 @@ struct gtp_if_rule
 	int			action;
 	int			table_id;
 	uint32_t		force_ifindex;
+	uint32_t		xsk_base_idx;
 };
 
+enum gtp_bpf_ifrules_event {
+	GTP_BPF_IFRULES_IN_ADDING,
+	GTP_BPF_IFRULES_IN_ADD,
+	GTP_BPF_IFRULES_IN_UPDATE,
+	GTP_BPF_IFRULES_IN_DEL,
+};
+
+typedef void (*gtp_bpf_ifrules_event_cb_t)(void *user_data,
+					   enum gtp_bpf_ifrules_event,
+					   void *arg);
 
 /* Prototypes */
 int gtp_bpf_ifrules_set(struct gtp_if_rule *, bool add);
 void gtp_bpf_ifrules_set_auto_input_rule(struct gtp_interface *iface, bool set);
+void gtp_bpf_ifrules_register_event(struct gtp_bpf_ifrules *bir,
+				    gtp_bpf_ifrules_event_cb_t cb, void *ud);
+void gtp_bpf_ifrules_unregister_event(struct gtp_bpf_ifrules *bir,
+				      gtp_bpf_ifrules_event_cb_t cb, void *ud);

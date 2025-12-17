@@ -29,27 +29,22 @@ xsk_to_userspace(struct xdp_md *ctx, struct if_rule_data *d,
 		 const void *udata, __u8 size)
 {
 	struct gtp_xsk_metadata *xmd;
-	__u32 index = d->r->xsk_base_idx;
+	__u32 index;
 	void *data;
 	int xlen, ret;
 
-	/* if socket index was not specified in ifrule, get
-	 * it from xsks_base */
-	if (index == ~0) {
-		index = ctx->ingress_ifindex;
-		__u32 *base = bpf_map_lookup_elem(&xsks_base, &index);
-		if (base == NULL)
-			return -1;
-		index = *base;
-	}
-	index += ctx->rx_queue_index;
+	index = ctx->ingress_ifindex;
+	__u32 *base = bpf_map_lookup_elem(&xsks_base, &index);
+	if (base == NULL)
+		return -1;
+	index = *base + ctx->rx_queue_index;
 
 	/* reserve space for metadata */
 	xlen = sizeof(*xmd) + size;
 	if (bpf_xdp_adjust_meta(ctx, -xlen))
 		return -1;
 
-	bpf_printk("xsk_to_userspace index %u xlen:%d", index, xlen);
+	/* bpf_printk("xsk_to_userspace index %u xlen:%d", index, xlen); */
 
 	/* verify meta area is accessible */
 	data = (void *)(unsigned long)ctx->data;
@@ -57,7 +52,6 @@ xsk_to_userspace(struct xdp_md *ctx, struct if_rule_data *d,
 	if ((void *)(xmd) + xlen > data)
 		return 1;
 
-	xmd->table_id = d->r->table_id;
 	xmd->_unused[0] = 0;
 	xmd->_unused[1] = 0;
 	xmd->_unused[2] = 0;
@@ -65,7 +59,7 @@ xsk_to_userspace(struct xdp_md *ctx, struct if_rule_data *d,
 	__builtin_memcpy(xmd->data, udata, size);
 
 	if (bpf_map_lookup_elem(&xsks, &index)) {
-		bpf_printk("redirect to xsks index %d", index);
+		/* bpf_printk("redirect to xsks index %d", index); */
 		if (bpf_redirect_map(&xsks, index, 0) == XDP_REDIRECT)
 			return 0;
 	} else {
@@ -107,17 +101,4 @@ xsk_from_userspace(struct xdp_md *ctx, struct gtp_xsk_metadata *out_md,
 	if (bpf_xdp_adjust_head(ctx, xlen) < 0)
 		return -1;
 	return 0;
-}
-
-/*
- * to be called after xsk_from_userspace() and if_rule_parse_pkt().
- * restore some original if_rule parameters, so recirculated packet will more
- * likely follow the same path as non-recirculated packet.
- */
-static __always_inline void
-xsk_restore_ifrule(struct if_rule_data *d, const struct gtp_xsk_metadata *md)
-{
-	if (d->r != NULL) {
-		d->r->table_id = md->table_id;
-	}
 }

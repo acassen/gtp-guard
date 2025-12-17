@@ -44,6 +44,12 @@ gtp_xsk_create(struct gtp_bpf_prog *p, struct gtp_xsk_cfg *cfg)
 	return NULL;
 }
 
+int
+gtp_xsk_run(struct gtp_xsk_ctx *xc)
+{
+	return 0;
+}
+
 void
 gtp_xsk_release(struct gtp_xsk_ctx *xc)
 {

@@ -40,6 +40,7 @@ struct input_rule
 {
 	struct gtp_if_rule		r;
 	bool				installed;
+	bool				deleting;
 	struct list_head		list;
 	struct hlist_node		hlist;
 };
@@ -72,7 +73,6 @@ struct gtp_bpf_ifrules
 
 	/* rules that ends up in bpf map */
 	int				key_size;
-	void				*key_cur;
 	bool				in_rule_list_sorted;
 	struct list_head		in_rule_list;
 	struct hlist_head		in_rule_hlist[IF_RULE_MAX_RULE];
@@ -80,6 +80,12 @@ struct gtp_bpf_ifrules
 	/* started interfaces attached to this bpf-program */
 	struct list_head		out_rule_list;
 	bool				out_rule_list_sorted;
+
+	/* events */
+	gtp_bpf_ifrules_event_cb_t	*ev_cb;
+	void				**ev_cb_ud;
+	int				ev_n;
+	int				ev_msize;
 };
 
 
@@ -87,8 +93,6 @@ struct gtp_bpf_ifrules
 /*
  *	Input / matching rules
  */
-
-
 
 static int
 _in_rule_sort_cb(struct list_head *al, struct list_head *bl)
@@ -136,10 +140,10 @@ _in_rule_find(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r)
 }
 
 static inline struct input_rule *
-_in_rule_find_first(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r,
-		 uint32_t h)
+_in_rule_find_first(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r)
 {
 	struct input_rule *sr;
+	uint32_t h = _in_rule_hash(r);
 
 	hlist_for_each_entry(sr, &bir->in_rule_hlist[h], hlist) {
 		if (!memcmp(sr->r.key, r->key, r->key_size))
@@ -150,7 +154,7 @@ _in_rule_find_first(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r,
 
 static struct input_rule *
 _in_rule_find_next(struct gtp_bpf_ifrules *bir, const struct gtp_if_rule *r,
-		uint32_t h, struct input_rule *sr)
+		   struct input_rule *sr)
 {
 	hlist_for_each_entry_continue(sr, hlist) {
 		if (!memcmp(sr->r.key, r->key, r->key_size))
@@ -232,19 +236,20 @@ _in_rule_set_key_base(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r, int if
 		if (bir->key_size != r->key_size) {
 			log_message(LOG_INFO, "ifr: key size mismatch (%d != %d)",
 				    bir->key_size, r->key_size);
-			return -1;
+			return -EINVAL;
 		}
 		return 0;
 	}
 
 	/* set base key from source iface */
 	if (r->from == NULL)
-		return -1;
+		return -EINVAL;
 
-	k = bir->key_cur;
+	k = calloc(1, bir->key_size);
+	if (k == NULL)
+		return -ENOMEM;
 	r->key = k;
 	r->key_size = bir->key_size;
-	memset(r->key, 0x00, r->key_size);
 
 	switch (r->from->tunnel_mode) {
 	case GTP_INTERFACE_TUN_NONE:
@@ -259,9 +264,10 @@ _in_rule_set_key_base(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r, int if
 			IF_RULE_FL_TUNNEL_GRE : IF_RULE_FL_TUNNEL_IPIP;
 		break;
 	default:
-		return -1;
+		free(k);
+		return -EINVAL;
 	}
-	return 0;
+	return 1;
 }
 
 static int
@@ -276,11 +282,15 @@ _in_rule_install(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r,
 
 	memset(aar, 0x00, sizeof (aar));
 
+	/* send events */
+	for (i = 0; i < bir->ev_n; i++)
+		bir->ev_cb[i](bir->ev_cb_ud[i], GTP_BPF_IFRULES_IN_ADDING, r);
+
 	/* set up rule */
 	ar->action = r->action;
 	ar->table_id = r->table_id ?: r->from ? r->from->table_id : 0;
 	ar->force_ifindex = r->force_ifindex;
-	ar->xsk_base_idx = ~0;
+	ar->xsk_base_idx = r->xsk_base_idx;
 
 	/* printf("add input rule if:%d vlan:%d ip-table:%d tun:%d/%x/%x\n", */
 	/*        k->ifindex, k->vlan_id, ar->table_id, */
@@ -298,6 +308,11 @@ _in_rule_install(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r,
 		return -1;
 	}
 
+	/* send events */
+	for (i = 0; i < bir->ev_n; i++)
+		bir->ev_cb[i](bir->ev_cb_ud[i], overwrite ?
+			      GTP_BPF_IFRULES_IN_UPDATE : GTP_BPF_IFRULES_IN_ADD, r);
+
 	return 0;
 }
 
@@ -305,15 +320,13 @@ static void
 _in_rule_uninstall(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r)
 {
 	struct input_rule *sr, *nsr = NULL;
-	uint32_t h;
 	int prio = 999;
-	int ret;
+	int i, ret;
 
 	/* get next rule with lowest prio, to take the place */
-	h = _in_rule_hash(r);
-	for (sr = _in_rule_find_first(bir, r, h); sr != NULL;
-	     sr = _in_rule_find_next(bir, r, h, sr)) {
-		if (&sr->r != r && sr->r.prio < prio) {
+	for (sr = _in_rule_find_first(bir, r); sr != NULL;
+	     sr = _in_rule_find_next(bir, r, sr)) {
+		if (&sr->r != r && !sr->deleting && sr->r.prio < prio) {
 			prio = sr->r.prio;
 			nsr = sr;
 		}
@@ -332,6 +345,10 @@ _in_rule_uninstall(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r)
 	ret = bpf_map__delete_elem(bir->if_rule, r->key, r->key_size, 0);
 	if (ret)
 		log_message(LOG_ERR, "cannot delete rule! ret=%d %m", ret);
+
+	/* send events */
+	for (i = 0; i < bir->ev_n; i++)
+		bir->ev_cb[i](bir->ev_cb_ud[i], GTP_BPF_IFRULES_IN_DEL, r);
 }
 
 static int
@@ -339,57 +356,69 @@ _if_rule_add(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r, int ifindex)
 {
 	struct input_rule *isr = NULL;
 	struct input_rule *sr;
-	uint32_t h;
-	int ret = -1;
+	int rk, ret;
 
-	if (_in_rule_set_key_base(bir, r, ifindex) < 0)
-		return -1;
+	rk = _in_rule_set_key_base(bir, r, ifindex);
+	if (rk < 0)
+		return rk;
 
-	h = _in_rule_hash(r);
-	for (sr = _in_rule_find_first(bir, r, h); sr != NULL;
-	     sr = _in_rule_find_next(bir, r, h, sr)) {
+	/* look for existing entries */
+	for (sr = _in_rule_find_first(bir, r); sr != NULL;
+	     sr = _in_rule_find_next(bir, r, sr)) {
 		if (sr->r.from == r->from &&
 		    sr->r.prio == r->prio &&
-		    sr->r.action == r->action)
-			return -EEXIST;
+		    sr->r.action == r->action) {
+			ret = -EEXIST;
+			goto exit;
+		}
 		if (sr->installed)
 			isr = sr;
 	}
+
+	/* store rule */
+	sr = _in_rule_store(bir, r);
+	if (sr == NULL) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	/* install or overwrite new rule */
 	if (isr == NULL || r->prio < isr->r.prio) {
-		/* install or overwrite new rule */
 		ret = _in_rule_install(bir, r, isr != NULL);
-		if (ret < 0)
-			return ret;
+		if (ret < 0) {
+			_in_rule_del(sr);
+			goto exit;
+		}
 		if (isr != NULL)
 			isr->installed = false;
+		sr->installed = true;
 	}
-	/* store rule if successfully installed */
-	sr = _in_rule_store(bir, r);
-	if (sr == NULL)
-		return -1;
-	sr->installed = ret == 0;
 
-	return 0;
+ exit:
+	if (rk)
+		free(r->key);
+	return ret;
 }
-
 
 static int
 _if_rule_del(struct gtp_bpf_ifrules *bir, struct gtp_if_rule *r, int ifindex)
 {
 	struct input_rule *sr;
+	int rk;
 
-	if (_in_rule_set_key_base(bir, r, ifindex) < 0)
-		return -1;
+	rk = _in_rule_set_key_base(bir, r, ifindex);
+	if (rk < 0)
+		return rk;
 
 	sr = _in_rule_find(bir, r);
 	if (sr != NULL) {
 		if (sr->installed)
 			_in_rule_uninstall(bir, &sr->r);
 		_in_rule_del(sr);
-		return 0;
 	}
-
-	return -1;
+	if (rk)
+		free(r->key);
+	return sr == NULL ? -ENOENT : 0;
 }
 
 int
@@ -436,6 +465,45 @@ gtp_bpf_ifrules_set(struct gtp_if_rule *r, bool add)
 		return _if_rule_del(r->bir, r, ifindex);
 }
 
+void
+gtp_bpf_ifrules_register_event(struct gtp_bpf_ifrules *bir,
+			       gtp_bpf_ifrules_event_cb_t cb, void *ud)
+{
+	if (bir->ev_n >= bir->ev_msize) {
+		bir->ev_msize = !bir->ev_msize ? 8 : bir->ev_msize * 2;
+		bir->ev_cb = realloc(bir->ev_cb, bir->ev_msize *
+				     sizeof (*bir->ev_cb));
+		bir->ev_cb_ud = realloc(bir->ev_cb_ud, bir->ev_msize *
+					sizeof (*bir->ev_cb_ud));
+		if (bir->ev_cb == NULL || bir->ev_cb_ud == NULL) {
+			free(bir->ev_cb);
+			free(bir->ev_cb_ud);
+			bir->ev_n = 0;
+			return;
+		}
+	}
+	bir->ev_cb[bir->ev_n] = cb;
+	bir->ev_cb_ud[bir->ev_n] = ud;
+	++bir->ev_n;
+}
+
+void
+gtp_bpf_ifrules_unregister_event(struct gtp_bpf_ifrules *bir,
+				 gtp_bpf_ifrules_event_cb_t cb, void *ud)
+{
+	int i;
+
+	for (i = 0; i < bir->ev_n; i++) {
+		if (bir->ev_cb[i] == cb && bir->ev_cb_ud[i] == ud) {
+			bir->ev_cb[i] = bir->ev_cb[--bir->ev_n];
+			bir->ev_cb_ud[i] = bir->ev_cb_ud[bir->ev_n];
+			break;
+		}
+	}
+}
+
+
+
 static void
 _in_rule_iface_up(struct gtp_bpf_ifrules *bir, struct gtp_interface *iface, int ifindex)
 {
@@ -459,7 +527,12 @@ _in_rule_iface_down(struct gtp_bpf_ifrules *bir, struct gtp_interface *iface)
 
 	list_for_each_entry_safe(sr, sr_tmp, &bir->in_rule_list, list) {
 		if (sr->r.from != NULL && (sr->r.from == iface ||
-					   sr->r.from->link_iface == iface)) {
+					   sr->r.from->link_iface == iface))
+			sr->deleting = true;
+	}
+
+	list_for_each_entry_safe(sr, sr_tmp, &bir->in_rule_list, list) {
+		if (sr->deleting) {
 			if (sr->installed)
 				_in_rule_uninstall(bir, &sr->r);
 			sr->installed = false;
@@ -472,6 +545,7 @@ _in_rule_iface_down(struct gtp_bpf_ifrules *bir, struct gtp_interface *iface)
 		}
 	}
 }
+
 
 
 /*
@@ -758,7 +832,6 @@ gtp_ifrule_vty_input(struct gtp_bpf_ifrules *bir, struct vty *vty)
 	char match[50], iface_buf[50], buf[200], b2[60];
 	void *key = NULL;
 	int i, l, err;
-	uint32_t h;
 
 	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
 	table_set_column(tbl, "iface", "match", "pkt in", "bytes in", "pkt fwd");
@@ -777,10 +850,9 @@ gtp_ifrule_vty_input(struct gtp_bpf_ifrules *bir, struct vty *vty)
 		}
 
 		gr.key = key;
-		h = _in_rule_hash(&gr);
-		sr = _in_rule_find_first(bir, &gr, h);
+		sr = _in_rule_find_first(bir, &gr);
 		while (sr && !sr->installed)
-			sr = _in_rule_find_next(bir, &gr, h, sr);
+			sr = _in_rule_find_next(bir, &gr, sr);
 		if (sr == NULL) {
 			vty_out(vty, "%% sync failure: bpf key not in userapp\n");
 			continue;
@@ -898,12 +970,8 @@ gtp_ifrule_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 	if (bir->if_rule == NULL || bir->if_rule_attr == NULL)
 		return -1;
 
-	if (!reload) {
+	if (!reload)
 		bir->key_size = bpf_map__key_size(bir->if_rule);
-		bir->key_cur = malloc(bir->key_size);
-		if (bir->key_cur == NULL)
-			return -1;
-	}
 
 	return 0;
 }
@@ -952,7 +1020,8 @@ gtp_ifrule_release(struct gtp_bpf_prog *p, void *udata)
 		free(sr);
 	list_for_each_entry_safe(or, or_tmp, &bir->out_rule_list, list)
 		free(or);
-	free(bir->key_cur);
+	free(bir->ev_cb);
+	free(bir->ev_cb_ud);
 	free(bir);
 }
 

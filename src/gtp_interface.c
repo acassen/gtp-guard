@@ -321,6 +321,8 @@ gtp_interface_stop(struct gtp_interface *iface)
 	    !__test_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags))
 		return;
 
+	log_message(LOG_DEBUG, "gtp_interface: stopping '%s'", iface->ifname);
+
 	__clear_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
 	_trigger_on_change(iface, GTP_INTERFACE_EV_PRG_STOP);
 
@@ -333,8 +335,8 @@ gtp_interface_stop(struct gtp_interface *iface)
 	/* stop bpf-program */
 	gtp_bpf_prog_detach(iface->bpf_prog, iface);
 
-	log_message(LOG_INFO, "Success detaching bpf-program:'%s' from interface:'%s'"
-			    , iface->bpf_prog->name, iface->ifname);
+	log_message(LOG_INFO, "gtp_interface: stopped '%s', detached from "
+		    "bpf-program:'%s'", iface->ifname, iface->bpf_prog->name);
 }
 
 /* add 'slave' as a sub-interface of 'master' */

@@ -45,9 +45,10 @@ typedef void (*gtp_xsk_notif_t)(void *, void *, size_t);
 /* a packet descriptor, hold in AF_XDP's umem */
 struct gtp_xsk_desc
 {
-	void			*data;		// pointer to umem
-	uint32_t		len;		// packet len
-	time_t			alloc_time;	// in seconds
+	void			*data;		/* pointer to umem */
+	uint32_t		len;		/* packet len */
+	uint32_t		flags;
+	time_t			alloc_time;	/* in seconds */
 	uint8_t			user_data[];	// of pkt_cb_user_size
 };
 
@@ -55,13 +56,15 @@ struct gtp_xsk_cfg
 {
 	char			name[12];	/* user's name */
 	void			*priv;		/* user's priv, for callbacks */
+	struct gtp_bpf_ifrules	*bpf_ifrules;	/* manipulate ifrules */
 
 	gtp_xsk_init_cb_t	thread_init;
 	gtp_xsk_release_cb_t	thread_release;
 	gtp_xsk_pkt_read_cb_t	pkt_read;
 
 	/* packet re-circulation */
-	bool			egress_xdp_hook;	/* enable it */
+	bool			egress_xdp_hook; /* enable it */
+	int			prc_action_filter[4];
 };
 
 /* gtp_xsk.c */
@@ -70,4 +73,5 @@ struct thread_master *gtp_xsk_thread_master(struct gtp_xsk_ctx *xc);
 void gtp_xsk_send_notif(struct gtp_xsk_ctx *xc, gtp_xsk_notif_t cb, void *cb_ud,
 			const void *data, size_t size);
 struct gtp_xsk_ctx *gtp_xsk_create(struct gtp_bpf_prog *p, struct gtp_xsk_cfg *cfg);
+int gtp_xsk_run(struct gtp_xsk_ctx *xc);
 void gtp_xsk_release(struct gtp_xsk_ctx *xc);

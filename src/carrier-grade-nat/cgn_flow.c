@@ -905,7 +905,7 @@ cgn_flow_dump_block_alloc(struct cgn_ctx *c, char *b, size_t s)
 		       "%d\n", c->cgn_addr_n);
 	k += scnprintf(b + k, s - k, "blocks used        : "
 		       "%d / %d (%.2f%%)\n", bl_used, bl_total,
-		       (double)bl_used / (bl_total ?: 1));
+		       (double)bl_used / (bl_total ?: 1) * 100);
 	k += scnprintf(b + k, s - k, "block distribution :\n");
 	for (i = 1; i < c->block_count + 1; i++) {
 		if (c->addr_stats[i])
@@ -916,7 +916,7 @@ cgn_flow_dump_block_alloc(struct cgn_ctx *c, char *b, size_t s)
 
 	k += scnprintf(b + k, s - k, "users              : "
 		       "%d / %d (%.2f%%)\n", c->user_n, c->max_user,
-		       (double)c->user_n / (c->max_user ?: 1));
+		       (double)c->user_n / (c->max_user ?: 1) * 100);
 
 	fl_used = fl_total = 0;
 	list_for_each_entry(u, &c->user_list, list) {
@@ -926,7 +926,7 @@ cgn_flow_dump_block_alloc(struct cgn_ctx *c, char *b, size_t s)
 
 	k += scnprintf(b + k, s - k, "  flow used        : "
 		       "%d / %ld (%.2f%%)",
-		       fl_used, fl_total, (double)fl_used / (fl_total ?: 1));
+		       fl_used, fl_total, (double)fl_used / (fl_total ?: 1) * 100);
 	/* if different, may indicate a bug */
 	if (bl_fl_used != fl_used)
 		k += scnprintf(b + k, s - k, " (flows from blocks: %d)", bl_fl_used);

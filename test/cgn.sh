@@ -95,6 +95,11 @@ setup_iface() {
     # enabling gro does it too
     ip netns exec cgn-pub ethtool -K pub gro on
     ip netns exec cgn-priv ethtool -K priv gro on
+
+    ethtool -K pub gro off gso off tso off
+    ethtool -K priv gro off gso off tso off
+
+    #ethtool -L priv rx 4 tx 4
 }
 
 
@@ -439,14 +444,17 @@ cdr-fwd cgn
 
 bpf-program cgn
  path bin/cgn.bpf
+ xsk desc-count 128
  no shutdown
 
 carrier-grade-nat cgn-ng-1
  description trop_bien
  bpf-program cgn
- ipv4-pool 37.141.0.0/24
- protocol timeout icmp 2
- protocol timeout udp 2
+ ipv4-pool 37.141.0.0/20
+ block-port start 1024 end 65535 size 2000
+ user max 1000000 block 8 flow 15000
+! protocol timeout icmp 2
+! protocol timeout udp 2
  interface ingress priv
  interface egress pub
 ! cdr-fwd cgn
@@ -470,6 +478,8 @@ interface pub
     gtpg_show "
 show carrier-grade-nat config
 show carrier-grade-nat flows 10.0.0.1
+show interface-rule all
+show bpf xsk
 "
 }
 
@@ -603,7 +613,7 @@ bpf-program cgn-ng-1
  no shutdown
 
 carrier-grade-nat cgn-ng-1
- description doit_avoir_le_meme_nom_que_le_prog_bpf
+ bpf-program cgn-ng-1
  ipv4-pool 37.141.0.0/24
 ! interface gre-priv side ingress
 ! interface virt-eth0 side egress
@@ -655,7 +665,8 @@ type=${2:-iface}
 
 case $action in
     clean)
-	clean ;;
+	clean
+	exit 0 ;;
     setup)
 	clean
 	sleep 0.5

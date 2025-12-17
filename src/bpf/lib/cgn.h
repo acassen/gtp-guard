@@ -485,6 +485,7 @@ cgn_pkt_handle(struct xdp_md *ctx, struct if_rule_data *d, __u8 from_priv)
 	cp->from_priv = from_priv;
 	cp->src_addr = ip4h->saddr;
 	cp->dst_addr = ip4h->daddr;
+	cp->icmp_err_off = 0;
 	payload = (void *)ip4h + ip4h->ihl * 4;
 
 #ifdef CGN_DEBUG

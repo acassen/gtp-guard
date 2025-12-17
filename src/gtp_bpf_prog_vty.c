@@ -282,6 +282,60 @@ DEFUN(bpf_prog_progname,
 	return CMD_SUCCESS;
 }
 
+DEFUN(bpf_prog_xsk,
+      bpf_prog_xsk_cmd,
+      "xsk desc-count DESC",
+      "Set AF_XDP parameters\n"
+      "Set number of descriptors in K. Each one takes 4MB in RAM.\n"
+      "Number of descriptors (in K)\n")
+{
+	struct gtp_bpf_prog *p = vty->index;
+
+	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags)) {
+		vty_out(vty, "%% cannot change parameter once bpf program is started\n");
+		return CMD_WARNING;
+	}
+
+	p->xsk_desc_n = atoi(argv[0]);
+	return CMD_SUCCESS;
+}
+
+DEFUN(bpf_prog_shutdown,
+      bpf_prog_shutdown_cmd,
+      "shutdown",
+      "Unload BPF program\n")
+{
+	struct gtp_bpf_prog *p = vty->index;
+
+	if (__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags))
+		return CMD_SUCCESS;
+
+	gtp_bpf_prog_unload(p);
+	__set_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
+	return CMD_SUCCESS;
+}
+
+DEFUN(bpf_prog_no_shutdown,
+      bpf_prog_no_shutdown_cmd,
+      "no shutdown",
+      "Open and load BPF program\n")
+{
+	struct gtp_bpf_prog *p = vty->index;
+
+	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) && p->obj_run) {
+		vty_out(vty, "%% bpf-program:'%s' is already running%s"
+			   , p->name
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	__clear_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
+	if (gtp_bpf_prog_load(p) < 0)
+		return CMD_WARNING;
+	return CMD_SUCCESS;
+}
+
+
 /* Show */
 DEFUN(show_bpf_prog,
       show_bpf_prog_cmd,
@@ -319,39 +373,14 @@ DEFUN(show_bpf_interface_rule,
 	return CMD_SUCCESS;
 }
 
-
-DEFUN(bpf_prog_shutdown,
-      bpf_prog_shutdown_cmd,
-      "shutdown",
-      "Unload BPF program\n")
+DEFUN(show_bpf_xsk,
+      show_bpf_xsk_cmd,
+      "show bpf xsk",
+      SHOW_STR
+      "bpf\n"
+      "Show AF_XDP modules\n")
 {
-	struct gtp_bpf_prog *p = vty->index;
-
-	if (__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags))
-		return CMD_SUCCESS;
-
-	gtp_bpf_prog_unload(p);
-	__set_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
-	return CMD_SUCCESS;
-}
-
-DEFUN(bpf_prog_no_shutdown,
-      bpf_prog_no_shutdown_cmd,
-      "no shutdown",
-      "Open and load BPF program\n")
-{
-	struct gtp_bpf_prog *p = vty->index;
-
-	if (!__test_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags) && p->obj_run) {
-		vty_out(vty, "%% bpf-program:'%s' is already running%s"
-			   , p->name
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	__clear_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
-	if (gtp_bpf_prog_load(p) < 0)
-		return CMD_WARNING;
+	gtp_bpf_prog_foreach_vty("xsks", vty, argc, argv);
 	return CMD_SUCCESS;
 }
 
@@ -396,6 +425,7 @@ cmd_ext_bpf_prog_install(void)
 	install_element(BPF_PROG_NODE, &bpf_prog_description_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_path_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_progname_cmd);
+	install_element(BPF_PROG_NODE, &bpf_prog_xsk_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_shutdown_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_no_shutdown_cmd);
 
@@ -404,6 +434,8 @@ cmd_ext_bpf_prog_install(void)
 	install_element(ENABLE_NODE, &show_bpf_prog_cmd);
 	install_element(VIEW_NODE, &show_bpf_interface_rule_cmd);
 	install_element(ENABLE_NODE, &show_bpf_interface_rule_cmd);
+	install_element(VIEW_NODE, &show_bpf_xsk_cmd);
+	install_element(ENABLE_NODE, &show_bpf_xsk_cmd);
 
 	return 0;
 }

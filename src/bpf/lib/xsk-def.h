@@ -14,7 +14,6 @@
  */
 struct gtp_xsk_metadata
 {
-	__u32		table_id;
 	__u8		data_len;	/* must align to 4 bytes */
 	__u8		_unused[3];
 	__u8		data[];

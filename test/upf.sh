@@ -120,20 +120,23 @@ no pfcp-router pfcp-1
 "
 
     if [ $with_cgn == "no" ]; then
-	prg=upf.bpf
+	gtpg_conf "
+bpf-program upf-1 
+ path bin/upf.bpf
+ no shutdown
+" || fail "cannot load bpf program"
     else
 	prg=upf_cgn.bpf
 	gtpg_conf "
-carrier-grade-nat upf-1
- ipv4-pool 37.141.0.0/24
-" || fail "cannot configure cgn"
-    fi
-
-    gtpg_conf "
-    bpf-program upf-1 
- path bin/$prg
+bpf-program upf-1 
+ path bin/upf_cgn.bpf
  no shutdown
-" || fail "cannot load bpf program"
+
+carrier-grade-nat upf-1
+ bpf-program upf-1
+ ipv4-pool 37.141.0.0/24
+" || fail "cannot configure cgn / load bpf"
+    fi
 
     if [ $type == "combined" ]; then
 	gtpg_conf "
@@ -261,7 +264,8 @@ with_cgn=${3:-no}
 
 case $action in
     clean)
-	clean ;;
+	clean
+	exit 0 ;;
     setup)
 	clean
 	sleep 0.5

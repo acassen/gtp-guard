@@ -31,7 +31,7 @@ int gtp_fwd_main(struct xdp_md *ctx)
 	struct if_rule_data d = { };
 	int action, ret;
 
-	action = if_rule_parse_pkt(ctx, &d, gtp_fwd_rule_selection);
+	action = if_rule_parse_pkt_sel(ctx, &d, gtp_fwd_rule_selection);
 
 	switch (action) {
 	case XDP_ABORTED ... XDP_REDIRECT:

@@ -21,19 +21,15 @@
  * if_rule_data.
  */
 #ifndef IF_RULE_CUSTOM_KEY
-
 struct if_rule_key
 {
 	struct if_rule_key_base b;
 } __attribute__((packed));
-typedef void *rule_selector_t;
-
-#else /* ifdef IF_RULE_CUSTOM_KEY */
+#endif
 
 struct if_rule_data;
 typedef int (*rule_selector_t)(struct if_rule_data *d, struct iphdr *iph);
 
-#endif
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
@@ -66,21 +62,11 @@ struct if_rule_data
 };
 
 
-
 static __always_inline int
-_acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
-	  rule_selector_t rscb, struct iphdr *iph)
+_rule_selector_def(struct if_rule_data *d, struct iphdr *iph)
 {
 	struct if_rule_key_base *k = &d->k.b;
-	int action = XDP_PASS;
 
-	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%pI4|%pI4",
-		ctx->ingress_ifindex, k->ifindex, k->vlan_id,
-		&k->tun_local, &k->tun_remote);
-
-#ifdef IF_RULE_CUSTOM_KEY
-	action = rscb(d, iph);
-#else
 	if (k->tun_remote) {
 		/* tunnels are not bound to specific interface.
 		 * remove these info for map lookup */
@@ -94,10 +80,26 @@ _acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
 	} else {
 		d->r = bpf_map_lookup_elem(&if_rule, k);
 	}
-#endif
+	return XDP_PASS;
+}
 
-	if (d->r == NULL)
+static __always_inline int
+_acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
+	  rule_selector_t rscb, struct iphdr *iph)
+{
+	struct if_rule_key_base *k = &d->k.b;
+	int action;
+
+	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%pI4|%pI4",
+		ctx->ingress_ifindex, k->ifindex, k->vlan_id,
+		&k->tun_local, &k->tun_remote);
+
+	action = rscb(d, iph);
+
+	if (d->r == NULL) {
+		IFR_DBG("no rule found");
 		return action;
+	}
 
 	IFR_DBG("got the rule! action:%d table:%d", d->r->action, d->r->table_id);
 
@@ -145,8 +147,8 @@ _acl_ipv6(struct xdp_md	*ctx, struct if_rule_data *d, struct ipv6hdr *ip6h)
  *   - returns XDP_PASS on unsupported protocols
  *   - returns XDP_DROP on invalid packets
  */
-static __attribute__((noinline)) int
-if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rscb)
+static __always_inline int
+_if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d, rule_selector_t rscb)
 {
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
@@ -249,6 +251,18 @@ if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rs
 	default:
 		return XDP_PASS;
 	}
+}
+
+static __attribute__((noinline)) int
+if_rule_parse_pkt_sel(struct xdp_md *ctx, struct if_rule_data *d, rule_selector_t rscb)
+{
+	return _if_rule_parse_pkt(ctx, d, rscb);
+}
+
+static __attribute__((noinline)) int
+if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
+{
+	return _if_rule_parse_pkt(ctx, d, _rule_selector_def);
 }
 
 

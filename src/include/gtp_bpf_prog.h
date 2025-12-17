@@ -73,6 +73,8 @@ struct gtp_bpf_prog {
 	char			path[GTP_PATH_MAX_LEN];
 	char			tc_progname[32];
 	char			xdp_progname[32];
+	int			xsk_desc_n;
+
 	const struct gtp_bpf_prog_tpl *tpl[BPF_PROG_TPL_MAX];
 	void			*tpl_data[BPF_PROG_TPL_MAX];
 	int			tpl_n;

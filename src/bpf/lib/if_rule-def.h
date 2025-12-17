@@ -6,7 +6,7 @@
 #define XDP_IFR_DEFAULT_ROUTE	8
 #define XDP_IFR_FORWARD		9
 
-#define IF_RULE_DEBUG
+//#define IF_RULE_DEBUG
 
 #ifdef IF_RULE_DEBUG
 # define IFR_DBG(Fmt, ...) bpf_printk(Fmt, ## __VA_ARGS__)
@@ -31,7 +31,7 @@ struct if_rule_attr {
 
 /* match on input */
 struct if_rule_key_base {
-	__u32	ifindex;
+	__u32	ifindex;	/* input ifindex */
 	__u16	vlan_id;
 	__u16	flags;
 	__u32	tun_local;

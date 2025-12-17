@@ -15,7 +15,7 @@ int upf_entry(struct xdp_md *ctx)
 	int action;
 
 	/* phase 1: get from interface */
-	action = if_rule_parse_pkt(ctx, &d, NULL);
+	action = if_rule_parse_pkt(ctx, &d);
 	if (action <= XDP_REDIRECT)
 		return action;
 

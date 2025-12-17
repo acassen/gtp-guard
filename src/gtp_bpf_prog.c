@@ -1032,16 +1032,17 @@ gtp_bpf_prog_put(struct gtp_bpf_prog *p)
 struct gtp_bpf_prog *
 gtp_bpf_prog_alloc(const char *name)
 {
-	struct gtp_bpf_prog *new;
+	struct gtp_bpf_prog *p;
 
-	PMALLOC(new);
-	bsd_strlcpy(new->name, name, GTP_STR_MAX_LEN - 1);
-	__set_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &new->flags);
+	p = calloc(1, sizeof (*p));
+	if (p == NULL)
+		return NULL;
+	snprintf(p->name, sizeof (p->name), "%s", name);
+	__set_bit(GTP_BPF_PROG_FL_SHUTDOWN_BIT, &p->flags);
+	INIT_LIST_HEAD(&p->iface_bind_list);
+	list_add_tail(&p->next, &daemon_data->bpf_progs);
 
-	INIT_LIST_HEAD(&new->iface_bind_list);
-	list_add_tail(&new->next, &daemon_data->bpf_progs);
-
-	return new;
+	return p;
 }
 
 static int

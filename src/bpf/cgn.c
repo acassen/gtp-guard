@@ -38,10 +38,9 @@ int cgn_entry(struct xdp_md *ctx)
 	struct if_rule_data d = { };
 	int action;
 
-	action = if_rule_parse_pkt(ctx, &d, NULL);
+	action = if_rule_parse_pkt(ctx, &d);
 	return cgn_do(ctx, &d, action);
 }
-
 
 SEC("xdp")
 int cgn_xsk(struct xdp_md *ctx)
@@ -53,9 +52,28 @@ int cgn_xsk(struct xdp_md *ctx)
 	if (xsk_from_userspace(ctx, &md, NULL, NULL) < 0)
 		return XDP_DROP;
 
-	action = if_rule_parse_pkt(ctx, &d, NULL);
-	xsk_restore_ifrule(&d, &md);
+	action = if_rule_parse_pkt(ctx, &d);
 	return cgn_do(ctx, &d, action);
+}
+
+/* for test purpose */
+SEC("xdp")
+int xdp_tx_pkt_gen(struct xdp_md *ctx)
+{
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
+	struct ethhdr *ethh = data;
+	struct iphdr *ip4h = (struct iphdr *)(ethh + 1);
+	struct udphdr *udph = (struct udphdr *)(ip4h + 1);
+	static __u16 srcp_next;
+
+	if ((void *)(udph + 1) > data_end)
+		return XDP_DROP;
+
+	udph->source = bpf_htons(++srcp_next);
+
+	return XDP_TX;
+	//return bpf_redirect(ctx->ingress_ifindex, 0);
 }
 
 
