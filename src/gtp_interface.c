@@ -188,11 +188,8 @@ gtp_interface_metrics_foreach(int (*hdl) (struct gtp_interface *, void *, const 
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
 
-	list_for_each_entry(iface, l, next) {
-		__sync_add_and_fetch(&iface->refcnt, 1);
+	list_for_each_entry(iface, l, next)
 		(*(hdl)) (iface, arg, var, var_type, type, direction);
-		__sync_sub_and_fetch(&iface->refcnt, 1);
-	}
 }
 
 void
@@ -201,11 +198,8 @@ gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *arg)
 	struct list_head *l = &daemon_data->interfaces;
 	struct gtp_interface *iface;
 
-	list_for_each_entry(iface, l, next) {
-		__sync_add_and_fetch(&iface->refcnt, 1);
+	list_for_each_entry(iface, l, next)
 		(*(hdl)) (iface, arg);
-		__sync_sub_and_fetch(&iface->refcnt, 1);
-	}
 }
 
 void
@@ -237,12 +231,9 @@ gtp_interface_get(const char *name, bool alloc)
 	struct gtp_interface *iface;
 	int ifindex;
 
-	list_for_each_entry(iface, l, next) {
-		if (!strcmp(iface->ifname, name)) {
-			__sync_add_and_fetch(&iface->refcnt, 1);
+	list_for_each_entry(iface, l, next)
+		if (!strcmp(iface->ifname, name))
 			return iface;
-		}
-	}
 
 	/* use netlink to get this link, along with necessary data (eth addr).
 	 * it will alloc the gtp_interface data */
@@ -266,23 +257,14 @@ gtp_interface_get_by_ifindex(int ifindex, bool alloc)
 		return NULL;
 
 	list_for_each_entry(iface, l, next) {
-		if (iface->ifindex == ifindex) {
-			__sync_add_and_fetch(&iface->refcnt, 1);
+		if (iface->ifindex == ifindex)
 			return iface;
-		}
 	}
 
 	if (alloc && !gtp_netlink_if_lookup(ifindex))
 		return gtp_interface_get_by_ifindex(ifindex, false);
 
 	return NULL;
-}
-
-int
-gtp_interface_put(struct gtp_interface *iface)
-{
-	__sync_sub_and_fetch(&iface->refcnt, 1);
-	return 0;
 }
 
 int
@@ -393,24 +375,23 @@ gtp_interface_link(struct gtp_interface *master, struct gtp_interface *slave)
 struct gtp_interface *
 gtp_interface_alloc(const char *name, int ifindex)
 {
-	struct gtp_interface *new;
+	struct gtp_interface *iface;
 
-	PMALLOC(new);
-	if (!new)
+	if (ifindex <= 0 || name == NULL)
 		return NULL;
 
-	INIT_LIST_HEAD(&new->next);
-	if (name)
-		bsd_strlcpy(new->ifname, name, GTP_STR_MAX_LEN - 1);
-	new->ifindex = ifindex;
-	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &new->flags);
+	iface = calloc(1, sizeof (*iface));
+	if (!iface)
+		return NULL;
 
-	list_add_tail(&new->next, &daemon_data->interfaces);
-	__sync_add_and_fetch(&new->refcnt, 1);
+	snprintf(iface->ifname, sizeof (iface->ifname), "%s", name);
+	iface->ifindex = ifindex;
+	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
+	list_add_tail(&iface->next, &daemon_data->interfaces);
 
 	log_message(LOG_INFO, "gtp_interface: adding '%s'", name);
 
-	return new;
+	return iface;
 }
 
 void
@@ -430,12 +411,12 @@ gtp_interface_destroy(struct gtp_interface *iface)
 	if (iface->bpf_prog)
 		list_del(&iface->bpf_prog_list);
 	FREE_PTR(iface->link_metrics);
-	list_head_del(&iface->next);
 	free(iface->ev);
+	list_del(&iface->next);
 	FREE(iface);
 }
 
-int
+void
 gtp_interfaces_destroy(void)
 {
 	struct list_head *l = &daemon_data->interfaces;
@@ -445,5 +426,4 @@ gtp_interfaces_destroy(void)
 	 * parsing list in reverse is the poor man tools */
 	list_for_each_entry_safe_reverse(iface, _iface, l, next)
 		gtp_interface_destroy(iface);
-	return 0;
 }

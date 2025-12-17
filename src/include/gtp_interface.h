@@ -64,13 +64,13 @@ enum gtp_interface_flags {
 /* Interface structure */
 struct gtp_interface {
 	char				ifname[IF_NAMESIZE];
+	int				ifindex;
 	uint8_t				hw_addr[ETH_ALEN];
 	uint8_t				hw_addr_len;
 	uint16_t			vlan_id;
 	uint16_t			table_id;
 	union addr			direct_tx_gw;
 	uint8_t				direct_tx_hw_addr[ETH_ALEN];
-	int				ifindex;
 	char				description[GTP_STR_MAX_LEN];
 
 	/* attached bfp-prog. if not set, all the following are unused */
@@ -99,8 +99,6 @@ struct gtp_interface {
 	union addr			tunnel_remote;
 
 	struct list_head		next;
-
-	int				refcnt;
 	unsigned long			flags;
 };
 
@@ -113,7 +111,6 @@ void gtp_interface_foreach(int (*hdl) (struct gtp_interface *, void *), void *);
 void gtp_interface_update_direct_tx_lladdr(const union addr *, const uint8_t *);
 struct gtp_interface *gtp_interface_get(const char *, bool);
 struct gtp_interface *gtp_interface_get_by_ifindex(int, bool);
-int gtp_interface_put(struct gtp_interface *);
 int gtp_interface_start(struct gtp_interface *);
 void gtp_interface_stop(struct gtp_interface *);
 void gtp_interface_link(struct gtp_interface *, struct gtp_interface *);
@@ -125,5 +122,5 @@ void gtp_interface_trigger_event(struct gtp_interface *iface,
 				 enum gtp_interface_event type, void *arg);
 struct gtp_interface *gtp_interface_alloc(const char *, int);
 void gtp_interface_destroy(struct gtp_interface *);
-int gtp_interfaces_destroy(void);
+void gtp_interfaces_destroy(void);
 
