@@ -537,7 +537,7 @@ struct pfcp_ie_subsequent_time_threshold {
 /* Inactivity Detection Time IE */
 struct pfcp_ie_inactivity_detection_time {
 	struct pfcp_ie h;
-	uint32_t inactivity_detection_time;
+	uint32_t value;
 } __attribute__((packed));
 
 /* Reporting Triggers IE */

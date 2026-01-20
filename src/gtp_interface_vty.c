@@ -30,7 +30,6 @@
 #include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
-#include "utils.h"
 #include "memory.h"
 
 /* Extern data */

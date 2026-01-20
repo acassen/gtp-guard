@@ -25,6 +25,7 @@
 #include "pfcp.h"
 #include "pfcp_msg.h"
 #include "pfcp_metrics.h"
+#include "bpf/lib/upf-def.h"
 
 /* Default values */
 #define PFCP_MAX_NR_ELEM	5
@@ -97,11 +98,18 @@ struct urr {
 	uint8_t			measurement_method;
 	uint8_t			measurement_info;
 	uint16_t		triggers;
+	uint32_t		inactivity_detection_time;
 	uint32_t		quota_holdtime;
-	uint64_t		volume_threshold;
-	uint64_t		counter;
+	uint64_t		volume_threshold_to;
+	uint64_t		volume_threshold_ul;
+	uint64_t		volume_threshold_dl;
+
+	/* Linked urr */
+	uint32_t		linked_urr_id;
+	struct urr		*linked_urr;
 
 	/* metrics */
+	uint32_t		seqn;
 	uint32_t		start_time;
 	uint32_t		end_time;
 	struct pfcp_metrics_pkt	uplink;
@@ -129,6 +137,18 @@ struct pdr {
 	char			predifined_rule[PFCP_STR_MAX_LEN];
 };
 
+#define PFCP_FWD_RULE_ACT_NONE		0
+#define PFCP_FWD_RULE_ACT_CREATE	1
+#define PFCP_FWD_RULE_ACT_DELETE	2
+#define PFCP_FWD_RULE_ACT_MODIFY	3
+struct fwd_rule {
+	uint8_t			action;
+	struct upf_fwd_rule	rule;
+
+	struct list_head	next;
+};
+
+
 /* PFCP session */
 struct pfcp_session {
 	uint64_t		seid;
@@ -148,6 +168,9 @@ struct pfcp_session {
 	struct gtp_cdr		*cdr;
 
 	uint8_t			action;
+
+	/* eBPF forwarding rules related */
+	struct list_head	fwd_rules;
 
 	/* Expiration handling */
 	char			tmp_str[64];

@@ -29,7 +29,6 @@
 #include "gtp_data.h"
 #include "gtp_netlink.h"
 #include "gtp_interface.h"
-#include "inet_utils.h"
 #include "utils.h"
 #include "memory.h"
 #include "logger.h"

@@ -417,17 +417,37 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 	if (ie->measurement_information)
 		urr->measurement_info = ie->measurement_information->flags;
 
+	if (ie->inactivity_detection_time)
+		urr->inactivity_detection_time = ntohl(ie->inactivity_detection_time->value);
+
 	if (ie->quota_holding_time)
 		urr->quota_holdtime = ntohl(ie->quota_holding_time->value);
 
 	if (ie->volume_threshold) {
-		/* Use total volume if present, otherwise fallback to uplink or downlink */
 		if (ie->volume_threshold->tovol)
-			urr->volume_threshold = be64toh(ie->volume_threshold->total_volume);
-		else if (ie->volume_threshold->ulvol)
-			urr->volume_threshold = be64toh(ie->volume_threshold->uplink_volume);
-		else if (ie->volume_threshold->dlvol)
-			urr->volume_threshold = be64toh(ie->volume_threshold->downlink_volume);
+			urr->volume_threshold_to = be64toh(ie->volume_threshold->total_volume);
+		if (ie->volume_threshold->ulvol)
+			urr->volume_threshold_ul = be64toh(ie->volume_threshold->uplink_volume);
+		if (ie->volume_threshold->dlvol)
+			urr->volume_threshold_dl = be64toh(ie->volume_threshold->downlink_volume);
+	}
+
+	if (ie->linked_urr_id)
+		urr->linked_urr_id = ie->linked_urr_id->value;
+
+	return 0;
+}
+
+static int
+pfcp_session_link_urr(struct pfcp_session *s)
+{
+	int i;
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++) {
+		if (!s->urr[i].linked_urr_id)
+			continue;
+
+		s->urr[i].linked_urr = pfcp_session_get_urr_by_id(s, s->urr[i].linked_urr_id);
 	}
 
 	return 0;
@@ -572,6 +592,7 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 	/* URR */
 	for (i = 0; i < req->nr_create_urr && i < PFCP_MAX_NR_ELEM; i++)
 		pfcp_session_create_urr(s, &s->urr[i], req->create_urr[i]);
+	pfcp_session_link_urr(s);
 
 	/* PDR will reference parsed elem */
 	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++) {
