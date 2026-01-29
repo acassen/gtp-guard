@@ -38,7 +38,7 @@ pfcp_session_get_te_by_id(struct pfcp_session *s, uint8_t id)
 {
 	int i;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+	for (i = 0; i < s->nr_te; i++) {
 		if (s->te[i].id == id)
 			return &s->te[i];
 	}
@@ -51,7 +51,7 @@ pfcp_session_get_far_by_id(struct pfcp_session *s, uint32_t id)
 {
 	int i;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->far[i].id; i++) {
+	for (i = 0; i < s->nr_far; i++) {
 		if (s->far[i].id == id)
 			return &s->far[i];
 	}
@@ -64,7 +64,7 @@ pfcp_session_get_qer_by_id(struct pfcp_session *s, uint32_t id)
 {
 	int i;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->qer[i].id; i++) {
+	for (i = 0; i < s->nr_qer; i++) {
 		if (s->qer[i].id == id)
 			return &s->qer[i];
 	}
@@ -77,7 +77,7 @@ pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
 {
 	int i;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++) {
+	for (i = 0; i < s->nr_urr; i++) {
 		if (s->urr[i].id == id)
 			return &s->urr[i];
 	}
@@ -441,13 +441,19 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 static int
 pfcp_session_link_urr(struct pfcp_session *s)
 {
+	struct urr *r;
 	int i;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++) {
+	for (i = 0; i < s->nr_urr; i++) {
 		if (!s->urr[i].linked_urr_id)
 			continue;
 
-		s->urr[i].linked_urr = pfcp_session_get_urr_by_id(s, s->urr[i].linked_urr_id);
+		r = pfcp_session_get_urr_by_id(s, s->urr[i].linked_urr_id);
+		if (!r)
+			continue;
+
+		s->urr[i].linked_urr = r;
+		r->parent_urr = s->urr[i].linked_urr;
 	}
 
 	return 0;
@@ -580,22 +586,26 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		if (err)
 			return -1;
 	}
+	s->nr_te = i;
 
 	/* FAR */
 	for (i = 0; i < req->nr_create_far && i < PFCP_MAX_NR_ELEM; i++)
 		pfcp_session_create_far(s, &s->far[i], req->create_far[i]);
+	s->nr_far = i;
 
 	/* QER */
 	for (i = 0; i < req->nr_create_qer && i < PFCP_MAX_NR_ELEM; i++)
 		pfcp_session_create_qer(s, &s->qer[i], req->create_qer[i]);
+	s->nr_qer = i;
 
 	/* URR */
 	for (i = 0; i < req->nr_create_urr && i < PFCP_MAX_NR_ELEM; i++)
 		pfcp_session_create_urr(s, &s->urr[i], req->create_urr[i]);
 	pfcp_session_link_urr(s);
+	s->nr_urr = i;
 
 	/* PDR will reference parsed elem */
-	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++) {
+	for (i = 0; i < req->nr_create_pdr; i++) {
 		err = pfcp_session_create_pdr(s, &s->pdr[i], req->create_pdr[i],
 					      &id);
 		if (err)
@@ -692,7 +702,7 @@ pfcp_session_put_created_pdr(struct pkt_buffer *pbuff, struct pfcp_session *s)
 	struct in6_addr *ipv6;
 	int i, err;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->pdr[i].id; i++) {
+	for (i = 0; i < s->nr_pdr; i++) {
 		p = &s->pdr[i];
 		pfcp_session_init_teid_values(p->teid[PFCP_DIR_EGRESS], &teid, &ipv4, &ipv6);
 		err = pfcp_ie_put_created_pdr(pbuff, p->id, htonl(teid), ipv4, ipv6);
@@ -712,7 +722,7 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 	struct in6_addr *t_ipv6, *ue_ipv6;
 	int i, err;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+	for (i = 0; i < s->nr_te; i++) {
 		te = &s->te[i];
 		pfcp_session_init_teid_values(te->teid[PFCP_DIR_EGRESS], &teid, &t_ipv4, &t_ipv6);
 		err = pfcp_session_init_ue_values(s, te, &ue_ipv4, &ue_ipv6);
@@ -733,16 +743,16 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 }
 
 int
-pfcp_session_put_usage_report(struct pkt_buffer *pbuff, struct pfcp_session *s)
+pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff, struct pfcp_session *s)
 {
 	struct urr *u;
 	int i, err;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++) {
+	for (i = 0; i < s->nr_urr; i++) {
 		u = &s->urr[i];
 		u->end_time = time_now_to_ntp();
-		err = pfcp_ie_put_usage_report(pbuff, u->id, u->start_time, u->end_time,
-					       &u->uplink, &u->downlink);
+		err = pfcp_ie_put_usage_report_deletion(pbuff, u->id, u->start_time, u->end_time,
+							u->seqn++, &u->ul, &u->dl);
 		if (err)
 			return -1;
 	}

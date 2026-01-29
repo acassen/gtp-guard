@@ -44,10 +44,38 @@ struct pfcp_metrics_pkt {
 	uint64_t		bytes;
 };
 
+static inline int pfcp_metrics_pkt_is_null(struct pfcp_metrics_pkt *p)
+{
+	return !p->count && !p->bytes;
+}
+
+static inline int __attribute__((pure))
+pfcp_metrics_pkt_cmp(struct pfcp_metrics_pkt *a, struct pfcp_metrics_pkt *b)
+{
+	if (a->bytes > b->bytes)
+		return 1;
+	if (a->bytes < b->bytes)
+		return -1;
+	if (a->count > b->count)
+		return 1;
+	if (a->count < b->count)
+		return -1;
+	return 0;
+}
+
+static inline void
+pfcp_metrics_pkt_cpy(struct pfcp_metrics_pkt *a, struct pfcp_metrics_pkt *b)
+{
+	a->bytes = b->bytes;
+	a->count = b->count;
+}
+
 
 /* Prototypes */
-int pfcp_metrics_rx(struct pfcp_metrics_msg *, uint8_t);
-int pfcp_metrics_rx_notsup(struct pfcp_metrics_msg *, uint8_t);
-int pfcp_metrics_tx(struct pfcp_metrics_msg *, uint8_t);
-int pfcp_metrics_tx_notsup(struct pfcp_metrics_msg *, uint8_t);
-int pfcp_metrics_pkt_update(struct pfcp_metrics_pkt *, ssize_t);
+int pfcp_metrics_rx(struct pfcp_metrics_msg *m, uint8_t msg_types);
+int pfcp_metrics_rx_notsup(struct pfcp_metrics_msg *m, uint8_t msg_types);
+int pfcp_metrics_tx(struct pfcp_metrics_msg *m, uint8_t msg_types);
+int pfcp_metrics_tx_notsup(struct pfcp_metrics_msg *m, uint8_t msg_types);
+int pfcp_metrics_pkt_update(struct pfcp_metrics_pkt *m, ssize_t nbytes);
+void pfcp_metrics_pkt_sub(struct pfcp_metrics_pkt *a, struct pfcp_metrics_pkt *b,
+			  struct pfcp_metrics_pkt *r);

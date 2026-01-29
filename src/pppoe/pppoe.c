@@ -253,7 +253,7 @@ pppoe_channel_init(struct pppoe *pppoe, struct pppoe_channel *ch, uint16_t proto
 	ch->proto = proto;
 
 	/* Packet queue Init */
-	pkt_queue_init(&ch->pkt_q);
+	pkt_queue_init(&ch->pkt_q, PPPOE_MAX_PKT_QUEUE_SZ);
 	err = mpkt_init(&ch->mpkt, PPPOE_MPKT);
 	err = (err) ? : __pkt_queue_mget(&ch->pkt_q, &ch->mpkt);
 	err = (err) ? : pppoe_socket_init(ch, proto);
@@ -345,7 +345,7 @@ pppoe_alloc(const char *name)
 	INIT_LIST_HEAD(&new->next);
 	new->seed = time(NULL);
 	srand(new->seed);
-	pkt_queue_init(&new->pkt_q);
+	pkt_queue_init(&new->pkt_q, PPPOE_MAX_PKT_QUEUE_SZ);
 	ppp_set_default(new);
 	pppoe_add(new);
 

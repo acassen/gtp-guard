@@ -20,33 +20,10 @@
  */
 #pragma once
 
-#include "inet_server.h"
-#include "pfcp_msg.h"
-#include "pfcp_metrics.h"
-
-enum pfcp_server_flags {
-	PFCP_FL_RUNNING_BIT,
-};
-
-/* PFCP Server context */
-struct pfcp_server {
-	struct inet_server	s;
-	struct pfcp_msg		*msg;
-	struct pkt_queue	pkt_q;
-	uint32_t		seqn;
-	void			*ctx;	/* context back-pointer */
-
-	/* metrics */
-	struct pfcp_metrics_pkt	rx_metrics;
-	struct pfcp_metrics_pkt	tx_metrics;
-	struct pfcp_metrics_msg	msg_metrics;
-
-	unsigned long		flags;
-};
-
+#include "pfcp_session.h"
 
 /* Prototypes */
-int pfcp_server_init(struct pfcp_server *s, void *ctx,
-		     int (*init) (struct inet_server *),
-		     int (*process) (struct inet_server *, struct sockaddr_storage *));
-int pfcp_server_destroy(struct pfcp_server *s);
+void pfcp_session_report(struct pfcp_session *s,
+			 struct pfcp_session_modification_request *req,
+			 struct sockaddr_storage *addr);
+

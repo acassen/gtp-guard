@@ -182,7 +182,7 @@ pfcp_ie_put_cause(struct pkt_buffer *pbuff, uint8_t cause)
 	struct pfcp_ie_cause *ie;
 	unsigned int length = sizeof(*ie);
 
-	if (pfcp_ie_put(pbuff, PFCP_IE_CAUSE, sizeof(*ie)) < 0)
+	if (pfcp_ie_put(pbuff, PFCP_IE_CAUSE, length) < 0)
 		return -1;
 
 	ie = (struct pfcp_ie_cause *) pbuff->data;
@@ -606,9 +606,9 @@ pfcp_ie_put_time_last_pkt(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 	return 0;
 }
 
-int
-pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
-			 uint32_t start_time, uint32_t end_time,
+static int
+pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
+			 uint32_t start_time, uint32_t end_time, uint32_t seqn,
 			 struct pfcp_metrics_pkt *uplink,
 			 struct pfcp_metrics_pkt *downlink)
 {
@@ -618,7 +618,7 @@ pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
 
 	err = pfcp_ie_put_type(pbuff, PFCP_IE_USAGE_REPORT_DELETION);
 	err = (err) ? : pfcp_ie_put_urr_id(pbuff, ie_usage_report, id);
-	err = (err) ? : pfcp_ie_put_ur_seqn(pbuff, ie_usage_report, 0);
+	err = (err) ? : pfcp_ie_put_ur_seqn(pbuff, ie_usage_report, seqn);
 	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report);
 	err = (err) ? : pfcp_ie_put_start_time(pbuff, ie_usage_report, start_time);
 	err = (err) ? : pfcp_ie_put_end_time(pbuff, ie_usage_report, end_time);
@@ -626,8 +626,95 @@ pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
 						       uplink, downlink);
 	err = (err) ? : pfcp_ie_put_duration_measurement(pbuff, ie_usage_report,
 							 duration);
-	err = (err) ? : pfcp_ie_put_time_first_pkt(pbuff, ie_usage_report, start_time);
-	err = (err) ? : pfcp_ie_put_time_last_pkt(pbuff, ie_usage_report, end_time);
+	if (!pfcp_metrics_pkt_is_null(uplink) && !pfcp_metrics_pkt_is_null(downlink)) {
+		err = (err) ? : pfcp_ie_put_time_first_pkt(pbuff, ie_usage_report, start_time);
+		err = (err) ? : pfcp_ie_put_time_last_pkt(pbuff, ie_usage_report, end_time);
+	}
 
 	return err;
+}
+
+int
+pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
+				  uint32_t start_time, uint32_t end_time, uint32_t seqn,
+				  struct pfcp_metrics_pkt *uplink,
+				  struct pfcp_metrics_pkt *downlink)
+{
+	return pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT_DELETION, pbuff, id,
+					start_time, end_time, seqn, uplink, downlink);
+}
+
+static int
+pfcp_ie_put_query_urr_ref(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+			  const uint32_t query_urr_ref)
+{
+	struct pfcp_ie_query_urr_reference *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (!query_urr_ref)
+		return 0;
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_QUERY_URR_REFERENCE, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_query_urr_reference *) pbuff->data;
+	ie->value = query_urr_ref;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
+				 uint32_t id, uint32_t start_time, uint32_t end_time,
+				 uint32_t seqn, struct pfcp_metrics_pkt *uplink,
+				 struct pfcp_metrics_pkt *downlink)
+{
+	struct pfcp_ie *ie_usage_report = (struct pfcp_ie *) pbuff->data;
+	int err;
+
+	err = pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT, pbuff, id,
+				       start_time, end_time, seqn, uplink, downlink);
+	err  = (err) ? : pfcp_ie_put_query_urr_ref(pbuff, ie_usage_report, query_urr_ref);
+
+	return err;
+}
+
+int
+pfcp_ie_put_report_type(struct pkt_buffer *pbuff, uint8_t type)
+{
+	struct pfcp_ie_report_type *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_REPORT_TYPE, length) < 0)
+		return -1;
+
+	ie = (struct pfcp_ie_report_type *) pbuff->data;
+	ie->report_type = type;
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_additional_usage_reports_info(struct pkt_buffer *pbuff, bool auri,
+					  uint16_t nr_reports)
+{
+	struct pfcp_ie_additional_usage_reports_information *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_ADDITIONAL_USAGE_REPORTS_INFORMATION, length) < 0)
+		return -1;
+
+	ie = (struct pfcp_ie_additional_usage_reports_information *) pbuff->data;
+	ie->flags = htons(nr_reports);
+	ie->auri = auri;
+
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
 }

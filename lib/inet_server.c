@@ -179,14 +179,14 @@ inet_http_read(struct inet_cnx *c)
 	char *buffer = c->buffer_in;
 	ssize_t nbytes, offset = 0;
 
-	memset(buffer, 0, INET_BUFFER_SIZE);
+	memset(buffer, 0, DEFAULT_PKT_BUFFER_SIZE);
 	c->buffer_in_size = 0;
 
 next_rcv:
 	if (__test_bit(INET_FL_STOP_BIT, &w->flags))
 		return -1;
 
-	nbytes = read(c->fd, buffer + offset, INET_BUFFER_SIZE - offset);
+	nbytes = read(c->fd, buffer + offset, DEFAULT_PKT_BUFFER_SIZE - offset);
 
 	/* data are ready ? */
 	if (nbytes == -1 || nbytes == 0) {
@@ -203,11 +203,11 @@ next_rcv:
 		return offset;
 	}
 
-	if (offset < INET_BUFFER_SIZE)
+	if (offset < DEFAULT_PKT_BUFFER_SIZE)
 		goto next_rcv;
 
-	c->buffer_in_size = INET_BUFFER_SIZE;
-	return INET_BUFFER_SIZE;
+	c->buffer_in_size = DEFAULT_PKT_BUFFER_SIZE;
+	return DEFAULT_PKT_BUFFER_SIZE;
 }
 
 void *
@@ -620,7 +620,7 @@ inet_server_init(struct inet_server *s, int type)
 		if (fd < 0)
 			return -1;
 		s->fd  = fd;
-		s->pbuff = pkt_buffer_alloc(INET_BUFFER_SIZE);
+		s->pbuff = pkt_buffer_alloc(DEFAULT_PKT_BUFFER_SIZE);
 		s->seed = time(NULL);
 		srand(s->seed);
 		break;

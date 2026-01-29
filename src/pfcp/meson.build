@@ -5,6 +5,7 @@ src += files(
   'pfcp_assoc.c',
   'pfcp_bpf.c',
   'pfcp_session.c',
+  'pfcp_session_report.c',
   'pfcp_session_ctx.c',
   'pfcp_session_vty.c',
   'pfcp_teid.c',

@@ -68,6 +68,14 @@ pfcp_metrics_pkt_update(struct pfcp_metrics_pkt *m, ssize_t nbytes)
 	return 0;
 }
 
+void
+pfcp_metrics_pkt_sub(struct pfcp_metrics_pkt *a, struct pfcp_metrics_pkt *b,
+		     struct pfcp_metrics_pkt *r)
+{
+	r->bytes = (a->bytes > b->bytes) ? a->bytes - b->bytes : 0;
+	r->count = (a->count > b->count) ? a->count - b->count : 0;
+}
+
 /*
  *	Metrics dump
  *

@@ -92,6 +92,7 @@
 
 #define PPPOE_BUFSIZE		64
 #define PPPOE_MPKT		10
+#define PPPOE_MAX_PKT_QUEUE_SZ	128
 #define PPPOE_BUNDLE_MAXSIZE	5
 
 struct pppoe_hdr {

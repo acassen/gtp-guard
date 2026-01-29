@@ -104,7 +104,8 @@ struct urr {
 	uint64_t		volume_threshold_ul;
 	uint64_t		volume_threshold_dl;
 
-	/* Linked urr */
+	/* parent/Linked urr */
+	struct urr		*parent_urr;
 	uint32_t		linked_urr_id;
 	struct urr		*linked_urr;
 
@@ -112,8 +113,10 @@ struct urr {
 	uint32_t		seqn;
 	uint32_t		start_time;
 	uint32_t		end_time;
-	struct pfcp_metrics_pkt	uplink;
-	struct pfcp_metrics_pkt	downlink;
+	struct pfcp_metrics_pkt	ul;
+	struct pfcp_metrics_pkt	dl;
+	struct pfcp_metrics_pkt	last_report_ul;
+	struct pfcp_metrics_pkt	last_report_dl;
 };
 
 struct pdr {
@@ -150,6 +153,12 @@ struct fwd_rule {
 
 
 /* PFCP session */
+struct pfcp_report {
+	struct sockaddr_storage addr;
+	uint32_t		query_urr_ref;
+	uint32_t		urr_id[PFCP_MAX_NR_ELEM];
+};
+
 struct pfcp_session {
 	uint64_t		seid;
 	struct f_seid		remote_seid;
@@ -159,6 +168,12 @@ struct pfcp_session {
 	struct qer		qer[PFCP_MAX_NR_ELEM];
 	struct urr		urr[PFCP_MAX_NR_ELEM];
 	struct traffic_endpoint	te[PFCP_MAX_NR_ELEM];
+	int			nr_pdr;
+	int			nr_far;
+	int			nr_qer;
+	int			nr_urr;
+	int			nr_te;
+
 	struct ue_ip_address	ue_ip;
 	int			teid_cnt;
 
@@ -171,6 +186,9 @@ struct pfcp_session {
 
 	/* eBPF forwarding rules related */
 	struct list_head	fwd_rules;
+
+	/* Reporting context */
+	struct pfcp_report	report;
 
 	/* Expiration handling */
 	char			tmp_str[64];
@@ -212,6 +230,6 @@ int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
 					      struct pfcp_session *s);
-int pfcp_session_put_usage_report(struct pkt_buffer *pbuff,
-				  struct pfcp_session *s);
+int pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff,
+					   struct pfcp_session *s);
 int pfcp_session_bpf_action(struct pfcp_session *s, int action);

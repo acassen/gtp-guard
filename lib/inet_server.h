@@ -31,7 +31,6 @@
 
 /* Default values */
 #define INET_SRV_THREAD_CNT_DEFAULT	5
-#define INET_BUFFER_SIZE		4096
 #define INET_SOCKBUF_SIZE		(64 * 1024)
 
 /* Default TCP timer */
@@ -58,9 +57,9 @@ struct inet_cnx {
 	struct inet_worker	*worker;
 	void			*arg;
 
-	char			buffer_in[INET_BUFFER_SIZE];
+	char			buffer_in[DEFAULT_PKT_BUFFER_SIZE];
 	ssize_t			buffer_in_size;
-	char			buffer_out[INET_BUFFER_SIZE];
+	char			buffer_out[DEFAULT_PKT_BUFFER_SIZE];
 	ssize_t			buffer_out_size;
 
 	unsigned long		flags;

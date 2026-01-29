@@ -54,6 +54,32 @@ pfcp_msg_reset_hlen(struct pkt_buffer *pbuff)
 	return 0;
 }
 
+int
+pfcp_msg_header_init(struct pkt_buffer *pbuff, uint8_t msg_type, uint64_t seid,
+		     uint32_t seqn)
+{
+	struct pfcp_hdr *hdr = (struct pfcp_hdr *) pbuff->head;
+	uint16_t len = PFCP_HEADER_LEN - 4;
+
+	hdr->version = PFCP_VERSION;
+	hdr->type = msg_type;
+	hdr->mp = 0;
+	hdr->fo = 0;
+	hdr->spare = 0;
+	if (seid) {
+		hdr->s = 1;
+		hdr->seid = seid;
+	} else {
+		/* 3GPP.TS.29.244 7.2.2.4.1 */
+		len -= PFCP_SEID_LEN ;
+	}
+	hdr->sqn = seqn;
+	hdr->length = htons(len);
+	pkt_buffer_set_data_pointer(pbuff, pfcp_msg_hlen(pbuff));
+	pkt_buffer_set_end_pointer(pbuff, pfcp_msg_hlen(pbuff));
+	return 0;
+}
+
 static int
 pfcp_parse_add_ie_to_array(struct pfcp_msg *msg, const uint8_t *buffer,
 			   void ***ie_array, int *nr_ie, size_t ie_size,
@@ -2530,8 +2556,8 @@ pfcp_parse_session_modification_request(struct pfcp_msg *msg, const uint8_t *cp,
 		break;
 
 	case PFCP_IE_QUERY_URR:
-		pfcp_parse_alloc_ie(msg, cp, (void **)&req->query_urr,
-				    sizeof(*req->query_urr), pfcp_parse_ie_query_urr);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&req->query_urr, &req->nr_query_urr,
+					   sizeof(struct pfcp_ie_query_urr), pfcp_parse_ie_query_urr);
 		break;
 
 	case PFCP_IE_FQ_CSID:

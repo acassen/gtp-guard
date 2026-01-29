@@ -101,20 +101,29 @@ pkt_free(struct pkt *p)
 }
 
 struct pkt *
+__pkt_queue_get(struct pkt_queue *q)
+{
+	struct pkt *pkt;
+
+	if (list_empty(&q->queue))
+		return pkt_alloc(DEFAULT_PKT_BUFFER_SIZE);
+
+	pkt = list_first_entry(&q->queue, struct pkt, next);
+	list_del_init(&pkt->next);
+	__sync_sub_and_fetch(&q->size, 1);
+	pkt_buffer_reset(pkt->pbuff);
+	return pkt;
+}
+
+struct pkt *
 pkt_queue_get(struct pkt_queue *q)
 {
 	struct pkt *pkt;
 
 	pthread_mutex_lock(&q->mutex);
-	if (list_empty(&q->queue)) {
-		pthread_mutex_unlock(&q->mutex);
-		return pkt_alloc(DEFAULT_PKT_BUFFER_SIZE);
-	}
-
-	pkt = list_first_entry(&q->queue, struct pkt, next);
-	list_del_init(&pkt->next);
+	pkt = __pkt_queue_get(q);
 	pthread_mutex_unlock(&q->mutex);
-	pkt_buffer_reset(pkt->pbuff);
+
 	return pkt;
 }
 
@@ -124,7 +133,14 @@ __pkt_queue_put(struct pkt_queue *q, struct pkt *p)
 	if (!p)
 		return -1;
 
+	/* leak prevention */
+	if (q->size >= q->max_size) {
+		pkt_free(p);
+		return -1;
+	}
+
 	list_add_tail(&p->next, &q->queue);
+	__sync_add_and_fetch(&q->size, 1);
 	return 0;
 }
 
@@ -138,10 +154,11 @@ pkt_queue_put(struct pkt_queue *q, struct pkt *p)
 }
 
 int
-pkt_queue_init(struct pkt_queue *q)
+pkt_queue_init(struct pkt_queue *q, int max_size)
 {
 	INIT_LIST_HEAD(&q->queue);
 	pthread_mutex_init(&q->mutex, NULL);
+	q->max_size = max_size;
 	return 0;
 }
 
@@ -149,6 +166,9 @@ int
 pkt_queue_destroy(struct pkt_queue *q)
 {
 	struct pkt *pkt, *_pkt;
+
+	if (__sync_add_and_fetch(&q->size, 0) == 0)
+		return 0;
 
 	pthread_mutex_lock(&q->mutex);
 	list_for_each_entry_safe(pkt, _pkt, &q->queue, next) {

@@ -71,7 +71,7 @@ gtp_request_json_parse_cmd(struct inet_cnx *c, struct json_node *json)
 		goto end;
 	}
 
-	gtp_apn_extract_str_ni(apn_str, strlen(apn_str), c->buffer_out, INET_BUFFER_SIZE);
+	gtp_apn_extract_str_ni(apn_str, strlen(apn_str), c->buffer_out, DEFAULT_PKT_BUFFER_SIZE);
 	apn = gtp_apn_get(c->buffer_out);
 	if (!apn) {
 		jsonw_string_field(jwriter, "Error", "Unknown Access-Point-Name");

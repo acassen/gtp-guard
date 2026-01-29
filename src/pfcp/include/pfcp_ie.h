@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <endian.h>
 
 #include "pfcp_metrics.h"
@@ -283,7 +284,6 @@ enum pfcp_ie_type {
 	PFCP_IE_USER_PLANE_PATH_FAILURE_REPORT	= 102,
 	PFCP_IE_UPDATE_DUPLICATING_PARAMETERS	= 105,
 	PFCP_IE_AGGREGATED_URRS			= 118,
-	PFCP_IE_ADDITIONAL_USAGE_REPORT_INFORMATION = 126,
 	PFCP_IE_CREATE_TRAFFIC_ENDPOINT		= 127,
 	PFCP_IE_CREATED_TRAFFIC_ENDPOINT	= 128,
 	PFCP_IE_UPDATE_TRAFFIC_ENDPOINT		= 129,
@@ -596,6 +596,7 @@ struct pfcp_ie_redirect_information {
 } __attribute__((packed));
 
 /* Report Type IE */
+#define PFCP_IE_REPORT_TYPE_USAR	0x02
 struct pfcp_ie_report_type {
 	struct pfcp_ie h;
 	union {
@@ -3479,7 +3480,14 @@ int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
 		           const uint32_t teid,
 			   const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,
 			   const struct in_addr *ue_ipv4, const struct in6_addr *ue_ipv6);
-int pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint32_t id,
-			     uint32_t start_time, uint32_t end_time,
-			     struct pfcp_metrics_pkt *uplink,
-			     struct pfcp_metrics_pkt *downlink);
+int pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
+				      uint32_t start_time, uint32_t end_time, uint32_t seqn,
+				      struct pfcp_metrics_pkt *uplink,
+				      struct pfcp_metrics_pkt *downlink);
+int pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
+				     uint32_t id, uint32_t start_time, uint32_t end_time,
+				     uint32_t seqn, struct pfcp_metrics_pkt *uplink,
+				     struct pfcp_metrics_pkt *downlink);
+int pfcp_ie_put_report_type(struct pkt_buffer *pbuff, uint8_t type);
+int pfcp_ie_put_additional_usage_reports_info(struct pkt_buffer *pbuff, bool auri,
+					      uint16_t nr_reports);

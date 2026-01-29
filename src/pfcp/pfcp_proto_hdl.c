@@ -28,6 +28,7 @@
 #include "pfcp_router.h"
 #include "pfcp_assoc.h"
 #include "pfcp_session.h"
+#include "pfcp_session_report.h"
 #include "pfcp_msg.h"
 #include "pfcp_proto_dump.h"
 #include "pfcp_utils.h"
@@ -187,7 +188,7 @@ pfcp_assoc_setup_request_send(struct thread *t)
 	int err = 0, i;
 
 	/* Prepare pkt */
-	pbuff = pkt_buffer_alloc(INET_BUFFER_SIZE);
+	pbuff = pkt_buffer_alloc(DEFAULT_PKT_BUFFER_SIZE);
 	pfcph = (struct pfcp_hdr *) pbuff->head;
 	pfcph->version = 1;
 	pfcph->type = PFCP_ASSOCIATION_SETUP_REQUEST;
@@ -362,6 +363,10 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 
 	req = msg->session_modification_request;
 
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	pfcph->type = PFCP_SESSION_MODIFICATION_RESPONSE;
+
 	if (!pfcph->s) {
 		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
 				    , __FUNCTION__);
@@ -374,6 +379,7 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 				    , __FUNCTION__, be64toh(pfcph->seid));
 		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND);
 	}
+	pfcph->seid = s->remote_seid.id;
 
 	err = pfcp_session_modify(s, req);
 	if (err) {
@@ -382,17 +388,24 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
-	/* Recycle header and reset length */
-	pfcp_msg_reset_hlen(pbuff);
-	pfcph->type = PFCP_SESSION_MODIFICATION_RESPONSE;
-	pfcph->seid = s->remote_seid.id;
-
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, cause);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
 		return -1;
+	}
+
+	/* URR query ? */
+	if ((req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) || req->nr_query_urr) {
+		err = pfcp_ie_put_additional_usage_reports_info(pbuff, true, 0);
+		if (err) {
+			log_message(LOG_INFO, "%s(): Error while adding AURI IE"
+					    , __FUNCTION__);
+			return -1;
+		}
+
+		pfcp_session_report(s, req, addr);
 	}
 
 	/* Data-Path setup */
@@ -437,7 +450,7 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, cause);
-	err = (err) ? : pfcp_session_put_usage_report(pbuff, s);
+	err = (err) ? : pfcp_session_put_usage_report_deletion(pbuff, s);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);

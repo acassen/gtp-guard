@@ -25,6 +25,7 @@
 #include "inet_utils.h"
 #include "logger.h"
 #include "bitops.h"
+#include "pkt_buffer.h"
 
 
 /* Extern data */
@@ -100,6 +101,7 @@ pfcp_server_init(struct pfcp_server *s, void *ctx,
 	}
 
 	/* So far so good */
+	pkt_queue_init(&s->pkt_q, DEFAULT_PKT_QUEUE_SIZE);
 	inet_server_start(srv, master);
 	__set_bit(PFCP_FL_RUNNING_BIT, &srv->flags);
 	return 0;
@@ -109,5 +111,6 @@ int
 pfcp_server_destroy(struct pfcp_server *s)
 {
 	pfcp_msg_free(s->msg);
+	pkt_queue_destroy(&s->pkt_q);
 	return inet_server_destroy(&s->s);
 }

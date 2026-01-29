@@ -262,7 +262,7 @@ struct pfcp_session_modification_request {
 	/* Optional IEs */
 	struct pfcp_ie_f_seid *cp_f_seid;
 	struct pfcp_ie_pfcpsmreq_flags *pfcpsmreq_flags;
-	struct pfcp_ie_query_urr *query_urr;
+	struct pfcp_ie_query_urr **query_urr;
 	struct pfcp_ie_fq_csid *pgw_c_fq_csid;
 	struct pfcp_ie_fq_csid *sgw_c_fq_csid;
 	struct pfcp_ie_fq_csid *mme_fq_csid;
@@ -302,6 +302,7 @@ struct pfcp_session_modification_request {
 	struct pfcp_ie_update_mar **update_mar;
 	struct pfcp_ie_update_srr **update_srr;
 	/* Counters */
+	int nr_query_urr;
 	int nr_remove_pdr;
 	int nr_remove_far;
 	int nr_remove_urr;
@@ -430,6 +431,8 @@ struct pfcp_msg {
 /* Prototypes */
 int pfcp_msg_hlen(struct pkt_buffer *pbuff);
 int pfcp_msg_reset_hlen(struct pkt_buffer *pbuff);
+int pfcp_msg_header_init(struct pkt_buffer *pbuff, uint8_t msg_type,
+			 uint64_t seid, uint32_t seqn);
 int pfcp_msg_parse(struct pfcp_msg *msg, struct pkt_buffer *pbuff);
 struct pfcp_msg *pfcp_msg_alloc(int scheme);
 void pfcp_msg_free(struct pfcp_msg *msg);
