@@ -182,13 +182,24 @@ void
 pfcp_assoc_setup_request_send(struct thread *t)
 {
 	struct pfcp_router *ctx = THREAD_ARG(t);
+	struct pfcp_server *srv = &ctx->s;
 	struct pfcp_peer_list *plist = ctx->peer_list;
 	struct pkt_buffer *pbuff;
 	struct pfcp_hdr *pfcph;
+	struct pkt *p;
 	int err = 0, i;
 
+	p = __pkt_queue_get(&srv->pkt_q);
+	if (!p) {
+		log_message(LOG_INFO, "%s(): Error getting pkt from queue for server [%s]:%d"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(&srv->s.addr)
+				    , ntohs(inet_sockaddrport(&srv->s.addr)));
+		return;
+	}
+
 	/* Prepare pkt */
-	pbuff = pkt_buffer_alloc(DEFAULT_PKT_BUFFER_SIZE);
+	pbuff = p->pbuff;
 	pfcph = (struct pfcp_hdr *) pbuff->head;
 	pfcph->version = 1;
 	pfcph->type = PFCP_ASSOCIATION_SETUP_REQUEST;
@@ -214,7 +225,7 @@ pfcp_assoc_setup_request_send(struct thread *t)
 	}
 
 end:
-	pkt_buffer_free(pbuff);
+	__pkt_queue_put(&srv->pkt_q, p);
 }
 
 
@@ -318,9 +329,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
-	/* Recycle header and reset length */
-	pfcp_msg_reset_hlen(pbuff);
-	pfcph->type = PFCP_SESSION_ESTABLISHMENT_RESPONSE;
+	/* Update PFCP Header */
 	pfcph->seid = s->remote_seid.id;
 
 	/* Append IEs */
@@ -388,24 +397,25 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
-	/* Append IEs */
-	err = pfcp_ie_put_cause(pbuff, cause);
-	if (err) {
-		log_message(LOG_INFO, "%s(): Error while Appending IEs"
-				    , __FUNCTION__);
-		return -1;
-	}
-
 	/* URR query ? */
 	if ((req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) || req->nr_query_urr) {
+		/* handle request before recycle buffer mangling */
+		pfcp_session_report(s, req, addr);
+
 		err = pfcp_ie_put_additional_usage_reports_info(pbuff, true, 0);
 		if (err) {
 			log_message(LOG_INFO, "%s(): Error while adding AURI IE"
 					    , __FUNCTION__);
 			return -1;
 		}
+	}
 
-		pfcp_session_report(s, req, addr);
+	/* Append IEs */
+	err = pfcp_ie_put_cause(pbuff, cause);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
 	}
 
 	/* Data-Path setup */
@@ -430,6 +440,10 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	struct pfcp_session *s;
 	int err;
 
+	/* Recycle header and reset length */
+	pfcp_msg_reset_hlen(pbuff);
+	pfcph->type = PFCP_SESSION_DELETION_RESPONSE;
+
 	if (!pfcph->s) {
 		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
 				    , __FUNCTION__);
@@ -443,9 +457,6 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_SESSION_CONTEXT_NOT_FOUND);
 	}
 
-	/* Recycle header and reset length */
-	pfcp_msg_reset_hlen(pbuff);
-	pfcph->type = PFCP_SESSION_DELETION_RESPONSE;
 	pfcph->seid = s->remote_seid.id;
 
 	/* Append IEs */
@@ -459,6 +470,21 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 
 	pfcp_session_destroy(s);
 	return 0;
+}
+
+/* Session Report Response */
+static int
+pfcp_session_report_response(struct pfcp_msg *msg, struct pfcp_server *srv,
+			      struct sockaddr_storage *addr)
+{
+	struct pfcp_session_report_response *rsp = msg->session_report_response;
+
+	if (rsp->cause->value != PFCP_CAUSE_REQUEST_ACCEPTED)
+		log_message(LOG_INFO, "%s(): remote PFCP peer:'%s' rejection (%s)"
+				    , __FUNCTION__
+				    , inet_sockaddrtos(addr)
+				    , pfcp_cause2str(rsp->cause->value));
+	return -1;
 }
 
 
@@ -484,6 +510,7 @@ static const struct {
 	[PFCP_SESSION_MODIFICATION_REQUEST]	= { pfcp_session_modification_request },
 	[PFCP_SESSION_DELETION_REQUEST]		= { pfcp_session_deletion_request },
 	[PFCP_SESSION_REPORT_REQUEST]		= { NULL },
+	[PFCP_SESSION_REPORT_RESPONSE]		= { pfcp_session_report_response },
 };
 
 int

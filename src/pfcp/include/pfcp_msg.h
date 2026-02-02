@@ -383,6 +383,8 @@ struct pfcp_session_report_request {
 };
 
 struct pfcp_session_report_response {
+	/* Mandatory IEs */
+	struct pfcp_ie_cause *cause;
 	/* Optional IEs */
 	struct pfcp_ie_offending *offending_ie;
 	struct pfcp_ie_update_bar *update_bar;

@@ -127,8 +127,7 @@ pfcp_session_report_send(struct thread *t)
 	}
 
 	/* Run, Baby, Run */
-	inet_server_snd(&srv->s, srv->s.fd, pbuff,
-			(struct sockaddr_in *) &report->addr);
+	inet_server_snd(&srv->s, srv->s.fd, pbuff, (struct sockaddr_in *) &report->addr);
 end:
 	__pkt_queue_put(&srv->pkt_q, p);
 }

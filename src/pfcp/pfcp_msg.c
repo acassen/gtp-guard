@@ -2963,6 +2963,70 @@ pfcp_parse_session_report_request(struct pfcp_msg *msg, const uint8_t *cp, int *
 }
 
 
+static void
+pfcp_parse_session_report_response(struct pfcp_msg *msg, const uint8_t *cp, int *mandatory)
+{
+	struct pfcp_ie *ie = (struct pfcp_ie *) cp;
+	uint16_t ie_type = ntohs(ie->type);
+	size_t size = sizeof(*ie) + ntohs(ie->length);
+	struct pfcp_session_report_response *rsp = msg->session_report_response;
+
+	if (!rsp) {
+		rsp = mpool_zalloc(&msg->mp, sizeof(*rsp));
+		if (!rsp)
+			return;
+		msg->session_report_response = rsp;
+	}
+
+	switch (ie_type) {
+	case PFCP_IE_CAUSE:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->cause, cp, size);
+		*mandatory |= (1 << 0);
+		break;
+
+	case PFCP_IE_OFFENDING_IE:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->offending_ie, cp, size);
+		break;
+
+	case PFCP_IE_UPDATE_BAR:
+		pfcp_parse_alloc_ie(msg, cp, (void **)&rsp->update_bar,
+				    sizeof(*rsp->update_bar), pfcp_parse_ie_update_bar);
+		break;
+
+	case PFCP_IE_PFCPSRRSP_FLAGS:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->pfcpsrrsp_flags, cp, size);
+		break;
+
+	case PFCP_IE_F_SEID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->cp_f_seid, cp, size);
+		break;
+
+	case PFCP_IE_F_TEID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->n4_u_f_teid, cp, size);
+		break;
+
+	case PFCP_IE_ALTERNATIVE_SMF_IP_ADDRESS:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->alternative_smf_ip_address, cp, size);
+		break;
+
+	case PFCP_IE_FQ_CSID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->pgwc_smf_fq_csid, cp, size);
+		break;
+
+	case PFCP_IE_GROUP_ID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->group_id, cp, size);
+		break;
+
+	case PFCP_IE_NODE_ID:
+		pfcp_msg_alloc_scheme(msg, (void **)&rsp->node_id, cp, size);
+		break;
+
+	default:
+		break;
+	}
+}
+
+
 /*
  *	PFCP Messages decoders
  */
@@ -3005,6 +3069,9 @@ static const struct {
 						  },
 	[PFCP_SESSION_REPORT_REQUEST]		= { 1,
 						    pfcp_parse_session_report_request
+						  },
+	[PFCP_SESSION_REPORT_RESPONSE]		= { 1,
+						    pfcp_parse_session_report_response
 						  },
 };
 

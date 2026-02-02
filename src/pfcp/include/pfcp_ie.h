@@ -852,9 +852,17 @@ struct pfcp_ie_pfcpsmreq_flags {
 			uint8_t drobu:1;
 			uint8_t sndem:1;
 			uint8_t qaurr:1;
-			uint8_t spare:5;
+			uint8_t sumpc:1;
+			uint8_t rumuc:1;
+			uint8_t deteid:1;
+			uint8_t hrsbom:1;
+			uint8_t spare:1;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			uint8_t spare:5;
+			uint8_t spare:1;
+			uint8_t hrsbom:1;
+			uint8_t deteid:1;
+			uint8_t rumuc:1;
+			uint8_t sumpc:1;
 			uint8_t qaurr:1;
 			uint8_t sndem:1;
 			uint8_t drobu:1;
@@ -1833,11 +1841,13 @@ struct pfcp_ie_additional_usage_reports_information {
 		uint16_t flags;
 		struct {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint16_t auri:1;
-			uint16_t number_of_additional_usage_reports_value:15;
+			uint8_t spare:7;
+			uint8_t auri:1;
+			uint8_t number_of_additional_usage_reports_value;
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			uint16_t number_of_additional_usage_reports_value:15;
-			uint16_t auri:1;
+			uint8_t auri:1;
+			uint8_t spare:7;
+			uint8_t number_of_additional_usage_reports_value;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
