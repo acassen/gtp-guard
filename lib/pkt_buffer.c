@@ -112,6 +112,7 @@ __pkt_queue_get(struct pkt_queue *q)
 	list_del_init(&pkt->next);
 	__sync_sub_and_fetch(&q->size, 1);
 	pkt_buffer_reset(pkt->pbuff);
+	memset(pkt->pbuff->head, 0, pkt_buffer_size(pkt->pbuff));
 	return pkt;
 }
 

@@ -200,6 +200,7 @@ pfcp_assoc_setup_request_send(struct thread *t)
 
 	/* Prepare pkt */
 	pbuff = p->pbuff;
+	memset(pbuff->head, 0, pkt_buffer_size(pbuff));
 	pfcph = (struct pfcp_hdr *) pbuff->head;
 	pfcph->version = 1;
 	pfcph->type = PFCP_ASSOCIATION_SETUP_REQUEST;

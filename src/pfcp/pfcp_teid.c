@@ -344,6 +344,9 @@ pfcp_teid_alloc_static(struct hlist_head *h, uint8_t interface,
 void
 pfcp_teid_free(struct pfcp_teid *t)
 {
+	if (!t)
+		return;
+
 	pfcp_teid_unhash(t);
 	free(t);
 }

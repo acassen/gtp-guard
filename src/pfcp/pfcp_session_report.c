@@ -85,7 +85,6 @@ pfcp_session_report_send(struct thread *t)
 
 	/* Pkt building */
 	pbuff = p->pbuff;
-	memset(pbuff->head, 0, pkt_buffer_size(pbuff));
 	pfcp_msg_header_init(pbuff, PFCP_SESSION_REPORT_REQUEST, remote_seid->id,
 			     htonl(srv->seqn++));
 	err = pfcp_ie_put_report_type(pbuff, PFCP_IE_REPORT_TYPE_USAR);

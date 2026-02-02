@@ -346,6 +346,7 @@ pfcp_session_release(struct pfcp_session *s)
 	list_head_del(&s->next);
 	pfcp_session_unhash(s);
 	pfcp_session_release_ue_ip(s);
+	pfcp_session_release_teid(s);
 	pfcp_session_free(s);
 	return 0;
 }

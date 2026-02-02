@@ -216,6 +216,7 @@ struct pfcp_session *pfcp_session_alloc(struct gtp_conn *c,
 
 int pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af);
 int pfcp_session_release_ue_ip(struct pfcp_session *s);
+int pfcp_session_release_teid(struct pfcp_session *s);
 int pfcp_session_destroy(struct pfcp_session *s);
 int pfcp_sessions_release(struct gtp_conn *c);
 int pfcp_sessions_free(struct gtp_conn *c);

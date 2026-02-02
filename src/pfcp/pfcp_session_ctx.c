@@ -189,6 +189,31 @@ teid_del:
 	return 0;
 }
 
+int
+pfcp_session_release_teid(struct pfcp_session *s)
+{
+	struct pdr *pdr;
+	struct traffic_endpoint *te;
+	int i, j;
+
+	/* Non-optimized pdi */
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->pdr[i].id; i++) {
+		pdr = &s->pdr[i];
+
+		for (j = 0; j < PFCP_DIR_MAX; j++)
+			pfcp_teid_free(pdr->teid[j]);
+	}
+
+	/* Optimized PDI */
+	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
+		te = &s->te[i];
+
+		for (j = 0; j < PFCP_DIR_MAX; j++)
+			pfcp_teid_free(te->teid[j]);
+	}
+
+	return 0;
+}
 
 static int
 pfcp_session_create_te(struct pfcp_session *s, struct traffic_endpoint *te,
