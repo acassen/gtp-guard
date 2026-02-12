@@ -76,6 +76,8 @@ struct traffic_endpoint {
 	uint8_t			interface_type;
 	struct ue_ip_address	ue_ip;
 	struct pfcp_teid	*teid;
+
+	struct list_head	next;
 };
 
 struct far {
@@ -93,6 +95,8 @@ struct far {
 	struct traffic_endpoint	*dst_te;
 
 	uint16_t		flags;
+
+	struct list_head	next;
 };
 
 struct qer {
@@ -100,6 +104,8 @@ struct qer {
 	uint32_t		id;
 	uint32_t		ul_mbr;
 	uint32_t		dl_mbr;
+
+	struct list_head	next;
 };
 
 struct urr {
@@ -127,6 +133,8 @@ struct urr {
 	struct pfcp_metrics_pkt	dl;
 	struct pfcp_metrics_pkt	last_report_ul;
 	struct pfcp_metrics_pkt	last_report_dl;
+
+	struct list_head	next;
 };
 
 struct pdr {
@@ -152,6 +160,8 @@ struct pdr {
 	struct pfcp_fwd_rule	*fwd_rule;
 
 	uint16_t		flags;
+
+	struct list_head	next;
 };
 
 #define PFCP_ACT_NONE		0
@@ -177,16 +187,11 @@ struct pfcp_session {
 	uint64_t		seid;
 	struct f_seid		remote_seid;
 
-	struct pdr		pdr[PFCP_MAX_NR_ELEM];
-	struct far		far[PFCP_MAX_NR_ELEM];
-	struct qer		qer[PFCP_MAX_NR_ELEM];
-	struct urr		urr[PFCP_MAX_NR_ELEM];
-	struct traffic_endpoint	te[PFCP_MAX_NR_ELEM];
-	int			nr_pdr;
-	int			nr_far;
-	int			nr_qer;
-	int			nr_urr;
-	int			nr_te;
+	struct list_head	pdr_list;
+	struct list_head	far_list;
+	struct list_head	qer_list;
+	struct list_head	urr_list;
+	struct list_head	te_list;
 
 	struct ue_ip_address	ue_ip;
 	int			teid_cnt;
@@ -239,6 +244,7 @@ int pfcp_session_create(struct pfcp_session *s,
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
 int pfcp_session_delete_fwd_rules(struct pfcp_session *s);
+int pfcp_session_delete(struct pfcp_session *s);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,

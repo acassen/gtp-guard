@@ -72,7 +72,7 @@ pfcp_session_report_send(struct thread *t)
 	struct pkt *p;
 	struct pkt_buffer *pbuff;
 	struct f_seid *remote_seid = &s->remote_seid;
-	int i, err, nr_null = 0, nr_report_urr = 0;
+	int err, nr_urr = 0, nr_null = 0, nr_report_urr = 0;
 
 	p = __pkt_queue_get(&srv->pkt_q);
 	if (!p) {
@@ -91,8 +91,8 @@ pfcp_session_report_send(struct thread *t)
 	if (err)
 		goto end;
 
-	for (i = 0; i < s->nr_urr; i++) {
-		u = &s->urr[i];
+	list_for_each_entry(u, &s->urr_list, next) {
+		nr_urr++;
 		if (pfcp_metrics_pkt_cmp(&u->ul, &u->last_report_ul) <= 0 &&
 		    pfcp_metrics_pkt_cmp(&u->dl, &u->last_report_dl) <= 0) {
 			nr_null++;
@@ -107,9 +107,9 @@ pfcp_session_report_send(struct thread *t)
 	/* If report is requested but no updates available, then simply use
 	 * first urr.
 	 */
-	if (s->nr_urr && nr_null == s->nr_urr) {
-		err = pfcp_session_report_add_urr(pbuff, &s->urr[0],
-						  report->query_urr_ref);
+	if (nr_urr && nr_null == nr_urr) {
+		u = list_first_entry(&s->urr_list, struct urr, next);
+		err = pfcp_session_report_add_urr(pbuff, u, report->query_urr_ref);
 		if (!err)
 			nr_report_urr++;
 	}
@@ -138,12 +138,17 @@ pfcp_session_report(struct pfcp_session *s,
 {
 	struct pfcp_report *r = &s->report;
 	struct pfcp_ie_query_urr_reference *ie_urr_ref = req->query_urr_reference;
+	struct urr *u;
 	int i;
 
 	/* Requested URR */
 	if (req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) {
-		for (i = 0; i < PFCP_MAX_NR_ELEM && s->urr[i].id; i++)
-			r->urr_id[i] = s->urr[i].id;
+		i = 0;
+		list_for_each_entry(u, &s->urr_list, next) {
+			if (i >= PFCP_MAX_NR_ELEM)
+				break;
+			r->urr_id[i++] = u->id;
+		}
 	} else {
 		for (i = 0; i < PFCP_MAX_NR_ELEM && req->query_urr[i]; i++)
 			r->urr_id[i] = req->query_urr[i]->urr_id->value;
