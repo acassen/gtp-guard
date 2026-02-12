@@ -221,7 +221,7 @@ pfcp_ie_put_error_cause(struct pkt_buffer *pbuff, const uint8_t *node_id, size_t
 
 int
 pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
-		const struct sockaddr_storage *addr)
+		   const struct sockaddr_storage *addr)
 {
 	struct pfcp_ie_f_seid *ie;
 	unsigned int length = sizeof(struct pfcp_ie) + sizeof(uint64_t) + 1;
@@ -242,6 +242,7 @@ pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
 
 	ie = (struct pfcp_ie_f_seid *) pbuff->data;
 	ie->seid = seid;
+	ie->flags = 0;
 	switch (addr->ss_family) {
 	case AF_INET:
 		ie->v4 = 1;
