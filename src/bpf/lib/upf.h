@@ -209,6 +209,9 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 		return XDP_DROP;
 	}
 
+	adjust_sz = (void *)(gtph + 1) - (void *)iph;
+	payload_len = data_end - data - d->pl_off - adjust_sz;
+
 	if ((u->flags & UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER) &&
 	    (u->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER)) {
 		iph->saddr = u->gtpu_local_addr;
@@ -217,9 +220,6 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 		udph->dest = u->gtpu_remote_port;
 		gtph->teid = u->gtpu_remote_teid;
 	} else if (u->flags & UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER) {
-		adjust_sz = (void *)(gtph + 1) - (void *)iph;
-		payload_len = data_end - data - d->pl_off - adjust_sz;
-
 		/* now decap gtp-u */
 		if (bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
 			return XDP_ABORTED;
