@@ -24,6 +24,11 @@
 #define __always_inline		inline __attribute__((always_inline))
 #define __no_inline		__attribute__((noinline))
 
+#ifndef min
+# define min(x,y) ((x)<(y) ? x : y)
+#endif
+
+
 /*********************************/
 /* l2 stuff */
 

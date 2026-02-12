@@ -24,6 +24,7 @@
 #include "list_head.h"
 #include "libbpf.h"
 #include "gtp_stddef.h"
+#include "gtp_bpf_capture.h"
 
 #define BPF_PROG_TPL_MAX	6
 
@@ -85,6 +86,7 @@ struct gtp_bpf_prog {
 	struct list_head	iface_bind_list;
 	struct list_head	next;
 
+	struct gtp_capture_entry capture_entry;
 	int			watch_id;
 	int			refcnt;
 	unsigned long		flags;
@@ -97,6 +99,9 @@ int gtp_bpf_prog_obj_update_var(struct bpf_object *,
 size_t gtp_bpf_prog_dyn_map_resize(struct bpf_object *obj, struct bpf_map *m,
 				   uint32_t new_array_size);
 struct bpf_map *gtp_bpf_prog_load_map(struct bpf_object *, const char *);
+int gtp_bpf_lookup_program(struct bpf_object *obj, struct bpf_program **out_prg,
+			   enum bpf_attach_type attach_t, const char *name,
+			   const char *prgname, const char *iface_prgname);
 int gtp_bpf_prog_load(struct gtp_bpf_prog *p);
 int gtp_bpf_prog_attach(struct gtp_bpf_prog *, struct gtp_interface *);
 void gtp_bpf_prog_detach(struct gtp_bpf_prog *, struct gtp_interface *);

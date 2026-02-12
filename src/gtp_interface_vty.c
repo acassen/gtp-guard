@@ -389,6 +389,74 @@ DEFUN(interface_no_shutdown,
 	return CMD_SUCCESS;
 }
 
+/* Capture */
+DEFUN(capture_start_interface,
+      capture_start_interface_cmd,
+      "capture interface IFNAME start CAPENTRY [side (ingress|egress|both) caplen <32-10000>]",
+      "Capture menu\n"
+      "Capture interface submenu\n"
+      "Interface name\n"
+      "Start capture\n"
+      "Capture file entry\n"
+      "Capture side, on interface entry and/or exit\n"
+      "Capture on interface ingress\n"
+      "Capture on interface egress\n"
+      "Capture on interface ingress and egres\n"
+      "Capture packet max length\n"
+      "Value\n")
+{
+	struct gtp_interface *iface = NULL;
+
+	iface = gtp_interface_get(argv[0], false);
+	if (!iface) {
+		vty_out(vty, "%% Unknown interface:'%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	if (iface->bpf_prog == NULL) {
+		vty_out(vty, "%% No bpf-program attached to interface %s\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	iface->capture_entry.flags = 0;
+	if (argc > 3) {
+		if (!strcmp(argv[3], "egress") || !strcmp(argv[3], "both"))
+			iface->capture_entry.flags |= GTP_CAPTURE_FL_EGRESS;
+		if (!strcmp(argv[3], "ingress") || !strcmp(argv[3], "both"))
+			iface->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+	} else {
+		iface->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+	}
+
+	if (gtp_capture_start_iface(&iface->capture_entry, iface->bpf_prog,
+				    argv[1], iface->ifindex)) {
+		vty_out(vty, "%% error starting interface trace\n");
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(capture_stop_interface,
+      capture_stop_interface_cmd,
+      "capture interface IFNAME stop",
+      "Capture menu\n"
+      "Capture interface submenu\n"
+      "Interface name\n"
+      "Stop capture\n")
+{
+	struct gtp_interface *iface = NULL;
+
+	iface = gtp_interface_get(argv[0], false);
+	if (!iface) {
+		vty_out(vty, "%% Unknown interface:'%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	gtp_capture_stop(&iface->capture_entry);
+
+	return CMD_SUCCESS;
+}
 
 /* Show */
 DEFUN(show_interface_topology,
@@ -514,6 +582,10 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &no_interface_metrics_link_cmd);
 	install_element(INTERFACE_NODE, &interface_shutdown_cmd);
 	install_element(INTERFACE_NODE, &interface_no_shutdown_cmd);
+
+	/* Install capture commands */
+	install_element(ENABLE_NODE, &capture_start_interface_cmd);
+	install_element(ENABLE_NODE, &capture_stop_interface_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_interface_cmd);

@@ -3,6 +3,7 @@
 fs = import('fs')
 
 bpf_sources = files(
+  'capture_trace.c',
   'gtp_fwd.c',
   'gtp_fwd_mirror.c',
   'gtp_route.c',

@@ -548,7 +548,7 @@ gtp_bpf_prog_load(struct gtp_bpf_prog *p)
 	return 0;
 }
 
-static int
+int
 gtp_bpf_lookup_program(struct bpf_object *obj, struct bpf_program **out_prg,
 		       enum bpf_attach_type attach_t, const char *name,
 		       const char *prgname, const char *iface_prgname)

@@ -98,6 +98,9 @@ struct gtp_interface {
 	union addr			tunnel_local;
 	union addr			tunnel_remote;
 
+	/* packet capture */
+	struct gtp_capture_entry	capture_entry;
+
 	struct list_head		next;
 	unsigned long			flags;
 };

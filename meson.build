@@ -80,7 +80,7 @@ subdir('src')
 gtp_guard_exe = executable(
   'gtp-guard', src,
   include_directories: inc,
-  dependencies: [libbpf_dep, libxdp_dep, libelf_dep],
+  dependencies: [libbpf_dep, libxdp_dep, libelf_dep, libpcap_dep],
   link_args: [ '-lresolv' ],
   install_dir: get_option('sbindir'),
   install: true,

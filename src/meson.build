@@ -9,6 +9,7 @@ src += files(
   'gtp_apn.c',
   'gtp_apn_metrics.c',
   'gtp_apn_vty.c',
+  'gtp_bpf_capture.c',
   'gtp_bpf_fwd.c',
   'gtp_bpf_iptnl.c',
   'gtp_bpf_ifrules.c',

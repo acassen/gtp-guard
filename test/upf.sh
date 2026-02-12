@@ -181,6 +181,10 @@ show interface-rule all
 show interface-rule input
 show bpf pfcp
 "
+
+    gtpg_show "
+capture prog upf-1 start upf
+"
 }
 
 run_combined() { run_split_combined; }

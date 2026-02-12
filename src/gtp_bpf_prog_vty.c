@@ -335,13 +335,67 @@ DEFUN(bpf_prog_no_shutdown,
 	return CMD_SUCCESS;
 }
 
+/* Capture */
+DEFUN(capture_start_bpf_prog,
+      capture_start_bpf_prog_cmd,
+      "capture prog BPFNAME start NAME  [side (ingress|egress|both) caplen <32-10000>]",
+      "capture\n"
+      "start\n"
+      "BPF Program\n")
+{
+	struct gtp_bpf_prog *p = NULL;
+
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% Unknown bpf-program:'%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	if (argc >= 4) {
+		if (!strcmp(argv[3], "ingress") || !strcmp(argv[3], "both"))
+			p->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+		if (!strcmp(argv[3], "egress") || !strcmp(argv[3], "both"))
+			p->capture_entry.flags |= GTP_CAPTURE_FL_EGRESS;
+	} else {
+		p->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+	}
+
+	p->capture_entry.cap_len = 96; /* xxx argv[5] */
+
+	if (gtp_capture_start_all(&p->capture_entry, p, argv[1]) < 0) {
+		vty_out(vty, "%% error starting trace");
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(capture_stop_bpf_prog,
+      capture_stop_bpf_prog_cmd,
+      "capture prog BPFNAME stop",
+      "capture\n"
+      "stop\n"
+      "BPF Program\n")
+{
+	struct gtp_bpf_prog *p = NULL;
+
+	p = gtp_bpf_prog_get(argv[0]);
+	if (!p) {
+		vty_out(vty, "%% Unknown bpf-program:'%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	gtp_capture_stop(&p->capture_entry);
+
+	return CMD_SUCCESS;
+}
 
 /* Show */
 DEFUN(show_bpf_prog,
       show_bpf_prog_cmd,
       "show bpf-program [STRING]",
       SHOW_STR
-      "BPF Progam\n")
+      "BPF Program\n")
 {
 	struct gtp_bpf_prog *p = NULL;
 
@@ -428,6 +482,10 @@ cmd_ext_bpf_prog_install(void)
 	install_element(BPF_PROG_NODE, &bpf_prog_xsk_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_shutdown_cmd);
 	install_element(BPF_PROG_NODE, &bpf_prog_no_shutdown_cmd);
+
+	/* Install capture commands */
+	install_element(ENABLE_NODE, &capture_start_bpf_prog_cmd);
+	install_element(ENABLE_NODE, &capture_stop_bpf_prog_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_bpf_prog_cmd);

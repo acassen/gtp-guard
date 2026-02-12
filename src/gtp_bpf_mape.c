@@ -167,7 +167,7 @@ mape_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 	struct mape_bpf_ctx *x = udata;
 	struct mape_rule *r;
 
-	x->rules_map = gtp_bpf_prog_load_map(p->load.obj, "mape_bmr");
+	x->rules_map = gtp_bpf_prog_load_map(p->obj_load, "mape_bmr");
 	if (!x->rules_map)
 		return -1;
 
