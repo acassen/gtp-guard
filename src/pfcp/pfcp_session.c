@@ -318,31 +318,13 @@ nospc:
 	return -1;
 }
 
-int
-pfcp_session_release_ue_ip(struct pfcp_session *s)
-{
-	struct ue_ip_address *ue_ip = &s->ue_ip;
-
-	if ((ue_ip->flags & UE_CHV4) && ue_ip->pool_v4) {
-		ip_pool_put(ue_ip->pool_v4, &ue_ip->v4);
-		ue_ip->pool_v4 = NULL;
-	}
-
-	if ((ue_ip->flags & UE_CHV6) && ue_ip->pool_v6) {
-		ip_pool_put(ue_ip->pool_v6, &ue_ip->v6);
-		ue_ip->pool_v6 = NULL;
-	}
-
-	return 0;
-}
-
 static int
 pfcp_session_release(struct pfcp_session *s)
 {
 	__sync_sub_and_fetch(&s->apn->session_count, 1);
 	__sync_sub_and_fetch(&pfcp_sessions_count, 1);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
-	pfcp_bpf_session_action(s, RULE_DEL);
+	pfcp_session_delete_fwd_rules(s);
 	list_head_del(&s->next);
 	pfcp_session_unhash(s);
 	pfcp_session_release_ue_ip(s);

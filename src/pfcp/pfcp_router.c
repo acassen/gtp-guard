@@ -227,6 +227,7 @@ pfcp_router_alloc(const char *name)
 	}
 	INIT_LIST_HEAD(&new->next);
 	INIT_LIST_HEAD(&new->bpf_list);
+	INIT_LIST_HEAD(&new->static_fwd_rules);
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 	new->seed = poor_prng((unsigned int *) &now);
 	new->teid = pfcp_teid_init();

@@ -34,7 +34,6 @@
 #include "pfcp_utils.h"
 #include "gtp_conn.h"
 #include "gtp_apn.h"
-#include "gtp_bpf_utils.h"
 #include "inet_utils.h"
 #include "pkt_buffer.h"
 #include "bitops.h"
@@ -200,7 +199,6 @@ pfcp_assoc_setup_request_send(struct thread *t)
 
 	/* Prepare pkt */
 	pbuff = p->pbuff;
-	memset(pbuff->head, 0, pkt_buffer_size(pbuff));
 	pfcph = (struct pfcp_hdr *) pbuff->head;
 	pfcph->version = 1;
 	pfcph->type = PFCP_ASSOCIATION_SETUP_REQUEST;
@@ -324,6 +322,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 
 	err = pfcp_session_create(s, req, addr);
 	if (err) {
+		if (errno == ENOSPC) {
+			pfcph->seid = s->remote_seid.id;
+			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+						       PFCP_CAUSE_ALL_DYNAMIC_ADDRESS_ARE_OCCUPIED);
+		}
+
 		log_message(LOG_INFO, "%s(): malformed IE Create-PDR... rejecting..."
 				    , __FUNCTION__);
 		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
@@ -339,19 +343,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	err = (err) ? : pfcp_session_put_created_pdr(pbuff, s);
 	err = (err) ? : pfcp_session_put_created_traffic_endpoint(pbuff, s);
 	if (err) {
-		if (errno == ENOSPC)
-			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
-						       PFCP_CAUSE_ALL_DYNAMIC_ADDRESS_ARE_OCCUPIED);
-
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
-				    , __FUNCTION__);
-		return -1;
-	}
-
-	/* Data-Path setup */
-	err = pfcp_bpf_session_action(s, RULE_ADD);
-	if (err) {
-		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
 				    , __FUNCTION__);
 		return -1;
 	}
@@ -415,14 +407,6 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	err = pfcp_ie_put_cause(pbuff, cause);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
-				    , __FUNCTION__);
-		return -1;
-	}
-
-	/* Data-Path setup */
-	err = pfcp_bpf_session_action(s, RULE_ADD);
-	if (err) {
-		log_message(LOG_INFO, "%s(): Error while Setting eBPF rules"
 				    , __FUNCTION__);
 		return -1;
 	}
@@ -556,19 +540,19 @@ end:
  *	GTP-U Message handle
  */
 int
-gtpu_send_end_marker(struct gtp_server *srv, struct pfcp_teid *t)
+gtpu_send_end_marker(struct gtp_server *srv, struct far *f)
 {
 	struct gtp1_hdr *h = (struct gtp1_hdr *) srv->s.pbuff->head;
 	struct sockaddr_in addr_to = {
 		.sin_family = AF_INET,
-		.sin_addr = t->ipv4,
+		.sin_addr = f->outer_header_ip4,
 		.sin_port = htons(GTP_U_PORT),
 	};
 
 	memset(h, 0, sizeof(*h));
 	h->flags = 0x30; /* GTP-Rel99 + GTPv1 */
 	h->type = GTPU_END_MARKER_TYPE;
-	h->teid_only = t->id;
+	h->teid_only = f->outer_header_teid;
 	pkt_buffer_set_end_pointer(srv->s.pbuff, gtp1_get_header_len(h));
 	pkt_buffer_set_data_pointer(srv->s.pbuff, gtp1_get_header_len(h));
 

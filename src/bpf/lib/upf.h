@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <time.h>
 #include <linux/bpf.h>
 #include <linux/errno.h>
 #include <linux/udp.h>
@@ -12,6 +11,7 @@
 #include <bpf_endian.h>
 
 #include "upf-def.h"
+#include "if_rule.h"
 
 
 /*
@@ -21,21 +21,21 @@
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(max_entries, 1000000);
-	__type(key, struct upf_user_egress_key);
-	__type(value, struct upf_user_egress);
+	__type(key, struct upf_egress_key);
+	__type(value, struct upf_fwd_rule);
 } user_egress SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
 	__uint(max_entries, 1000000);
-	__type(key, struct upf_user_ingress_key);
-	__type(value, struct upf_user_ingress);
+	__type(key, struct upf_ingress_key);
+	__type(value, struct upf_fwd_rule);
 } user_ingress SEC(".maps");
 
 
 static __always_inline int
-_encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_user_ingress *u)
+_encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 {
 	struct iphdr *iph;
 	struct udphdr *udph;
@@ -86,13 +86,13 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_user_ingress 
 	gtph->flags = GTPU_FLAGS;
 	gtph->type = GTPU_TPDU;
 	gtph->length = bpf_htons(pkt_len);
-	gtph->teid = u->teid;
+	gtph->teid = u->gtpu_remote_teid;
 
 	d->dst_addr.ip4 = u->gtpu_remote_addr;
 
 	/* metrics */
-	++u->packets;
-	u->bytes += pkt_len;
+	++u->fwd_packets;
+	u->fwd_bytes += pkt_len;
 
 	/* bpf_printk("encap l3 to gtpu teid 0x%08x endpt %pI4 => %pI4", */
 	/* 	   bpf_ntohl(u->teid), &iph->saddr, &iph->daddr); */
@@ -109,13 +109,9 @@ upf_handle_pubv6(struct xdp_md *ctx, struct if_rule_data *d)
 {
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
-	struct upf_user_ingress_key k = {};
-	struct upf_user_ingress *u;
+	struct upf_ingress_key k = {};
+	struct upf_fwd_rule *u;
 	struct ipv6hdr *ip6h;
-	struct udphdr *udph;
-	struct gtphdr *gtph;
-	int adjust_sz, pkt_len;
-	__u32 csum = 0;
 
 	/* lookup user */
 	ip6h = (struct ipv6hdr *)(data + d->pl_off);
@@ -139,8 +135,8 @@ upf_handle_pub(struct xdp_md *ctx, struct if_rule_data *d)
 {
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
-	struct upf_user_ingress_key k = {};
-	struct upf_user_ingress *u;
+	struct upf_ingress_key k = {};
+	struct upf_fwd_rule *u;
 	struct iphdr *iph;
 
 	if (d->flags & IF_RULE_FL_SRC_IPV6)
@@ -167,8 +163,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 {
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
-	struct upf_user_egress_key k;
-	struct upf_user_egress *u;
+	struct upf_egress_key k;
+	struct upf_fwd_rule *u;
 	struct iphdr *ip4h_inner;
 	struct ipv6hdr *ip6h_inner;
 	struct gtphdr *gtph;
@@ -183,13 +179,13 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 		return XDP_PASS;
 
 	/* lookup user */
-	k.teid = gtph->teid;
-	k.gtpu_remote_addr = iph->daddr;
-	k.gtpu_remote_port = udph->dest;
+	k.gtpu_local_teid = gtph->teid;
+	k.gtpu_local_addr = iph->daddr;
+	k.gtpu_local_port = udph->dest;
 	u = bpf_map_lookup_elem(&user_egress, &k);
 	/* bpf_printk("lookup %pI4:%d teid:%x => %p", &iph->daddr, */
 	/* 	   bpf_ntohs(udph->dest), */
-	/* 	   bpf_ntohl(k.teid), u); */
+	/* 	   bpf_ntohl(k.gtpu_local_teid), u); */
 	if (u == NULL)
 		return XDP_PASS;
 
@@ -222,8 +218,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
 
 	/* metrics */
-	++u->packets;
-	u->bytes += payload_len;
+	++u->fwd_packets;
+	u->fwd_bytes += payload_len;
 
 	return XDP_IFR_FORWARD;
 }

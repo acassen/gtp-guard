@@ -60,6 +60,7 @@ struct pfcp_router {
 	struct gtp_bpf_prog	*bpf_prog;
 	struct pfcp_bpf_data	*bpf_data;
 	struct list_head	bpf_list;
+	struct list_head	static_fwd_rules;
 	struct pfcp_peer_list	*peer_list;
 	struct pfcp_server	s;
 	unsigned long		debug;

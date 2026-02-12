@@ -70,30 +70,40 @@ struct ue_ip_address {
 };
 
 struct traffic_endpoint {
+	uint8_t			action;
 	uint8_t			id;
 	uint8_t			choose_id;
 	uint8_t			interface_type;
 	struct ue_ip_address	ue_ip;
-	struct pfcp_teid	*teid[PFCP_DIR_MAX];
+	struct pfcp_teid	*teid;
 };
 
 struct far {
+	uint8_t			action;
 	uint32_t		id;
+
 	uint8_t			dst_interface_type;
 	uint8_t			dst_interface;
 	uint8_t			tos_tclass;
 	uint8_t			tos_mask;
+	uint32_t		outer_header_teid;
+	struct in_addr		outer_header_ip4;
+	struct in6_addr		outer_header_ip6;
 
 	struct traffic_endpoint	*dst_te;
+
+	uint16_t		flags;
 };
 
 struct qer {
+	uint8_t			action;
 	uint32_t		id;
 	uint32_t		ul_mbr;
 	uint32_t		dl_mbr;
 };
 
 struct urr {
+	uint8_t			action;
 	uint32_t		id;
 	uint8_t			measurement_method;
 	uint8_t			measurement_info;
@@ -120,14 +130,14 @@ struct urr {
 };
 
 struct pdr {
+	uint8_t			action;
 	uint16_t		id;
 	uint32_t		precedence;
-	uint8_t			action;
 
 	/* F-TEID in PDI */
 	uint8_t			src_interface;
 	uint8_t			choose_id;
-	struct pfcp_teid	*teid[PFCP_DIR_MAX];
+	struct pfcp_teid	*teid;
 	struct ue_ip_address	ue_ip;
 
 	/* F-TEID in traffic-endpoint when using
@@ -138,13 +148,17 @@ struct pdr {
 	struct urr		*urr[PFCP_MAX_NR_ELEM];
 	struct qer		*qer;
 	char			predifined_rule[PFCP_STR_MAX_LEN];
+
+	struct pfcp_fwd_rule	*fwd_rule;
+
+	uint16_t		flags;
 };
 
-#define PFCP_FWD_RULE_ACT_NONE		0
-#define PFCP_FWD_RULE_ACT_CREATE	1
-#define PFCP_FWD_RULE_ACT_DELETE	2
-#define PFCP_FWD_RULE_ACT_MODIFY	3
-struct fwd_rule {
+#define PFCP_ACT_NONE		0
+#define PFCP_ACT_CREATE		1
+#define PFCP_ACT_UPDATE		2
+#define PFCP_ACT_DELETE		3
+struct pfcp_fwd_rule {
 	uint8_t			action;
 	struct upf_fwd_rule	rule;
 
@@ -183,9 +197,6 @@ struct pfcp_session {
 	struct gtp_cdr		*cdr;
 
 	uint8_t			action;
-
-	/* eBPF forwarding rules related */
-	struct list_head	fwd_rules;
 
 	/* Reporting context */
 	struct pfcp_report	report;
@@ -227,10 +238,10 @@ int pfcp_session_create(struct pfcp_session *s,
 			struct sockaddr_storage *addr);
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
+int pfcp_session_delete_fwd_rules(struct pfcp_session *s);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
 					      struct pfcp_session *s);
 int pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff,
 					   struct pfcp_session *s);
-int pfcp_session_bpf_action(struct pfcp_session *s, int action);

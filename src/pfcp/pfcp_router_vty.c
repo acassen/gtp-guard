@@ -262,12 +262,14 @@ DEFUN(pfcp_debug_teid,
       "debug teid (add|del) (egress|ingress) TEID ENDPTADDR [UEADDR UEADDR2]",
       "Debug command\n"
       "Add or delete teid\n"
-      "Teid\n"
-      "Gtp-u endpoint address:port\n")
+      "TEID\n"
+      "GTP-U endpoint address:port\n")
 {
 	struct pfcp_router *c = vty->index;
 	struct pfcp_teid t = {};
 	struct ue_ip_address ue = {};
+	struct pfcp_fwd_rule *rule;
+	struct upf_fwd_rule *ur;
 	union addr endpt_addr, ue_addr, ue2_addr;
 	uint32_t teid = atoi(argv[2]);
 	int r;
@@ -276,12 +278,24 @@ DEFUN(pfcp_debug_teid,
 		vty_out(vty, "%% cannot parse endpt addresses %s\n", argv[3]);
 		return CMD_WARNING;
 	}
-	t.id = teid;
-	if (!strcmp(argv[1], "ingress"))
-		__set_bit(PFCP_TEID_F_INGRESS, &t.flags);
-	if (!strcmp(argv[1], "egress"))
-		__set_bit(PFCP_TEID_F_EGRESS, &t.flags);
-	t.ipv4 = endpt_addr.sin.sin_addr;
+
+	rule = calloc(1, sizeof(*rule));
+	INIT_LIST_HEAD(&rule->next);
+	ur = &rule->rule;
+	rule->action = PFCP_ACT_CREATE;
+	list_add_tail(&rule->next, &c->static_fwd_rules);
+
+	if (!strcmp(argv[1], "ingress")) {
+		ur->flags |= UPF_FWD_FL_INGRESS|UPF_FWD_FL_ACT_CREATE_OUTER_HEADER;
+		ur->gtpu_remote_teid = teid;
+		ur->gtpu_remote_addr = endpt_addr.sin.sin_addr.s_addr;
+		ur->gtpu_remote_addr = htons(GTP_U_PORT);
+	}
+	if (!strcmp(argv[1], "egress")) {
+		ur->flags |= UPF_FWD_FL_EGRESS|UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER;
+		t.id = teid;
+		t.ipv4 = endpt_addr.sin.sin_addr;
+	}
 
 	if (argc >= 5) {
 		if (addr_parse(argv[4], &ue_addr)) {
@@ -309,8 +323,7 @@ DEFUN(pfcp_debug_teid,
 			memcpy(&ue.v6, &ue2_addr.sin6.sin6_addr, sizeof (ue.v6));
 	}
 
-	r = pfcp_bpf_teid_action(c, !strcmp(argv[0], "add") ? RULE_ADD : RULE_DEL,
-				 &t, &ue);
+	r = pfcp_bpf_action(c, rule, &t, &ue);
 	if (r) {
 		vty_out(vty, "%% cannot %s teid 0x%08x\n", argv[0], teid);
 		return CMD_WARNING;

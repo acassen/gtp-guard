@@ -929,6 +929,7 @@ pfcp_parse_ie_create_pdr(void *m, void *n, const uint8_t *cp)
 		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->outer_header_removal, cp, size);
 		break;
 
+	/* TODO: Only support one FAR per PDR, extend to multiple */
 	case PFCP_IE_FAR_ID:
 		pfcp_msg_alloc_scheme(msg, (void **)&create_pdr->far_id, cp, size);
 		break;

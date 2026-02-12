@@ -154,7 +154,7 @@ _block_alloc_sub(struct cgn_user *u, struct cgn_v4_ipblock *ipbl,
 {
 	struct cgn_v4_block *bl;
 	__u32 ipbl_idx;
-	__u32 real_bl_idx, bl_idx, i;
+	__u32 bl_idx, i;
 
 	/* get a block from this ipblock */
 	bl_idx = ipbl->next;
@@ -194,8 +194,7 @@ _block_alloc_first(struct cgn_user *u, __u32 *frd_from, __u32 *frd_to,
 {
 	struct cgn_v4_ipblock *ipbl;
 	__u32 ipblock_idx;
-	__u32 *fdata;
-	__u32 idx, i;
+	__u32 idx;
 
 	idx = 0;
 	struct bpf_spin_lock *lock = bpf_map_lookup_elem(&v4_block_lock, &idx);
@@ -248,7 +247,7 @@ static __always_inline int
 _block_alloc_more(struct cgn_user *u, struct cgn_v4_ipblock *ipbl,
 		  struct cgn_v4_block **out_bl)
 {
-	__u32 i, idx, block_n;
+	__u32 idx;
 	__u32 *frd_from, *frd_to;
 	__u32 ipbl_idx_to_move = ~0, ipbl_fr_idx, ipbl_old_fr_idx;
 	__u32 l_ipbl_n;

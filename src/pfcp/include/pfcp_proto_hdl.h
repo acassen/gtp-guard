@@ -27,5 +27,5 @@
 /* Prototypes */
 void pfcp_assoc_setup_request_send(struct thread *t);
 int pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr);
-int gtpu_send_end_marker(struct gtp_server *srv, struct pfcp_teid *t);
+int gtpu_send_end_marker(struct gtp_server *srv, struct far *f);
 int pfcp_gtpu_hdl(struct gtp_server *s, struct sockaddr_storage *addr_from);

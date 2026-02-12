@@ -34,36 +34,47 @@
  *	VTY Command
  */
 static int
-_pfcp_session_teid_vty(struct vty *vty, struct pfcp_session *s)
+_pfcp_session_te_vty(struct vty *vty, struct pfcp_session *s)
 {
-	struct traffic_endpoint *te = s->te;
-	struct gtp_bpf_prog *p = s->router->bpf_prog;
+	struct gtp_bpf_prog *prg = s->router->bpf_prog;
+	struct pfcp_fwd_rule *r;
+	struct upf_fwd_rule *u;
+	struct pdr *p;
 	struct pfcp_teid *t;
 	char addr_str[INET6_ADDRSTRLEN];
 	int i;
 
-	for (i = 0; i < PFCP_MAX_NR_ELEM && te[i].id; i++) {
+	for (i = 0; i < s->nr_pdr; i++) {
+		p = &s->pdr[i];
+		r = p->fwd_rule;
+
+		/* NOTE: Only support Optimized PDI */
+		if (!r || !p->te)
+			continue;
+
 		vty_out(vty, " . Traffic-Endpoint:%d 3GPP-Interface-Type:%s%s"
-			   , te[i].id
-			   , pfcp_3GPP_interface2str(te[i].interface_type)
+			   , p->te->id
+			   , pfcp_3GPP_interface2str(p->te->interface_type)
 			   , VTY_NEWLINE);
 
-		t = te[i].teid[PFCP_DIR_EGRESS];
-		if (t) {
+		t = p->te->teid;
+		u = &r->rule;
+
+		if (u->flags & UPF_FWD_FL_EGRESS && t) {
 			vty_out(vty, "   [uplink] local-teid:0x%.8x remote-gtpu:'%s'%s"
 				   , t->id
 				   , inet_ntop(AF_INET, &t->ipv4, addr_str, INET6_ADDRSTRLEN)
 				   , VTY_NEWLINE);
-			pfcp_bpf_teid_vty(vty, p, &s->ue_ip, t);
+			pfcp_bpf_teid_vty(vty, prg, UPF_FWD_FL_EGRESS, &s->ue_ip, t);
 		}
 
-		t = te[i].teid[PFCP_DIR_INGRESS];
-		if (t) {
+		if (u->flags & UPF_FWD_FL_INGRESS) {
 			vty_out(vty, "   [downlink] remote-teid:0x%.8x remote-gtpu:'%s'%s"
-				   , t->id
-				   , inet_ntop(AF_INET, &t->ipv4, addr_str, INET6_ADDRSTRLEN)
+				   , u->gtpu_remote_teid
+				   , inet_ntop(AF_INET, &u->gtpu_remote_addr, addr_str,
+					       INET6_ADDRSTRLEN)
 				   , VTY_NEWLINE);
-			pfcp_bpf_teid_vty(vty, p, &s->ue_ip, t);
+			pfcp_bpf_teid_vty(vty, prg, UPF_FWD_FL_INGRESS, &s->ue_ip, t);
 		}
 	}
 
@@ -107,7 +118,7 @@ pfcp_session_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 				   , inet_ntop(AF_INET6, &ue->v6, addr_str, INET6_ADDRSTRLEN)
 				   , VTY_NEWLINE);
 
-		_pfcp_session_teid_vty(vty, s);
+		_pfcp_session_te_vty(vty, s);
 	}
 	return 0;
 }

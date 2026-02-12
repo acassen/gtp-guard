@@ -297,6 +297,11 @@ pfcp_teid_set(struct hlist_head *h, struct pfcp_teid *t, uint8_t interface,
 		memcpy(&t->ipv6, ipv6, sizeof(struct in6_addr));
 	}
 
+	if (interface == PFCP_SRC_INTERFACE_TYPE_ACCESS)
+		__set_bit(PFCP_TEID_F_EGRESS, &t->flags);
+	else
+		__set_bit(PFCP_TEID_F_INGRESS, &t->flags);
+
 	pfcp_teid_hash(h, t);
 }
 
@@ -319,24 +324,6 @@ pfcp_teid_alloc(struct hlist_head *h, uint64_t *seed, uint8_t interface,
 	if (!new)
 		return NULL;
 	pfcp_teid_set(h, new, interface, new_id, ipv4, ipv6);
-
-	return new;
-}
-
-struct pfcp_teid *
-pfcp_teid_alloc_static(struct hlist_head *h, uint8_t interface,
-		       uint32_t id, struct in_addr *ipv4, struct in6_addr *ipv6)
-{
-	struct pfcp_teid *new;
-
-	new = pfcp_teid_get(h, id, ipv4, ipv6);
-	if (new)
-		return NULL;
-
-	new = calloc(1, sizeof(*new));
-	if (!new)
-		return NULL;
-	pfcp_teid_set(h, new, interface, id, ipv4, ipv6);
 
 	return new;
 }
