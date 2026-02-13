@@ -338,7 +338,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	union addr addr, laddr, addr_ue;
 	char buf1[26], buf2[40], buf3[26], action_str[40];
 	uint32_t key = 0;
-	int err = 0, i;
+	int err = 0;
 
 	if (!bd->user_ingress || !bd->user_egress)
 		return;
@@ -347,7 +347,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	table_set_column(tbl, "TEID Remote", "UE Endpoint", "GTP-U Remote E.", "GTP-U Local E.",
 			 "Packets", "Bytes");
 
-	vty_out(vty, "bpf-program '%s', downlink:\n", p->name);
+	vty_out(vty, "bpf-program '%s', downlink (ingress):\n", p->name);
 
 	/* Walk hashtab */
 	memset(rule, 0, sizeof(rule));
@@ -360,10 +360,6 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 			break;
 		}
 
-		for (i = 1; i < nr_cpus; i++) {
-			rule[0].fwd_packets += rule[i].fwd_packets;
-			rule[0].fwd_bytes += rule[i].fwd_bytes;
-		}
 		if (ik.flags & UE_IPV4)
 			addr_fromip4(&addr_ue, ik.ue_addr.ip4);
 		else if (ik.flags & UE_IPV6)
@@ -372,6 +368,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 		addr_set_port(&addr, ntohs(rule[0].gtpu_remote_port));
 		addr_fromip4(&laddr, rule[0].gtpu_local_addr);
 		addr_set_port(&laddr, ntohs(rule[0].gtpu_local_port));
+		pfcp_bpf_counter_coalese(rule);
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%s|%lld|%lld",
 				  ntohl(rule[0].gtpu_remote_teid),
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
@@ -399,11 +396,6 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 			break;
 		}
 
-		for (i = 1; i < nr_cpus; i++) {
-			rule[0].fwd_packets += rule[i].fwd_packets;
-			rule[0].fwd_bytes += rule[i].fwd_bytes;
-		}
-
 		if ((rule[0].flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
 		    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
 			snprintf(action_str, sizeof (action_str),
@@ -414,6 +406,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 
 		addr_fromip4(&addr, ek.gtpu_local_addr);
 		addr_set_port(&addr, ntohs(ek.gtpu_local_port));
+		pfcp_bpf_counter_coalese(rule);
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(ek.gtpu_local_teid),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
