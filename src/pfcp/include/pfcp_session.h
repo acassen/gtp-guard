@@ -243,7 +243,6 @@ int pfcp_session_create(struct pfcp_session *s,
 			struct sockaddr_storage *addr);
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
-int pfcp_session_delete_fwd_rules(struct pfcp_session *s);
 int pfcp_session_delete(struct pfcp_session *s);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);

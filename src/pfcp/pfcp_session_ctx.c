@@ -360,8 +360,6 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	if (!far)
 		return -1;
 
-	far->action = PFCP_ACT_UPDATE;
-
 	te = far->dst_te;
 	ufwd = uf->update_forwarding_parameters;
 	if (!ufwd)
@@ -386,6 +384,8 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	ohc = ufwd->outer_header_creation;
 	if (!ohc)
 		return 0;
+
+	far->action = PFCP_ACT_UPDATE;
 
 	/* Set action flags */
 	far->flags = 0;
@@ -505,12 +505,12 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 	if (!pdi)
 		return -1;
 
-	if (!pdi->source_interface_type)
+	if (!pdi->source_interface)
 		return -1;
 
 	fteid = pdi->local_f_teid;
-	if (pdi->source_interface_type)
-		pdr->src_interface = pdi->source_interface_type->value;
+	if (pdi->source_interface)
+		pdr->src_interface = pdi->source_interface->value;
 
 	/* PDI is traffic-endpoint OR local_f_teid */
 	if (pdi->traffic_endpoint_id) {
@@ -619,7 +619,7 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 
 	/* GTP-U encapsulation */
 	if (f->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER) {
-		u->gtpu_remote_teid = f->outer_header_teid;
+		u->gtpu_remote_teid = htonl(f->outer_header_teid);
 		u->gtpu_remote_addr = f->outer_header_ip4.s_addr;
 		u->gtpu_remote_port = htons(GTP_U_PORT);
 
@@ -644,10 +644,14 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	u->tos_mask = f->tos_mask ? : 0;
 
 	/* Set data-path */
-	if (p->teid)
-		pfcp_bpf_action(s->router, r, p->teid, &s->ue_ip);
-	else if (p->te && p->te->teid)
-		pfcp_bpf_action(s->router, r, p->te->teid, &s->ue_ip);
+	if (u->flags & UPF_FWD_FL_EGRESS) {
+		if (p->teid)
+			pfcp_bpf_action(s->router, r, p->teid, NULL);
+		else if (p->te && p->te->teid)
+			pfcp_bpf_action(s->router, r, p->te->teid, NULL);
+	} else {
+		pfcp_bpf_action(s->router, r, NULL, &s->ue_ip);
+	}
 
 	/* Reset context actions for next round */
 	r->action = p->action = f->action = PFCP_ACT_NONE;
@@ -801,28 +805,26 @@ pfcp_session_modify(struct pfcp_session *s, struct pfcp_session_modification_req
 	return 0;
 }
 
-int
-pfcp_session_delete_fwd_rules(struct pfcp_session *s)
+static int
+pfcp_session_delete_fwd_rules(struct pfcp_session *s, struct pdr *p)
 {
-	struct pfcp_fwd_rule *r;
-	struct pdr *p;
+	struct pfcp_fwd_rule *r = p->fwd_rule;
 
-	list_for_each_entry(p, &s->pdr_list, next) {
-		r = p->fwd_rule;
+	/* no fwd rules */
+	if (!r)
+		return -1;
 
-		/* no fwd rules */
-		if (!r)
-			continue;
-
-		r->action = PFCP_ACT_DELETE;
+	r->action = PFCP_ACT_DELETE;
+	if (r->rule.flags & UPF_FWD_FL_EGRESS) {
 		if (p->teid)
-			pfcp_bpf_action(s->router, r, p->teid, &s->ue_ip);
+			pfcp_bpf_action(s->router, r, p->teid, NULL);
 		else if (p->te && p->te->teid)
-			pfcp_bpf_action(s->router, r, p->te->teid, &s->ue_ip);
-		free(r);
-		p->fwd_rule = NULL;
+			pfcp_bpf_action(s->router, r, p->te->teid, NULL);
+	} else {
+		pfcp_bpf_action(s->router, r, NULL, &s->ue_ip);
 	}
 
+	free(r);
 	return 0;
 }
 
@@ -838,6 +840,7 @@ pfcp_session_delete(struct pfcp_session *s)
 	/* Free PDR list */
 	list_for_each_entry_safe(p, _p, &s->pdr_list, next) {
 		list_head_del(&p->next);
+		pfcp_session_delete_fwd_rules(s, p);
 		free(p);
 	}
 

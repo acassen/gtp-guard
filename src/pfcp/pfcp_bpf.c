@@ -43,7 +43,7 @@ _log_egress_rule(int action, struct upf_fwd_rule *u, struct pfcp_teid *t, int er
 {
 	char gtpu_str[INET6_ADDRSTRLEN];
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
-	char action_str[60];
+	char action_str[60] = {};
 
 	if (err)
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
@@ -57,7 +57,12 @@ _log_egress_rule(int action, struct upf_fwd_rule *u, struct pfcp_teid *t, int er
 			 inet_ntop(AF_INET, &u->gtpu_remote_addr,
 				   gtpu_str, INET6_ADDRSTRLEN));
 	} else {
-		strcpy(action_str, "decap");
+		if (u->flags & UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER)
+			strcpy(action_str, "decap|");
+		if (u->flags & UPF_FWD_FL_ACT_FWD)
+			strcat(action_str, "fwd");
+		else
+			strcat(action_str, "drop");
 	}
 
 	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'egress' rule "
@@ -96,7 +101,7 @@ _update_egress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct pfcp_t
 }
 
 static int
-_delete_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
+_delete_egress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct pfcp_teid *t)
 {
 	struct upf_egress_key key = {
 		.gtpu_local_teid = htonl(t->id),
@@ -105,7 +110,7 @@ _delete_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
 	};
 	int err = bpf_map__delete_elem(r->bpf_data->user_egress, &key,
 				       sizeof(key), 0);
-	_log_egress_rule(RULE_DEL, NULL, t, err);
+	_log_egress_rule(RULE_DEL, u, t, err);
 
 	return err ? -1 : 0;
 }
@@ -117,6 +122,7 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 	char ue_str[INET6_ADDRSTRLEN];
 	char gtpu_str[INET6_ADDRSTRLEN];
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	char action_str[60] = {};
 	sa_family_t family = 0;
 
 	if (err)
@@ -131,8 +137,15 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 	if (!family)
 		return -1;
 
+	if (u->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER)
+		strcpy(action_str, "encap|");
+	if (u->flags & UPF_FWD_FL_ACT_FWD)
+		strcat(action_str, "fwd");
+	else
+		strcat(action_str, "drop");
+
 	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
-		    "{ue_ipv%d:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
+		    "{ue_ipv%d:'%s', remote_teid:0x%.8x, remote_gtpu:'%s', %s} %s",
 		    (err) ? "Error " : "",
 		    (action == RULE_ADD) ? "adding" : "deleting",
 		    (family == AF_INET) ? 4 : 6,
@@ -140,6 +153,7 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 			      ue_str, INET6_ADDRSTRLEN),
 		    u->gtpu_remote_teid,
 		    inet_ntop(AF_INET, &u->gtpu_remote_addr, gtpu_str, INET6_ADDRSTRLEN),
+		    action_str,
 		    (err) ? errmsg : "");
 
 	return 0;
@@ -154,10 +168,8 @@ _update_ingress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct ue_ip
 	struct upf_ingress_key key = {};
 	int i, err = 0, err_cnt = 0;
 
-	for (i = 0; i < nr_cpus; i++) {
+	for (i = 0; i < nr_cpus; i++)
 		rule[i] = *u;
-		rule[i].gtpu_remote_teid = htonl(u->gtpu_remote_teid);
-	}
 
 	if (ue->flags & UE_IPV4) {
 		key.flags = UE_IPV4;
@@ -220,7 +232,7 @@ pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 	struct upf_fwd_rule *u = &r->rule;
 	int err = -1;
 
-	if (!t || !rtr->bpf_data || !rtr->bpf_data->user_ingress)
+	if (!rtr->bpf_data || !rtr->bpf_data->user_ingress)
 		return -1;
 
 	switch (r->action) {
@@ -240,7 +252,7 @@ pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 
 	case PFCP_ACT_DELETE:
 		if (u->flags & UPF_FWD_FL_EGRESS)
-			err = _delete_egress_rule(rtr, t);
+			err = _delete_egress_rule(rtr, u, t);
 		else if (u->flags & UPF_FWD_FL_INGRESS)
 			err = _delete_ingress_rule(rtr, u, ue);
 		break;
@@ -398,7 +410,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	table_destroy(tbl);
 
 	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
-	table_set_column(tbl, "Local TEID", "Local GTPU E.", "Action",
+	table_set_column(tbl, "TEID Local", "GTP-U Local E.", "Action",
 			 "Packets", "Bytes");
 
 	vty_out(vty, "uplink (egress):\n");
