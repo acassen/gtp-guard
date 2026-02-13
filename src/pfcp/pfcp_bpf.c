@@ -336,7 +336,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	struct upf_ingress_key ik = {};
 	struct upf_fwd_rule rule[nr_cpus];
 	union addr addr, laddr, addr_ue;
-	char buf1[26], buf2[40], buf3[26];
+	char buf1[26], buf2[40], buf3[26], action_str[40];
 	uint32_t key = 0;
 	int err = 0, i;
 
@@ -382,10 +382,11 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
 
-	tbl = table_init(4, STYLE_SINGLE_LINE_ROUNDED);
-	table_set_column(tbl, "TEID Local", "GTP-U Local E.", "Packets", "Bytes");
+	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "Local TEID", "Local GTPU E.", "Action",
+			 "Packets", "Bytes");
 
-	vty_out(vty, "uplink:\n");
+	vty_out(vty, "uplink (egress):\n");
 
 	/* Walk hashtab */
 	memset(rule, 0, sizeof(rule));
@@ -403,11 +404,20 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 			rule[0].fwd_bytes += rule[i].fwd_bytes;
 		}
 
+		if ((rule[0].flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
+		    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
+			snprintf(action_str, sizeof (action_str),
+				 "Fwd to teid 0x%08x", rule[0].gtpu_remote_teid);
+		} else {
+			strcpy(action_str, "Decap");
+		}
+
 		addr_fromip4(&addr, ek.gtpu_local_addr);
 		addr_set_port(&addr, ntohs(ek.gtpu_local_port));
-		table_add_row_fmt(tbl, "0x%.8x|%s|%lld|%lld",
+		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(ek.gtpu_local_teid),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
+				  action_str,
 				  rule[0].fwd_packets, rule[0].fwd_bytes);
 	}
 	table_vty_out(tbl, vty);
