@@ -5,7 +5,7 @@
 #include "tools.h"
 #include "if_rule-def.h"
 
-//#define CGN_DEBUG
+/* #define CGN_DEBUG */
 
 #ifdef CGN_DEBUG
 # define CGN_DBG(Fmt, ...) bpf_printk(Fmt, ## __VA_ARGS__)
