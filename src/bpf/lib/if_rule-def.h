@@ -6,7 +6,7 @@
 #define XDP_IFR_DEFAULT_ROUTE	8
 #define XDP_IFR_FORWARD		9
 
-//#define IF_RULE_DEBUG
+/* #define IF_RULE_DEBUG */
 
 #ifdef IF_RULE_DEBUG
 # define IFR_DBG(Fmt, ...) bpf_printk(Fmt, ## __VA_ARGS__)
