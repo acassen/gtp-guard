@@ -126,7 +126,7 @@ csum_diff32(__u32 csum, __u32 from, __u32 to)
 static __always_inline __u32
 csum_diff16(__u32 csum, __u16 from, __u16 to)
 {
-	return csum + (~from & 0xffff) + to;
+	return csum_add(csum, (~from & 0xffff) + to);
 }
 
 static __always_inline __u16

@@ -178,6 +178,7 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	struct ipv6hdr *ip6h_inner;
 	struct gtphdr *gtph;
 	int adjust_sz, pkt_len;
+	__u32 sum;
 
 	gtph = (struct gtphdr *)(udph + 1);
 	if (gtph + 1 > data_end)
@@ -208,23 +209,34 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 
 	if ((u->flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
 	    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
-		/* forward gtpu as-this */
+		/* forward gtp-u as-this */
+		sum = csum_diff32(0, iph->saddr, u->gtpu_local_addr);
+		sum = csum_diff32(sum, iph->daddr, u->gtpu_remote_addr);
 		iph->saddr = u->gtpu_local_addr;
 		iph->daddr = u->gtpu_remote_addr;
+		--iph->ttl;
+		iph->check = csum_replace(iph->check, sum - 1);
+
+		if (udph->check) {
+			sum = csum_diff16(sum, udph->source, u->gtpu_local_port);
+			sum = csum_diff16(sum, udph->dest, u->gtpu_remote_port);
+			sum = csum_diff32(sum, gtph->teid, u->gtpu_remote_teid);
+			__u16 nsum = csum_replace(udph->check, sum);
+			udph->check = nsum ?: 0xffff;
+		}
 		udph->source = u->gtpu_local_port;
 		udph->dest = u->gtpu_remote_port;
-		udph->check = 0;
 		gtph->teid = u->gtpu_remote_teid;
 		UPF_DBG("rewrite_gtpu: src:%pI4:%d dst:%pI4:%d teid:%x",
 			   &iph->saddr, bpf_ntohs(udph->source),
 			   &iph->daddr, bpf_ntohs(udph->dest),
 			   bpf_ntohl(gtph->teid));
-		d->dst_addr.ip4 = iph->daddr;
 
 		/* metrics */
 		++u->fwd_packets;
 		u->fwd_bytes += pkt_len;
 
+		d->dst_addr.ip4 = iph->daddr;
 		return XDP_IFR_FORWARD;
 	}
 

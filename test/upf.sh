@@ -30,7 +30,7 @@ setup_combined() {
 
     # gtp-u
     ip -n cloud addr add 192.168.61.2/25 dev veth0
-    ip -n cloud addr add 192.168.61.3/25 dev veth0
+    ip -n cloud addr add 192.168.61.3 dev veth0
     ip -n cloud addr add fc::2/64 dev veth0
     ip addr add 192.168.61.1/25 dev upf
     ip addr add fc::1/64 dev upf
@@ -83,7 +83,7 @@ setup_split() {
 
     # gtp-u, on access
     ip -n access addr add 192.168.61.2/25 dev veth0
-    ip -n access addr add 192.168.61.3/25 dev veth0
+    ip -n access addr add 192.168.61.3 dev veth0
     ip addr add 192.168.61.1/25 dev ran
     ip neigh add 192.168.61.2 lladdr d2:ad:ca:fe:aa:01 dev ran
     ip neigh add 192.168.61.3 lladdr d2:ad:ca:fe:aa:01 dev ran
@@ -167,8 +167,8 @@ pfcp-router pfcp-1
  debug teid add egress 17 192.168.61.1
  debug teid add egress 18 192.168.61.1
  debug teid add egress 19 192.168.61.1
- debug teid add fwd 4 192.168.61.1 192.168.61.2 20
- debug teid add fwd 20 192.168.61.1 192.168.61.3 4
+ debug teid add fwd 2220 192.168.61.1 192.168.61.2 4
+ debug teid add fwd 20 192.168.61.1 192.168.61.3 5
 " || fail "cannot execute vty commands"
 
     gtpg_show "
@@ -203,11 +203,19 @@ ip netns exec $ingress_ns python3 - <<EOF
 import socket
 import struct
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-fd.bind(('0.0.0.0', 2152))
+fd.bind(('', 2152))
 for i in range(0,4):
     data, remote = fd.recvfrom(4096)
     data = bytearray(data)
-    print('CORE: RECV REPLY ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
+    teid = struct.unpack('!I', data[4:8])[0]
+    if teid == 5:
+       rteid = 2220
+       print('CORE: FWD teid %d back to %d' % (teid, rteid))
+       data[4:8] = struct.pack('!I', rteid)
+       data = bytes(data)
+       fd.sendto(data, remote)
+    else:
+      print('CORE: RECV REPLY ! teid is 0x%08x' % struct.unpack('!I', data[4:8]))
 fd.close()
 EOF
     ) &
@@ -237,7 +245,7 @@ Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
   UDP(sport=2152, dport=2152) /
   GTP_U_Header(teid=20, gtp_type=255) /
   IP(src='10.0.0.3',dst='8.8.8.8') /
-  ICMP(type='echo-request',id=126),
+  ICMP(type='echo-request',id=113),
 ]
 "
     fi
