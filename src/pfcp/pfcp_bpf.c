@@ -151,7 +151,7 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 		    (family == AF_INET) ? 4 : 6,
 		    inet_ntop(family, (family == AF_INET) ? (void *)&ue->v4 : (void *)&ue->v6,
 			      ue_str, INET6_ADDRSTRLEN),
-		    u->gtpu_remote_teid,
+		    ntohl(u->gtpu_remote_teid),
 		    inet_ntop(AF_INET, &u->gtpu_remote_addr, gtpu_str, INET6_ADDRSTRLEN),
 		    action_str,
 		    (err) ? errmsg : "");

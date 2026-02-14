@@ -272,7 +272,7 @@ DEFUN(pfcp_debug_teid,
 	struct pfcp_fwd_rule *rule;
 	struct upf_fwd_rule *ur;
 	union addr endpt_addr, ue_addr, ue2_addr;
-	uint32_t teid = atoi(argv[2]);
+	uint32_t teid = htonl(atoi(argv[2]));
 	union addr *local;
 	int r;
 
@@ -351,7 +351,7 @@ DEFUN(pfcp_debug_teid,
 	} else if (!strcmp(argv[1], "fwd")) {
 		if (argc < 6)
 			return CMD_WARNING;
-		ur->gtpu_remote_teid = atoi(argv[5]);
+		ur->gtpu_remote_teid = htonl(atoi(argv[5]));
 	}
 
 	r = pfcp_bpf_action(c, rule, &t, &ue);

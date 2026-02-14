@@ -619,7 +619,7 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 
 	/* GTP-U encapsulation */
 	if (f->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER) {
-		u->gtpu_remote_teid = htonl(f->outer_header_teid);
+		u->gtpu_remote_teid = f->outer_header_teid;
 		u->gtpu_remote_addr = f->outer_header_ip4.s_addr;
 		u->gtpu_remote_port = htons(GTP_U_PORT);
 
