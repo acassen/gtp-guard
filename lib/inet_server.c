@@ -47,6 +47,12 @@ inet_server_snd(struct inet_server *s, int fd, struct pkt_buffer *pbuff,
 				  , 0, addr, sizeof(*addr));
 	/* metrics */
 	if (nbytes < 0) {
+		log_message(LOG_INFO, "%s(): error sending from %u.%u.%u.%u:%d to %u.%u.%u.%u:%d (%m)"
+				    , __FUNCTION__
+				    , NIPQUAD(((struct sockaddr_in *) &s->addr)->sin_addr.s_addr)
+				    , ntohs(((struct sockaddr_in *) &s->addr)->sin_port)
+				    , NIPQUAD(addr->sin_addr.s_addr)
+				    , ntohs(addr->sin_port));
 		s->tx_errors++;
 		return -1;
 	}

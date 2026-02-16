@@ -69,11 +69,12 @@ pfcp_msg_header_init(struct pkt_buffer *pbuff, uint8_t msg_type, uint64_t seid,
 	if (seid) {
 		hdr->s = 1;
 		hdr->seid = seid;
+		hdr->sqn = seqn;
 	} else {
+		hdr->sqn_only = seqn;
 		/* 3GPP.TS.29.244 7.2.2.4.1 */
 		len -= PFCP_SEID_LEN ;
 	}
-	hdr->sqn = seqn;
 	hdr->length = htons(len);
 	pkt_buffer_set_data_pointer(pbuff, pfcp_msg_hlen(pbuff));
 	pkt_buffer_set_end_pointer(pbuff, pfcp_msg_hlen(pbuff));
