@@ -415,11 +415,12 @@ DEFUN(apn_no_imsi_match,
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
-	stringtohex(argv[0], 15, match_buffer, GTP_MATCH_MAX_LEN);
 
+	stringtohex(argv[0], strlen(argv[0]), match_buffer, 8);
 	swapbuffer((uint8_t *)match_buffer, 8, (uint8_t *)match_buffer);
 
-	if(gtp_rewrite_rule_remove(apn, &apn->imsi_match, match_buffer, strlen(argv[0]))){
+	if (gtp_rewrite_rule_release(apn, &apn->imsi_match, match_buffer,
+				     strlen(argv[0]))) {
 		vty_out(vty, "%% no existing rule%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}

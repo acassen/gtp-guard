@@ -30,6 +30,7 @@
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 #include <netdb.h>
+#include <errno.h>
 
 #include "utils.h"
 
@@ -225,10 +226,12 @@ stringtohex(const char *buffer_in, int size_in, char *buffer_out, int size_out)
         const char *cp = buffer_in;
         int i=0, ch;
 
+	if (size_in > 2*size_out) {
+		errno = ENOSPC;
+		return -1;
+	}
+
         while ((ch = *cp++) != '\0' && i < size_in) {
-		if(i/2 > size_out){
-			return -1;
-		}
                 const char *pch;
                 if ((pch = strchr(digits, tolower(ch))) != NULL) {
                         buffer_out[i/2] |= (pch - digits) << 4 * (1 - (i % 2));
