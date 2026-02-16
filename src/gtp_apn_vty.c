@@ -29,8 +29,6 @@
 #include "bitops.h"
 #include "inet_utils.h"
 #include "memory.h"
-#include "logger.h"
-
 
 /* Extern data */
 extern struct data *daemon_data;
