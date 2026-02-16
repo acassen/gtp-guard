@@ -400,6 +400,33 @@ DEFUN(apn_imsi_match,
 	return CMD_SUCCESS;
 }
 
+
+DEFUN(apn_no_imsi_match,
+      apn_no_imsi_match_cmd,
+      "no imsi-prefix-match STRING",
+      "delete IMSI rewriting based on prefix matching\n"
+      "imsi prefix match\n")
+{
+	struct gtp_apn *apn = vty->index;
+	char match_buffer[8];
+	memset(match_buffer,0,8);
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+	stringtohex(argv[0], 15, match_buffer, GTP_MATCH_MAX_LEN);
+
+	swapbuffer((uint8_t *)match_buffer, 8, (uint8_t *)match_buffer);
+
+	if(gtp_rewrite_rule_remove(apn, &apn->imsi_match, match_buffer, strlen(argv[0]))){
+		vty_out(vty, "%% no existing rule%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
 DEFUN(apn_oi_match,
       apn_oi_match_cmd,
       "apn-oi-match STRING rewrite STRING",
@@ -1192,6 +1219,7 @@ cmd_ext_apn_install(void)
 	install_element(APN_NODE, &apn_no_tag_uli_with_serving_node_ip4_cmd);
 	install_element(APN_NODE, &apn_service_selection_cmd);
 	install_element(APN_NODE, &apn_imsi_match_cmd);
+	install_element(APN_NODE, &apn_no_imsi_match_cmd);
 	install_element(APN_NODE, &apn_oi_match_cmd);
 	install_element(APN_NODE, &apn_session_lifetime_cmd);
 	install_element(APN_NODE, &apn_eps_bearer_id_cmd);
