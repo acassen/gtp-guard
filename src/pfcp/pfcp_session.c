@@ -25,7 +25,6 @@
 #include "pfcp_router.h"
 #include "pfcp_bpf.h"
 #include "gtp_conn.h"
-#include "gtp_bpf_utils.h"
 #include "utils.h"
 #include "bitops.h"
 #include "logger.h"
@@ -250,6 +249,11 @@ pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *
 		return NULL;
 	}
 	INIT_LIST_HEAD(&new->next);
+	INIT_LIST_HEAD(&new->pdr_list);
+	INIT_LIST_HEAD(&new->far_list);
+	INIT_LIST_HEAD(&new->qer_list);
+	INIT_LIST_HEAD(&new->urr_list);
+	INIT_LIST_HEAD(&new->te_list);
 	new->apn = apn;
 	new->conn = c;
 	new->router = r;
@@ -324,7 +328,7 @@ pfcp_session_release(struct pfcp_session *s)
 	__sync_sub_and_fetch(&s->apn->session_count, 1);
 	__sync_sub_and_fetch(&pfcp_sessions_count, 1);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
-	pfcp_session_delete_fwd_rules(s);
+	pfcp_session_delete(s);
 	list_head_del(&s->next);
 	pfcp_session_unhash(s);
 	pfcp_session_release_ue_ip(s);

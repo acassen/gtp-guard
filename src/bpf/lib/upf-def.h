@@ -4,6 +4,15 @@
 
 #include "tools.h"
 
+/* #define UPF_DEBUG */
+
+#ifdef UPF_DEBUG
+# define UPF_DBG(Fmt, ...) bpf_printk(Fmt, ## __VA_ARGS__)
+#else
+# define UPF_DBG(...)
+#endif
+
+
 #define UE_IPV4		(1 << 0)
 #define UE_IPV6		(1 << 1)
 
@@ -19,6 +28,7 @@ struct upf_egress_key {
 	__be16		gtpu_local_port;
 } __attribute__((packed));
 
+
 #define UPF_FWD_FL_ACT_FWD			(1 << 0)
 #define UPF_FWD_FL_ACT_BUFF			(1 << 1)
 #define UPF_FWD_FL_ACT_DROP			(1 << 2)
@@ -27,6 +37,10 @@ struct upf_egress_key {
 #define UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER	(1 << 5)
 #define UPF_FWD_FL_INGRESS			(1 << 6)
 #define UPF_FWD_FL_EGRESS			(1 << 7)
+#define UPF_FWD_FL_ACT_KEEP_OUTER_HEADER	\
+	(UPF_FWD_FL_ACT_CREATE_OUTER_HEADER |	\
+	 UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER)
+
 struct upf_fwd_rule {
 	__be32		gtpu_remote_teid;
 	__be32		gtpu_remote_addr;
@@ -46,4 +60,6 @@ struct upf_fwd_rule {
 	__u8		tos_mask;
 
 	__u16		flags;
+
+	__u8		_pad[4];
 }  __attribute__((packed));

@@ -35,11 +35,11 @@
 static struct traffic_endpoint *
 pfcp_session_get_te_by_id(struct pfcp_session *s, uint8_t id)
 {
-	int i;
+	struct traffic_endpoint *te;
 
-	for (i = 0; i < s->nr_te; i++) {
-		if (s->te[i].id == id)
-			return &s->te[i];
+	list_for_each_entry(te, &s->te_list, next) {
+		if (te->id == id)
+			return te;
 	}
 
 	return NULL;
@@ -48,11 +48,11 @@ pfcp_session_get_te_by_id(struct pfcp_session *s, uint8_t id)
 static struct far *
 pfcp_session_get_far_by_id(struct pfcp_session *s, uint32_t id)
 {
-	int i;
+	struct far *f;
 
-	for (i = 0; i < s->nr_far; i++) {
-		if (s->far[i].id == id)
-			return &s->far[i];
+	list_for_each_entry(f, &s->far_list, next) {
+		if (f->id == id)
+			return f;
 	}
 
 	return NULL;
@@ -61,11 +61,11 @@ pfcp_session_get_far_by_id(struct pfcp_session *s, uint32_t id)
 static struct qer *
 pfcp_session_get_qer_by_id(struct pfcp_session *s, uint32_t id)
 {
-	int i;
+	struct qer *q;
 
-	for (i = 0; i < s->nr_qer; i++) {
-		if (s->qer[i].id == id)
-			return &s->qer[i];
+	list_for_each_entry(q, &s->qer_list, next) {
+		if (q->id == id)
+			return q;
 	}
 
 	return NULL;
@@ -74,11 +74,11 @@ pfcp_session_get_qer_by_id(struct pfcp_session *s, uint32_t id)
 static struct urr *
 pfcp_session_get_urr_by_id(struct pfcp_session *s, uint32_t id)
 {
-	int i;
+	struct urr *u;
 
-	for (i = 0; i < s->nr_urr; i++) {
-		if (s->urr[i].id == id)
-			return &s->urr[i];
+	list_for_each_entry(u, &s->urr_list, next) {
+		if (u->id == id)
+			return u;
 	}
 
 	return NULL;
@@ -170,17 +170,14 @@ pfcp_session_release_teid(struct pfcp_session *s)
 {
 	struct pdr *pdr;
 	struct traffic_endpoint *te;
-	int i;
 
 	/* Non-optimized pdi */
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->pdr[i].id; i++) {
-		pdr = &s->pdr[i];
+	list_for_each_entry(pdr, &s->pdr_list, next) {
 		pfcp_teid_free(pdr->teid);
 	}
 
 	/* Optimized PDI */
-	for (i = 0; i < PFCP_MAX_NR_ELEM && s->te[i].id; i++) {
-		te = &s->te[i];
+	list_for_each_entry(te, &s->te_list, next) {
 		pfcp_teid_free(te->teid);
 	}
 
@@ -363,8 +360,6 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	if (!far)
 		return -1;
 
-	far->action = PFCP_ACT_UPDATE;
-
 	te = far->dst_te;
 	ufwd = uf->update_forwarding_parameters;
 	if (!ufwd)
@@ -389,6 +384,8 @@ pfcp_session_update_far(struct pfcp_session *s, struct pfcp_ie_update_far *uf)
 	ohc = ufwd->outer_header_creation;
 	if (!ohc)
 		return 0;
+
+	far->action = PFCP_ACT_UPDATE;
 
 	/* Set action flags */
 	far->flags = 0;
@@ -480,19 +477,18 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 static int
 pfcp_session_link_urr(struct pfcp_session *s)
 {
-	struct urr *r;
-	int i;
+	struct urr *u, *r;
 
-	for (i = 0; i < s->nr_urr; i++) {
-		if (!s->urr[i].linked_urr_id)
+	list_for_each_entry(u, &s->urr_list, next) {
+		if (!u->linked_urr_id)
 			continue;
 
-		r = pfcp_session_get_urr_by_id(s, s->urr[i].linked_urr_id);
+		r = pfcp_session_get_urr_by_id(s, u->linked_urr_id);
 		if (!r)
 			continue;
 
-		s->urr[i].linked_urr = r;
-		r->parent_urr = s->urr[i].linked_urr;
+		u->linked_urr = r;
+		r->parent_urr = u->linked_urr;
 	}
 
 	return 0;
@@ -509,12 +505,12 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 	if (!pdi)
 		return -1;
 
-	if (!pdi->source_interface_type)
+	if (!pdi->source_interface)
 		return -1;
 
 	fteid = pdi->local_f_teid;
-	if (pdi->source_interface_type)
-		pdr->src_interface = pdi->source_interface_type->value;
+	if (pdi->source_interface)
+		pdr->src_interface = pdi->source_interface->value;
 
 	/* PDI is traffic-endpoint OR local_f_teid */
 	if (pdi->traffic_endpoint_id) {
@@ -648,10 +644,14 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	u->tos_mask = f->tos_mask ? : 0;
 
 	/* Set data-path */
-	if (p->teid)
-		pfcp_bpf_action(s->router, r, p->teid, &s->ue_ip);
-	else if (p->te && p->te->teid)
-		pfcp_bpf_action(s->router, r, p->te->teid, &s->ue_ip);
+	if (u->flags & UPF_FWD_FL_EGRESS) {
+		if (p->teid)
+			pfcp_bpf_action(s->router, r, p->teid, NULL);
+		else if (p->te && p->te->teid)
+			pfcp_bpf_action(s->router, r, p->te->teid, NULL);
+	} else {
+		pfcp_bpf_action(s->router, r, NULL, &s->ue_ip);
+	}
 
 	/* Reset context actions for next round */
 	r->action = p->action = f->action = PFCP_ACT_NONE;
@@ -664,10 +664,8 @@ pfcp_session_create_fwd_rules(struct pfcp_session *s)
 	struct pfcp_fwd_rule *new;
 	struct pdr *p;
 	struct far *f;
-	int i;
 
-	for (i = 0; i < s->nr_pdr; i++) {
-		p = &s->pdr[i];
+	list_for_each_entry(p, &s->pdr_list, next) {
 		f = p->far;
 
 		if (!p->action || !f)
@@ -697,38 +695,64 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 	s->remote_seid.addr = *addr;
 
 	/* Traffic Endpoint */
-	for (i = 0; i < req->nr_create_traffic_endpoint && i < PFCP_MAX_NR_ELEM; i++) {
-		err = pfcp_session_create_te(s, &s->te[i],
-					     req->create_traffic_endpoint[i], &id);
-		if (err)
+	for (i = 0; i < req->nr_create_traffic_endpoint; i++) {
+		struct traffic_endpoint *te = calloc(1, sizeof(*te));
+		if (!te)
 			return -1;
+		INIT_LIST_HEAD(&te->next);
+		err = pfcp_session_create_te(s, te,
+					     req->create_traffic_endpoint[i], &id);
+		if (err) {
+			free(te);
+			return -1;
+		}
+		list_add_tail(&te->next, &s->te_list);
 	}
-	s->nr_te = i;
 
 	/* FAR */
-	for (i = 0; i < req->nr_create_far && i < PFCP_MAX_NR_ELEM; i++)
-		pfcp_session_create_far(s, &s->far[i], req->create_far[i]);
-	s->nr_far = i;
+	for (i = 0; i < req->nr_create_far; i++) {
+		struct far *far = calloc(1, sizeof(*far));
+		if (!far)
+			return -1;
+		INIT_LIST_HEAD(&far->next);
+		pfcp_session_create_far(s, far, req->create_far[i]);
+		list_add_tail(&far->next, &s->far_list);
+	}
 
 	/* QER */
-	for (i = 0; i < req->nr_create_qer && i < PFCP_MAX_NR_ELEM; i++)
-		pfcp_session_create_qer(s, &s->qer[i], req->create_qer[i]);
-	s->nr_qer = i;
+	for (i = 0; i < req->nr_create_qer; i++) {
+		struct qer *qer = calloc(1, sizeof(*qer));
+		if (!qer)
+			return -1;
+		INIT_LIST_HEAD(&qer->next);
+		pfcp_session_create_qer(s, qer, req->create_qer[i]);
+		list_add_tail(&qer->next, &s->qer_list);
+	}
 
 	/* URR */
-	for (i = 0; i < req->nr_create_urr && i < PFCP_MAX_NR_ELEM; i++)
-		pfcp_session_create_urr(s, &s->urr[i], req->create_urr[i]);
+	for (i = 0; i < req->nr_create_urr; i++) {
+		struct urr *urr = calloc(1, sizeof(*urr));
+		if (!urr)
+			return -1;
+		INIT_LIST_HEAD(&urr->next);
+		pfcp_session_create_urr(s, urr, req->create_urr[i]);
+		list_add_tail(&urr->next, &s->urr_list);
+	}
 	pfcp_session_link_urr(s);
-	s->nr_urr = i;
 
 	/* PDR will reference parsed elem */
-	for (i = 0; i < req->nr_create_pdr && i < PFCP_MAX_NR_ELEM; i++) {
-		err = pfcp_session_create_pdr(s, &s->pdr[i], req->create_pdr[i],
-					      &id);
-		if (err)
+	for (i = 0; i < req->nr_create_pdr; i++) {
+		struct pdr *pdr = calloc(1, sizeof(*pdr));
+		if (!pdr)
 			return -1;
+		INIT_LIST_HEAD(&pdr->next);
+		err = pfcp_session_create_pdr(s, pdr, req->create_pdr[i], &id);
+		if (err) {
+			free(pdr);
+			return -1;
+		}
+		list_add_tail(&pdr->next, &s->pdr_list);
 	}
-	s->nr_pdr = i;
 
 	/* Create data-path forwarding rules */
 	pfcp_session_create_fwd_rules(s);
@@ -742,10 +766,8 @@ pfcp_session_update_fwd_rules(struct pfcp_session *s)
 	struct pdr *p;
 	struct far *f;
 	struct qer *q;
-	int i;
 
-	for (i = 0; i < s->nr_pdr; i++) {
-		p = &s->pdr[i];
+	list_for_each_entry(p, &s->pdr_list, next) {
 		r = p->fwd_rule;
 		f = p->far;
 		q = p->qer;
@@ -783,28 +805,67 @@ pfcp_session_modify(struct pfcp_session *s, struct pfcp_session_modification_req
 	return 0;
 }
 
-int
-pfcp_session_delete_fwd_rules(struct pfcp_session *s)
+static int
+pfcp_session_delete_fwd_rules(struct pfcp_session *s, struct pdr *p)
 {
-	struct pfcp_fwd_rule *r;
-	struct pdr *p;
-	int i;
+	struct pfcp_fwd_rule *r = p->fwd_rule;
 
-	for (i = 0; i < s->nr_pdr; i++) {
-		p = &s->pdr[i];
-		r = p->fwd_rule;
+	/* no fwd rules */
+	if (!r)
+		return -1;
 
-		/* no fwd rules */
-		if (!r)
-			continue;
-
-		r->action = PFCP_ACT_DELETE;
+	r->action = PFCP_ACT_DELETE;
+	if (r->rule.flags & UPF_FWD_FL_EGRESS) {
 		if (p->teid)
-			pfcp_bpf_action(s->router, r, p->teid, &s->ue_ip);
+			pfcp_bpf_action(s->router, r, p->teid, NULL);
 		else if (p->te && p->te->teid)
-			pfcp_bpf_action(s->router, r, p->te->teid, &s->ue_ip);
-		free(r);
-		p->fwd_rule = NULL;
+			pfcp_bpf_action(s->router, r, p->te->teid, NULL);
+	} else {
+		pfcp_bpf_action(s->router, r, NULL, &s->ue_ip);
+	}
+
+	free(r);
+	return 0;
+}
+
+int
+pfcp_session_delete(struct pfcp_session *s)
+{
+	struct pdr *p, *_p;
+	struct far *f, *_f;
+	struct qer *q, *_q;
+	struct urr *u, *_u;
+	struct traffic_endpoint *te, *_te;
+
+	/* Free PDR list */
+	list_for_each_entry_safe(p, _p, &s->pdr_list, next) {
+		list_head_del(&p->next);
+		pfcp_session_delete_fwd_rules(s, p);
+		free(p);
+	}
+
+	/* Free FAR list */
+	list_for_each_entry_safe(f, _f, &s->far_list, next) {
+		list_head_del(&f->next);
+		free(f);
+	}
+
+	/* Free QER list */
+	list_for_each_entry_safe(q, _q, &s->qer_list, next) {
+		list_head_del(&q->next);
+		free(q);
+	}
+
+	/* Free URR list */
+	list_for_each_entry_safe(u, _u, &s->urr_list, next) {
+		list_head_del(&u->next);
+		free(u);
+	}
+
+	/* Free Traffic Endpoint list */
+	list_for_each_entry_safe(te, _te, &s->te_list, next) {
+		list_head_del(&te->next);
+		free(te);
 	}
 
 	return 0;
@@ -861,10 +922,9 @@ pfcp_session_put_created_pdr(struct pkt_buffer *pbuff, struct pfcp_session *s)
 	uint32_t teid;
 	struct in_addr *ipv4;
 	struct in6_addr *ipv6;
-	int i, err;
+	int err;
 
-	for (i = 0; i < s->nr_pdr; i++) {
-		p = &s->pdr[i];
+	list_for_each_entry(p, &s->pdr_list, next) {
 		pfcp_session_init_teid_values(p->teid, &teid, &ipv4, &ipv6);
 		err = pfcp_ie_put_created_pdr(pbuff, p->id, htonl(teid), ipv4, ipv6);
 		if (err)
@@ -881,10 +941,9 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 	uint32_t teid;
 	struct in_addr *t_ipv4, *ue_ipv4;
 	struct in6_addr *t_ipv6, *ue_ipv6;
-	int i, err;
+	int err;
 
-	for (i = 0; i < s->nr_te; i++) {
-		te = &s->te[i];
+	list_for_each_entry(te, &s->te_list, next) {
 		pfcp_session_init_teid_values(te->teid, &teid, &t_ipv4, &t_ipv6);
 		err = pfcp_session_init_ue_values(s, te, &ue_ipv4, &ue_ipv6);
 		if (err) {
@@ -907,10 +966,9 @@ int
 pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff, struct pfcp_session *s)
 {
 	struct urr *u;
-	int i, err;
+	int err;
 
-	for (i = 0; i < s->nr_urr; i++) {
-		u = &s->urr[i];
+	list_for_each_entry(u, &s->urr_list, next) {
 		u->end_time = time_now_to_ntp();
 		err = pfcp_ie_put_usage_report_deletion(pbuff, u->id, u->start_time, u->end_time,
 							u->seqn++, &u->ul, &u->dl);

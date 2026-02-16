@@ -42,10 +42,8 @@ _pfcp_session_te_vty(struct vty *vty, struct pfcp_session *s)
 	struct pdr *p;
 	struct pfcp_teid *t;
 	char addr_str[INET6_ADDRSTRLEN];
-	int i;
 
-	for (i = 0; i < s->nr_pdr; i++) {
-		p = &s->pdr[i];
+	list_for_each_entry(p, &s->pdr_list, next) {
 		r = p->fwd_rule;
 
 		/* NOTE: Only support Optimized PDI */

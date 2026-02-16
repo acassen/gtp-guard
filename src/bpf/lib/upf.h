@@ -61,7 +61,15 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	if (d->pl_off > 256 || (void *)(gtph + 1) > data_end)
 		return XDP_PASS;
 
+#if __clang_major__ == 21 && __clang_minor__ == 1
+	/* fix '32-bit pointer arithmetic prohibited'.
+	 * this could be a clang bug and should be removed */
+	pkt_len = data_end - data;
+	barrier_var(pkt_len);
+	pkt_len -= d->pl_off;
+#else
 	pkt_len = data_end - data - d->pl_off;
+#endif
 	iph->version = 4;
 	iph->ihl = 5;
 	iph->protocol = IPPROTO_UDP;
@@ -94,11 +102,12 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	++u->fwd_packets;
 	u->fwd_bytes += pkt_len;
 
-	/* bpf_printk("encap l3 to gtpu teid 0x%08x endpt %pI4 => %pI4", */
-	/* 	   bpf_ntohl(u->teid), &iph->saddr, &iph->daddr); */
+	UPF_DBG("to_gtpu: encap teid:0x%08x src:%pI4:%d dst:%pI4:%d",
+		   bpf_ntohl(u->gtpu_remote_teid),
+		   &iph->saddr, bpf_ntohs(u->gtpu_local_port),
+		   &iph->daddr, bpf_ntohs(u->gtpu_remote_port));
 
 	return XDP_IFR_FORWARD;
-
 }
 
 /*
@@ -168,7 +177,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	struct iphdr *ip4h_inner;
 	struct ipv6hdr *ip6h_inner;
 	struct gtphdr *gtph;
-	int adjust_sz, payload_len;
+	int adjust_sz, pkt_len;
+	__u32 sum;
 
 	gtph = (struct gtphdr *)(udph + 1);
 	if (gtph + 1 > data_end)
@@ -183,11 +193,52 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	k.gtpu_local_addr = iph->daddr;
 	k.gtpu_local_port = udph->dest;
 	u = bpf_map_lookup_elem(&user_egress, &k);
-	/* bpf_printk("lookup %pI4:%d teid:%x => %p", &iph->daddr, */
-	/* 	   bpf_ntohs(udph->dest), */
-	/* 	   bpf_ntohl(k.gtpu_local_teid), u); */
+	UPF_DBG("from_gtpu: lookup dst:%pI4:%d teid:%x%s",
+		   &iph->daddr, bpf_ntohs(udph->dest), bpf_ntohl(gtph->teid),
+		   u == NULL ? " => NOT FOUND" : "");
 	if (u == NULL)
 		return XDP_PASS;
+
+#if __clang_major__ == 21 && __clang_minor__ == 1
+	pkt_len = data_end - data;
+	barrier_var(pkt_len);
+	pkt_len -= d->pl_off + adjust_sz;
+#else
+	pkt_len = data_end - data - d->pl_off - adjust_sz;
+#endif
+
+	if ((u->flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
+	    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
+		/* forward gtp-u as-this */
+		sum = csum_diff32(0, iph->saddr, u->gtpu_local_addr);
+		sum = csum_diff32(sum, iph->daddr, u->gtpu_remote_addr);
+		iph->saddr = u->gtpu_local_addr;
+		iph->daddr = u->gtpu_remote_addr;
+		--iph->ttl;
+		iph->check = csum_replace(iph->check, sum - 1);
+
+		if (udph->check) {
+			sum = csum_diff16(sum, udph->source, u->gtpu_local_port);
+			sum = csum_diff16(sum, udph->dest, u->gtpu_remote_port);
+			sum = csum_diff32(sum, gtph->teid, u->gtpu_remote_teid);
+			__u16 nsum = csum_replace(udph->check, sum);
+			udph->check = nsum ?: 0xffff;
+		}
+		udph->source = u->gtpu_local_port;
+		udph->dest = u->gtpu_remote_port;
+		gtph->teid = u->gtpu_remote_teid;
+		UPF_DBG("rewrite_gtpu: src:%pI4:%d dst:%pI4:%d teid:%x",
+			   &iph->saddr, bpf_ntohs(udph->source),
+			   &iph->daddr, bpf_ntohs(udph->dest),
+			   bpf_ntohl(gtph->teid));
+
+		/* metrics */
+		++u->fwd_packets;
+		u->fwd_bytes += pkt_len;
+
+		d->dst_addr.ip4 = iph->daddr;
+		return XDP_IFR_FORWARD;
+	}
 
 	/* for futur nh lookup */
 	ip4h_inner = (struct iphdr *)(gtph + 1);
@@ -209,17 +260,15 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 		return XDP_DROP;
 	}
 
+	/* decap gtp-u */
 	adjust_sz = (void *)(gtph + 1) - (void *)iph;
-	payload_len = data_end - data - d->pl_off - adjust_sz;
-
-	/* now decap gtp-u */
 	if (bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
 		return XDP_ABORTED;
 	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
 
 	/* metrics */
 	++u->fwd_packets;
-	u->fwd_bytes += payload_len;
+	u->fwd_bytes += pkt_len - adjust_sz;
 
 	return XDP_IFR_FORWARD;
 }

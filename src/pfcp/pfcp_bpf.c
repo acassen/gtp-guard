@@ -39,20 +39,39 @@ extern struct data *daemon_data;
 
 
 static void
-_log_egress_rule(int action, struct pfcp_teid *t, int err)
+_log_egress_rule(int action, struct upf_fwd_rule *u, struct pfcp_teid *t, int err)
 {
 	char gtpu_str[INET6_ADDRSTRLEN];
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	char action_str[60] = {};
 
 	if (err)
 		libbpf_strerror(err, errmsg, GTP_XDP_STRERR_BUFSIZE);
 
+	if (action == RULE_ADD &&
+	    (u->flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
+	    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
+		snprintf(action_str, sizeof (action_str),
+			 "fwd to teid:0x%.8x remote:'%s'",
+			 u->gtpu_remote_teid,
+			 inet_ntop(AF_INET, &u->gtpu_remote_addr,
+				   gtpu_str, INET6_ADDRSTRLEN));
+	} else {
+		if (u->flags & UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER)
+			strcpy(action_str, "decap|");
+		if (u->flags & UPF_FWD_FL_ACT_FWD)
+			strcat(action_str, "fwd");
+		else
+			strcat(action_str, "drop");
+	}
+
 	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'egress' rule "
-		    "{local_teid:0x%.8x, local_gtpu:'%s'} %s",
+		    "{local_teid:0x%.8x, local_gtpu:'%s', %s} %s",
 		    (err) ? "Error " : "",
 		    (action == RULE_ADD) ? "adding" : "deleting",
 		    t->id,
 		    inet_ntop(AF_INET, &t->ipv4, gtpu_str, INET6_ADDRSTRLEN),
+		    action_str,
 		    (err) ? errmsg : "");
 }
 
@@ -69,18 +88,20 @@ _update_egress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct pfcp_t
 	};
 	int err, i;
 
-	for (i = 0; i < nr_cpus; i++)
+	for (i = 0; i < nr_cpus; i++) {
 		rule[i] = *u;
+		rule[i].gtpu_remote_teid = htonl(u->gtpu_remote_teid);
+	}
 
 	err = bpf_map__update_elem(r->bpf_data->user_egress, &key, sizeof(key),
 				   rule, sizeof(rule), flags);
-	_log_egress_rule(RULE_ADD, t, err);
+	_log_egress_rule(RULE_ADD, u, t, err);
 
 	return err ? -1 : 0;
 }
 
 static int
-_delete_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
+_delete_egress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct pfcp_teid *t)
 {
 	struct upf_egress_key key = {
 		.gtpu_local_teid = htonl(t->id),
@@ -89,7 +110,7 @@ _delete_egress_rule(struct pfcp_router *r, struct pfcp_teid *t)
 	};
 	int err = bpf_map__delete_elem(r->bpf_data->user_egress, &key,
 				       sizeof(key), 0);
-	_log_egress_rule(RULE_DEL, t, err);
+	_log_egress_rule(RULE_DEL, u, t, err);
 
 	return err ? -1 : 0;
 }
@@ -101,6 +122,7 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 	char ue_str[INET6_ADDRSTRLEN];
 	char gtpu_str[INET6_ADDRSTRLEN];
 	char errmsg[GTP_XDP_STRERR_BUFSIZE];
+	char action_str[60] = {};
 	sa_family_t family = 0;
 
 	if (err)
@@ -115,15 +137,23 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 	if (!family)
 		return -1;
 
+	if (u->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER)
+		strcpy(action_str, "encap|");
+	if (u->flags & UPF_FWD_FL_ACT_FWD)
+		strcat(action_str, "fwd");
+	else
+		strcat(action_str, "drop");
+
 	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
-		    "{ue_ipv%d:'%s', remote_teid:0x%.8x, remote_gtpu:'%s'} %s",
+		    "{ue_ipv%d:'%s', remote_teid:0x%.8x, remote_gtpu:'%s', %s} %s",
 		    (err) ? "Error " : "",
 		    (action == RULE_ADD) ? "adding" : "deleting",
 		    (family == AF_INET) ? 4 : 6,
 		    inet_ntop(family, (family == AF_INET) ? (void *)&ue->v4 : (void *)&ue->v6,
 			      ue_str, INET6_ADDRSTRLEN),
-		    u->gtpu_remote_teid,
+		    ntohl(u->gtpu_remote_teid),
 		    inet_ntop(AF_INET, &u->gtpu_remote_addr, gtpu_str, INET6_ADDRSTRLEN),
+		    action_str,
 		    (err) ? errmsg : "");
 
 	return 0;
@@ -202,7 +232,7 @@ pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 	struct upf_fwd_rule *u = &r->rule;
 	int err = -1;
 
-	if (!t || !rtr->bpf_data || !rtr->bpf_data->user_ingress)
+	if (!rtr->bpf_data || !rtr->bpf_data->user_ingress)
 		return -1;
 
 	switch (r->action) {
@@ -222,7 +252,7 @@ pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 
 	case PFCP_ACT_DELETE:
 		if (u->flags & UPF_FWD_FL_EGRESS)
-			err = _delete_egress_rule(rtr, t);
+			err = _delete_egress_rule(rtr, u, t);
 		else if (u->flags & UPF_FWD_FL_INGRESS)
 			err = _delete_ingress_rule(rtr, u, ue);
 		break;
@@ -336,9 +366,9 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	struct upf_ingress_key ik = {};
 	struct upf_fwd_rule rule[nr_cpus];
 	union addr addr, laddr, addr_ue;
-	char buf1[26], buf2[40], buf3[26];
+	char buf1[26], buf2[40], buf3[26], action_str[40];
 	uint32_t key = 0;
-	int err = 0, i;
+	int err = 0;
 
 	if (!bd->user_ingress || !bd->user_egress)
 		return;
@@ -347,7 +377,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	table_set_column(tbl, "TEID Remote", "UE Endpoint", "GTP-U Remote E.", "GTP-U Local E.",
 			 "Packets", "Bytes");
 
-	vty_out(vty, "bpf-program '%s', downlink:\n", p->name);
+	vty_out(vty, "bpf-program '%s', downlink (ingress):\n", p->name);
 
 	/* Walk hashtab */
 	memset(rule, 0, sizeof(rule));
@@ -360,10 +390,6 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 			break;
 		}
 
-		for (i = 1; i < nr_cpus; i++) {
-			rule[0].fwd_packets += rule[i].fwd_packets;
-			rule[0].fwd_bytes += rule[i].fwd_bytes;
-		}
 		if (ik.flags & UE_IPV4)
 			addr_fromip4(&addr_ue, ik.ue_addr.ip4);
 		else if (ik.flags & UE_IPV6)
@@ -372,6 +398,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 		addr_set_port(&addr, ntohs(rule[0].gtpu_remote_port));
 		addr_fromip4(&laddr, rule[0].gtpu_local_addr);
 		addr_set_port(&laddr, ntohs(rule[0].gtpu_local_port));
+		pfcp_bpf_counter_coalese(rule);
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%s|%lld|%lld",
 				  ntohl(rule[0].gtpu_remote_teid),
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
@@ -382,10 +409,11 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
 
-	tbl = table_init(4, STYLE_SINGLE_LINE_ROUNDED);
-	table_set_column(tbl, "TEID Local", "GTP-U Local E.", "Packets", "Bytes");
+	tbl = table_init(5, STYLE_SINGLE_LINE_ROUNDED);
+	table_set_column(tbl, "TEID Local", "GTP-U Local E.", "Action",
+			 "Packets", "Bytes");
 
-	vty_out(vty, "uplink:\n");
+	vty_out(vty, "uplink (egress):\n");
 
 	/* Walk hashtab */
 	memset(rule, 0, sizeof(rule));
@@ -398,16 +426,22 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 			break;
 		}
 
-		for (i = 1; i < nr_cpus; i++) {
-			rule[0].fwd_packets += rule[i].fwd_packets;
-			rule[0].fwd_bytes += rule[i].fwd_bytes;
+		if ((rule[0].flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
+		    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
+			snprintf(action_str, sizeof (action_str),
+				 "Fwd to teid 0x%08x",
+				 ntohl(rule[0].gtpu_remote_teid));
+		} else {
+			strcpy(action_str, "Decap");
 		}
 
 		addr_fromip4(&addr, ek.gtpu_local_addr);
 		addr_set_port(&addr, ntohs(ek.gtpu_local_port));
-		table_add_row_fmt(tbl, "0x%.8x|%s|%lld|%lld",
+		pfcp_bpf_counter_coalese(rule);
+		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(ek.gtpu_local_teid),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
+				  action_str,
 				  rule[0].fwd_packets, rule[0].fwd_bytes);
 	}
 	table_vty_out(tbl, vty);
