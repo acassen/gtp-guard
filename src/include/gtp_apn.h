@@ -137,6 +137,7 @@ struct gtp_apn {
 /* Prototypes */
 void gtp_apn_foreach(int (*hdl) (struct gtp_apn *, void *), void *);
 struct gtp_rewrite_rule *gtp_rewrite_rule_alloc(struct gtp_apn *, struct list_head *);
+int gtp_rewrite_rule_remove(struct gtp_apn *, struct list_head *, const char *, const int);
 int apn_resolv_cache_realloc(struct gtp_apn *);
 void *apn_resolv_cache_task(void *);
 int apn_resolv_cache_signal(struct gtp_apn *);

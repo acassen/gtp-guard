@@ -71,6 +71,25 @@ gtp_rewrite_rule_alloc(struct gtp_apn *apn, struct list_head *l)
 	return new;
 }
 
+int
+gtp_rewrite_rule_remove(struct gtp_apn *apn, struct list_head *l, const char* match, const int size)
+{
+	struct gtp_rewrite_rule *r, *_r;
+	int err = 1;
+
+	pthread_mutex_lock(&apn->mutex);
+	list_for_each_entry_safe(r, _r, l, next) {
+		if(r->match_len == size && memcmp(r->match,match,8) == 0){
+			list_head_del(&r->next);
+			FREE(r);
+			err = 0;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&apn->mutex);
+	return err;
+}
+
 static int
 gtp_rewrite_rule_destroy(struct gtp_apn *apn, struct list_head *l)
 {
