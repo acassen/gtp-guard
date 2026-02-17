@@ -2,6 +2,7 @@
 
 [![GTP-Guard CI](https://github.com/acassen/gtp-guard/actions/workflows/actions-compile.yml/badge.svg)](https://github.com/acassen/gtp-guard/actions/workflows/actions-compile.yml)
 [![GTP-Guard CodeQL](https://github.com/acassen/gtp-guard/actions/workflows/codeql.yml/badge.svg)](https://github.com/acassen/gtp-guard/actions/workflows/codeql.yml)
+[![DeepWiki Doc](https://deepwiki.com/badge.svg)](https://deepwiki.com/acassen/gtp-guard)
 
 <img width="30%" src="https://www.gtp-guard.org/assets/logo.png" align="left"/>
 
