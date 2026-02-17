@@ -43,15 +43,6 @@ struct gtp_teid_rule {
 	__u64 		bytes;
 } __attribute__ ((__aligned__(8)));
 
-
-struct ip_frag_key {
-	__u32		saddr;
-	__u32		daddr;
-	__u16		id;
-	__u8		protocol;
-	__u8		pad;
-};
-
 struct gtp_teid_frag {
 	__be32		src_addr;
 	__be32		dst_addr;
@@ -107,7 +98,7 @@ struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
 	__uint(max_entries, 1000000);
-	__type(key, struct ip_frag_key);		/* saddr + daddr + id + protocol */
+	__type(key, struct ip4_frag_key);		/* saddr + daddr + id + protocol */
 	__type(value, struct gtp_teid_frag);		/* dst_addr linked */
 } ip_frag SEC(".maps");
 
@@ -161,7 +152,7 @@ static struct gtp_teid_frag *
 gtpu_teid_frag_get(struct iphdr *iph, __u16 *frag_off, __u16 *ipfl)
 {
 	struct gtp_teid_frag *gtpf = NULL;
-	struct ip_frag_key frag_key;
+	struct ip4_frag_key frag_key;
 
 	*frag_off = bpf_ntohs(iph->frag_off);
 	*ipfl = *frag_off & ~IP_OFFMASK;
@@ -193,7 +184,7 @@ gtpu_ip_frag_timer(void *map, int *key, struct gtp_teid_frag *val)
 }
 
 static int
-gtpu_ip_frag_timer_set(const struct ip_frag_key *frag_key)
+gtpu_ip_frag_timer_set(const struct ip4_frag_key *frag_key)
 {
 	struct gtp_teid_frag *gtpf = NULL;
 	int ret = 0;
@@ -303,7 +294,7 @@ gtp_fwd_handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d)
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph = NULL;
-	struct ip_frag_key frag_key;
+	struct ip4_frag_key frag_key;
 	struct gtp_teid_frag *gtpf = NULL;
 	struct gtp_teid_frag frag;
 	__u16 frag_off = 0, ipfl = 0;

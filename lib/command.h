@@ -60,6 +60,7 @@ enum node_type {
 	PFCP_PEER_LIST_NODE,				/* PFCP Peer List commands. */
 	PFCP_PROXY_NODE,				/* PFCP Proxy commands. */
 	PFCP_ROUTER_NODE,				/* PFCP Router commands. */
+	MAPE_NODE,					/* MAP-E commands. */
 
 	VTY_NODE,					/* Vty node. */
 };
