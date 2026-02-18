@@ -36,6 +36,14 @@
  * Avoids a - b <= 0 producing "warning: assuming signed overflow does not occur when simplifying ‘X - Y <= 0’ to ‘X <= Y’ [-Wstrict-overflow]" */
 #define less_equal_greater_than(a,b)    ({ typeof(a) _a = (a); typeof(b) _b = (b); (_a) < (_b) ? -1 : (_a) == (_b) ? 0 : 1; })
 
+/* always useful */
+#ifndef min
+# define min(A, B) ((A) > (B) ? (B) : (A))
+#endif
+#ifndef max
+# define max(A, B) ((A) > (B) ? (A) : (B))
+#endif
+
 /* Functions that can return EAGAIN also document that they can return
  * EWOULDBLOCK, and that both should be checked. If they are the same
  * value, that is unnecessary. */
@@ -97,3 +105,17 @@ size_t bsd_strlcat(char *dst, const char *src, size_t dsize);
 char *memcpy2str(char *dst, size_t dsize, const void *src, size_t ssize);
 int open_pipe(int pipe_arr[2]);
 uint32_t fnv1a_hash(const uint8_t *buffer, size_t size);
+void split_line(char *buf, int *argc, char **argv, const char *delim, int max_args);
+
+static inline uint32_t
+next_power_of_2(uint32_t n)
+{
+	n--;
+	n |= n >> 1;
+	n |= n >> 2;
+	n |= n >> 4;
+	n |= n >> 8;
+	n |= n >> 16;
+
+	return n + 1;
+}

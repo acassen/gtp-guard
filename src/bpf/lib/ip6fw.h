@@ -165,62 +165,6 @@ ip6fw_flow_handle_pub(struct ip6fw_packet *pp)
 }
 
 
-
-#define IPV6_MAX_HEADERS	4
-
-
-struct ipv6_frag_hdr
-{
-	__u8 nexthdr;
-	__u8 hdrlen;
-	__u16 frag_off;
-	__u32 id;
-} __attribute__((packed));
-
-
-static void *
-ipv6_skip_exthdr(struct xdp_md *ctx, struct ipv6hdr *ip6h, __u8 *out_nh)
-{
-	void *data_end = (void *)(long)ctx->data_end;
-	void *data = ip6h + 1;
-	struct ipv6_opt_hdr *opthdr;
-	struct ipv6_frag_hdr *fraghdr;
-	__u8 nh = ip6h->nexthdr;
-	int i;
-
-	for (i = 0; i < IPV6_MAX_HEADERS; i++) {
-		switch (nh) {
-		case IPPROTO_NONE:
-			return NULL;
-
-		case IPPROTO_FRAGMENT:
-			if (data + sizeof (*fraghdr) > data_end)
-				return NULL;
-			fraghdr = data;
-			data = fraghdr + 1;
-			nh = fraghdr->hdrlen;
-			break;
-
-		case IPPROTO_ROUTING:
-		case IPPROTO_HOPOPTS:
-		case IPPROTO_DSTOPTS:
-			if (data + sizeof (*opthdr) > data_end)
-				return NULL;
-			opthdr = data;
-			data += 8 + opthdr->hdrlen * 8;
-			nh = opthdr->nexthdr;
-			break;
-
-		default:
-			*out_nh = nh;
-			return data;
-		}
-	}
-
-	return NULL;
-}
-
-
 static int
 _ip6fw_handle_icmp_err(struct xdp_md *ctx, struct ipv6hdr *outer_ip6h,
 		       struct ipv6hdr *ip6h, __u8 from_priv)

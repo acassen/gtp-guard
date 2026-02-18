@@ -376,13 +376,16 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			adjust_sz += sizeof (struct gre_hdr);
 	}
 
-	/* and adjust it */
-	if (adjust_sz && bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
-		return XDP_ABORTED;
+	if (adjust_sz) {
+		/* and adjust it */
+		if (bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
+			return XDP_ABORTED;
 
-	/* adjusted in modules. rewrite all eth/vlan fields */
-	if (d->flags & IF_RULE_FL_XDP_ADJUSTED)
-		adjust_sz = 1;
+	} else {
+		/* adjusted somewhere else. rewrite all eth/vlan fields */
+		if (d->flags & IF_RULE_FL_XDP_ADJUSTED)
+			adjust_sz = 1;
+	}
 
 	/* build output packet iface encap */
 	ethh = data = (void *)(long)ctx->data;

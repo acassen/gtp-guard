@@ -12,6 +12,7 @@ src += files(
   'gtp_bpf_fwd.c',
   'gtp_bpf_iptnl.c',
   'gtp_bpf_ifrules.c',
+  'gtp_bpf_mape.c',
   'gtp_bpf_mirror.c',
   'gtp_bpf_ppp.c',
   'gtp_bpf_prog.c',

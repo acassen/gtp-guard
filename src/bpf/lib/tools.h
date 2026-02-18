@@ -86,6 +86,17 @@ struct gre_hdr
 	__u16 proto;
 } __attribute__((packed));
 
+/* modified GRE header for PPTP
+ * may have more field wrt flags. */
+struct gre_hdr_pptp
+{
+	__u8 flags;		/* bitfield */
+	__u8 version;		/* should be GRE_VERSION_PPTP */
+	__u16 protocol;		/* should be GRE_PROTOCOL_PPTP */
+	__u16 payload_len;	/* size of ppp payload, not inc. gre header */
+	__u16 call_id;		/* peer's call_id for this session */
+} __attribute__((packed));
+
 
 /*********************************/
 /* gtp-u stuff */
@@ -159,6 +170,14 @@ csum_ipv4(void *data_start, int data_size, __u32 *csum)
 /*********************************/
 /* ipfrag */
 
+struct ip4_frag_key {
+	__u32		saddr;
+	__u32		daddr;
+	__u16		id;
+	__u8		protocol;
+	__u8		pad;
+} __attribute__((packed));
+
 union ipfrag_key
 {
 	__u8	family;
@@ -203,9 +222,62 @@ struct ipfrag_rule
 #ifdef EBPF_SRC
 /* from netinet/in.h */
 # define IN6_IS_ADDR_LINKLOCAL(a)				    \
-	(((a)->s6_addr32[0] & __constant_htonl(0xffc00000)) ==	    \
+ 	(((a)->s6_addr32[0] & __constant_htonl(0xffc00000)) ==	    \
 	 __constant_htonl(0xfe800000))
+
+struct ipv6_frag_hdr
+{
+	__u8 nexthdr;
+	__u8 hdrlen;
+	__be16 frag_off;
+	__be32 id;
+} __attribute__((packed));
+
+
+static __always_inline void *
+ipv6_skip_exthdr(struct ipv6hdr *ip6h, void *data_end, __u8 *out_nh)
+{
+	struct ipv6_opt_hdr *opthdr;
+	struct ipv6_frag_hdr *fraghdr;
+	__u8 nh = ip6h->nexthdr;
+	void *data = ip6h + 1;
+	int i;
+
+#pragma unroll
+	for (i = 0; i < IPV6_MAX_HEADERS; i++) {
+		switch (nh) {
+		case IPPROTO_NONE:
+			return NULL;
+
+		case IPPROTO_FRAGMENT:
+			if (data + sizeof (*fraghdr) > data_end)
+				return NULL;
+			fraghdr = data;
+			data = fraghdr + 1;
+			nh = fraghdr->nexthdr;
+			break;
+
+		case IPPROTO_ROUTING:
+		case IPPROTO_HOPOPTS:
+		case IPPROTO_DSTOPTS:
+			if (data + sizeof (*opthdr) > data_end)
+				return NULL;
+			opthdr = data;
+			data += 8 + opthdr->hdrlen * 8;
+			nh = opthdr->nexthdr;
+			break;
+
+		default:
+			*out_nh = nh;
+			return data;
+		}
+	}
+
+	return NULL;
+}
+
 #endif
+
 
 
 /*********************************/
