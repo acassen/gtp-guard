@@ -15,7 +15,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <string.h>
@@ -24,7 +24,6 @@
 #include "gtp_bpf_prog.h"
 #include "gtp_data.h"
 #include "gtp.h"
-#include "gtp_bpf_utils.h"
 #include "pfcp_router.h"
 #include "inet_server.h"
 #include "pfcp_assoc.h"

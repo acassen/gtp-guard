@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2025 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #pragma once
