@@ -408,8 +408,7 @@ DEFUN(apn_no_imsi_match,
       "imsi prefix match\n")
 {
 	struct gtp_apn *apn = vty->index;
-	char match_buffer[8];
-	memset(match_buffer,0,8);
+	char match_buffer[8] = {};
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);

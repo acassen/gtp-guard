@@ -786,6 +786,11 @@ gtpc_modify_bearer_response_hdl(struct gtp_server *srv, struct sockaddr_storage 
 	teid_u = teid->bearer_teid;
 	if (teid_u && teid_u->old_teid) {
 		oteid = teid_u->old_teid;
+
+		/* lifetime protection */
+		if (!__test_bit(GTP_TEID_FL_LINKED, &oteid->flags))
+			goto end;
+
 		if (oteid->peer_teid)
 			gtp_teid_bind(oteid->peer_teid, teid_u);
 		gtp_session_gtpu_teid_destroy(oteid);

@@ -1248,16 +1248,20 @@ gtpc_modify_bearer_request_hdl(struct gtp_server *srv, struct sockaddr_storage *
 	pteid = teid->peer_teid;
 	t->old_teid = pteid;
 	gtp_teid_bind(teid, t);
-	gtp_session_gtpc_teid_destroy(t->old_teid);
 
-	/* GTP-U Update */
+	/* GTP-U Update: resolve old GTP-U ref before pteid is freed */
 	t_u = gtp_session_gtpu_teid_get_by_sqn(s, t->sqn);
 	if (t_u) {
 		t->bearer_teid = t_u;
 		t_u->old_teid = (pteid) ? pteid->bearer_teid : NULL;
 		gtp_teid_bind(teid->bearer_teid, t_u);
-		gtp_session_gtpu_teid_destroy(t_u->old_teid);
 	}
+
+	gtp_session_gtpc_teid_destroy(t->old_teid);
+
+	if (t_u && t_u->old_teid &&
+	    __test_bit(GTP_TEID_FL_LINKED, &t_u->old_teid->flags))
+		gtp_session_gtpu_teid_destroy(t_u->old_teid);
 
 	/* Add delayed XDP entries */
 	vrf = (s->apn) ? s->apn->vrf : NULL;
