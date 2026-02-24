@@ -544,6 +544,10 @@ gtp_ie_apn_rewrite_oi(struct gtp_ie_apn *apn, size_t offset, char *buffer)
 	size_t offset_oi = 0;
 
 	for (; cp < end; cp+=*cp+1) {
+		if (offset_oi + *cp > GTP_MATCH_MAX_LEN)
+			return -1;
+		if (cp + 1 + *cp > end)
+			return -1;
 		memcpy(cp + 1, buffer + offset_oi, *cp);
 		offset_oi += *cp + 1;
 	}
@@ -645,11 +649,12 @@ gtp_foreach_ie(uint8_t type, uint8_t *buffer, size_t buffer_offset, uint8_t *buf
 
 	for (cp = buffer+offset; cp < buffer_end && cp < end; cp += offset) {
 		ie = (struct gtp_ie *) cp;
+		offset = sizeof(struct gtp_ie) + ntohs(ie->length);
+		if (cp + offset > buffer_end || cp + offset > end)
+			break;
 		if (ie->type == type) {
 			(*hdl) (srv, s, direction, arg, cp);
 		}
-
-		offset = sizeof(struct gtp_ie) + ntohs(ie->length);
 	}
 
 	return 0;
@@ -687,6 +692,8 @@ gtpu_get_header_len(struct pkt_buffer *buffer)
 		 	 * in a variable length of 4 octets, i.e. m+1 = n*4 octets,
 			 * where n is a positive integer.
 			 */
+			if ((size_t)len >= pkt_buffer_len(buffer))
+				return -1;
 			len += (*(++ext_h)) * 4;
 			if (pkt_buffer_len(buffer) < len)
 				return -1;
