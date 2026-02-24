@@ -130,6 +130,8 @@ gtp1_ie_apn_extract(struct gtp1_ie_apn *apn, char *buffer, size_t size)
 		buffer[offset++] = '.';
 	}
 
+	if (!offset)
+		return -1;
 	buffer[offset - 1] = 0;
 
 	return 0;
@@ -480,6 +482,8 @@ gtp_apn_extract_ni(const uint8_t *apn, size_t asize, char *dst, size_t dsize)
 		dst[offset++] = '.';
 	}
 
+	if (!offset)
+		return -1;
 	dst[offset - 1] = 0;
 
 	return 0;
@@ -514,6 +518,8 @@ gtp_ie_apn_extract_labels(struct gtp_ie_apn *apn, int until_label, char *buffer,
 		buffer[offset++] = '.';
 	}
 
+	if (!offset)
+		return -1;
 	buffer[offset - 1] = 0;
 	return 0;
 }

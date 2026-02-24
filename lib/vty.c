@@ -474,8 +474,9 @@ static void
 vty_insert_word_overwrite(struct vty *vty, char *str)
 {
 	int len = strlen (str);
+	vty_ensure(vty, vty->cp + len);
 	vty_write(vty, str, len);
-	strcpy(&vty->buf[vty->cp], str);
+	memcpy(&vty->buf[vty->cp], str, len + 1);
 	vty->cp += len;
 	vty->length = vty->cp;
 }

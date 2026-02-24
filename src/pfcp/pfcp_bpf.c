@@ -57,12 +57,9 @@ _log_egress_rule(int action, struct upf_fwd_rule *u, struct pfcp_teid *t, int er
 			 inet_ntop(AF_INET, &u->gtpu_remote_addr,
 				   gtpu_str, INET6_ADDRSTRLEN));
 	} else {
-		if (u->flags & UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER)
-			strcpy(action_str, "decap|");
-		if (u->flags & UPF_FWD_FL_ACT_FWD)
-			strcat(action_str, "fwd");
-		else
-			strcat(action_str, "drop");
+		snprintf(action_str, sizeof(action_str), "%s%s",
+			 (u->flags & UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER) ? "decap|" : "",
+			 (u->flags & UPF_FWD_FL_ACT_FWD) ? "fwd" : "drop");
 	}
 
 	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'egress' rule "
@@ -137,12 +134,9 @@ _log_ingress_rule(int action, int type, struct upf_fwd_rule *u, struct ue_ip_add
 	if (!family)
 		return -1;
 
-	if (u->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER)
-		strcpy(action_str, "encap|");
-	if (u->flags & UPF_FWD_FL_ACT_FWD)
-		strcat(action_str, "fwd");
-	else
-		strcat(action_str, "drop");
+	snprintf(action_str, sizeof(action_str), "%s%s",
+		 (u->flags & UPF_FWD_FL_ACT_CREATE_OUTER_HEADER) ? "encap|" : "",
+		 (u->flags & UPF_FWD_FL_ACT_FWD) ? "fwd" : "drop");
 
 	log_message(LOG_INFO, "pfcp_bpf: %s%s XDP 'ingress' rule "
 		    "{ue_ipv%d:'%s', remote_teid:0x%.8x, remote_gtpu:'%s', %s} %s",
@@ -432,7 +426,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 				 "Fwd to teid 0x%08x",
 				 ntohl(rule[0].gtpu_remote_teid));
 		} else {
-			strcpy(action_str, "Decap");
+			snprintf(action_str, sizeof(action_str), "Decap");
 		}
 
 		addr_fromip4(&addr, ek.gtpu_local_addr);

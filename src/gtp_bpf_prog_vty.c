@@ -120,11 +120,11 @@ gtp_bpf_prog_show(struct gtp_bpf_prog *p, void *arg)
 	vty_out(vty, "  attached interfaces :\n");
 	list_for_each_entry(iface, &p->iface_bind_list, bpf_prog_list) {
 		if (iface->flags & GTP_INTERFACE_FL_SHUTDOWN_BIT)
-			sprintf(buf, "interface down");
+			snprintf(buf, sizeof(buf), "interface down");
 		else if (iface->bpf_prog == p)
-			sprintf(buf, "bpf running");
+			snprintf(buf, sizeof(buf), "bpf running");
 		else
-			sprintf(buf, "bpf not loaded");
+			snprintf(buf, sizeof(buf), "bpf not loaded");
 		vty_out(vty, "     - %s; %s\n", iface->ifname, buf);
 	}
 	return 0;
