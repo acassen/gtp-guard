@@ -74,9 +74,13 @@ gtp_cdr_asn1_service_data(struct gtp_cdr *cdr, int m, uint32_t tag, uint8_t *dst
 		return dst;
 
 	outer = asn1_encode_tag(dst, end, ASN1_CONT, ASN1_CONS, tag, NULL, 0xffff);
+	if (outer < dst + 2)
+		return dst;
 	len = (uint16_t *) (outer - 2);
 
 	seq = asn1_encode_sequence(outer, end, NULL, 0xffff);
+	if (seq < outer + 2)
+		return dst;
 	len_seq = (uint16_t *) (seq - 2);
 	cp = gtp_cdr_asn1_tag(seq, end, 1, (uint8_t *) &cdr->rating_group, 1);
 	cp = gtp_cdr_asn1_tag(cp, end, 8, cdr->service_condition_change, 5);
