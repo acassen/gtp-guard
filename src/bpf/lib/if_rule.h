@@ -399,23 +399,32 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		/* adjusted somewhere else. rewrite all eth/vlan fields */
 		if (d->flags & IF_RULE_FL_XDP_ADJUSTED)
 			adjust_sz = 1;
+		else {
+			/* switch from/to ipv4/ipv6 */
+			__u8 fl = d->flags & 0x03;
+			if (fl == IF_RULE_FL_SRC_IPV6 || fl == IF_RULE_FL_DST_IPV6)
+				adjust_sz = 1;
+		}
 	}
 
 	/* build output packet iface encap */
 	ethh = data = (void *)(long)ctx->data;
 	data_end = (void *)(long)ctx->data_end;
 
-	if (a->vlan_id && (k->vlan_id != a->vlan_id || adjust_sz)) {
-		/* need to set/modify vlan hdr */
+	if (a->vlan_id) {
 		struct vlan_hdr *vlanh = (struct vlan_hdr *)(ethh + 1);
+
 		if ((void *)(vlanh + 1) > data_end)
 			return XDP_DROP;
 
-		vlanh->vlan_tci = bpf_ntohs(a->vlan_id);
-		vlanh->next_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
-			__constant_htons(ETH_P_IPV6) :
-			__constant_htons(ETH_P_IP);
-		ethh->h_proto = __constant_htons(ETH_P_8021Q);
+		/* need to set/modify vlan hdr */
+		if ((k->vlan_id != a->vlan_id || adjust_sz)) {
+			vlanh->vlan_tci = bpf_ntohs(a->vlan_id);
+			vlanh->next_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+				__constant_htons(ETH_P_IPV6) :
+				__constant_htons(ETH_P_IP);
+			ethh->h_proto = __constant_htons(ETH_P_8021Q);
+		}
 		payload = vlanh + 1;
 
 	} else {
@@ -423,10 +432,11 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			return XDP_DROP;
 
 		/* remove vlan header */
-		ethh->h_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
-			__constant_htons(ETH_P_IPV6) :
-			__constant_htons(ETH_P_IP);
-
+		if (adjust_sz) {
+			ethh->h_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+				__constant_htons(ETH_P_IPV6) :
+				__constant_htons(ETH_P_IP);
+		}
 		payload = ethh + 1;
 	}
 
