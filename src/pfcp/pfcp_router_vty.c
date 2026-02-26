@@ -271,7 +271,7 @@ DEFUN(pfcp_debug_teid,
 	struct pfcp_fwd_rule *rule;
 	struct upf_fwd_rule *ur;
 	union addr endpt_addr, ue_addr, ue2_addr;
-	uint32_t teid = htonl(atoi(argv[2]));
+	uint32_t teid = atoi(argv[2]);
 	union addr *local;
 	int r;
 
@@ -292,18 +292,21 @@ DEFUN(pfcp_debug_teid,
 	list_add_tail(&rule->next, &c->static_fwd_rules);
 
 	if (!strcmp(argv[1], "egress")) {
-		ur->flags |= UPF_FWD_FL_EGRESS | UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER;
+		ur->flags |= UPF_FWD_FL_EGRESS | UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER |
+			     UPF_FWD_FL_ACT_FWD;
 		t.id = teid;
 		t.ipv4 = endpt_addr.sin.sin_addr;
 
 	} else if (!strcmp(argv[1], "fwd")) {
-		ur->flags = UPF_FWD_FL_EGRESS | UPF_FWD_FL_ACT_KEEP_OUTER_HEADER;
+		ur->flags = UPF_FWD_FL_EGRESS | UPF_FWD_FL_ACT_KEEP_OUTER_HEADER |
+			    UPF_FWD_FL_ACT_FWD;
 		t.id = teid;
 		t.ipv4 = endpt_addr.sin.sin_addr;
 
 	} else if (!strcmp(argv[1], "ingress")) {
-		ur->flags = UPF_FWD_FL_INGRESS | UPF_FWD_FL_ACT_CREATE_OUTER_HEADER;
-		ur->gtpu_remote_teid = teid;
+		ur->flags = UPF_FWD_FL_INGRESS | UPF_FWD_FL_ACT_CREATE_OUTER_HEADER |
+			    UPF_FWD_FL_ACT_FWD;
+		ur->gtpu_remote_teid = htonl(teid);
 		ur->gtpu_remote_addr = endpt_addr.sin.sin_addr.s_addr;
 		ur->gtpu_remote_port = htons(GTP_U_PORT);
 	}
