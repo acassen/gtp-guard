@@ -85,10 +85,8 @@ _update_egress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct pfcp_t
 	};
 	int err, i;
 
-	for (i = 0; i < nr_cpus; i++) {
+	for (i = 0; i < nr_cpus; i++)
 		rule[i] = *u;
-		rule[i].gtpu_remote_teid = htonl(u->gtpu_remote_teid);
-	}
 
 	err = bpf_map__update_elem(r->bpf_data->user_egress, &key, sizeof(key),
 				   rule, sizeof(rule), flags);
