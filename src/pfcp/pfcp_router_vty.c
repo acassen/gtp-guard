@@ -256,110 +256,265 @@ DEFUN(pfcp_debug,
 	return CMD_SUCCESS;
 }
 
-DEFUN(pfcp_debug_teid,
-      pfcp_debug_teid_cmd,
-      "debug teid (add|del|update) (ingress|egress|fwd) "
-      "TEID ENDPTADDR [UEADDR UEADDR2]",
-      "Debug command\n"
-      "Add or delete teid\n"
-      "TEID\n"
-      "GTP-U endpoint address:port\n")
+static int
+parse_teid_range(const char *str, uint32_t *start, uint32_t *end)
 {
-	struct pfcp_router *c = vty->index;
-	struct pfcp_teid t = {};
-	struct ue_ip_address ue = {};
+	char buf[32];
+	char *dash;
+
+	strncpy(buf, str, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+
+	dash = strchr(buf, '-');
+	if (dash) {
+		*dash = '\0';
+		*start = strtoul(buf, NULL, 0);
+		*end = strtoul(dash + 1, NULL, 0);
+		if (*start > *end)
+			return -1;
+	} else {
+		*start = *end = strtoul(str, NULL, 0);
+	}
+
+	return 0;
+}
+
+static int
+parse_ueip4_range(const char *str, uint32_t *start, uint32_t *end)
+{
+	union addr start_addr = {}, end_addr = {};
+	char buf[INET_ADDRSTRLEN * 2 + 2];
+	char *dash;
+
+	strncpy(buf, str, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+
+	dash = strchr(buf, '-');
+	if (!dash)
+		return -1;
+
+	*dash = '\0';
+	if (addr_parse(buf, &start_addr) || start_addr.family != AF_INET)
+		return -1;
+	if (addr_parse(dash + 1, &end_addr) || end_addr.family != AF_INET)
+		return -1;
+
+	*start = ntohl(start_addr.sin.sin_addr.s_addr);
+	*end = ntohl(end_addr.sin.sin_addr.s_addr);
+	return (*start <= *end) ? 0 : -1;
+}
+
+struct pfcp_teid_iter_ctx {
+	const char		*action;
+	bool			 is_ingress;
+	bool			 is_fwd;
+	const union addr	*endpt_addr;
+	const union addr	*local;
+	bool			 has_ue;
+	union addr		 ue_addr;
+	bool			 ue_is_range;
+	uint32_t		 ue_start;
+	bool			 has_ue2;
+	union addr		 ue2_addr;
+	uint32_t		 rteid_start;
+	uint32_t		 rteid_end;
+};
+
+static int
+pfcp_debug_teid_apply(struct vty *vty, struct pfcp_router *c,
+		      const struct pfcp_teid_iter_ctx *ctx,
+		      uint32_t teid, int i)
+{
 	struct pfcp_fwd_rule *rule;
 	struct upf_fwd_rule *ur;
-	union addr endpt_addr, ue_addr, ue2_addr;
-	uint32_t teid = atoi(argv[2]);
-	union addr *local;
+	struct pfcp_teid t = {};
+	struct ue_ip_address ue = {};
 	int r;
-
-	if (addr_parse(argv[3], &endpt_addr) || endpt_addr.family != AF_INET) {
-		vty_out(vty, "%% cannot parse endpt addresses %s\n", argv[3]);
-		return CMD_WARNING;
-	}
 
 	rule = calloc(1, sizeof(*rule));
 	INIT_LIST_HEAD(&rule->next);
 	ur = &rule->rule;
-	if (!strcmp(argv[0], "add"))
+
+	if (!strcmp(ctx->action, "add"))
 		rule->action = PFCP_ACT_CREATE;
-	else if (!strcmp(argv[0], "del"))
+	else if (!strcmp(ctx->action, "del"))
 		rule->action = PFCP_ACT_DELETE;
 	else
 		rule->action = PFCP_ACT_UPDATE;
 	list_add_tail(&rule->next, &c->static_fwd_rules);
 
-	if (!strcmp(argv[1], "egress")) {
+	if (!ctx->is_ingress && !ctx->is_fwd) {
 		ur->flags |= UPF_FWD_FL_EGRESS | UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER |
 			     UPF_FWD_FL_ACT_FWD;
 		t.id = teid;
-		t.ipv4 = endpt_addr.sin.sin_addr;
+		t.ipv4 = ctx->endpt_addr->sin.sin_addr;
 
-	} else if (!strcmp(argv[1], "fwd")) {
+	} else if (ctx->is_fwd) {
 		ur->flags = UPF_FWD_FL_EGRESS | UPF_FWD_FL_ACT_KEEP_OUTER_HEADER |
 			    UPF_FWD_FL_ACT_FWD;
 		t.id = teid;
-		t.ipv4 = endpt_addr.sin.sin_addr;
+		t.ipv4 = ctx->endpt_addr->sin.sin_addr;
 
-	} else if (!strcmp(argv[1], "ingress")) {
+	} else {
 		ur->flags = UPF_FWD_FL_INGRESS | UPF_FWD_FL_ACT_CREATE_OUTER_HEADER |
 			    UPF_FWD_FL_ACT_FWD;
 		ur->gtpu_remote_teid = htonl(teid);
-		ur->gtpu_remote_addr = endpt_addr.sin.sin_addr.s_addr;
+		ur->gtpu_remote_addr = ctx->endpt_addr->sin.sin_addr.s_addr;
 		ur->gtpu_remote_port = htons(GTP_U_PORT);
 	}
 
-	/* fixme: works only for 'all' interfaces */
-	local = (union addr *)pfcp_session_get_addr_by_interface(c, 0);
-	if (local != NULL) {
-		ur->gtpu_local_addr = addr_toip4(local);
-		ur->gtpu_local_port = htons(addr_get_port(local));
+	if (ctx->local != NULL) {
+		ur->gtpu_local_addr = addr_toip4(ctx->local);
+		ur->gtpu_local_port = htons(addr_get_port(ctx->local));
 	}
 
-	if (argc >= 5) {
-		if (addr_parse(argv[4], &ue_addr)) {
-			vty_out(vty, "%% cannot parse ue addresses %s\n", argv[4]);
-			return CMD_WARNING;
-		}
-		if (ur->flags & UPF_FWD_FL_INGRESS) {
-			ue.flags |= ue_addr.family == AF_INET ? UE_IPV4 : UE_IPV6;
-			if (ue_addr.family == AF_INET)
-				ue.v4 = ue_addr.sin.sin_addr;
-			else
-				memcpy(&ue.v6, &ue_addr.sin6.sin6_addr, sizeof (ue.v6));
+	if (ctx->has_ue) {
+		if (ctx->is_ingress) {
+			if (ctx->ue_is_range) {
+				ue.flags |= UE_IPV4;
+				ue.v4.s_addr = htonl(ctx->ue_start + i);
+			} else {
+				ue.flags |= ctx->ue_addr.family == AF_INET ? UE_IPV4 : UE_IPV6;
+				if (ctx->ue_addr.family == AF_INET)
+					ue.v4 = ctx->ue_addr.sin.sin_addr;
+				else
+					memcpy(&ue.v6, &ctx->ue_addr.sin6.sin6_addr, sizeof(ue.v6));
+			}
 		} else {
-			ur->gtpu_remote_addr = ue_addr.sin.sin_addr.s_addr;
-			ur->gtpu_remote_port = htons(addr_get_port(&ue_addr));
+			ur->gtpu_remote_addr = ctx->ue_addr.sin.sin_addr.s_addr;
+			ur->gtpu_remote_port = htons(addr_get_port(&ctx->ue_addr));
 			if (!ur->gtpu_remote_port)
 				ur->gtpu_remote_port = htons(GTP_U_PORT);
 		}
 	}
 
-	if ((ur->flags & UPF_FWD_FL_INGRESS) && argc >= 6) {
-		if (addr_parse(argv[5], &ue2_addr) ||
-		    ue2_addr.family == ue_addr.family) {
-			vty_out(vty, "%% cannot parse secondary ue addresses %s\n",
-				argv[5]);
-			return CMD_WARNING;
-		}
-		ue.flags |= ue2_addr.family == AF_INET ? UE_IPV4 : UE_IPV6;
-		if (ue2_addr.family == AF_INET)
-			ue.v4 = ue2_addr.sin.sin_addr;
+	if (ctx->is_ingress && ctx->has_ue2) {
+		ue.flags |= ctx->ue2_addr.family == AF_INET ? UE_IPV4 : UE_IPV6;
+		if (ctx->ue2_addr.family == AF_INET)
+			ue.v4 = ctx->ue2_addr.sin.sin_addr;
 		else
-			memcpy(&ue.v6, &ue2_addr.sin6.sin6_addr, sizeof (ue.v6));
-
-	} else if (!strcmp(argv[1], "fwd")) {
-		if (argc < 6)
-			return CMD_WARNING;
-		ur->gtpu_remote_teid = htonl(atoi(argv[5]));
+			memcpy(&ue.v6, &ctx->ue2_addr.sin6.sin6_addr, sizeof(ue.v6));
+	} else if (ctx->is_fwd) {
+		uint32_t rteid_count = ctx->rteid_end - ctx->rteid_start + 1;
+		ur->gtpu_remote_teid = htonl(ctx->rteid_start +
+					     (rteid_count > 1 ? (uint32_t)i : 0));
 	}
 
 	r = pfcp_bpf_action(c, rule, &t, &ue);
 	if (r) {
-		vty_out(vty, "%% cannot %s teid 0x%08x\n", argv[0], teid);
+		vty_out(vty, "%% cannot %s teid 0x%08x\n", ctx->action, teid);
 		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(pfcp_debug_teid,
+      pfcp_debug_teid_cmd,
+      "debug teid (add|del|update) (ingress|egress|fwd) "
+      "TEID ENDPTADDR [UEADDR [UEADDR2]]",
+      "Debug command\n"
+      "Add or delete teid\n"
+      "TEID or TEID range (e.g. 100-200 or 0x100-0x1ff)\n"
+      "GTP-U endpoint address:port\n"
+      "UE IPv4 address or range (e.g. 10.0.0.1-10.0.0.100)\n"
+      "Secondary UE address or remote TEID range for fwd\n")
+{
+	struct pfcp_router *c = vty->index;
+	struct pfcp_teid_iter_ctx ctx = {};
+	union addr endpt_addr, ue_addr = {}, ue2_addr = {};
+	uint32_t teid_start, teid_end, range_count;
+	uint32_t ue_start = 0, ue_end = 0;
+	uint32_t rteid_start = 0, rteid_end = 0;
+	bool ue_is_range = false;
+	int i;
+
+	ctx.action = argv[0];
+	ctx.is_ingress = !strcmp(argv[1], "ingress");
+	ctx.is_fwd = !strcmp(argv[1], "fwd");
+
+	/* Parse endpoint address */
+	if (addr_parse(argv[3], &endpt_addr) || endpt_addr.family != AF_INET) {
+		vty_out(vty, "%% cannot parse endpt addresses %s\n", argv[3]);
+		return CMD_WARNING;
+	}
+	ctx.endpt_addr = &endpt_addr;
+
+	/* Parse TEID (single value or range) */
+	if (parse_teid_range(argv[2], &teid_start, &teid_end)) {
+		vty_out(vty, "%% invalid TEID range %s\n", argv[2]);
+		return CMD_WARNING;
+	}
+	range_count = teid_end - teid_start + 1;
+
+	/* Parse UEADDR (optional) */
+	if (argc >= 5) {
+		if (ctx.is_ingress && strchr(argv[4], '-')) {
+			/* IPv4 UE address range */
+			if (parse_ueip4_range(argv[4], &ue_start, &ue_end)) {
+				vty_out(vty, "%% invalid UE address range %s\n", argv[4]);
+				return CMD_WARNING;
+			}
+			if ((ue_end - ue_start + 1) < range_count) {
+				vty_out(vty, "%% TEID range size (%u) != UE address range size (%u)\n",
+					range_count, ue_end - ue_start + 1);
+				return CMD_WARNING;
+			}
+			ue_addr.family = AF_INET;
+			ue_is_range = true;
+		} else {
+			if (addr_parse(argv[4], &ue_addr)) {
+				vty_out(vty, "%% cannot parse ue addresses %s\n", argv[4]);
+				return CMD_WARNING;
+			}
+			if (ctx.is_ingress && ue_addr.family == AF_INET)
+				ue_start = ue_end = ntohl(ue_addr.sin.sin_addr.s_addr);
+		}
+		ctx.has_ue = true;
+		ctx.ue_addr = ue_addr;
+		ctx.ue_is_range = ue_is_range;
+		ctx.ue_start = ue_start;
+	}
+
+	/* For fwd: remote TEID (single or range) in argv[5] */
+	if (ctx.is_fwd) {
+		if (argc < 6) {
+			vty_out(vty, "%% fwd requires remote TEID argument\n");
+			return CMD_WARNING;
+		}
+		if (parse_teid_range(argv[5], &rteid_start, &rteid_end)) {
+			vty_out(vty, "%% invalid remote TEID range %s\n", argv[5]);
+			return CMD_WARNING;
+		}
+		if ((rteid_end - rteid_start + 1) != 1 &&
+		    (rteid_end - rteid_start + 1) != range_count) {
+			vty_out(vty, "%% TEID range size (%u) != remote TEID range size (%u)\n",
+				range_count, rteid_end - rteid_start + 1);
+			return CMD_WARNING;
+		}
+		ctx.rteid_start = rteid_start;
+		ctx.rteid_end = rteid_end;
+	}
+
+	/* Parse secondary UE address for ingress (must differ in address family) */
+	if (ctx.is_ingress && argc >= 6) {
+		if (addr_parse(argv[5], &ue2_addr) ||
+		    ue2_addr.family == ue_addr.family) {
+			vty_out(vty, "%% cannot parse secondary ue addresses %s\n", argv[5]);
+			return CMD_WARNING;
+		}
+		ctx.has_ue2 = true;
+		ctx.ue2_addr = ue2_addr;
+	}
+
+	/* fixme: works only for 'all' interfaces */
+	ctx.local = (union addr *)pfcp_session_get_addr_by_interface(c, 0);
+
+	/* Iterate over TEID/UEADDR range */
+	for (i = 0; i < (int)range_count; i++) {
+		int r = pfcp_debug_teid_apply(vty, c, &ctx, teid_start + i, i);
+		if (r)
+			return r;
 	}
 
 	return CMD_SUCCESS;
