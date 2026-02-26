@@ -714,13 +714,14 @@ gtp1_update_pdp_response_hdl(gtp_server_t *srv, struct sockaddr_storage *addr)
 
 		/* lifetime protection */
 		if (!__test_bit(GTP_TEID_FL_LINKED, &oteid->flags))
-			goto end;
+			goto last;
 
 		if (oteid->peer_teid)
 			gtp_teid_bind(oteid->peer_teid, teid_u);
 		gtp_session_gtpu_teid_destroy(oteid);
 	}
 
+  last:
 	/* SQN masq */
 	gtp_sqn_restore(srv, teid->peer_teid);
 
