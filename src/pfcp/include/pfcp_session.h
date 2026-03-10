@@ -25,6 +25,7 @@
 #include "pfcp.h"
 #include "pfcp_msg.h"
 #include "pfcp_metrics.h"
+#include "gtp_bpf_capture.h"
 #include "bpf/lib/upf-def.h"
 
 /* Default values */
@@ -214,6 +215,9 @@ struct pfcp_session {
 	/* I/O MUX */
 	struct thread		*timer;
 
+	/* packet capture */
+	struct gtp_capture_entry capture;
+
 	/* indexing */
 	struct list_head	next;
 	struct hlist_node	hlist;
@@ -244,6 +248,7 @@ int pfcp_session_create(struct pfcp_session *s,
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
 int pfcp_session_delete(struct pfcp_session *s);
+int pfcp_session_update_fwd_rules(struct pfcp_session *s);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,

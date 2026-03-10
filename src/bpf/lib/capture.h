@@ -19,11 +19,14 @@ struct {
 
 
 static inline void
-capture_xdp_to_userspc(struct xdp_md *ctx, int action)
+capture_xdp_to_userspc(struct xdp_md *ctx, struct capture_bpf_entry *e, __u16 dir_fl)
 {
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
 	struct capture_metadata md;
+
+	if (!e->entry_id || !(dir_fl & e->flags))
+		return;
 
 	if (data >= data_end)
 		return;
@@ -31,8 +34,10 @@ capture_xdp_to_userspc(struct xdp_md *ctx, int action)
 	md.ifindex = ctx->ingress_ifindex;
 	md.rx_queue = ctx->rx_queue_index;
 	md.pkt_len = (__u16)(data_end - data);
-	md.cap_len = min(md.pkt_len, 64);
-	md.action = action;
+	md.cap_len = min(md.pkt_len, e->cap_len);
+	md.entry_id = e->entry_id;
+	md.flags = dir_fl;
+	md.action = 0;
 
 	bpf_perf_event_output(ctx, &capture_perf_map,
 			      ((__u64) md.cap_len << 32) | BPF_F_CURRENT_CPU,

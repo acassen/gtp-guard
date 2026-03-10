@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tools.h"
+#include "capture-def.h"
 
 /* #define UPF_DEBUG */
 
@@ -41,6 +42,7 @@ struct upf_egress_key {
 	(UPF_FWD_FL_ACT_CREATE_OUTER_HEADER |	\
 	 UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER)
 
+/* struct size must be a multiple of 8 (percpu map) */
 struct upf_fwd_rule {
 	__be32		gtpu_remote_teid;
 	__be32		gtpu_remote_addr;
@@ -61,5 +63,7 @@ struct upf_fwd_rule {
 
 	__u16		flags;
 
-	__u8		_pad[4];
+	struct capture_bpf_entry capture;	/* 6 bytes */
+
+	__u8		_pad[6];
 }  __attribute__((packed));

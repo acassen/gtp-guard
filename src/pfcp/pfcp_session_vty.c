@@ -216,12 +216,82 @@ DEFUN(clear_pfcp_session,
 }
 
 
+/* Capture */
+DEFUN(capture_start_pfcp,
+      capture_start_pfcp_cmd,
+      "capture pfcp (imsi|imei|msisdn) USER start CAPENTRY [side (ingress|egress|both) caplen <32-10000>]",
+      "Capture menu\n"
+      "Capture pfcp submenu\n")
+{
+	struct pfcp_session *s;
+	struct gtp_conn *c = NULL;
+	uint64_t v = atoll(argv[1]);
+
+	if (!strcmp(argv[0], "imsi"))
+		c = gtp_conn_get_by_imsi(v);
+	else if (!strcmp(argv[0], "imei"))
+		c = gtp_conn_get_by_imei(v);
+	else if (!strcmp(argv[0], "msisdn"))
+		c = gtp_conn_get_by_msisdn(v);
+
+	if (c == NULL) {
+		vty_out(vty, "%% Cannot find user '%s' by %s\n", argv[1], argv[0]);
+		return CMD_WARNING;
+	}
+
+	list_for_each_entry(s, &c->pfcp_sessions, next) {
+		if (gtp_capture_start(&s->capture, s->router->bpf_prog, argv[2])) {
+			vty_out(vty, "%% Error starting pfcp trace\n");
+			return CMD_WARNING;
+		}
+		pfcp_session_update_fwd_rules(s);
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(capture_stop_pfcp,
+      capture_stop_pfcp_cmd,
+      "capture pfcp (imsi|imei|msisdn) USER stop",
+      "Capture menu\n"
+      "Capture interface submenu\n"
+      "Interface name\n"
+      "Stop capture\n")
+{
+	struct pfcp_session *s;
+	struct gtp_conn *c = NULL;
+	uint64_t v = atoll(argv[1]);
+
+	if (!strcmp(argv[0], "imsi"))
+		c = gtp_conn_get_by_imsi(v);
+	else if (!strcmp(argv[0], "imei"))
+		c = gtp_conn_get_by_imei(v);
+	else if (!strcmp(argv[0], "msisdn"))
+		c = gtp_conn_get_by_msisdn(v);
+
+	if (c == NULL) {
+		vty_out(vty, "%% Cannot find user '%s' by %s\n", argv[1], argv[0]);
+		return CMD_WARNING;
+	}
+
+	list_for_each_entry(s, &c->pfcp_sessions, next) {
+		gtp_capture_stop(&s->capture);
+		pfcp_session_update_fwd_rules(s);
+	}
+
+	return CMD_SUCCESS;
+}
+
+
 /*
  *	VTY init
  */
 int
 cmd_ext_pfcp_session_install(void)
 {
+	install_element(ENABLE_NODE, &capture_start_pfcp_cmd);
+	install_element(ENABLE_NODE, &capture_stop_pfcp_cmd);
+
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_pfcp_session_cmd);
 	install_element(ENABLE_NODE, &show_pfcp_session_cmd);

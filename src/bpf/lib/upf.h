@@ -11,6 +11,7 @@
 #include <bpf_endian.h>
 
 #include "upf-def.h"
+#include "capture.h"
 #include "if_rule.h"
 
 
@@ -43,6 +44,8 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	void *data, *data_end;
 	int adjust_sz, pkt_len;
 	__u32 csum = 0;
+
+	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_EGRESS);
 
 	/* encap in gtp-u, make room */
 	adjust_sz = sizeof(*iph) + sizeof(*udph) + sizeof(*gtph);
@@ -88,7 +91,7 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	udph->source = u->gtpu_local_port;
 	udph->dest = u->gtpu_remote_port;
 	udph->len = bpf_htons(pkt_len);
-	udph->check = 0;	/* hardware checksum feature, save us! */
+	udph->check = 0;
 
 	pkt_len -= sizeof(*udph) + sizeof(*gtph);
 	gtph->flags = GTPU_FLAGS;
@@ -97,6 +100,8 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	gtph->teid = u->gtpu_remote_teid;
 
 	d->dst_addr.ip4 = u->gtpu_remote_addr;
+
+	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_INGRESS);
 
 	/* metrics */
 	++u->fwd_packets;
@@ -199,6 +204,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	if (u == NULL)
 		return XDP_PASS;
 
+	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_INGRESS);
+
 #if __clang_major__ == 21 && __clang_minor__ == 1
 	pkt_len = data_end - data;
 	barrier_var(pkt_len);
@@ -265,6 +272,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	if (bpf_xdp_adjust_head(ctx, adjust_sz) < 0)
 		return XDP_ABORTED;
 	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
+
+	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_EGRESS);
 
 	/* metrics */
 	++u->fwd_packets;

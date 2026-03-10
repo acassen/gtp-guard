@@ -544,6 +544,7 @@ gtp_capture_start(struct gtp_capture_entry *e, struct gtp_bpf_prog *p,
 			break;
 	bcc->ae[i] = e;
 	e->entry_id = i + 1;
+	e->flags |= GTP_CAPTURE_FL_NEED_BPF_UPDATE;
 	++bcc->ae_n;
 
 	/* add fentry/fexit trace */
@@ -614,6 +615,7 @@ gtp_capture_stop(struct gtp_capture_entry *e)
 	if (e->entry_id) {
 		bcc->ae[e->entry_id - 1] = NULL;
 		--bcc->ae_n;
+		e->flags |= GTP_CAPTURE_FL_NEED_BPF_UPDATE;
 		if (e->closed_cb != NULL)
 			e->closed_cb(e->cb_ud, e);
 	}

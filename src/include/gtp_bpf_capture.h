@@ -28,10 +28,11 @@ struct gtp_capture_entry;
 
 #define GTP_CAPTURE_DEFAULT_CAPLEN		96
 
-#define GTP_CAPTURE_FL_INGRESS			0x01
-#define GTP_CAPTURE_FL_EGRESS			0x02
-#define GTP_CAPTURE_FL_DIRECTION_MASK		0x03
-#define GTP_CAPTURE_FL_USE_TRACEFUNC		0x04
+#define GTP_CAPTURE_FL_INGRESS			0x0001
+#define GTP_CAPTURE_FL_EGRESS			0x0002
+#define GTP_CAPTURE_FL_DIRECTION_MASK		0x0003
+#define GTP_CAPTURE_FL_USE_TRACEFUNC		0x0004
+#define GTP_CAPTURE_FL_NEED_BPF_UPDATE		0x0008
 
 typedef void (*gtp_capture_entry_cb_t)(void *, struct gtp_capture_entry *);
 

@@ -342,6 +342,9 @@ pfcp_session_destroy(struct pfcp_session *s)
 {
 	struct gtp_conn *c = s->conn;
 
+	if (s->capture.entry_id)
+		gtp_capture_stop(&s->capture);
+
 	thread_del(s->timer);
 	pfcp_session_release(s);
 

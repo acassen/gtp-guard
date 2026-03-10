@@ -583,7 +583,7 @@ pfcp_session_create_pdr(struct pfcp_session *s, struct pdr *pdr,
 		pdr->far = pfcp_session_get_far_by_id(s, ie->far_id->value);
 
 	if (ie->outer_header_removal)
-		pdr->flags |= UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER; 
+		pdr->flags |= UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER;
 
 	if (ie->urr_id) {
 		for (i = 0; i < ie->nr_urr_id && i < PFCP_MAX_NR_ELEM; i++) {
@@ -616,7 +616,7 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	struct upf_fwd_rule *u = &r->rule;
 	struct far *f = p->far;
 	struct qer *q = p->qer;
-	
+
 	/* Rule flags init */
 	u->flags = 0;
 	u->flags |= p->flags;
@@ -648,6 +648,12 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	/* FAR Level Marking */
 	u->tos_tclass = f->tos_tclass ? : 0;
 	u->tos_mask = f->tos_mask ? : 0;
+
+	/* Packet capture */
+	u->capture.flags = s->capture.flags & GTP_CAPTURE_FL_DIRECTION_MASK;
+	u->capture.cap_len = s->capture.cap_len;
+	u->capture.entry_id = s->capture.entry_id;
+	s->capture.flags &= ~GTP_CAPTURE_FL_NEED_BPF_UPDATE;
 
 	/* Set data-path */
 	if (u->flags & UPF_FWD_FL_EGRESS) {
@@ -765,7 +771,7 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 	return 0;
 }
 
-static int
+int
 pfcp_session_update_fwd_rules(struct pfcp_session *s)
 {
 	struct pfcp_fwd_rule *r;
@@ -783,7 +789,8 @@ pfcp_session_update_fwd_rules(struct pfcp_session *s)
 			continue;
 
 		/* Update needed ? */
-		if (!p->action && (f && !f->action) && (q && !q->action))
+		if (!p->action && (f && !f->action) && (q && !q->action) &&
+		    !(s->capture.flags & GTP_CAPTURE_FL_NEED_BPF_UPDATE))
 			continue;
 
 		r->action = PFCP_ACT_UPDATE;
