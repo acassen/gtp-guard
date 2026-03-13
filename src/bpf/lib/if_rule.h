@@ -460,6 +460,9 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);
 
+	if (a->ifindex == ctx->ingress_ifindex)
+		return XDP_TX;
+
 	/* remember that forwarding must be enabled on input interface ! */
 	return bpf_redirect(a->ifindex, 0);
 }
