@@ -62,8 +62,6 @@ pfcp_ie_decode_bcd_field(const uint8_t **cp, const uint8_t *end, uint64_t *outpu
 	uint8_t len;
 
 	/* init, NULL argument supported */
-	if (!*output)
-		return 0;
 	*output = 0;
 
 	/* bound checking */
@@ -90,14 +88,26 @@ pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi, uint64_t *im
 	const uint8_t *end = (const uint8_t *)uid + sizeof(struct pfcp_ie) + ntohs(uid->h.length);
 	const uint8_t *cp = uid->value;
 
-	if (uid->imsif && pfcp_ie_decode_bcd_field(&cp, end, imsi))
-		return -1;
+	if (uid->imsif) {
+		if (pfcp_ie_decode_bcd_field(&cp, end, imsi))
+			return -1;
+	} else {
+		*imsi = 0;
+	}
 
-	if (uid->imeif && pfcp_ie_decode_bcd_field(&cp, end, imei))
-		return -1;
+	if (uid->imeif) {
+		if (pfcp_ie_decode_bcd_field(&cp, end, imei))
+			return -1;
+	} else {
+		*imei = 0;
+	}
 
-	if (uid->msisdnf && pfcp_ie_decode_bcd_field(&cp, end, msisdn))
-		return -1;
+	if (uid->msisdnf) {
+		if (pfcp_ie_decode_bcd_field(&cp, end, msisdn))
+			return -1;
+	} else {
+		*msisdn = 0;
+	}
 
 	return 0;
 }
