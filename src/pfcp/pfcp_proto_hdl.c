@@ -290,6 +290,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
 						       PFCP_CAUSE_REQUEST_REJECTED);
 	}
+	if (!apn) {
+		log_message(LOG_INFO, "%s(): No APN selected... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
+	}
 
 	/* User infos */
 	if (!req->user_id) {
