@@ -278,6 +278,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	pfcp_msg_reset_hlen(pbuff);
 	pfcph->type = PFCP_SESSION_ESTABLISHMENT_RESPONSE;
 
+	if (!pfcph->s) {
+		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
+	}
+
 	assoc = pfcp_assoc_get_by_ie(req->node_id);
 	if (!assoc)
 		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
