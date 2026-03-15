@@ -505,6 +505,7 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 		 uint32_t *id)
 {
 	struct ue_ip_address *ue_ip;
+	struct ue_ip_address *ue_ip_s = &s->ue_ip;
 	struct pfcp_ie_f_teid *fteid;
 	struct pfcp_teid *t;
 
@@ -525,11 +526,31 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 		return pdr->te ? 0 : -1;
 	}
 
-	if (!fteid)
-		return 0;
-
 	if (pdi->ue_ip_address) {
 		ue_ip = &pdr->ue_ip;
+		if (pdi->ue_ip_address->chv4) {
+			ue_ip->flags |= UE_CHV4;
+			/* Session UE IP Address is not initialized */
+			if (!(ue_ip_s->flags & UE_IPV4)) {
+				if (pfcp_session_alloc_ue_ip(s, AF_INET)) {
+					errno = ENOSPC;
+					return -1;
+				}
+			}
+		}
+
+		if (pdi->ue_ip_address->chv6) {
+			ue_ip->flags |= UE_CHV6;
+			/* Session UE IP Address is not initialized */
+			if (!(ue_ip_s->flags & UE_IPV6)) {
+				if (pfcp_session_alloc_ue_ip(s, AF_INET6)) {
+					pfcp_session_release_ue_ip(s);
+					errno = ENOSPC;
+					return -1;
+				}
+			}
+		}
+
 		if (pdi->ue_ip_address->v4) {
 			ue_ip->flags |= UE_IPV4;
 			ue_ip->v4 = pdi->ue_ip_address->ip_address.v4;
@@ -541,6 +562,9 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 			       sizeof(struct in6_addr));
 		}
 	}
+
+	if (!fteid)
+		return 0;
 
 	if (fteid->chid)
 		pdr->choose_id = fteid->choose_id;
@@ -907,11 +931,10 @@ pfcp_session_init_teid_values(struct pfcp_teid *t, uint32_t *teid,
 }
 
 static int
-pfcp_session_init_ue_values(struct pfcp_session *s, struct traffic_endpoint *te,
+pfcp_session_init_ue_values(struct pfcp_session *s, struct ue_ip_address *ue_ip,
 			    struct in_addr **ipv4, struct in6_addr **ipv6)
 {
 	struct ue_ip_address *ue_ip_s = &s->ue_ip;
-	struct ue_ip_address *ue_ip = &te->ue_ip;
 	struct in_addr *v4 = &ue_ip_s->v4;
 	struct in6_addr *v6 = &ue_ip_s->v6;
 
@@ -933,13 +956,20 @@ pfcp_session_put_created_pdr(struct pkt_buffer *pbuff, struct pfcp_session *s)
 {
 	struct pdr *p;
 	uint32_t teid;
-	struct in_addr *ipv4;
-	struct in6_addr *ipv6;
+	struct in_addr *t_ipv4, *ue_ipv4;
+	struct in6_addr *t_ipv6, *ue_ipv6;
 	int err;
 
 	list_for_each_entry(p, &s->pdr_list, next) {
-		pfcp_session_init_teid_values(p->teid, &teid, &ipv4, &ipv6);
-		err = pfcp_ie_put_created_pdr(pbuff, p->id, htonl(teid), ipv4, ipv6);
+		pfcp_session_init_teid_values(p->teid, &teid, &t_ipv4, &t_ipv6);
+		err = pfcp_session_init_ue_values(s, &p->ue_ip, &ue_ipv4, &ue_ipv6);
+		if (err) {
+			errno = ENOSPC;
+			return -1;
+		}
+
+		err = pfcp_ie_put_created_pdr(pbuff, p->id, htonl(teid),
+					      t_ipv4, t_ipv6, ue_ipv4, ue_ipv6);
 		if (err)
 			return -1;
 	}
@@ -958,7 +988,7 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 
 	list_for_each_entry(te, &s->te_list, next) {
 		pfcp_session_init_teid_values(te->teid, &teid, &t_ipv4, &t_ipv6);
-		err = pfcp_session_init_ue_values(s, te, &ue_ipv4, &ue_ipv6);
+		err = pfcp_session_init_ue_values(s, &te->ue_ip, &ue_ipv4, &ue_ipv6);
 		if (err) {
 			errno = ENOSPC;
 			return -1;

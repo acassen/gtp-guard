@@ -3486,7 +3486,8 @@ int pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
 		       const struct sockaddr_storage *addr);
 int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
 			    const uint32_t teid, const struct in_addr *ipv4,
-			    const struct in6_addr *ipv6);
+			    const struct in6_addr *ipv6, const struct in_addr *ue_ipv4,
+			    const struct in6_addr *ue_ipv6);
 int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
 		           const uint32_t teid,
 			   const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,

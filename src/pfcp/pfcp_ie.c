@@ -314,59 +314,6 @@ pfcp_ie_put_f_teid(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t t
 }
 
 static int
-pfcp_ie_put_pdr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint16_t pdr_id)
-{
-	struct pfcp_ie_pdr_id *ie;
-	unsigned int length = sizeof(*ie);
-
-	if (pfcp_ie_put(pbuff, PFCP_IE_PDR_ID, length) < 0)
-		return -1;
-
-	/* Update Container IE */
-	c->length = htons(ntohs(c->length) + length);
-
-	ie = (struct pfcp_ie_pdr_id *) pbuff->data;
-	ie->rule_id = pdr_id;
-	pkt_buffer_put_data(pbuff, length);
-	pkt_buffer_put_end(pbuff, length);
-	return 0;
-}
-
-int
-pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
-		       const uint32_t teid, const struct in_addr *ipv4,
-		       const struct in6_addr *ipv6)
-{
-	struct pfcp_ie *ie_created_pdr = (struct pfcp_ie *) pbuff->data;
-	int err;
-
-	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_PDR);
-	err = (err) ? : pfcp_ie_put_pdr_id(pbuff, ie_created_pdr, pdr_id);
-	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_pdr, teid, ipv4, ipv6);
-
-	return err;
-}
-
-static int
-pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
-{
-	struct pfcp_ie_traffic_endpoint_id *ie;
-	unsigned int length = sizeof(*ie);
-
-	if (pfcp_ie_put(pbuff, PFCP_IE_TRAFFIC_ENDPOINT_ID, length) < 0)
-		return -1;
-
-	/* Update Container IE */
-	c->length = htons(ntohs(c->length) + length);
-
-	ie = (struct pfcp_ie_traffic_endpoint_id *) pbuff->data;
-	ie->value = id;
-	pkt_buffer_put_data(pbuff, length);
-	pkt_buffer_put_end(pbuff, length);
-	return 0;
-}
-
-static int
 pfcp_ie_put_ue_ip_address(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 			  const struct in_addr *ipv4, const struct in6_addr *ipv6)
 {
@@ -406,6 +353,61 @@ pfcp_ie_put_ue_ip_address(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 		memcpy(&ie->ip_address.both.v6, ipv6, sizeof(struct in6_addr));
 	}
 
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+static int
+pfcp_ie_put_pdr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint16_t pdr_id)
+{
+	struct pfcp_ie_pdr_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_PDR_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_pdr_id *) pbuff->data;
+	ie->rule_id = pdr_id;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
+			const uint32_t teid, const struct in_addr *ipv4,
+			const struct in6_addr *ipv6, const struct in_addr *ue_ipv4,
+			const struct in6_addr *ue_ipv6)
+{
+	struct pfcp_ie *ie_created_pdr = (struct pfcp_ie *) pbuff->data;
+	int err;
+
+	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_PDR);
+	err = (err) ? : pfcp_ie_put_pdr_id(pbuff, ie_created_pdr, pdr_id);
+	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_pdr, teid, ipv4, ipv6);
+	err = (err) ? : pfcp_ie_put_ue_ip_address(pbuff, ie_created_pdr, ue_ipv4, ue_ipv6);
+
+	return err;
+}
+
+static int
+pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
+{
+	struct pfcp_ie_traffic_endpoint_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_TRAFFIC_ENDPOINT_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_traffic_endpoint_id *) pbuff->data;
+	ie->value = id;
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
