@@ -13,23 +13,8 @@
 
 #include "tools.h"
 #include "if_rule-def.h"
-
-
-/*
- * this is an optional way to add custom data to if_rule key: define
- * if_rule_key, IF_RULE_CUSTOM_KEY, and add a parser function to
- * if_rule_data.
- */
-#ifndef IF_RULE_CUSTOM_KEY
-struct if_rule_key
-{
-	struct if_rule_key_base b;
-} __attribute__((packed));
-#endif
-
-struct if_rule_data;
-typedef int (*rule_selector_t)(struct if_rule_data *d, struct iphdr *iph);
-
+#include "if_rule-priv.h"
+#include "capture.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
@@ -45,21 +30,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct if_rule_attr);
 } if_rule_attr SEC(".maps");
-
-
-
-#define IF_RULE_FL_SRC_IPV6		0x0001
-#define IF_RULE_FL_DST_IPV6		0x0002
-#define IF_RULE_FL_XDP_ADJUSTED		0x0004
-
-struct if_rule_data
-{
-	struct if_rule_key	k;
-	struct if_rule		*r;
-	__u16			flags;
-	__u16			pl_off;
-	union v4v6addr		dst_addr;
-};
 
 
 static __always_inline int
@@ -282,7 +252,7 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	struct if_rule *r = d->r;
 	void *data, *data_end, *payload;
 	struct ethhdr *ethh;
-	int fibl_ret, adjust_sz;
+	int i, fibl_ret, adjust_sz;
 	__u32 flags;
 
 	if (r->force_ifindex) {
@@ -483,6 +453,14 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 
 	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);
+
+	/* output capture(s) should be done once full headers rewrite is done */
+#pragma unroll
+	for (i = 0; i < ARRAY_SIZE(d->cap_entries) && d->cap_entries[i]; i++) {
+		capture_xdp_to_userspc(ctx, data, data_end,
+				       d->cap_entries[i], d->cap_len[i],
+				       BPF_CAPTURE_EFL_OUTPUT);
+	}
 
 	if (a->ifindex == ctx->ingress_ifindex)
 		return XDP_TX;

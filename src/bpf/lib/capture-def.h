@@ -2,9 +2,12 @@
 
 #pragma once
 
-#define BPF_CAPTURE_EFL_INGRESS			0x0001
-#define BPF_CAPTURE_EFL_EGRESS			0x0002
+#define BPF_CAPTURE_EFL_INPUT			0x0001
+#define BPF_CAPTURE_EFL_OUTPUT			0x0002
+#define BPF_CAPTURE_EFL_ACCESS			0x0004
+#define BPF_CAPTURE_EFL_CORE			0x0008
 #define BPF_CAPTURE_EFL_BY_IFACE		0x0100
+
 
 /* capture entries set by userspace */
 struct capture_bpf_entry

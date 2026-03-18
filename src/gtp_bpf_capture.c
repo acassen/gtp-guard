@@ -472,7 +472,6 @@ gtp_capture_start_iface(struct gtp_capture_entry *e, struct gtp_bpf_prog *p,
 	be.flags = e->flags & GTP_CAPTURE_FL_DIRECTION_MASK;
 	be.entry_id = e->entry_id;
 	be.cap_len = e->cap_len ?: GTP_CAPTURE_DEFAULT_CAPLEN;
-	printf("flags: %x\n", be.flags);
 	ret = bpf_map__update_elem(bcc->iface_map, &iface, sizeof (iface),
 				   &be, sizeof (be), 0);
 	if (ret)
@@ -507,6 +506,17 @@ gtp_capture_start(struct gtp_capture_entry *e, struct gtp_bpf_prog *p,
 		return 0;
 	e->entry_id = 0;
 	e->cf = NULL;
+	e->cap_len = e->cap_len ?: GTP_CAPTURE_DEFAULT_CAPLEN;
+
+	/* no specified direction */
+	if (!(e->flags & 0x000f)) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (!(e->flags & GTP_CAPTURE_FL_SIDE_MASK))
+		e->flags |= GTP_CAPTURE_FL_SIDE_MASK;
+	if (!(e->flags & GTP_CAPTURE_FL_DIRECTION_MASK))
+		e->flags |= GTP_CAPTURE_FL_DIRECTION_MASK;
 
 	/* bpf program must be running */
 	if (p->obj_run == NULL)
@@ -603,14 +613,16 @@ void
 gtp_capture_stop(struct gtp_capture_entry *e)
 {
 	struct gtp_bpf_capture_ctx *bcc = e->bcc;
+	struct gtp_capture_file *cf;
 	int i;
 
 	if (bcc == NULL)
 		return;
 
 	if (e->cf != NULL) {
-		capture_file_put(e->cf);
+		cf = e->cf;
 		e->cf = NULL;
+		capture_file_put(cf);
 	}
 	if (e->entry_id) {
 		bcc->ae[e->entry_id - 1] = NULL;

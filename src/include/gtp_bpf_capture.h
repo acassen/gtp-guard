@@ -28,11 +28,18 @@ struct gtp_capture_entry;
 
 #define GTP_CAPTURE_DEFAULT_CAPLEN		96
 
-#define GTP_CAPTURE_FL_INGRESS			0x0001
-#define GTP_CAPTURE_FL_EGRESS			0x0002
+/* INPUT: xdp RX entry function
+ * OUTPUT: xdp RX exit function (as we mainly fwd, this is output)
+ * ACCESS: xdp 'access' side (input on one side, output on the other)
+ * CORE: xdp 'core' side (reverse of access side) */
+#define GTP_CAPTURE_FL_INPUT			0x0001
+#define GTP_CAPTURE_FL_OUTPUT			0x0002
+#define GTP_CAPTURE_FL_ACCESS			0x0004
+#define GTP_CAPTURE_FL_CORE			0x0008
 #define GTP_CAPTURE_FL_DIRECTION_MASK		0x0003
-#define GTP_CAPTURE_FL_USE_TRACEFUNC		0x0004
-#define GTP_CAPTURE_FL_NEED_BPF_UPDATE		0x0008
+#define GTP_CAPTURE_FL_SIDE_MASK		0x000c
+#define GTP_CAPTURE_FL_USE_TRACEFUNC		0x0010
+#define GTP_CAPTURE_FL_NEED_BPF_UPDATE		0x0020
 
 typedef void (*gtp_capture_entry_cb_t)(void *, struct gtp_capture_entry *);
 

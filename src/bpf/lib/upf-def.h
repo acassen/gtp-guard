@@ -5,7 +5,7 @@
 #include "tools.h"
 #include "capture-def.h"
 
-/* #define UPF_DEBUG */
+//#define UPF_DEBUG
 
 #ifdef UPF_DEBUG
 # define UPF_DBG(Fmt, ...) bpf_printk(Fmt, ## __VA_ARGS__)

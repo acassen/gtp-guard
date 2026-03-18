@@ -392,20 +392,21 @@ DEFUN(interface_no_shutdown,
 /* Capture */
 DEFUN(capture_start_interface,
       capture_start_interface_cmd,
-      "capture interface IFNAME start CAPENTRY [side (ingress|egress|both) caplen <32-10000>]",
+      "capture interface IFNAME start [CAPENTRY side (input|output|both) caplen <32-10000>]",
       "Capture menu\n"
       "Capture interface submenu\n"
       "Interface name\n"
       "Start capture\n"
       "Capture file entry\n"
       "Capture side, on interface entry and/or exit\n"
-      "Capture on interface ingress\n"
-      "Capture on interface egress\n"
-      "Capture on interface ingress and egres\n"
+      "Capture on interface ingress/input\n"
+      "Capture on interface egress/output\n"
+      "Capture on interface ingress and egress\n"
       "Capture packet max length\n"
       "Value\n")
 {
 	struct gtp_interface *iface = NULL;
+	char capname[64];
 
 	iface = gtp_interface_get(argv[0], false);
 	if (!iface) {
@@ -418,19 +419,24 @@ DEFUN(capture_start_interface,
 		return CMD_WARNING;
 	}
 
+	if (argc > 1)
+		snprintf(capname, sizeof (capname), "%s", argv[1]);
+	else
+		snprintf(capname, sizeof (capname), "%s", iface->ifname);
+
 	iface->capture_entry.flags = 0;
 	if (argc > 3) {
-		if (!strcmp(argv[3], "egress") || !strcmp(argv[3], "both"))
-			iface->capture_entry.flags |= GTP_CAPTURE_FL_EGRESS;
-		if (!strcmp(argv[3], "ingress") || !strcmp(argv[3], "both"))
-			iface->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+		if (!strcmp(argv[3], "output") || !strcmp(argv[3], "both"))
+			iface->capture_entry.flags |= GTP_CAPTURE_FL_OUTPUT;
+		if (!strcmp(argv[3], "input") || !strcmp(argv[3], "both"))
+			iface->capture_entry.flags |= GTP_CAPTURE_FL_INPUT;
 	} else {
-		iface->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+		iface->capture_entry.flags |= GTP_CAPTURE_FL_INPUT;
 	}
 
 	if (gtp_capture_start_iface(&iface->capture_entry, iface->bpf_prog,
-				    argv[1], iface->ifindex)) {
-		vty_out(vty, "%% error starting interface trace\n");
+				    capname, iface->ifindex)) {
+		vty_out(vty, "%% Error starting interface trace\n");
 		return CMD_WARNING;
 	}
 

@@ -338,8 +338,8 @@ DEFUN(bpf_prog_no_shutdown,
 /* Capture */
 DEFUN(capture_start_bpf_prog,
       capture_start_bpf_prog_cmd,
-      "capture prog BPFNAME start NAME  [side (ingress|egress|both) caplen <32-10000>]",
-      "capture\n"
+      "capture prog BPFNAME start [CAPENTRY side (ingress|egress|all) caplen <32-10000>]",
+      "Capture menu\n"
       "start\n"
       "BPF Program\n")
 {
@@ -352,18 +352,21 @@ DEFUN(capture_start_bpf_prog,
 	}
 
 	if (argc >= 4) {
-		if (!strcmp(argv[3], "ingress") || !strcmp(argv[3], "both"))
-			p->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
-		if (!strcmp(argv[3], "egress") || !strcmp(argv[3], "both"))
-			p->capture_entry.flags |= GTP_CAPTURE_FL_EGRESS;
+		if (!strcmp(argv[3], "ingress") || !strcmp(argv[3], "all"))
+			p->capture_entry.flags |= GTP_CAPTURE_FL_INPUT;
+		if (!strcmp(argv[3], "egress") || !strcmp(argv[3], "all"))
+			p->capture_entry.flags |= GTP_CAPTURE_FL_OUTPUT;
 	} else {
-		p->capture_entry.flags |= GTP_CAPTURE_FL_INGRESS;
+		p->capture_entry.flags |= GTP_CAPTURE_FL_INPUT;
 	}
 
-	p->capture_entry.cap_len = 96; /* xxx argv[5] */
+	if (argc > 5)
+		VTY_GET_INTEGER_RANGE("caplen", p->capture_entry.cap_len,
+				      argv[5], 32, 10000);
 
-	if (gtp_capture_start_all(&p->capture_entry, p, argv[1]) < 0) {
-		vty_out(vty, "%% error starting trace");
+	if (gtp_capture_start_all(&p->capture_entry, p,
+				  argc > 1 ? argv[1] : argv[0]) < 0) {
+		vty_out(vty, "%% Error starting trace\n");
 		return CMD_WARNING;
 	}
 

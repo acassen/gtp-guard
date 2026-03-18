@@ -45,7 +45,8 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	int adjust_sz, pkt_len;
 	__u32 csum = 0;
 
-	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_EGRESS);
+	capture_xdp_to_userspc_in(ctx, &u->capture, BPF_CAPTURE_EFL_INPUT |
+				  BPF_CAPTURE_EFL_CORE);
 
 	/* encap in gtp-u, make room */
 	adjust_sz = sizeof(*iph) + sizeof(*udph) + sizeof(*gtph);
@@ -101,7 +102,8 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 
 	d->dst_addr.ip4 = u->gtpu_remote_addr;
 
-	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_INGRESS);
+	capture_xdp_to_userspc_out(d, &u->capture, BPF_CAPTURE_EFL_OUTPUT |
+				   BPF_CAPTURE_EFL_ACCESS);
 
 	/* metrics */
 	++u->fwd_packets;
@@ -204,7 +206,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	if (u == NULL)
 		return XDP_PASS;
 
-	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_INGRESS);
+	capture_xdp_to_userspc_in(ctx, &u->capture, BPF_CAPTURE_EFL_INPUT |
+				  BPF_CAPTURE_EFL_ACCESS);
 
 #if __clang_major__ == 21 && __clang_minor__ == 1
 	pkt_len = data_end - data;
@@ -273,7 +276,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 		return XDP_ABORTED;
 	d->flags |= IF_RULE_FL_XDP_ADJUSTED;
 
-	capture_xdp_to_userspc(ctx, &u->capture, BPF_CAPTURE_EFL_EGRESS);
+	capture_xdp_to_userspc_out(d, &u->capture, BPF_CAPTURE_EFL_OUTPUT |
+				   BPF_CAPTURE_EFL_CORE);
 
 	/* metrics */
 	++u->fwd_packets;

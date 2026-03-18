@@ -61,7 +61,7 @@ capture_trace_to_userspc(struct xdp_buff *xdp, int action)
 	if (e == NULL)
 		return;
 
-	dir = action == -1 ? BPF_CAPTURE_EFL_INGRESS : BPF_CAPTURE_EFL_EGRESS;
+	dir = action == -1 ? BPF_CAPTURE_EFL_INPUT : BPF_CAPTURE_EFL_OUTPUT;
 
 	md.ifindex = xdp->rxq->dev->ifindex;
 	md.rx_queue = xdp->rxq->queue_index;

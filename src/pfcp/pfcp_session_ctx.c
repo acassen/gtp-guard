@@ -687,7 +687,8 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	u->tos_mask = f->tos_mask ? : 0;
 
 	/* Packet capture */
-	u->capture.flags = s->capture.flags & GTP_CAPTURE_FL_DIRECTION_MASK;
+	u->capture.flags = s->capture.flags &
+		(GTP_CAPTURE_FL_DIRECTION_MASK | GTP_CAPTURE_FL_SIDE_MASK);
 	u->capture.cap_len = s->capture.cap_len;
 	u->capture.entry_id = s->capture.entry_id;
 	s->capture.flags &= ~GTP_CAPTURE_FL_NEED_BPF_UPDATE;
