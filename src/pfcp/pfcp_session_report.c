@@ -126,15 +126,14 @@ pfcp_session_report_send(struct thread *t)
 	}
 
 	/* Run, Baby, Run */
-	inet_server_snd(&srv->s, srv->s.fd, pbuff, (struct sockaddr_in *) &report->addr);
+	inet_server_snd(&srv->s, srv->s.fd, pbuff, (struct sockaddr_in *) &s->remote_seid.addr);
 end:
 	__pkt_queue_put(&srv->pkt_q, p);
 }
 
 void
 pfcp_session_report(struct pfcp_session *s,
-		    struct pfcp_session_modification_request *req,
-		    struct sockaddr_storage *addr)
+		    struct pfcp_session_modification_request *req)
 {
 	struct pfcp_report *r = &s->report;
 	struct pfcp_ie_query_urr_reference *ie_urr_ref = req->query_urr_reference;
@@ -156,8 +155,6 @@ pfcp_session_report(struct pfcp_session *s,
 
 	/* Query URR ref */
 	r->query_urr_ref = (ie_urr_ref) ? ie_urr_ref->value : 0;
-
-	r->addr = *addr;
 
 	thread_add_event(master, pfcp_session_report_send, s, 0);
 }

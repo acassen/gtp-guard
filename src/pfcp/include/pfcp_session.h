@@ -179,7 +179,6 @@ struct pfcp_fwd_rule {
 
 /* PFCP session */
 struct pfcp_report {
-	struct sockaddr_storage addr;
 	uint32_t		query_urr_ref;
 	uint32_t		urr_id[PFCP_MAX_NR_ELEM];
 };

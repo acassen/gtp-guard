@@ -24,6 +24,5 @@
 
 /* Prototypes */
 void pfcp_session_report(struct pfcp_session *s,
-			 struct pfcp_session_modification_request *req,
-			 struct sockaddr_storage *addr);
+			 struct pfcp_session_modification_request *req);
 

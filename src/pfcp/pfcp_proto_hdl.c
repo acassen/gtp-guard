@@ -405,7 +405,7 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	/* URR query ? */
 	if ((req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) || req->nr_query_urr) {
 		/* handle request before recycle buffer mangling */
-		pfcp_session_report(s, req, addr);
+		pfcp_session_report(s, req);
 
 		err = pfcp_ie_put_additional_usage_reports_info(pbuff, true, 0);
 		if (err) {
