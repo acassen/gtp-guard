@@ -178,11 +178,6 @@ struct pfcp_fwd_rule {
 
 
 /* PFCP session */
-struct pfcp_report {
-	uint32_t		query_urr_ref;
-	uint32_t		urr_id[PFCP_MAX_NR_ELEM];
-};
-
 struct pfcp_session {
 	uint64_t		seid;
 	struct f_seid		remote_seid;
@@ -202,9 +197,6 @@ struct pfcp_session {
 	struct gtp_cdr		*cdr;
 
 	uint8_t			action;
-
-	/* Reporting context */
-	struct pfcp_report	report;
 
 	/* Expiration handling */
 	char			tmp_str[64];

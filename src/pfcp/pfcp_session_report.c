@@ -30,9 +30,14 @@
 #include "inet_utils.h"
 #include "logger.h"
 
+struct pfcp_report {
+	struct pfcp_session	*s;
+	uint32_t		query_urr_ref;
+	uint32_t		urr_id[PFCP_MAX_NR_ELEM];
+};
+
 /* Extern data */
 extern struct thread_master *master;
-
 
 
 static int
@@ -64,10 +69,10 @@ pfcp_session_report_add_urr(struct pkt_buffer *pbuff, struct urr *u,
 static void
 pfcp_session_report_send(struct thread *t)
 {
-	struct pfcp_session *s = THREAD_ARG(t);
+	struct pfcp_report *report = THREAD_ARG(t);
+	struct pfcp_session *s = report->s;
 	struct pfcp_router *r = s->router;
 	struct pfcp_server *srv = &r->s;
-	struct pfcp_report *report = &s->report;
 	struct urr *u;
 	struct pkt *p;
 	struct pkt_buffer *pbuff;
@@ -80,6 +85,7 @@ pfcp_session_report_send(struct thread *t)
 				    , __FUNCTION__
 				    , inet_sockaddrtos(&srv->s.addr)
 				    , ntohs(inet_sockaddrport(&srv->s.addr)));
+		free(report);
 		return;
 	}
 
@@ -129,16 +135,22 @@ pfcp_session_report_send(struct thread *t)
 	inet_server_snd(&srv->s, srv->s.fd, pbuff, (struct sockaddr_in *) &s->remote_seid.addr);
 end:
 	__pkt_queue_put(&srv->pkt_q, p);
+	free(report);
 }
 
 void
 pfcp_session_report(struct pfcp_session *s,
 		    struct pfcp_session_modification_request *req)
 {
-	struct pfcp_report *r = &s->report;
 	struct pfcp_ie_query_urr_reference *ie_urr_ref = req->query_urr_reference;
+	struct pfcp_report *r;
 	struct urr *u;
 	int i;
+
+	r = calloc(1, sizeof (*r));
+	if (r == NULL)
+		return;
+	r->s = s;
 
 	/* Requested URR */
 	if (req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) {
@@ -156,5 +168,5 @@ pfcp_session_report(struct pfcp_session *s,
 	/* Query URR ref */
 	r->query_urr_ref = (ie_urr_ref) ? ie_urr_ref->value : 0;
 
-	thread_add_event(master, pfcp_session_report_send, s, 0);
+	thread_add_event(master, pfcp_session_report_send, r, 0);
 }
