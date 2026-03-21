@@ -55,7 +55,7 @@ enum {
 /* Session components */
 struct f_seid {
 	uint64_t		id;
-	struct sockaddr_storage	addr;
+	union addr		addr;
 };
 
 #define UE_IPV4	(1 << 0)
@@ -218,8 +218,8 @@ struct pfcp_session {
 
 /* Prototypes */
 int pfcp_sessions_count_read(void);
-struct sockaddr_storage *pfcp_session_get_addr_by_interface(struct pfcp_router *r,
-							    uint8_t interface);
+union addr *pfcp_session_get_addr_by_interface(struct pfcp_router *r,
+					       uint8_t interface);
 struct pfcp_session *pfcp_session_get(uint64_t id);
 struct pfcp_session *pfcp_session_alloc(struct gtp_conn *c,
 					struct gtp_apn *apn,
@@ -235,7 +235,7 @@ int pfcp_sessions_init(void);
 int pfcp_sessions_destroy(void);
 int pfcp_session_create(struct pfcp_session *s,
 			struct pfcp_session_establishment_request *req,
-			struct sockaddr_storage *addr);
+			union addr *addr);
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
 int pfcp_session_delete(struct pfcp_session *s);

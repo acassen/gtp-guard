@@ -21,6 +21,7 @@
 
 #include <arpa/inet.h>
 #include <string.h>
+#include "addr.h"
 #include "pfcp.h"
 #include "pfcp_msg.h"
 #include "pfcp_utils.h"
@@ -526,24 +527,24 @@ static const struct {
 } pfcp_dump_msg[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]                = { pfcp_heartbeat_req_format },
-        [PFCP_PFD_MANAGEMENT_REQUEST]           = { NULL },
-        [PFCP_ASSOCIATION_SETUP_REQUEST]        = { NULL },
-        [PFCP_ASSOCIATION_UPDATE_REQUEST]       = { NULL },
-        [PFCP_ASSOCIATION_RELEASE_REQUEST]      = { NULL },
-        [PFCP_NODE_REPORT_REQUEST]              = { NULL },
-        [PFCP_SESSION_SET_DELETION_REQUEST]     = { NULL },
-        [PFCP_SESSION_SET_MODIFICATION_REQUEST] = { NULL },
+	[PFCP_PFD_MANAGEMENT_REQUEST]           = { NULL },
+	[PFCP_ASSOCIATION_SETUP_REQUEST]        = { NULL },
+	[PFCP_ASSOCIATION_UPDATE_REQUEST]       = { NULL },
+	[PFCP_ASSOCIATION_RELEASE_REQUEST]      = { NULL },
+	[PFCP_NODE_REPORT_REQUEST]              = { NULL },
+	[PFCP_SESSION_SET_DELETION_REQUEST]     = { NULL },
+	[PFCP_SESSION_SET_MODIFICATION_REQUEST] = { NULL },
 
 	/* PFCP Session related */
-        [PFCP_SESSION_ESTABLISHMENT_REQUEST]    = { pfcp_session_establishment_req_format },
-        [PFCP_SESSION_MODIFICATION_REQUEST]     = { pfcp_session_modification_req_format },
-        [PFCP_SESSION_DELETION_REQUEST]         = { NULL },
-        [PFCP_SESSION_REPORT_REQUEST]           = { NULL },
+	[PFCP_SESSION_ESTABLISHMENT_REQUEST]    = { pfcp_session_establishment_req_format },
+	[PFCP_SESSION_MODIFICATION_REQUEST]     = { pfcp_session_modification_req_format },
+	[PFCP_SESSION_DELETION_REQUEST]         = { NULL },
+	[PFCP_SESSION_REPORT_REQUEST]           = { NULL },
 };
 
 static void
-pfcp_proto_buffer_format(struct sockaddr_storage *addr, struct pkt_buffer *pbuff,
-		         char *buffer, size_t size, enum pfcp_direction dir)
+pfcp_proto_buffer_format(union addr *addr, struct pkt_buffer *pbuff,
+			 char *buffer, size_t size, enum pfcp_direction dir)
 {
 	int width = 73, padding_left, padding_right, text_len;
 	const char *truncated = " Truncated ";
@@ -554,7 +555,7 @@ pfcp_proto_buffer_format(struct sockaddr_storage *addr, struct pkt_buffer *pbuff
 	snprintf(title, sizeof(title), " %s packet %s [%s]:%d len:%d ",
 		 (dir == PFCP_DIR_INGRESS) ? "ingress" : "egress",
 		 (dir == PFCP_DIR_INGRESS) ? "from" : "to",
-		 inet_sockaddrtos(addr), ntohs(inet_sockaddrport(addr)),
+		 inet_sockaddrtos(&addr->ss), ntohs(inet_sockaddrport(&addr->ss)),
 		 pkt_buffer_len(pbuff));
 	text_len = strlen(title) + 2;
 	padding_left = (width - text_len) / 2;
@@ -613,7 +614,7 @@ pfcp_proto_header_format(struct pkt_buffer *pbuff, char *buffer, size_t size)
 }
 
 void
-pfcp_proto_dump(struct pfcp_server *srv, struct pfcp_msg *msg, struct sockaddr_storage *addr,
+pfcp_proto_dump(struct pfcp_server *srv, struct pfcp_msg *msg, union addr *addr,
 		enum pfcp_direction dir)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;

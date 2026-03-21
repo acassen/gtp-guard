@@ -123,7 +123,7 @@ pfcp_session_get_gtp_server_by_interface(struct pfcp_router *r, uint8_t interfac
 	return srv;
 }
 
-struct sockaddr_storage *
+union addr *
 pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 {
 	struct gtp_server *srv;
@@ -135,14 +135,14 @@ pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 		return NULL;
 	}
 
-	return &srv->s.addr;
+	return (union addr *)&srv->s.addr;
 }
 
 static struct pfcp_teid *
 pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 {
 	struct pfcp_router *r = s->router;
-	struct sockaddr_storage *gtpu_addr = NULL;
+	union addr *gtpu_addr = NULL;
 	struct in_addr *ipv4;
 	struct in6_addr *ipv6;
 	struct pfcp_teid *t;
@@ -152,8 +152,8 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 	if (!gtpu_addr)
 		return NULL;
 
-	ipv4 = (gtpu_addr->ss_family == AF_INET) ? &((struct sockaddr_in *)gtpu_addr)->sin_addr : NULL;
-	ipv6 = (gtpu_addr->ss_family == AF_INET6) ? &((struct sockaddr_in6 *)gtpu_addr)->sin6_addr : NULL;
+	ipv4 = (gtpu_addr->family == AF_INET) ? &gtpu_addr->sin.sin_addr : NULL;
+	ipv6 = (gtpu_addr->family == AF_INET6) ? &gtpu_addr->sin6.sin6_addr : NULL;
 
 	/* Try to use same TEID for different IP Address */
 	if (!*id)  {
@@ -660,13 +660,13 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 			u->gtpu_local_addr = p->te->teid->ipv4.s_addr;
 		} else {
 			/* No local f-teid allocated (downlink) */
-			struct sockaddr_storage *gtpu_addr = NULL;
+			union addr *gtpu_addr = NULL;
 			struct in_addr *ipv4;
 
 			gtpu_addr = pfcp_session_get_addr_by_interface(s->router, f->dst_interface_type);
 			if (gtpu_addr) {
-				ipv4 = (gtpu_addr->ss_family == AF_INET) ?
-					&((struct sockaddr_in *)gtpu_addr)->sin_addr : NULL;
+				ipv4 = (gtpu_addr->family == AF_INET) ?
+					&gtpu_addr->sin.sin_addr : NULL;
 				if (ipv4)
 					u->gtpu_local_addr = ipv4->s_addr;
 			}
@@ -735,7 +735,7 @@ pfcp_session_create_fwd_rules(struct pfcp_session *s)
 
 int
 pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_request *req,
-		    struct sockaddr_storage *addr)
+		    union addr *addr)
 {
 	int i, err = 0;
 	uint32_t id = 0;
