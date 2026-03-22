@@ -481,8 +481,8 @@ pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c, bool term)
 	c->length = htons(ntohs(c->length) + length);
 
 	ie = (struct pfcp_ie_usage_report_trigger *) pbuff->data;
-	ie->immer = 1;		/* Immediate report */
-	ie->termr = (term);	/* Termination report */
+	ie->v.immer = 1;	/* Immediate report */
+	ie->v.termr = (term);	/* Termination report */
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;

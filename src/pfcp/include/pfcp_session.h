@@ -110,11 +110,12 @@ struct qer {
 };
 
 struct urr {
-	uint8_t			action;
-	uint32_t		id;
-	uint8_t			measurement_method;
-	uint8_t			measurement_info;
-	uint16_t		triggers;
+	uint32_t			id;
+	uint8_t				action;
+	union pfcp_measurement_method	measurement_method;
+	union pfcp_measurement_information measurement_info;
+	union pfcp_reporting_triggers	triggers;
+
 	uint32_t		inactivity_detection_time;
 	uint32_t		quota_holdtime;
 	uint64_t		volume_threshold_to;

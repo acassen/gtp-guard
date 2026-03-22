@@ -452,12 +452,12 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 
 	urr->start_time = time_now_to_ntp();
 
-	urr->measurement_method = ie->measurement_method->measurement_method;
+	urr->measurement_method = ie->measurement_method->v;
 
-	urr->triggers = ntohs(ie->reporting_triggers->triggers);
+	urr->triggers = ie->reporting_triggers->v;
 
 	if (ie->measurement_information)
-		urr->measurement_info = ie->measurement_information->flags;
+		urr->measurement_info = ie->measurement_information->v;
 
 	if (ie->inactivity_detection_time)
 		urr->inactivity_detection_time = ntohl(ie->inactivity_detection_time->value);
