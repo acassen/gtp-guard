@@ -109,7 +109,7 @@ setup_split() {
     ip netns exec internet ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
-run_split_combined() {
+run_pkt() {
     # start gtp-guard if not yet started
     start_gtpguard
 
@@ -159,10 +159,26 @@ interface pub
     fi
 
     gtpg_conf "
+ip pool upf-v4
+ prefix 10.0.0.0/12
+ no shutdown
+
+ip pool upf-v6
+ prefix 2a01:e00:6020::/44
+ no shutdown
+
+access-point-name boa
+ ip pool upf-v4
+ ip pool upf-v6
+
 pfcp-router pfcp-1
  description first_one
+ node-id sut.example.com
+ strict-apn
  bpf-program upf-1
- listen 192.168.61.194 port 2123
+ listen 192.168.61.194 port 8805
+ debug ingress_msg
+ debug egress_msg
  gtpu-tunnel-endpoint all 192.168.61.1 port 2152
  debug teid add ingress 1 192.168.61.2 10.0.0.1
  debug teid add ingress 2 192.168.61.2 1234::1
@@ -186,9 +202,6 @@ show bpf pfcp
 capture prog upf-1 start upf
 "
 }
-
-run_combined() { run_split_combined; }
-run_split() { run_split_combined; }
 
 #
 # 1st pkt: simulate a ping (in a gtp-u packet) from UE.
@@ -262,9 +275,74 @@ Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
 }
 
 
+_hash_set() {
+    local -n _arr=$1
+    local key=$2
+    local line
+
+    while IFS= read -r line; do
+        _arr["$key"]+="$line"$'\n'
+    done
+}
+
+smf_basic_urr() {
+    _hash_set $1 $2 <<EOF
+urr set id 1 $3
+session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr 1
+session ping 1 8.8.8.8 count 3
+expect report timeout 10 cp_seid 1 urr_id 1 $4
+#session delete 1
+EOF
+}
+
+
+run_with_smf() {
+    smf_cmd="ip netns exec cloud python3 ./other/smf.py --smf-ip 192.168.61.193 --upf-ip 192.168.61.194 --gtpu-ip 192.168.61.2 --upf-port 8805"
+
+    declare -A testset
+
+    smf_basic_urr testset volth1			\
+    "triggers volth measure volume volth total 240"	\
+    "trigger volth total_min 240"
+    smf_basic_urr testset volth2			\
+    "triggers volth measure volume volth ul 160 volth dl 120"	\
+    "trigger volth total_min 240 ul_min 120 dl_min 120"
+    smf_basic_urr testset volqu1			\
+    "triggers volqu measure volume volquota total 120"	\
+    "trigger volqu total_min 120"
+    smf_basic_urr testset timth1			\
+    "triggers timth measure duration timth 3"		\
+    "trigger timth"
+    smf_basic_urr testset timqu1			\
+    "triggers timqu measure duration timquota 3"	\
+    "trigger timqu"
+    smf_basic_urr testset quht				\
+    "triggers quht qht 3"				\
+    "trigger quht"
+    smf_basic_urr testset period			\
+    "triggers perio period 2"				\
+    "trigger perio"
+
+    printf '%s' "${testset[volth1]}"
+
+    if [ "$smf_test_id" ]; then
+	if [ "${testset[$smf_test_id]}" ]; then
+	    echo "${testset[$smf_test_id]}" | $smf_cmd
+	else
+	    echo "no such smf-test: $smf_test_id"
+	fi
+    else
+	echo "XXXX run all tests"
+    fi
+    
+}
+
+
+
 action=${1:-setup}
 type=${2:-combined}
 with_cgn=${3:-no}
+smf_test_id=${3}
 
 case $action in
     clean)
@@ -275,7 +353,9 @@ case $action in
 	sleep 0.5
 	setup_$type ;;
     run)
-	run_$type ;;
+	run_with_smf ;;
+    run-pkt)
+	run_pkt ;;
     pkt)
 	pkt ;;
 
