@@ -443,7 +443,7 @@ pfcp_ie_put_urr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t i
 	c->length = htons(ntohs(c->length) + length);
 
 	ie = (struct pfcp_ie_urr_id *) pbuff->data;
-	ie->value = id;
+	ie->value = htonl(id);
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;

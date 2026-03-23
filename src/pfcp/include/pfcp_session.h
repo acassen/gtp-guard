@@ -121,6 +121,12 @@ struct urr {
 	uint64_t		volume_threshold_to;
 	uint64_t		volume_threshold_ul;
 	uint64_t		volume_threshold_dl;
+	uint64_t		volume_quota_to;
+	uint64_t		volume_quota_ul;
+	uint64_t		volume_quota_dl;
+	uint32_t		time_threshold;
+	uint32_t		time_quota;
+	uint32_t		time_periodic;
 
 	/* parent/Linked urr */
 	struct urr		*parent_urr;
@@ -211,6 +217,7 @@ struct pfcp_session {
 	struct gtp_capture_entry capture;
 
 	/* indexing */
+	uint32_t		bpf_mapcnt_idx;
 	struct list_head	next;
 	struct hlist_node	hlist;
 

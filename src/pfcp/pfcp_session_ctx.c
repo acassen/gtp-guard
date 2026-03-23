@@ -448,7 +448,7 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 {
 	urr->action = PFCP_ACT_CREATE;
 
-	urr->id = ie->urr_id->value;
+	urr->id = ntohl(ie->urr_id->value);
 
 	urr->start_time = time_now_to_ntp();
 
@@ -466,16 +466,58 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 		urr->quota_holdtime = ntohl(ie->quota_holding_time->value);
 
 	if (ie->volume_threshold) {
-		if (ie->volume_threshold->tovol)
-			urr->volume_threshold_to = be64toh(ie->volume_threshold->total_volume);
-		if (ie->volume_threshold->ulvol)
-			urr->volume_threshold_ul = be64toh(ie->volume_threshold->uplink_volume);
-		if (ie->volume_threshold->dlvol)
-			urr->volume_threshold_dl = be64toh(ie->volume_threshold->downlink_volume);
+		const struct pfcp_ie_volume_threshold *vth = ie->volume_threshold;
+
+		if (vth->tovol)
+			urr->volume_threshold_to = be64toh(vth->total_volume);
+		if (vth->ulvol) {
+			if (vth->tovol)
+				urr->volume_threshold_ul = be64toh(vth->uplink_volume);
+			else
+				urr->volume_threshold_ul = be64toh(vth->total_volume);
+		}
+		if (vth->dlvol) {
+			if (vth->tovol && vth->ulvol)
+				urr->volume_threshold_dl = be64toh(vth->downlink_volume);
+			else if (vth->tovol ^ vth->ulvol)
+				urr->volume_threshold_dl = be64toh(vth->uplink_volume);
+			else
+				urr->volume_threshold_dl = be64toh(vth->total_volume);
+		}
 	}
 
+	if (ie->volume_quota) {
+		const struct pfcp_ie_volume_quota *vqu = ie->volume_quota;
+
+		if (vqu->tovol)
+			urr->volume_quota_to = be64toh(vqu->total_volume);
+		if (vqu->ulvol) {
+			if (vqu->tovol)
+				urr->volume_quota_ul = be64toh(vqu->uplink_volume);
+			else
+				urr->volume_quota_ul = be64toh(vqu->total_volume);
+		}
+		if (vqu->dlvol) {
+			if (vqu->tovol && vqu->ulvol)
+				urr->volume_quota_dl = be64toh(vqu->downlink_volume);
+			else if (vqu->tovol ^ vqu->ulvol)
+				urr->volume_quota_dl = be64toh(vqu->uplink_volume);
+			else
+				urr->volume_quota_dl = be64toh(vqu->total_volume);
+		}
+	}
+
+	if (ie->time_threshold)
+		urr->time_threshold = ntohl(ie->time_threshold->time_threshold);
+
+	if (ie->time_quota)
+		urr->time_quota = ntohl(ie->time_quota->value);
+
+	if (ie->measurement_period)
+		urr->time_periodic = ntohl(ie->measurement_period->measurement_period);
+
 	if (ie->linked_urr_id)
-		urr->linked_urr_id = ie->linked_urr_id->value;
+		urr->linked_urr_id = ntohl(ie->linked_urr_id->value);
 
 	return 0;
 }
@@ -611,7 +653,7 @@ pfcp_session_create_pdr(struct pfcp_session *s, struct pdr *pdr,
 
 	if (ie->urr_id) {
 		for (i = 0; i < ie->nr_urr_id && i < PFCP_MAX_NR_ELEM; i++) {
-			pdr->urr[i] = pfcp_session_get_urr_by_id(s, ie->urr_id[i]->value);
+			pdr->urr[i] = pfcp_session_get_urr_by_id(s, ntohl(ie->urr_id[i]->value));
 			if (!pdr->urr[i])
 				return -1;
 		}
