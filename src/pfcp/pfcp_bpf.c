@@ -22,9 +22,12 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <bpf.h>
 
 #include "pfcp_bpf.h"
 #include "pfcp_router.h"
+#include "pfcp_session_report.h"
 #include "pfcp_teid.h"
 #include "gtp_bpf_utils.h"
 #include "list_head.h"
@@ -36,6 +39,7 @@
 
 /* Extern data */
 extern struct data *daemon_data;
+extern struct thread_master *master;
 
 
 static void
@@ -76,20 +80,15 @@ static int
 _update_egress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct pfcp_teid *t,
 		 __u64 flags)
 {
-	uint32_t nr_cpus = bpf_num_possible_cpus();
-	struct upf_fwd_rule rule[nr_cpus];
 	struct upf_egress_key key = {
 		.gtpu_local_teid = htonl(t->id),
 		.gtpu_local_addr = t->ipv4.s_addr,
 		.gtpu_local_port = htons(GTP_U_PORT),
 	};
-	int err, i;
-
-	for (i = 0; i < nr_cpus; i++)
-		rule[i] = *u;
+	int err;
 
 	err = bpf_map__update_elem(r->bpf_data->user_egress, &key, sizeof(key),
-				   rule, sizeof(rule), flags);
+				   u, sizeof(*u), flags);
 	_log_egress_rule(RULE_ADD, u, t, err);
 
 	return err ? -1 : 0;
@@ -155,13 +154,8 @@ static int
 _update_ingress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct ue_ip_address *ue,
 		     __u64 flags)
 {
-	uint32_t nr_cpus = bpf_num_possible_cpus();
-	struct upf_fwd_rule rule[nr_cpus];
 	struct upf_ingress_key key = {};
-	int i, err = 0, err_cnt = 0;
-
-	for (i = 0; i < nr_cpus; i++)
-		rule[i] = *u;
+	int err = 0, err_cnt = 0;
 
 	if (ue->flags & UE_IPV4) {
 		key.flags = UE_IPV4;
@@ -169,7 +163,7 @@ _update_ingress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct ue_ip
 
 		err = bpf_map__update_elem(r->bpf_data->user_ingress,
 					   &key, sizeof(key),
-					   rule, sizeof(rule), flags);
+					   u, sizeof(*u), flags);
 		_log_ingress_rule(RULE_ADD, UE_IPV4, u, ue, err);
 		err_cnt += (bool) err;
 	}
@@ -180,7 +174,7 @@ _update_ingress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct ue_ip
 
 		err = bpf_map__update_elem(r->bpf_data->user_ingress,
 					   &key, sizeof(key),
-					   rule, sizeof(rule), flags);
+					   u, sizeof(*u), flags);
 		_log_ingress_rule(RULE_ADD, UE_IPV6, u, ue, err);
 		err_cnt += (bool) err;
 	}
@@ -215,6 +209,61 @@ _delete_ingress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct ue_ip
 	}
 
 	return err_cnt ? -1 : 0;
+}
+
+int
+pfcp_bpf_urr_init(struct pfcp_session *s, struct upf_urr *uu,
+		  uint32_t urr_id)
+{
+	struct pfcp_bpf_data *bd = s->router->bpf_data;
+	struct urr_ctl_init_ctx ctx = {
+		.index = uu->urr_idx,
+		.urr_id = urr_id,
+		.seid = s->seid,
+		.uu = *uu,
+	};
+	int ret;
+
+	LIBBPF_OPTS(bpf_test_run_opts, rcfg,
+		    .ctx_in = &ctx,
+		    .ctx_size_in = sizeof (ctx));
+
+	ret = bpf_prog_test_run_opts(bd->urr_ctl_init_prog_fd, &rcfg);
+	if (ret) {
+		log_message(LOG_INFO, "%s: run bpf failed: %m",
+			    __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+
+int
+pfcp_bpf_urr_report(struct pfcp_router *rtr, uint32_t urr_idx,
+		    struct upf_urr_data *uud)
+{
+	struct pfcp_bpf_data *bd = rtr->bpf_data;
+	struct urr_ctl_report_ctx ctx = {
+		.index = urr_idx,
+		.action = 1,
+	};
+	int ret;
+
+	LIBBPF_OPTS(bpf_test_run_opts, rcfg,
+		    .ctx_in = &ctx,
+		    .ctx_size_in = sizeof (ctx));
+
+	ret = bpf_prog_test_run_opts(bd->urr_ctl_report_prog_fd, &rcfg);
+	if (ret) {
+		log_message(LOG_INFO, "%s: run bpf failed: %m",
+			    __func__);
+		return -1;
+	}
+
+	*uud = ctx.uud;
+
+	return 0;
 }
 
 int
@@ -256,52 +305,37 @@ pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 	return err;
 }
 
-static int
-pfcp_bpf_counter_coalese(struct upf_fwd_rule *rule)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	int i;
-
-	for (i = 1; i < nr_cpus; i++) {
-		rule[0].fwd_packets += rule[i].fwd_packets;
-		rule[0].fwd_bytes += rule[i].fwd_bytes;
-		rule[0].drop_packets += rule[i].drop_packets;
-		rule[0].drop_bytes += rule[i].drop_bytes;
-	}
-
-	return 0;
-}
-
 int
 pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 		  struct ue_ip_address *ue, struct pfcp_teid *t)
 {
 	struct pfcp_bpf_data *bd = gtp_bpf_prog_tpl_data_get(p, "upf");
-	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct upf_egress_key ek = {};
 	struct upf_ingress_key ik = {};
-	struct upf_fwd_rule rule[nr_cpus];
+	struct upf_urr_data c = {};
+	struct upf_fwd_rule rule;
 	int err;
 
 	if (dir == UPF_FWD_FL_EGRESS) {
-		memset(rule, 0, sizeof(rule));
 		ek.gtpu_local_teid = htonl(t->id);
 		ek.gtpu_local_addr = t->ipv4.s_addr;
 		ek.gtpu_local_port = htons(GTP_U_PORT);
 
 		err = bpf_map__lookup_elem(bd->user_egress, &ek, sizeof(ek),
-					   rule, sizeof(rule), 0);
+					   &rule, sizeof(rule), 0);
 		if (err) {
 			vty_out(vty, "            no data-plane ?!!%s"
 				   , VTY_NEWLINE);
 			return -1;
 		}
+		bpf_map__lookup_elem(bd->upf_urr_data,
+				     &rule.urr_idx, sizeof(rule.urr_idx),
+				     &c, sizeof(c), 0);
 
-		pfcp_bpf_counter_coalese(rule);
-		vty_out(vty, "            packets:%lld bytes:%lld%s"
-			     "            drop:%lld drop_bytes:%lld%s"
-			   , rule[0].fwd_packets, rule[0].fwd_bytes, VTY_NEWLINE
-			   , rule[0].drop_packets, rule[0].drop_bytes, VTY_NEWLINE);
+		vty_out(vty, "            packets:%lld bytes:%lld\n"
+			     "            drop:%lld\n"
+			   , c.fwd_pkt_ul, c.fwd_bytes_ul
+			   , c.drop_pkt_ul);
 		return 0;
 	}
 
@@ -309,38 +343,40 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 		return -1;
 
 	if (ue->flags & UE_IPV4) {
-		memset(rule, 0, sizeof(rule));
 		ik.flags = UE_IPV4;
 		ik.ue_addr.ip4 = ue->v4.s_addr;
 		err = bpf_map__lookup_elem(bd->user_ingress, &ik, sizeof(ik),
-					   rule, sizeof(rule), 0);
+					   &rule, sizeof(rule), 0);
 		if (err) {
 			vty_out(vty, "              IPv4 - no data-plane ?!!%s"
 				   , VTY_NEWLINE);
 		} else {
-			pfcp_bpf_counter_coalese(rule);
-			vty_out(vty, "              IPv4 - packets:%lld bytes:%lld%s"
-				     "                     drop:%lld drop_bytes:%lld%s"
-				   , rule[0].fwd_packets, rule[0].fwd_bytes, VTY_NEWLINE
-				   , rule[0].drop_packets, rule[0].drop_bytes, VTY_NEWLINE);
+			bpf_map__lookup_elem(bd->upf_urr_data,
+					     &rule.urr_idx, sizeof(rule.urr_idx),
+					     &c, sizeof(c), 0);
+			vty_out(vty, "              IPv4 - packets:%lld bytes:%lld\n"
+				     "                     drop:%lld\n"
+				   , c.fwd_pkt_dl, c.fwd_bytes_dl
+				   , c.drop_pkt_dl);
 		}
 	}
 
 	if (ue->flags & UE_IPV6) {
-		memset(rule, 0, sizeof(rule));
 		ik.flags = UE_IPV6;
 		memcpy(&ik.ue_addr.ip6, &ue->v6, sizeof(ue->v6));
 		err = bpf_map__lookup_elem(bd->user_ingress, &ik, sizeof(ik),
-					   rule, sizeof(rule), 0);
+					   &rule, sizeof(rule), 0);
 		if (err) {
 			vty_out(vty, "              IPv6 - no data-plane ?!!%s"
 				   , VTY_NEWLINE);
 		} else {
-			pfcp_bpf_counter_coalese(rule);
-			vty_out(vty, "              IPv6 - packets:%lld bytes:%lld%s"
-				     "                     drop:%lld drop_bytes:%lld%s"
-				   , rule[0].fwd_packets, rule[0].fwd_bytes, VTY_NEWLINE
-				   , rule[0].drop_packets, rule[0].drop_bytes, VTY_NEWLINE);
+			bpf_map__lookup_elem(bd->upf_urr_data,
+					     &rule.urr_idx, sizeof(rule.urr_idx),
+					     &c, sizeof(c), 0);
+			vty_out(vty, "              IPv6 - packets:%lld bytes:%lld\n"
+				     "                     drop:%lld\n"
+				   , c.fwd_pkt_dl, c.fwd_bytes_dl
+				   , c.drop_pkt_dl);
 		}
 	}
 
@@ -353,10 +389,10 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 {
 	struct pfcp_bpf_data *bd = ud;
 	struct table *tbl;
-	unsigned int nr_cpus = bpf_num_possible_cpus();
 	struct upf_egress_key ek = {};
 	struct upf_ingress_key ik = {};
-	struct upf_fwd_rule rule[nr_cpus];
+	struct upf_fwd_rule rule;
+	struct upf_urr_data c = {};
 	union addr addr, laddr, addr_ue;
 	char buf1[26], buf2[40], buf3[26], action_str[40];
 	uint32_t key = 0;
@@ -372,31 +408,32 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	vty_out(vty, "bpf-program '%s', downlink (ingress):\n", p->name);
 
 	/* Walk hashtab */
-	memset(rule, 0, sizeof(rule));
 	while (!bpf_map__get_next_key(bd->user_ingress, &ik, &ik, sizeof(ik))) {
 		err = bpf_map__lookup_elem(bd->user_ingress, &ik, sizeof(ik),
-					   rule, sizeof(rule), 0);
+					   &rule, sizeof(rule), 0);
 		if (err) {
 			vty_out(vty, "%% error fetching value for "
 				"teid_key:0x%.8x (%m)\n", key);
 			break;
 		}
+		bpf_map__lookup_elem(bd->upf_urr_data,
+				     &rule.urr_idx, sizeof(rule.urr_idx),
+				     &c, sizeof(c), 0);
 
 		if (ik.flags & UE_IPV4)
 			addr_fromip4(&addr_ue, ik.ue_addr.ip4);
 		else if (ik.flags & UE_IPV6)
 			addr_fromip6b(&addr_ue, ik.ue_addr.ip6.addr);
-		addr_fromip4(&addr, rule[0].gtpu_remote_addr);
-		addr_set_port(&addr, ntohs(rule[0].gtpu_remote_port));
-		addr_fromip4(&laddr, rule[0].gtpu_local_addr);
-		addr_set_port(&laddr, ntohs(rule[0].gtpu_local_port));
-		pfcp_bpf_counter_coalese(rule);
+		addr_fromip4(&addr, rule.gtpu_remote_addr);
+		addr_set_port(&addr, ntohs(rule.gtpu_remote_port));
+		addr_fromip4(&laddr, rule.gtpu_local_addr);
+		addr_set_port(&laddr, ntohs(rule.gtpu_local_port));
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%s|%lld|%lld",
-				  ntohl(rule[0].gtpu_remote_teid),
+				  ntohl(rule.gtpu_remote_teid),
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
 				  addr_stringify(&laddr, buf3, sizeof (buf3)),
-				  rule[0].fwd_packets, rule[0].fwd_bytes);
+				  c.fwd_pkt_dl, c.fwd_bytes_dl);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
@@ -408,36 +445,92 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	vty_out(vty, "uplink (egress):\n");
 
 	/* Walk hashtab */
-	memset(rule, 0, sizeof(rule));
 	while (!bpf_map__get_next_key(bd->user_egress, &ek, &ek, sizeof(ek))) {
 		err = bpf_map__lookup_elem(bd->user_egress, &ek, sizeof(ek),
-					   rule, sizeof(rule), 0);
+					   &rule, sizeof(rule), 0);
 		if (err) {
 			vty_out(vty, "%% error fetching value for "
 				"teid_key:0x%.8x (%m)\n", key);
 			break;
 		}
+		bpf_map__lookup_elem(bd->upf_urr_data,
+				     &rule.urr_idx, sizeof(rule.urr_idx),
+				     &c, sizeof(c), 0);
 
-		if ((rule[0].flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
+		if ((rule.flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
 		    UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) {
 			snprintf(action_str, sizeof (action_str),
 				 "Fwd to teid 0x%08x",
-				 ntohl(rule[0].gtpu_remote_teid));
+				 ntohl(rule.gtpu_remote_teid));
 		} else {
 			snprintf(action_str, sizeof(action_str), "Decap");
 		}
 
 		addr_fromip4(&addr, ek.gtpu_local_addr);
 		addr_set_port(&addr, ntohs(ek.gtpu_local_port));
-		pfcp_bpf_counter_coalese(rule);
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(ek.gtpu_local_teid),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
-				  action_str,
-				  rule[0].fwd_packets, rule[0].fwd_bytes);
+				  action_str, c.fwd_pkt_ul, c.fwd_bytes_ul);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
+}
+
+uint32_t
+pfcp_bpf_alloc_urr_idx(struct pfcp_session *s)
+{
+	struct pfcp_bpf_data *bd = s->router->bpf_data;
+	int i;
+
+	for (i = 0; i < BPF_UPF_USER_COUNTER_MAP_SIZE; i++) {
+		if (++bd->urr_alloc_cur == BPF_UPF_USER_COUNTER_MAP_SIZE)
+			bd->urr_alloc_cur = 1;
+		if (!bd->urr_alloc[bd->urr_alloc_cur]) {
+			bd->urr_alloc[bd->urr_alloc_cur] = 1;
+			return bd->urr_alloc_cur;
+		}
+	}
+	return 0;
+}
+
+void
+pfcp_bpf_release_urr_idx(struct pfcp_session *s, uint32_t urr_idx)
+{
+	struct pfcp_bpf_data *bd = s->router->bpf_data;
+
+	bd->urr_alloc[urr_idx] = 0;
+}
+
+static int
+ring_buffer_process(void *ctx, void *data, size_t size)
+{
+	struct upf_urr_data *uud = data;
+	struct pfcp_session *s;
+
+	if (size != sizeof (*uud))
+		return 0;
+
+	s = pfcp_session_get(uud->seid);
+	if (s != NULL)
+		pfcp_session_report_triggered(s, uud);
+
+	return 0;
+}
+
+
+static void
+ring_buffer_event_cb(struct thread *th)
+{
+	struct pfcp_bpf_data *bd = THREAD_ARG(th);
+	int ret;
+
+	ret = ring_buffer__consume(bd->rbuf);
+	if (ret < 0)
+		log_message(LOG_INFO, "ring_buffer consume: %m");
+
+	bd->rbuf_th = thread_add_read(master, ring_buffer_event_cb,
+				      bd, THREAD_FD(th), TIMER_NEVER, 0);
 }
 
 static void *
@@ -449,7 +542,9 @@ pfcp_bpf_alloc(struct gtp_bpf_prog *p)
 	if (bd == NULL)
 		return NULL;
 
+	bd->urr_alloc = calloc(BPF_UPF_USER_COUNTER_MAP_SIZE, 1);
 	INIT_LIST_HEAD(&bd->pfcp_router_list);
+
 	return bd;
 }
 
@@ -464,20 +559,59 @@ pfcp_bpf_release(struct gtp_bpf_prog *p, void *udata)
 		c->bpf_data = NULL;
 		list_del_init(&c->bpf_list);
 	}
+	free(bd->urr_alloc);
 	free(bd);
 }
 
+
 static int
-pfcp_bpf_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
+pfcp_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct pfcp_bpf_data *bd = udata;
+	struct bpf_program *init_prg, *report_prg;
+	struct bpf_map *map;
+	int fd;
 
 	bd->user_egress = gtp_bpf_prog_load_map(p->obj_load, "user_egress");
 	bd->user_ingress = gtp_bpf_prog_load_map(p->obj_load, "user_ingress");
-	if (bd->user_egress == NULL || bd->user_ingress == NULL)
+	bd->upf_urr = gtp_bpf_prog_load_map(p->obj_load, "upf_urr");
+	bd->upf_urr_data = gtp_bpf_prog_load_map(p->obj_load, "upf_urr_data");
+	if (bd->user_egress == NULL || bd->user_ingress == NULL ||
+	    bd->upf_urr == NULL || bd->upf_urr_data == NULL)
 		return -1;
 
+	init_prg = bpf_object__find_program_by_name(p->obj_load, "urr_ctl_init");
+	report_prg = bpf_object__find_program_by_name(p->obj_load, "urr_ctl_report");
+	if (init_prg == NULL || report_prg == NULL) {
+		log_message(LOG_INFO, "cannot find urr_ctl_init / urr_ctl_report");
+		return -1;
+	}
+	bd->urr_ctl_init_prog_fd = bpf_program__fd(init_prg);
+	bd->urr_ctl_report_prog_fd = bpf_program__fd(report_prg);
+
+	map = gtp_bpf_prog_load_map(p->obj_load, "upf_events");
+	if (map == NULL)
+		return -1;
+	fd = bpf_map__fd(map);
+	bd->rbuf = ring_buffer__new(fd, ring_buffer_process, bd, NULL);
+	if (bd->rbuf == NULL)
+		return -1;
+	bd->rbuf_th = thread_add_read(master, ring_buffer_event_cb,
+				      bd, fd, TIMER_NEVER, 0);
+
 	return 0;
+}
+
+static void
+pfcp_bpf_closed(struct gtp_bpf_prog *p, void *udata)
+{
+	struct pfcp_bpf_data *bd = udata;
+
+	thread_del(bd->rbuf_th);
+	bd->rbuf_th = NULL;
+	if (bd->rbuf != NULL)
+		ring_buffer__free(bd->rbuf);
+	bd->rbuf = NULL;
 }
 
 
@@ -485,7 +619,8 @@ static struct gtp_bpf_prog_tpl pfcp_bpf_tpl = {
 	.name = "upf",
 	.description = "3GPP User Plane Function",
 	.alloc = pfcp_bpf_alloc,
-	.loaded = pfcp_bpf_load_maps,
+	.loaded = pfcp_bpf_loaded,
+	.closed = pfcp_bpf_closed,
 	.release = pfcp_bpf_release,
 	.vty_out = pfcp_bpf_vty,
 };

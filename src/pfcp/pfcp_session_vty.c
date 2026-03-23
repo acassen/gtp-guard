@@ -21,45 +21,108 @@
 
 #include <inttypes.h>
 #include <arpa/inet.h>
+#include "utils.h"
+#include "command.h"
+#include "table.h"
 #include "pfcp_router.h"
 #include "pfcp_session.h"
 #include "pfcp_teid.h"
 #include "pfcp_utils.h"
 #include "pfcp_bpf.h"
-#include "command.h"
-#include "table.h"
 
 
 /*
  *	VTY Command
  */
-static int
-_pfcp_session_te_vty(struct vty *vty, struct pfcp_session *s)
+static void
+_pfcp_session_urr_vty(struct vty *vty, struct urr *urr)
+{
+	const union pfcp_reporting_triggers *tr = &urr->triggers;
+	char mmb[64];
+	int k = 0;
+
+	if (urr->measurement_method.durat)
+		k += scnprintf(mmb + k, sizeof (mmb) - k, "%s,", "duration");
+	if (urr->measurement_method.volum)
+		k += scnprintf(mmb + k, sizeof (mmb) - k, "%s,", "volume");
+	if (urr->measurement_method.event)
+		k += scnprintf(mmb + k, sizeof (mmb) - k, "%s,", "event");
+	mmb[k ? k - 1 : 0] = 0;
+
+	vty_out(vty, " . URR[%d] measure: %s",
+		ntohl(urr->id), mmb);
+	if (tr->triggers)
+		vty_out(vty, ", triggers:\n");
+	else
+		vty_out(vty, "%s", VTY_NEWLINE);
+
+	if (tr->perio)
+		vty_out(vty, "     PERIO (Periodic Reporting)\n");
+	if (tr->volth) {
+		vty_out(vty, "     VOLTH ");
+		if (urr->volume_threshold_to)
+			vty_out(vty, " Total:%ld", urr->volume_threshold_to);
+		if (urr->volume_threshold_ul)
+			vty_out(vty, " Uplink:%ld", urr->volume_threshold_ul);
+		if (urr->volume_threshold_dl)
+			vty_out(vty, " Downlink:%ld", urr->volume_threshold_dl);
+		vty_out(vty, "%s", VTY_NEWLINE);
+	}
+	if (tr->timth)
+		vty_out(vty, "     TIMTH (Time Threshold)\n");
+	if (tr->quhti)
+		vty_out(vty, "     QUHTI (Quota Holding Time)\n");
+	if (tr->start)
+		vty_out(vty, "     START (Start of Traffic)\n");
+	if (tr->stopt)
+		vty_out(vty, "     STOPT (Stop of Traffic)\n");
+	if (tr->droth)
+		vty_out(vty, "     DROTH (Dropped DL Traffic Threshold)\n");
+	if (tr->liusa)
+		vty_out(vty, "     LIUSA (Linked Usage Reporting)\n");
+	if (tr->volqu)
+		vty_out(vty, "     VOLQU (Volume Quota)\n");
+	if (tr->timqu)
+		vty_out(vty, "     TIMQU (Time Quota)\n");
+	if (tr->envcl)
+		vty_out(vty, "     ENVCL (Envelope Closure)\n");
+	if (tr->macar)
+		vty_out(vty, "     MACAR (MAC Addresses Reporting)\n");
+	if (tr->eveth)
+		vty_out(vty, "     EVETH (Event Threshold)\n");
+	if (tr->evequ)
+		vty_out(vty, "     EVEQU (Event Quota)\n");
+	if (tr->ipmjl)
+		vty_out(vty, "     IPMJL (IP Multicast Join/Leave)\n");
+	if (tr->quvti)
+		vty_out(vty, "     QUVTI (Quota Validity Time)\n");
+
+
+}
+
+static void
+_pfcp_session_pdr_vty(struct vty *vty, struct pfcp_session *s, bool details)
 {
 	struct gtp_bpf_prog *prg = s->router->bpf_prog;
-	struct pfcp_fwd_rule *r;
 	struct upf_fwd_rule *u;
 	struct pdr *p;
 	struct pfcp_teid *t;
 	char addr_str[INET6_ADDRSTRLEN];
+	int i;
 
 	list_for_each_entry(p, &s->pdr_list, next) {
-		r = p->fwd_rule;
+		if (p->te)
+			vty_out(vty, " . Traffic-Endpoint:%d "
+				"3GPP-Interface-Type:%s\n", p->te->id,
+				pfcp_3GPP_interface2str(p->te->interface_type));
 
-		/* NOTE: Only support Optimized PDI */
-		if (!r || !p->te)
+		if (!p->fwd_rule)
 			continue;
-
-		vty_out(vty, " . Traffic-Endpoint:%d 3GPP-Interface-Type:%s%s"
-			   , p->te->id
-			   , pfcp_3GPP_interface2str(p->te->interface_type)
-			   , VTY_NEWLINE);
-
-		t = p->te->teid;
-		u = &r->rule;
+		u = &p->fwd_rule->rule;
+		t = p->teid ?: (p->te ? p->te->teid : NULL);
 
 		if (u->flags & UPF_FWD_FL_EGRESS && t) {
-			vty_out(vty, "   [uplink] local-teid:0x%.8x remote-gtpu:'%s'%s"
+			vty_out(vty, "   [uplink] local-teid:0x%.8x local-gtpu:'%s'%s"
 				   , t->id
 				   , inet_ntop(AF_INET, &t->ipv4, addr_str, INET6_ADDRSTRLEN)
 				   , VTY_NEWLINE);
@@ -74,23 +137,29 @@ _pfcp_session_te_vty(struct vty *vty, struct pfcp_session *s)
 				   , VTY_NEWLINE);
 			pfcp_bpf_teid_vty(vty, prg, UPF_FWD_FL_INGRESS, &s->ue_ip, t);
 		}
-	}
 
-	return 0;
+		if (details) {
+			vty_out(vty, "            ref-urr:");
+			for (i = 0; i < PFCP_MAX_NR_ELEM && p->urr[i]; i++)
+				vty_out(vty, " %d", p->urr[i]->id);
+			vty_out(vty, "%s", VTY_NEWLINE);
+		}
+	}
 }
 
 int
 pfcp_session_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 {
-	struct list_head *l = &c->pfcp_sessions;
 	struct pfcp_session *s;
 	struct ue_ip_address *ue;
+	struct urr *u;
 	time_t timeout = 0;
 	char addr_str[INET6_ADDRSTRLEN];
 	struct tm *t;
+	bool details = arg != NULL;
 
 	/* Walk the line */
-	list_for_each_entry(s, l, next) {
+	list_for_each_entry(s, &c->pfcp_sessions, next) {
 		if (s->timer) {
 			timeout = s->timer->sands.tv_sec - time_now.tv_sec;
 			snprintf(s->tmp_str, 63, "%ld secs", timeout);
@@ -106,6 +175,11 @@ pfcp_session_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 			   , s->timer ? s->tmp_str : "never"
 			   , VTY_NEWLINE);
 
+		if (details) {
+			list_for_each_entry(u, &s->urr_list, next)
+				_pfcp_session_urr_vty(vty, u);
+		}
+
 		ue = &s->ue_ip;
 		if (ue->flags & UE_IPV4)
 			vty_out(vty, " . UE IPv4: %s%s"
@@ -116,7 +190,7 @@ pfcp_session_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 				   , inet_ntop(AF_INET6, &ue->v6, addr_str, INET6_ADDRSTRLEN)
 				   , VTY_NEWLINE);
 
-		_pfcp_session_te_vty(vty, s);
+		_pfcp_session_pdr_vty(vty, s, details);
 	}
 	return 0;
 }
@@ -160,7 +234,7 @@ pfcp_session_summary_vty(struct vty *vty, struct gtp_conn *c, void *arg)
 
 DEFUN(show_pfcp_session,
       show_pfcp_session_cmd,
-      "show pfcp session [INTEGER]",
+      "show pfcp session [IMSI DETAILS]",
       SHOW_STR
       "PFCP related informations\n"
       "PFCP Session tracking\n"
@@ -171,7 +245,8 @@ DEFUN(show_pfcp_session,
 
 	if (argc) {
 		imsi = strtoull(argv[0], NULL, 10);
-		gtp_conn_vty(vty, pfcp_session_vty, imsi, NULL);
+		gtp_conn_vty(vty, pfcp_session_vty, imsi,
+			     argc > 1 ? (void *)1 : NULL);
 		return CMD_SUCCESS;
 	}
 
@@ -189,7 +264,7 @@ DEFUN(show_pfcp_session,
 
 DEFUN(clear_pfcp_session,
       clear_pfcp_session_cmd,
-      "clear pfcp session [INTEGER]",
+      "clear pfcp session IMSI",
       "Clear PFCP related\n"
       "PFCP session\n"
       "PFCP Session\n"
@@ -197,11 +272,6 @@ DEFUN(clear_pfcp_session,
 {
 	struct gtp_conn *c;
 	uint64_t imsi = 0;
-
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
 
 	imsi = strtoull(argv[0], NULL, 10);
 	c = gtp_conn_get_by_imsi(imsi);

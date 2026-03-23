@@ -290,6 +290,7 @@ ipv6_skip_exthdr(struct ipv6hdr *ip6h, void *data_end, __u8 *out_nh)
 
 /*********************************/
 
+#define	NSEC_PER_SEC		1000000000
 
 /* Program statistics */
 enum pkt_stats_type {

@@ -542,6 +542,98 @@ pfcp_session_link_urr(struct pfcp_session *s)
 	return 0;
 }
 
+/*
+ * take the FAST PATH
+ *
+ * if, for a create session, we have:
+ *  URR[1]: volth, vol measurement
+ *  URR[2]: quhti, vol measurement
+ *  URR[3]: something else
+ * and:
+ *  PDR[1]: UL, references urr[1] and urr[2]
+ *  PDR[2]: DL, references urr[1] and urr[2]
+ * then
+ *  merge URR[1] and URR[2] into one and unique URR, put it on bpf map,
+ *  and PDR[1] and PDR[2] will reference it
+ *
+ * for all other cases it won't probably work as expected
+ */
+static int
+pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
+{
+	struct urr *urr;
+	struct pdr *p;
+	int pdr_cnt, pdr_urr_cnt;
+	int i;
+
+	memset(uu, 0x00, sizeof (*uu));
+	uu->urr_idx = s->bpf_urr_idx;
+	uu->cur_ver = 1;
+
+	list_for_each_entry(urr, &s->urr_list, next) {
+		/* is this urr is used in any/all pdrs ? */
+		pdr_cnt = 0;
+		pdr_urr_cnt = 0;
+		list_for_each_entry(p, &s->pdr_list, next) {
+			pdr_cnt++;
+			for (i = 0; i < PFCP_MAX_NR_ELEM && p->urr[i]; i++)
+				if (p->urr[i] == urr) {
+					pdr_urr_cnt++;
+					break;
+				}
+		}
+		/* not used, skip it */
+		if (!pdr_urr_cnt)
+			continue;
+		/* not used in all pdr, problems ahead */
+		if (pdr_urr_cnt != pdr_cnt)
+			printf("urr[%d]: included in %d/%d pdr\n",
+			       urr->id, pdr_urr_cnt, pdr_cnt);
+
+		/* take the first triggering values of all urrs */
+		if (urr->triggers.volth) {
+			uu->vol_thres_to =
+				!uu->vol_thres_to ? urr->volume_threshold_to :
+				min(uu->vol_thres_to, urr->volume_threshold_to);
+			uu->vol_thres_ul =
+				!uu->vol_thres_ul ? urr->volume_threshold_ul :
+				min(uu->vol_thres_ul, urr->volume_threshold_ul);
+			uu->vol_thres_dl =
+				!uu->vol_thres_dl ? urr->volume_threshold_dl :
+				min(uu->vol_thres_dl, urr->volume_threshold_dl);
+		}
+		if (urr->triggers.volqu) {
+			uu->vol_quota_to =
+				!uu->vol_quota_to ? urr->volume_quota_to :
+				min(uu->vol_quota_to, urr->volume_quota_to);
+			uu->vol_quota_ul =
+				!uu->vol_quota_ul ? urr->volume_quota_ul :
+				min(uu->vol_quota_ul, urr->volume_quota_ul);
+			uu->vol_quota_dl =
+				!uu->vol_quota_dl ? urr->volume_quota_dl :
+				min(uu->vol_quota_dl, urr->volume_quota_dl);
+		}
+		if (urr->triggers.timth)
+			uu->time_threshold = min(uu->time_threshold ?: ~0,
+						 urr->time_threshold);
+		if (urr->triggers.timqu)
+			uu->time_quota = min(uu->time_quota ?: ~0,
+						 urr->time_quota);
+		if (urr->triggers.perio)
+			uu->time_periodic = min(uu->time_periodic ?: ~0,
+					     urr->time_periodic);
+		if (urr->triggers.quhti)
+			uu->time_quota = min(uu->time_quota ?: ~0,
+					     urr->quota_holdtime);
+
+		uu->inactivity_det_time = min(uu->inactivity_det_time ?: ~0,
+					      urr->inactivity_detection_time);
+	}
+
+	return 0;
+}
+
+
 static int
 pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pdi,
 		 uint32_t *id)
@@ -728,6 +820,9 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	u->tos_tclass = f->tos_tclass ? : 0;
 	u->tos_mask = f->tos_mask ? : 0;
 
+	/* URR map index */
+	u->urr_idx = s->bpf_urr_idx;
+
 	/* Packet capture */
 	u->capture.flags = s->capture.flags &
 		(GTP_CAPTURE_FL_DIRECTION_MASK | GTP_CAPTURE_FL_SIDE_MASK);
@@ -754,13 +849,16 @@ static int
 pfcp_session_create_fwd_rules(struct pfcp_session *s)
 {
 	struct pfcp_fwd_rule *new;
+	struct upf_urr uu;
 	struct pdr *p;
-	struct far *f;
+
+	if (!s->bpf_urr_idx)
+		s->bpf_urr_idx = pfcp_bpf_alloc_urr_idx(s);
+	pfcp_session_merge_urr(s, &uu);
+	pfcp_bpf_urr_init(s, &uu, 0);
 
 	list_for_each_entry(p, &s->pdr_list, next) {
-		f = p->far;
-
-		if (!p->action || !f)
+		if (!p->action || !p->far)
 			continue;
 
 		new = calloc(1, sizeof(*new));
@@ -791,7 +889,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct traffic_endpoint *te = calloc(1, sizeof(*te));
 		if (!te)
 			return -1;
-		INIT_LIST_HEAD(&te->next);
 		err = pfcp_session_create_te(s, te,
 					     req->create_traffic_endpoint[i], &id);
 		if (err) {
@@ -806,7 +903,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct far *far = calloc(1, sizeof(*far));
 		if (!far)
 			return -1;
-		INIT_LIST_HEAD(&far->next);
 		pfcp_session_create_far(s, far, req->create_far[i]);
 		list_add_tail(&far->next, &s->far_list);
 	}
@@ -816,7 +912,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct qer *qer = calloc(1, sizeof(*qer));
 		if (!qer)
 			return -1;
-		INIT_LIST_HEAD(&qer->next);
 		pfcp_session_create_qer(s, qer, req->create_qer[i]);
 		list_add_tail(&qer->next, &s->qer_list);
 	}
@@ -826,7 +921,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct urr *urr = calloc(1, sizeof(*urr));
 		if (!urr)
 			return -1;
-		INIT_LIST_HEAD(&urr->next);
 		pfcp_session_create_urr(s, urr, req->create_urr[i]);
 		list_add_tail(&urr->next, &s->urr_list);
 	}
@@ -837,7 +931,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct pdr *pdr = calloc(1, sizeof(*pdr));
 		if (!pdr)
 			return -1;
-		INIT_LIST_HEAD(&pdr->next);
 		err = pfcp_session_create_pdr(s, pdr, req->create_pdr[i], &id);
 		if (err) {
 			free(pdr);
@@ -892,6 +985,8 @@ pfcp_session_modify(struct pfcp_session *s, struct pfcp_session_modification_req
 		if (err)
 			return -1;
 	}
+
+	/* XXX Update URR */
 
 	/* Update data-path forwarding rules */
 	pfcp_session_update_fwd_rules(s);
@@ -960,6 +1055,8 @@ pfcp_session_delete(struct pfcp_session *s)
 		list_head_del(&te->next);
 		free(te);
 	}
+
+	pfcp_bpf_release_urr_idx(s, s->bpf_urr_idx);
 
 	return 0;
 }

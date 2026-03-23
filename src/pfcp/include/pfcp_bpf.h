@@ -33,12 +33,28 @@ struct pfcp_bpf_data
 
 	struct bpf_map		*user_egress;
 	struct bpf_map		*user_ingress;
+	struct bpf_map		*upf_urr;
+	struct bpf_map		*upf_urr_data;
+	int			urr_ctl_init_prog_fd;
+	int			urr_ctl_report_prog_fd;
+	uint8_t			*urr_alloc;
+	int			urr_alloc_cur;
+
+	/* upf_events ring_buffer */
+	struct ring_buffer	*rbuf;
+	struct thread		*rbuf_th;
 };
 
 /* Prototypes */
+int pfcp_bpf_urr_init(struct pfcp_session *s, struct upf_urr *uu,
+		      uint32_t urr_id);
+int pfcp_bpf_urr_report(struct pfcp_router *rtr, uint32_t urr_idx,
+			struct upf_urr_data *uud);
 int pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 			 struct ue_ip_address *ue);
 int pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 		    struct pfcp_teid *t, struct ue_ip_address *ue);
 int pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 		      struct ue_ip_address *ue, struct pfcp_teid *t);
+uint32_t pfcp_bpf_alloc_urr_idx(struct pfcp_session *s);
+void pfcp_bpf_release_urr_idx(struct pfcp_session *s, uint32_t urr_idx);

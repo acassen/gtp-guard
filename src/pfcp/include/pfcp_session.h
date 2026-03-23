@@ -217,7 +217,7 @@ struct pfcp_session {
 	struct gtp_capture_entry capture;
 
 	/* indexing */
-	uint32_t		bpf_mapcnt_idx;
+	uint32_t		bpf_urr_idx;
 	struct list_head	next;
 	struct hlist_node	hlist;
 

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <time.h>
 #include <linux/bpf.h>
 #include <linux/errno.h>
 #include <linux/udp.h>
@@ -20,24 +21,42 @@
  */
 
 struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-	__uint(max_entries, 1000000);
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, BPF_UPF_USER_MAP_SIZE);
 	__type(key, struct upf_egress_key);
 	__type(value, struct upf_fwd_rule);
 } user_egress SEC(".maps");
 
 struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__uint(max_entries, 1000000);
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, BPF_UPF_USER_MAP_SIZE);
 	__type(key, struct upf_ingress_key);
 	__type(value, struct upf_fwd_rule);
 } user_ingress SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, BPF_UPF_USER_COUNTER_MAP_SIZE);
+	__type(key, __u32);
+	__type(value, struct upf_urr);
+} upf_urr SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, BPF_UPF_USER_COUNTER_MAP_SIZE);
+	__type(key, __u32);
+	__type(value, struct upf_urr_data);
+} upf_urr_data SEC(".maps");
+
+
+#include "upf_urr.h"
 
 
 static __always_inline int
 _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 {
+	struct upf_urr_data *uud;
+	struct upf_urr *uu;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct gtphdr *gtph;
@@ -45,8 +64,16 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	int adjust_sz, pkt_len;
 	__u32 csum = 0;
 
-	capture_xdp_to_userspc_in(ctx, &u->capture, BPF_CAPTURE_EFL_INPUT |
-				  BPF_CAPTURE_EFL_CORE);
+	capture_xdp_to_userspc_in(ctx, &u->capture,
+				  BPF_CAPTURE_EFL_INPUT | BPF_CAPTURE_EFL_CORE);
+
+	uu = bpf_map_lookup_elem(&upf_urr, &u->urr_idx);
+	uud = bpf_map_lookup_elem(&upf_urr_data, &u->urr_idx);
+	if (uu == NULL || uud == NULL)
+		return XDP_DROP;
+
+	if (uud->quota_reached)
+		goto drop;
 
 	/* encap in gtp-u, make room */
 	adjust_sz = sizeof(*iph) + sizeof(*udph) + sizeof(*gtph);
@@ -58,13 +85,6 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	data = (void *)(long)ctx->data;
 	data_end = (void *)(long)ctx->data_end;
 
-	/* then write encap headers */
-	iph = data + d->pl_off;
-	udph = (struct udphdr *)(iph + 1);
-	gtph = (struct gtphdr *)(udph + 1);
-	if (d->pl_off > 256 || (void *)(gtph + 1) > data_end)
-		return XDP_PASS;
-
 #if __clang_major__ == 21 && __clang_minor__ == 1
 	/* fix '32-bit pointer arithmetic prohibited'.
 	 * this could be a clang bug and should be removed */
@@ -74,6 +94,14 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 #else
 	pkt_len = data_end - data - d->pl_off;
 #endif
+
+	/* then write encap headers */
+	iph = data + d->pl_off;
+	udph = (struct udphdr *)(iph + 1);
+	gtph = (struct gtphdr *)(udph + 1);
+	if (d->pl_off > 256 || (void *)(gtph + 1) > data_end)
+		goto drop;
+
 	iph->version = 4;
 	iph->ihl = 5;
 	iph->protocol = IPPROTO_UDP;
@@ -102,19 +130,27 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 
 	d->dst_addr.ip4 = u->gtpu_remote_addr;
 
+	/* metrics */
+	++uud->fwd_pkt_dl;
+	uud->fwd_bytes_dl += pkt_len;
+
+	UPF_DBG("to_gtpu: encap len:%d teid:0x%08x src:%pI4:%d dst:%pI4:%d",
+		pkt_len, bpf_ntohl(u->gtpu_remote_teid),
+		&iph->saddr, bpf_ntohs(u->gtpu_local_port),
+		&iph->daddr, bpf_ntohs(u->gtpu_remote_port));
+
 	capture_xdp_to_userspc_out(d, &u->capture, BPF_CAPTURE_EFL_OUTPUT |
 				   BPF_CAPTURE_EFL_ACCESS);
 
-	/* metrics */
-	++u->fwd_packets;
-	u->fwd_bytes += pkt_len;
-
-	UPF_DBG("to_gtpu: encap teid:0x%08x src:%pI4:%d dst:%pI4:%d",
-		   bpf_ntohl(u->gtpu_remote_teid),
-		   &iph->saddr, bpf_ntohs(u->gtpu_local_port),
-		   &iph->daddr, bpf_ntohs(u->gtpu_remote_port));
+	_update_urr_inactivity_time(uu, uud);
+	_check_urr_dl(uu, uud);
 
 	return XDP_IFR_FORWARD;
+
+ drop:
+	++uud->drop_pkt_dl;
+
+	return XDP_DROP;
 }
 
 /*
@@ -181,6 +217,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	void *data_end = (void *)(long)ctx->data_end;
 	struct upf_egress_key k;
 	struct upf_fwd_rule *u;
+	struct upf_urr *uu;
+	struct upf_urr_data *uud;
 	struct iphdr *ip4h_inner;
 	struct ipv6hdr *ip6h_inner;
 	struct gtphdr *gtph;
@@ -209,12 +247,20 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	capture_xdp_to_userspc_in(ctx, &u->capture, BPF_CAPTURE_EFL_INPUT |
 				  BPF_CAPTURE_EFL_ACCESS);
 
+	uu = bpf_map_lookup_elem(&upf_urr, &u->urr_idx);
+	uud = bpf_map_lookup_elem(&upf_urr_data, &u->urr_idx);
+	if (uu == NULL || uud == NULL)
+		return XDP_DROP;
+
+	if (uud->quota_reached)
+		goto drop;
+
 #if __clang_major__ == 21 && __clang_minor__ == 1
 	pkt_len = data_end - data;
 	barrier_var(pkt_len);
-	pkt_len -= d->pl_off + adjust_sz;
+	pkt_len -= d->pl_off;
 #else
-	pkt_len = data_end - data - d->pl_off - adjust_sz;
+	pkt_len = data_end - data - d->pl_off;
 #endif
 
 	if ((u->flags & UPF_FWD_FL_ACT_KEEP_OUTER_HEADER) ==
@@ -243,8 +289,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 			   bpf_ntohl(gtph->teid));
 
 		/* metrics */
-		++u->fwd_packets;
-		u->fwd_bytes += pkt_len;
+		++uud->fwd_pkt_ul;
+		uud->fwd_bytes_ul += pkt_len;
 
 		d->dst_addr.ip4 = iph->daddr;
 		return XDP_IFR_FORWARD;
@@ -253,7 +299,7 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	/* for futur nh lookup */
 	ip4h_inner = (struct iphdr *)(gtph + 1);
 	if (ip4h_inner + 1 > data_end)
-		return XDP_DROP;
+		goto drop;
 	switch (ip4h_inner->version) {
 	case 4:
 		d->dst_addr.ip4 = ip4h_inner->daddr;
@@ -267,7 +313,7 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 		d->flags |= IF_RULE_FL_DST_IPV6;
 		break;
 	default:
-		return XDP_DROP;
+		goto drop;
 	}
 
 	/* decap gtp-u */
@@ -280,10 +326,18 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 				   BPF_CAPTURE_EFL_CORE);
 
 	/* metrics */
-	++u->fwd_packets;
-	u->fwd_bytes += pkt_len - adjust_sz;
+	++uud->fwd_pkt_ul;
+	uud->fwd_bytes_ul += pkt_len - adjust_sz;
+
+	_update_urr_inactivity_time(uu, uud);
+	_check_urr_ul(uu, uud);
 
 	return XDP_IFR_FORWARD;
+
+ drop:
+	++uud->drop_pkt_ul;
+
+	return XDP_DROP;
 }
 
 

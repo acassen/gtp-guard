@@ -3327,7 +3327,8 @@ int pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
 				      struct pfcp_metrics_pkt *downlink);
 int pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
 				     uint32_t id, uint32_t start_time, uint32_t end_time,
-				     uint32_t seqn, struct pfcp_metrics_pkt *uplink,
+				     uint32_t seqn, union pfcp_usage_report_trigger rtrig,
+				     struct pfcp_metrics_pkt *uplink,
 				     struct pfcp_metrics_pkt *downlink);
 int pfcp_ie_put_report_type(struct pkt_buffer *pbuff, uint8_t type);
 int pfcp_ie_put_additional_usage_reports_info(struct pkt_buffer *pbuff, bool auri,

@@ -25,4 +25,6 @@
 /* Prototypes */
 void pfcp_session_report(struct pfcp_session *s,
 			 struct pfcp_session_modification_request *req);
+void pfcp_session_report_triggered(struct pfcp_session *s,
+				   struct upf_urr_data *uud);
 

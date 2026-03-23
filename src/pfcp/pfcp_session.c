@@ -35,8 +35,11 @@ extern struct thread_master *master;
 
 /* Local data */
 static struct hlist_head *pfcp_session_tab;
-static int pfcp_sessions_count = 0;
+static int pfcp_sessions_count;
+
+/* Local func */
 static void pfcp_session_expire(struct thread *t);
+
 
 /*
  *	PFCP Session hash handling

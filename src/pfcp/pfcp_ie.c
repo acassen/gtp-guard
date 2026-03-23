@@ -469,7 +469,8 @@ pfcp_ie_put_ur_seqn(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t 
 }
 
 static int
-pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c, bool term)
+pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+		       union pfcp_usage_report_trigger rtrig)
 {
 	struct pfcp_ie_usage_report_trigger *ie;
 	unsigned int length = sizeof(*ie);
@@ -481,8 +482,7 @@ pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c, bool term)
 	c->length = htons(ntohs(c->length) + length);
 
 	ie = (struct pfcp_ie_usage_report_trigger *) pbuff->data;
-	ie->v.immer = 1;	/* Immediate report */
-	ie->v.termr = (term);	/* Termination report */
+	ie->v = rtrig;
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
@@ -622,7 +622,7 @@ pfcp_ie_put_time_last_pkt(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 static int
 pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
 			 uint32_t start_time, uint32_t end_time, uint32_t seqn,
-			 bool termr,
+			 union pfcp_usage_report_trigger rtrig,
 			 struct pfcp_metrics_pkt *uplink,
 			 struct pfcp_metrics_pkt *downlink)
 {
@@ -633,7 +633,7 @@ pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
 	err = pfcp_ie_put_type(pbuff, type);
 	err = (err) ? : pfcp_ie_put_urr_id(pbuff, ie_usage_report, id);
 	err = (err) ? : pfcp_ie_put_ur_seqn(pbuff, ie_usage_report, seqn);
-	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report, termr);
+	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report, rtrig);
 	err = (err) ? : pfcp_ie_put_start_time(pbuff, ie_usage_report, start_time);
 	err = (err) ? : pfcp_ie_put_end_time(pbuff, ie_usage_report, end_time);
 	err = (err) ? : pfcp_ie_put_volume_measurement(pbuff, ie_usage_report,
@@ -654,8 +654,12 @@ pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
 				  struct pfcp_metrics_pkt *uplink,
 				  struct pfcp_metrics_pkt *downlink)
 {
+	union pfcp_usage_report_trigger report_trigger = {
+		.immer = 1,
+		.termr = 1,
+	};
 	return pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT_DELETION, pbuff, id,
-					start_time, end_time, seqn, true,
+					start_time, end_time, seqn, report_trigger,
 					uplink, downlink);
 }
 
@@ -685,14 +689,15 @@ pfcp_ie_put_query_urr_ref(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 int
 pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
 				 uint32_t id, uint32_t start_time, uint32_t end_time,
-				 uint32_t seqn, struct pfcp_metrics_pkt *uplink,
+				 uint32_t seqn, union pfcp_usage_report_trigger rtrig,
+				 struct pfcp_metrics_pkt *uplink,
 				 struct pfcp_metrics_pkt *downlink)
 {
 	struct pfcp_ie *ie_usage_report = (struct pfcp_ie *) pbuff->data;
 	int err;
 
 	err = pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT, pbuff, id,
-				       start_time, end_time, seqn, false,
+				       start_time, end_time, seqn, rtrig,
 				       uplink, downlink);
 	err  = (err) ? : pfcp_ie_put_query_urr_ref(pbuff, ie_usage_report, query_urr_ref);
 
