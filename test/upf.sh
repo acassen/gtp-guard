@@ -47,7 +47,7 @@ setup_combined() {
     ip route add default via 192.168.61.2 dev upf table 1020
     ip route add default via fc::2 dev upf table 1020
 
-    ip netns exec cloud ethtool -K veth0 gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
@@ -103,9 +103,9 @@ setup_split() {
     ip neigh add 192.168.62.1 lladdr d2:ad:ca:fe:aa:02 dev pub
     ip -6 neigh add fc::1:2 lladdr d2:ad:ca:fe:aa:02 nud permanent dev pub
 
-    ip netns exec access ethtool -K veth0 gro on
+    ip -n access link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec access ethtool -K veth0 tx-checksumming off >/dev/null
-    ip netns exec internet ethtool -K veth0 gro on
+    ip -n internet link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec internet ethtool -K veth0 tx-checksumming off >/dev/null
 }
 

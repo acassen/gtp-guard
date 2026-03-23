@@ -92,9 +92,8 @@ setup_iface() {
     ip netns exec cgn-priv ethtool -K priv tx-checksumming off >/dev/null
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec cgn-pub ethtool -K pub gro on
-    ip netns exec cgn-priv ethtool -K priv gro on
+    ip -n cgn-pub link set pub xdp obj bin/xdp_pass.bpf sec xdp
+    ip -n cgn-priv link set priv xdp obj bin/xdp_pass.bpf sec xdp
 
     ethtool -K pub gro off gso off tso off
     ethtool -K priv gro off gso off tso off
@@ -191,9 +190,8 @@ setup_iface_vlan() {
     ethtool -K priv rx-vlan-offload off
     
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec cgn-pub ethtool -K pub gro on
-    ip netns exec cgn-priv ethtool -K priv gro on
+    ip -n cgn-pub link set pub xdp obj bin/xdp_pass.bpf sec xdp
+    ip -n cgn-priv link set priv xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 
@@ -298,8 +296,7 @@ setup_vlan() {
     ethtool -K virt-eth0 rx-vlan-offload off
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec router ethtool -K router gro on
+    ip -n router link set router xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 
@@ -409,8 +406,7 @@ setup_gre() {
     ethtool -K virt-eth0 rx-vlan-offload off
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec router ethtool -K router gro on
+    ip -n router link set router xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 
