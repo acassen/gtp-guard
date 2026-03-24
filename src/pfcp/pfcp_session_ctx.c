@@ -561,6 +561,7 @@ pfcp_session_link_urr(struct pfcp_session *s)
 static int
 pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
 {
+	union pfcp_measurement_method mm;
 	struct urr *urr;
 	struct pdr *p;
 	int pdr_cnt, pdr_urr_cnt;
@@ -590,8 +591,12 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
 			printf("urr[%d]: included in %d/%d pdr\n",
 			       urr->id, pdr_urr_cnt, pdr_cnt);
 
+		mm = urr->measurement_method;
+		uu->flags = (mm.volum ? UPF_FL_MEAS_VOL : 0) |
+			(mm.durat ? UPF_FL_MEAS_DUR : 0);
+
 		/* take the first triggering values of all urrs */
-		if (urr->triggers.volth) {
+		if (mm.volum && urr->triggers.volth) {
 			uu->vol_thres_to =
 				!uu->vol_thres_to ? urr->volume_threshold_to :
 				min(uu->vol_thres_to, urr->volume_threshold_to);
@@ -602,7 +607,7 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
 				!uu->vol_thres_dl ? urr->volume_threshold_dl :
 				min(uu->vol_thres_dl, urr->volume_threshold_dl);
 		}
-		if (urr->triggers.volqu) {
+		if (mm.volum && urr->triggers.volqu) {
 			uu->vol_quota_to =
 				!uu->vol_quota_to ? urr->volume_quota_to :
 				min(uu->vol_quota_to, urr->volume_quota_to);
@@ -613,21 +618,23 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
 				!uu->vol_quota_dl ? urr->volume_quota_dl :
 				min(uu->vol_quota_dl, urr->volume_quota_dl);
 		}
-		if (urr->triggers.timth)
+		if (mm.durat && urr->triggers.timth)
 			uu->time_threshold = min(uu->time_threshold ?: ~0,
 						 urr->time_threshold);
-		if (urr->triggers.timqu)
+		if (mm.durat && urr->triggers.timqu)
 			uu->time_quota = min(uu->time_quota ?: ~0,
 						 urr->time_quota);
+		if (mm.durat)
+			uu->inactivity_det_time =
+				min(uu->inactivity_det_time ?: ~0,
+				    urr->inactivity_detection_time);
+
 		if (urr->triggers.perio)
 			uu->time_periodic = min(uu->time_periodic ?: ~0,
 					     urr->time_periodic);
 		if (urr->triggers.quhti)
 			uu->time_quota = min(uu->time_quota ?: ~0,
 					     urr->quota_holdtime);
-
-		uu->inactivity_det_time = min(uu->inactivity_det_time ?: ~0,
-					      urr->inactivity_detection_time);
 	}
 
 	return 0;
@@ -1166,8 +1173,10 @@ pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff, struct pfcp_ses
 
 	list_for_each_entry(u, &s->urr_list, next) {
 		u->end_time = time_now_to_ntp();
-		err = pfcp_ie_put_usage_report_deletion(pbuff, u->id, u->start_time, u->end_time,
-							u->seqn++, &u->ul, &u->dl);
+		err = pfcp_ie_put_usage_report_deletion(pbuff, u->id,
+							u->start_time, u->end_time,
+							u->seqn++, u->measurement_method,
+							&u->ul, &u->dl);
 		if (err)
 			return -1;
 	}

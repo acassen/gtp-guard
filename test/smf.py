@@ -18,6 +18,9 @@ Commands (stdin):
   session ping   <cp_seid> [<dst_ip>] [count <n>]
   sessions
 
+  expect no report [timeout <s>]
+      Wait <s> seconds (default 5) and fail if any session report arrives.
+
   expect report [timeout <s>] [cp_seid <n>] [urr_id <n>]
                 [trigger <name,...>]
                 [total <b>] [total_min <b>] [total_max <b>]
@@ -1396,6 +1399,22 @@ async def command_loop(smf: SMF, gtpu: GTPUSender, stop_event: asyncio.Event):
                         print(f"ping {ok}/{count} replies from {dst_ip}", flush=True)
 
                 # ── Expect ─────────────────────────────────────────────
+                case ["expect", "no", "report", *rest]:
+                    it      = iter(rest)
+                    timeout = 5.0
+                    for tok in it:
+                        if tok == "timeout": timeout = float(next(it))
+                        else: raise ValueError(f"Unknown option: {tok!r}")
+                    try:
+                        report = await asyncio.wait_for(
+                            smf.report_queue.get(), timeout=timeout)
+                        print(f"FAIL: unexpected session report received "
+                              f"(cp_seid=0x{report.cp_seid:016X}, "
+                              f"urr_ids={[ur.urr_id for ur in report.usage_reports]})",
+                              flush=True)
+                    except TimeoutError:
+                        print(f"PASS: no report received within {timeout}s", flush=True)
+
                 case ["expect", "report", *rest]:
                     p       = parse_expect_report(rest)
                     timeout = p.pop("timeout", 10.0)

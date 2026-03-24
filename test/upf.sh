@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (c) 2025 Olivier Gournet
+# Copyright (c) 2025-2026 Olivier Gournet
 
 . $(dirname $0)/_gtpg_cmd.sh
 
@@ -286,30 +286,45 @@ _hash_set() {
 }
 
 smf_basic_urr() {
+    if [ "$4" ]; then
+	urr_expect="expect report timeout 10 cp_seid 1 urr_id 1 $4"
+    else
+	urr_expect="expect no report timeout 4"
+    fi
     _hash_set $1 $2 <<EOF
 urr set id 1 $3
 session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr 1
 session ping 1 8.8.8.8 count 3
-expect report timeout 10 cp_seid 1 urr_id 1 $4
-#session delete 1
+$urr_expect
+session delete 1
 EOF
 }
 
 
 run_with_smf() {
-    smf_cmd="ip netns exec cloud python3 ./other/smf.py --smf-ip 192.168.61.193 --upf-ip 192.168.61.194 --gtpu-ip 192.168.61.2 --upf-port 8805"
+    smf_cmd="ip netns exec cloud python3 ./test/smf.py --smf-ip 192.168.61.193 --upf-ip 192.168.61.194 --gtpu-ip 192.168.61.2 --upf-port 8805"
 
     declare -A testset
 
+    # volume measurement
     smf_basic_urr testset volth1			\
     "triggers volth measure volume volth total 240"	\
     "trigger volth total_min 240"
     smf_basic_urr testset volth2			\
     "triggers volth measure volume volth ul 160 volth dl 120"	\
     "trigger volth total_min 240 ul_min 120 dl_min 120"
+
+    # no measure vol, do not expect report
+    smf_basic_urr testset volth3			\
+    "triggers volth volth ul 160 volth dl 120"	\
+    ""
+
+    # volume quota
     smf_basic_urr testset volqu1			\
     "triggers volqu measure volume volquota total 120"	\
     "trigger volqu total_min 120"
+
+    # duration
     smf_basic_urr testset timth1			\
     "triggers timth measure duration timth 3"		\
     "trigger timth"

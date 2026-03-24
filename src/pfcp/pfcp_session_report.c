@@ -57,13 +57,13 @@ pfcp_session_report_add_urr(struct pkt_buffer *pbuff, struct urr *u,
 	err = pfcp_ie_put_usage_report_request(pbuff, report->query_urr_ref,
 					       u->id, u->start_time, end_time,
 					       u->seqn++, report->rtrig,
+					       u->measurement_method,
 					       &ul_tmp, &dl_tmp);
 	if (err)
 		return -1;
 
 	/* update counters */
-	u->end_time = end_time;
-	u->start_time = time_now_to_ntp();
+	u->end_time = u->start_time = end_time;
 	pfcp_metrics_pkt_cpy(&u->last_report_ul, &u->ul);
 	pfcp_metrics_pkt_cpy(&u->last_report_dl, &u->dl);
 	return 0;

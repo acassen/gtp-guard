@@ -189,24 +189,27 @@ _check_urr_dl(struct upf_urr *u, struct upf_urr_data *uc)
 }
 
 static __always_inline void
-_update_urr_inactivity_time(struct upf_urr *u, struct upf_urr_data *uc)
+_update_urr_inactivity_time(struct upf_urr *uu, struct upf_urr_data *uud)
 {
+	if (!(uu->flags & UPF_FL_MEAS_DUR))
+		return;
+
 	__u64 now = bpf_ktime_get_ns();
-	__u64 pkt_last_ns = uc->fwd_pkt_last;
-	if (u->inactivity_det_time && pkt_last_ns) {
+	__u64 pkt_last_ns = uud->fwd_pkt_last;
+	if (uu->inactivity_det_time && pkt_last_ns) {
 		__u64 elapsed = now - pkt_last_ns;
-		__u64 inactive_time = (__u64)u->inactivity_det_time * NSEC_PER_SEC;
+		__u64 inactive_time = (__u64)uu->inactivity_det_time * NSEC_PER_SEC;
 		if (elapsed > inactive_time)
-			uc->inactive_time += elapsed - inactive_time;
+			uud->inactive_time += elapsed - inactive_time;
 	}
-	if (!uc->fwd_pkt_first) {
-		uc->fwd_pkt_first = now;
-		__u64 next = _urr_compute_next_tick(u, uc, now);
+	if (!uud->fwd_pkt_first) {
+		uud->fwd_pkt_first = now;
+		__u64 next = _urr_compute_next_tick(uu, uud, now);
 		bpf_printk("got first packet: next: %ld", next);
 		if (next)
-			bpf_timer_start(&u->timer, next, BPF_F_TIMER_CPU_PIN);
+			bpf_timer_start(&uu->timer, next, BPF_F_TIMER_CPU_PIN);
 	}
-	uc->fwd_pkt_last = now;
+	uud->fwd_pkt_last = now;
 }
 
 

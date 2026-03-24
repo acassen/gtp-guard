@@ -33,7 +33,7 @@
  */
 int
 pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
-	        int (*hdl) (void *, void *, const uint8_t *), void *arg1, void *arg2)
+		int (*hdl) (void *, void *, const uint8_t *), void *arg1, void *arg2)
 {
 	struct pfcp_ie *ie;
 	const uint8_t *cp, *end = buffer + bsize;
@@ -623,6 +623,7 @@ static int
 pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
 			 uint32_t start_time, uint32_t end_time, uint32_t seqn,
 			 union pfcp_usage_report_trigger rtrig,
+			 union pfcp_measurement_method meas,
 			 struct pfcp_metrics_pkt *uplink,
 			 struct pfcp_metrics_pkt *downlink)
 {
@@ -636,10 +637,12 @@ pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
 	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report, rtrig);
 	err = (err) ? : pfcp_ie_put_start_time(pbuff, ie_usage_report, start_time);
 	err = (err) ? : pfcp_ie_put_end_time(pbuff, ie_usage_report, end_time);
-	err = (err) ? : pfcp_ie_put_volume_measurement(pbuff, ie_usage_report,
-						       uplink, downlink);
-	err = (err) ? : pfcp_ie_put_duration_measurement(pbuff, ie_usage_report,
-							 duration);
+	if (meas.volum)
+		err = (err) ? : pfcp_ie_put_volume_measurement(pbuff, ie_usage_report,
+							       uplink, downlink);
+	if (meas.durat)
+		err = (err) ? : pfcp_ie_put_duration_measurement(pbuff, ie_usage_report,
+								 duration);
 	if (!pfcp_metrics_pkt_is_null(uplink) && !pfcp_metrics_pkt_is_null(downlink)) {
 		err = (err) ? : pfcp_ie_put_time_first_pkt(pbuff, ie_usage_report, start_time);
 		err = (err) ? : pfcp_ie_put_time_last_pkt(pbuff, ie_usage_report, end_time);
@@ -651,6 +654,7 @@ pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
 int
 pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
 				  uint32_t start_time, uint32_t end_time, uint32_t seqn,
+				  union pfcp_measurement_method meas,
 				  struct pfcp_metrics_pkt *uplink,
 				  struct pfcp_metrics_pkt *downlink)
 {
@@ -660,7 +664,7 @@ pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
 	};
 	return pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT_DELETION, pbuff, id,
 					start_time, end_time, seqn, report_trigger,
-					uplink, downlink);
+					meas, uplink, downlink);
 }
 
 static int
@@ -690,6 +694,7 @@ int
 pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
 				 uint32_t id, uint32_t start_time, uint32_t end_time,
 				 uint32_t seqn, union pfcp_usage_report_trigger rtrig,
+				 union pfcp_measurement_method meas,
 				 struct pfcp_metrics_pkt *uplink,
 				 struct pfcp_metrics_pkt *downlink)
 {
@@ -698,7 +703,7 @@ pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_re
 
 	err = pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT, pbuff, id,
 				       start_time, end_time, seqn, rtrig,
-				       uplink, downlink);
+				       meas, uplink, downlink);
 	err  = (err) ? : pfcp_ie_put_query_urr_ref(pbuff, ie_usage_report, query_urr_ref);
 
 	return err;

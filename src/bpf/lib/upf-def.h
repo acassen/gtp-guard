@@ -66,6 +66,9 @@ struct upf_fwd_rule {
 }  __attribute__((packed));
 
 
+#define UPF_FL_MEAS_VOL				0x01
+#define UPF_FL_MEAS_DUR				0x02
+
 #define UPF_TRIG_FL_VOLTH			0x0001
 #define UPF_TRIG_FL_TIMTH			0x0002
 #define UPF_TRIG_FL_VOLQU			0x0004
@@ -81,7 +84,8 @@ struct upf_urr {
 
 	__u32		urr_idx;		/* index to upf_urr{,_data} */
 	__u8		cur_ver;		/* inc. on modifySession */
-	__u8		_pad[3];
+	__u8		flags;			/* UPF_FL_* */
+	__u8		_pad[2];
 
 	__u32		inactivity_det_time;	/* seconds */
 	__u32		time_threshold;
@@ -102,7 +106,7 @@ struct upf_urr {
 struct upf_urr_data {
 	__u64		seid;
 	__u32		urr_id;			/* pfcp urr_id ie */
-	__u16		report_flags;
+	__u16		report_flags;		/* UPF_TRIG_FL_* */
 	__u8		cur_ver;
 	__u8		quota_reached;
 	__u8		_pad[6];
