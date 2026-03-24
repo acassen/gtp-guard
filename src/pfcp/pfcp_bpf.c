@@ -440,7 +440,6 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	table_destroy(tbl);
 }
 
-
 static void *
 pfcp_bpf_alloc(struct gtp_bpf_prog *p)
 {

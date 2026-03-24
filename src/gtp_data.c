@@ -78,6 +78,7 @@ free_daemon_data(void)
 	pppoe_destroy();
 	gtp_interfaces_destroy();
 	gtp_bpf_progs_destroy();
+	pfcp_destroy();
 	gtp_conn_destroy();
 	gtp_sessions_destroy();
 	gtp_proxy_destroy();
@@ -89,6 +90,5 @@ free_daemon_data(void)
 	gtp_apn_destroy();
 	gtp_ip_pool_destroy();
 	cgn_destroy();
-	pfcp_destroy();
 	FREE(daemon_data);
 }

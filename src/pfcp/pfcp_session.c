@@ -356,9 +356,7 @@ pfcp_sessions_destroy(void)
 
 	for (i = 0; i < PFCP_SESSION_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry_safe(s, n, &pfcp_session_tab[i], hlist) {
-			free(s);
-			/* should be: */
-			/* pfcp_session_release(s); */
+			pfcp_session_release(s);
 		}
 	}
 
