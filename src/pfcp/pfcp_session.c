@@ -34,73 +34,9 @@
 extern struct thread_master *master;
 
 /* Local data */
-static struct list_head pfcp_session_unuse;
-static int pfcp_session_unuse_count;
 static struct hlist_head *pfcp_session_tab;
 static int pfcp_sessions_count = 0;
 static void pfcp_session_expire(struct thread *t);
-
-
-/*
- *	Recycle handling
- */
-static int
-pfcp_session_unuse_destroy(void)
-{
-	struct pfcp_session *s, *_s;
-
-	list_for_each_entry_safe(s, _s, &pfcp_session_unuse, next) {
-		list_head_del(&s->next);
-		free(s);
-	}
-	INIT_LIST_HEAD(&pfcp_session_unuse);
-
-	return 0;
-}
-
-int
-pfcp_session_unuse_queue_size(void)
-{
-	return pfcp_session_unuse_count;
-}
-
-static struct pfcp_session *
-pfcp_session_unuse_trim_head(void)
-{
-	struct pfcp_session *s;
-
-	if (list_empty(&pfcp_session_unuse))
-		return NULL;
-
-	s = list_first_entry(&pfcp_session_unuse, struct pfcp_session, next);
-	list_head_del(&s->next);
-	memset(s, 0, sizeof(*s));
-
-	__sync_sub_and_fetch(&pfcp_session_unuse_count, 1);
-	return s;
-}
-
-
-static struct pfcp_session *
-pfcp_session_malloc(void)
-{
-	struct pfcp_session *s;
-
-	s = pfcp_session_unuse_trim_head();
-	if (!s)
-		s = calloc(1, sizeof(*s));
-
-	return s;
-}
-
-void
-pfcp_session_free(struct pfcp_session *s)
-{
-	INIT_LIST_HEAD(&s->next);
-	list_add_tail(&s->next, &pfcp_session_unuse);
-	__sync_add_and_fetch(&pfcp_session_unuse_count, 1);
-}
-
 
 /*
  *	PFCP Session hash handling
@@ -243,7 +179,7 @@ pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *
 	struct pfcp_session *new;
 	uint64_t seid;
 
-	new = pfcp_session_malloc();
+	new = calloc(1, sizeof (*new));
 	if (!new) {
 		errno = ENOMEM;
 		return NULL;
@@ -333,7 +269,7 @@ pfcp_session_release(struct pfcp_session *s)
 	pfcp_session_unhash(s);
 	pfcp_session_release_ue_ip(s);
 	pfcp_session_release_teid(s);
-	pfcp_session_free(s);
+	free(s);
 	return 0;
 }
 
@@ -407,7 +343,6 @@ pfcp_sessions_free(struct gtp_conn *c)
 int
 pfcp_sessions_init(void)
 {
-	INIT_LIST_HEAD(&pfcp_session_unuse);
 	pfcp_session_tab = calloc(PFCP_SESSION_HASHTAB_SIZE, sizeof(struct hlist_head));
 	return 0;
 }
@@ -422,10 +357,11 @@ pfcp_sessions_destroy(void)
 	for (i = 0; i < PFCP_SESSION_HASHTAB_SIZE; i++) {
 		hlist_for_each_entry_safe(s, n, &pfcp_session_tab[i], hlist) {
 			free(s);
+			/* should be: */
+			/* pfcp_session_release(s); */
 		}
 	}
 
 	free(pfcp_session_tab);
-	pfcp_session_unuse_destroy();
 	return 0;
 }
