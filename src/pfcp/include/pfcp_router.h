@@ -36,7 +36,8 @@ enum pfcp_flags {
 	PFCP_ROUTER_FL_S1U,
 	PFCP_ROUTER_FL_S5U,
 	PFCP_ROUTER_FL_S8U,
-	PFCP_ROUTER_FL_N9U,
+	PFCP_ROUTER_FL_N9,
+	PFCP_ROUTER_FL_N3,
 };
 
 enum pfcp_debug_flags {
@@ -76,6 +77,8 @@ struct pfcp_router {
 	struct gtp_server	gtpu_s5;
 	struct gtp_server	gtpu_s8;
 	struct gtp_server	gtpu_n9;
+	struct gtp_server	gtpu_n3;
+
 
 	uint64_t		seed;
 	unsigned long		flags;

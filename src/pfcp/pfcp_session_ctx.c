@@ -106,10 +106,16 @@ pfcp_session_get_gtp_server_by_interface(struct pfcp_router *r, uint8_t interfac
 		break;
 
 	case PFCP_3GPP_INTERFACE_N9:
-		if (__test_bit(PFCP_ROUTER_FL_N9U, &r->flags))
+		if (__test_bit(PFCP_ROUTER_FL_N9, &r->flags))
 			srv = &r->gtpu_n9;
 		break;
+
+	case PFCP_3GPP_INTERFACE_N3:
+		if (__test_bit(PFCP_ROUTER_FL_N3, &r->flags))
+			srv = &r->gtpu_n3;
+		break;
 	}
+
 
 	if (!srv && __test_bit(PFCP_ROUTER_FL_ALL, &r->flags))
 		srv = &r->gtpu;
