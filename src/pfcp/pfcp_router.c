@@ -255,8 +255,10 @@ pfcp_router_ctx_destroy(struct pfcp_router *c)
 		gtp_server_destroy(&c->gtpu_s5);
 	if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
 		gtp_server_destroy(&c->gtpu_s8);
-	if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
+	if (__test_bit(PFCP_ROUTER_FL_N9, &c->flags))
 		gtp_server_destroy(&c->gtpu_n9);
+	if (__test_bit(PFCP_ROUTER_FL_N3, &c->flags))
+		gtp_server_destroy(&c->gtpu_n3);
 	pfcp_teid_destroy(c->teid);
 	FREE(c);
 }

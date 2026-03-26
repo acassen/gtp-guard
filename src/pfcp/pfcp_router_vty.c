@@ -544,13 +544,14 @@ DEFUN(pfcp_strict_apn,
 
 DEFUN(pfcp_gtpu_tunnel_endpoint,
       pfcp_gtpu_tunnel_endpoint_cmd,
-      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9) (A.B.C.D|X:X::X:X) port <1024-65535>",
+      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9|n3) (A.B.C.D|X:X::X:X) port <1024-65535>",
       "3GPP GTP-U interface\n"
       "All interface\n"
       "S1-U interface\n"
       "S5-U interface\n"
       "S8-U interface\n"
       "N9-U interface\n"
+      "N3-U interface\n"
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "UDP port to listen to\n"
@@ -594,12 +595,19 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 		fl = PFCP_ROUTER_FL_S8U;
 		srv = &c->gtpu_s8;
 	} else if (!strcmp(ifname_3gpp, "n9")) {
-		if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags)) {
-			vty_out(vty, "%% 3GPP-N9-U endpoint already set\n");
+		if (__test_bit(PFCP_ROUTER_FL_N9, &c->flags)) {
+			vty_out(vty, "%% 3GPP-N9 endpoint already set\n");
 			return CMD_WARNING;
 		}
-		fl = PFCP_ROUTER_FL_N9U;
+		fl = PFCP_ROUTER_FL_N9;
 		srv = &c->gtpu_n9;
+	} else if (!strcmp(ifname_3gpp, "n3")) {
+		if (__test_bit(PFCP_ROUTER_FL_N3, &c->flags)) {
+			vty_out(vty, "%% 3GPP-N3 endpoint already set\n");
+			return CMD_WARNING;
+		}
+		fl = PFCP_ROUTER_FL_N3;
+		srv = &c->gtpu_n3;
 	} else {
 		return CMD_WARNING;
 	}
@@ -873,10 +881,14 @@ config_pfcp_router_write(struct vty *vty)
 			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu_s8.s.addr)
 				   , ntohs(inet_sockaddrport(&c->gtpu_s8.s.addr)));
-		if (__test_bit(PFCP_ROUTER_FL_N9U, &c->flags))
+		if (__test_bit(PFCP_ROUTER_FL_N9, &c->flags))
 			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %d\n"
 				   , inet_sockaddrtos(&c->gtpu_n9.s.addr)
 				   , ntohs(inet_sockaddrport(&c->gtpu_n9.s.addr)));
+		if (__test_bit(PFCP_ROUTER_FL_N3, &c->flags))
+			vty_out(vty, " gtpu-tunnel-endpoint n3 %s port %d\n"
+				   , inet_sockaddrtos(&c->gtpu_n3.s.addr)
+				   , ntohs(inet_sockaddrport(&c->gtpu_n3.s.addr)));
 
 		vty_out(vty, "!\n");
 	}
