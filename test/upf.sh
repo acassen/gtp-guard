@@ -313,9 +313,12 @@ run_with_smf() {
     smf_basic_urr testset volth2			\
     "triggers volth measure volume volth ul 160 volth dl 120"	\
     "trigger volth total_min 240 ul_min 120 dl_min 120"
+    smf_basic_urr testset volth3			\
+    "triggers volth measure volume volth total 176"	\
+    "trigger volth total_min 176"
 
     # no measure vol, do not expect report
-    smf_basic_urr testset volth3			\
+    smf_basic_urr testset volth10			\
     "triggers volth volth ul 160 volth dl 120"	\
     ""
 

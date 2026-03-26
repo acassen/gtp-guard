@@ -68,6 +68,7 @@ struct upf_fwd_rule {
 
 #define UPF_FL_MEAS_VOL				0x01
 #define UPF_FL_MEAS_DUR				0x02
+#define UPF_FL_QUOTA_REACHED			0x04
 
 #define UPF_TRIG_FL_VOLTH			0x0001
 #define UPF_TRIG_FL_TIMTH			0x0002
@@ -78,70 +79,97 @@ struct upf_fwd_rule {
 #define UPF_TRIG_FL_START			0x0040
 #define UPF_TRIG_FL_STOPT			0x0080
 
-/* reporting rules. bpf doesn't write into. */
+/* current urr stats. owned by bpf (256 bytes) */
 struct upf_urr {
-	struct bpf_timer timer;
+	struct bpf_timer timer;			/* 2u64 bytes */
 
-	__u32		urr_idx;		/* index to upf_urr{,_data} */
-	__u8		cur_ver;		/* inc. on modifySession */
 	__u8		flags;			/* UPF_FL_* */
-	__u8		_pad[2];
-
-	__u32		inactivity_det_time;	/* seconds */
-	__u32		time_threshold;
-	__u32		time_quota;
-	__u32		time_periodic;
-	__u32		time_inactivity;	/* quota holding time */
+	__u8		cur_ver;
+	__u16		_pad1;
 	__u32		_pad2;
 
-	__u64		vol_thres_to;
-	__u64		vol_thres_ul;
-	__u64		vol_thres_dl;
-	__u64		vol_quota_to;
-	__u64		vol_quota_ul;
-	__u64		vol_quota_dl;
-};
+	/* volume counters, thresholds and quota (18u64) */
+	struct upf_uur_vol_path {
+		__u64	drop_pkt;
+		__u64	pkt;
+		__u64	bytes;			/* forwarded bytes */
+		__u64	th;			/* config thres. in bytes */
+		__u64	th_next;		/* trigger limit */
+		__u64	qu;
+		__u64	qu_next;
+	}		ul, dl;
+	__u64		total_th;
+	__u64		total_th_next;
+	__u64		total_qu;
+	__u64		total_qu_next;
 
-/* current stats. written by bpf, reported to userapp */
-struct upf_urr_data {
-	__u64		seid;
 	__u32		urr_id;			/* pfcp urr_id ie */
-	__u16		report_flags;		/* UPF_TRIG_FL_* */
-	__u8		cur_ver;
-	__u8		quota_reached;
-	__u8		_pad[6];
 
-	/* report and reset on each report */
-	__u64		fwd_pkt_ul;
-	__u64		fwd_bytes_ul;
-	__u64		drop_pkt_ul;
-	__u64		fwd_pkt_dl;
-	__u64		fwd_bytes_dl;
-	__u64		drop_pkt_dl;
-	__u64		fwd_pkt_first;	/* in ns. */
-	__u64		fwd_pkt_last;	/* in ns. */
-	__u64		inactive_time;	/* in ns. */
+	/* duration (u32 in sec. u64 in nsec) (10u64) */
+	__u32		time_th;
+	__u32		time_qu;
+	__u32		time_periodic;
+	__u32		time_inactivity;	/* quota holding time */
+	__u32		inactivity_det_time;
 
-	/* set when generating a trigger */
-	__u64		vol_quota_ul_used;
-	__u64		vol_quota_dl_used;
-	__u64		time_quota_used; /* in ns. */
-
-	/* timers */
+	__u64		fwd_pkt_first;		/* first pkt seen */
+	__u64		fwd_pkt_last;		/* last pkt seen */
+	__u64		time_th_next;
+	__u64		time_qu_next;
+	__u64		inactive_time;		/* cumulative */
 	__u64		time_periodic_next;
 	__u64		time_inactivity_next;
+
+	__u64		seid;
 };
 
 
-struct urr_ctl_init_ctx {
-	__u32		index;
-	__u32		urr_id;
-	__u64		seid;
-	struct upf_urr	uu;
-} __attribute__((packed));
+#define UPF_FL_CTL_INIT				0x01
+#define UPF_FL_CTL_UPDATE			0x02
+#define UPF_FL_CTL_DELETE			0x04
+#define UPF_FL_CTL_REPORT			0x08
+#define UPF_FL_CTL_MORE_CMD			0x10
 
-struct urr_ctl_report_ctx {
-	__u32		index;
-	__u32		action;
-	struct upf_urr_data uud;
-} __attribute__((packed));
+
+struct upf_urr_cmd_req {
+	__u64		seid;
+	__u32		urr_id;			/* pfcp ie.urr_id */
+	__u32		urr_idx;		/* idx in bpf map array */
+	__u16		request_id;		/* trigger by syscall */
+	__u8		flags;			/* UPF_FL_* */
+	__u8		ctl_fl;			/* UPF_FL_CTL_* */
+	__u8		cur_ver;
+
+	__u32		time_th;
+	__u32		time_qu;
+	__u32		time_periodic;
+	__u32		time_inactivity;
+	__u32		inactivity_det_time;
+
+	__u64		total_th;
+	__u64		total_qu;
+	__u64		dl_th;
+	__u64		dl_qu;
+	__u64		ul_th;
+	__u64		ul_qu;
+};
+
+struct upf_urr_report {
+	__u64		seid;
+	__u32		urr_id;			/* pfcp urr_id ie */
+	__u16		request_id;		/* if trigged by syscall */
+	__u16		report_flags;		/* UPF_TRIG_FL_* */
+};
+
+struct upf_urr_report_data {
+	struct upf_urr_report r;
+
+	__u64		dl_bytes;
+	__u64		dl_pkt;
+	__u64		dl_drop_pkt;
+	__u64		ul_bytes;
+	__u64		ul_pkt;
+	__u64		ul_drop_pkt;
+	__u32		fwd_pkt_first;		/* first pkt seen */
+	__u32		fwd_pkt_last;		/* last pkt seen */
+};

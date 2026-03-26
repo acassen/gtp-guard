@@ -212,61 +212,6 @@ _delete_ingress_rule(struct pfcp_router *r, struct upf_fwd_rule *u, struct ue_ip
 }
 
 int
-pfcp_bpf_urr_init(struct pfcp_session *s, struct upf_urr *uu,
-		  uint32_t urr_id)
-{
-	struct pfcp_bpf_data *bd = s->router->bpf_data;
-	struct urr_ctl_init_ctx ctx = {
-		.index = uu->urr_idx,
-		.urr_id = urr_id,
-		.seid = s->seid,
-		.uu = *uu,
-	};
-	int ret;
-
-	LIBBPF_OPTS(bpf_test_run_opts, rcfg,
-		    .ctx_in = &ctx,
-		    .ctx_size_in = sizeof (ctx));
-
-	ret = bpf_prog_test_run_opts(bd->urr_ctl_init_prog_fd, &rcfg);
-	if (ret) {
-		log_message(LOG_INFO, "%s: run bpf failed: %m",
-			    __func__);
-		return -1;
-	}
-
-	return 0;
-}
-
-
-int
-pfcp_bpf_urr_report(struct pfcp_router *rtr, uint32_t urr_idx,
-		    struct upf_urr_data *uud)
-{
-	struct pfcp_bpf_data *bd = rtr->bpf_data;
-	struct urr_ctl_report_ctx ctx = {
-		.index = urr_idx,
-		.action = 1,
-	};
-	int ret;
-
-	LIBBPF_OPTS(bpf_test_run_opts, rcfg,
-		    .ctx_in = &ctx,
-		    .ctx_size_in = sizeof (ctx));
-
-	ret = bpf_prog_test_run_opts(bd->urr_ctl_report_prog_fd, &rcfg);
-	if (ret) {
-		log_message(LOG_INFO, "%s: run bpf failed: %m",
-			    __func__);
-		return -1;
-	}
-
-	*uud = ctx.uud;
-
-	return 0;
-}
-
-int
 pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 		struct pfcp_teid *t, struct ue_ip_address *ue)
 {
@@ -305,6 +250,10 @@ pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,
 	return err;
 }
 
+
+/*************************************************************************/
+/* vty */
+
 int
 pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 		  struct ue_ip_address *ue, struct pfcp_teid *t)
@@ -312,7 +261,7 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 	struct pfcp_bpf_data *bd = gtp_bpf_prog_tpl_data_get(p, "upf");
 	struct upf_egress_key ek = {};
 	struct upf_ingress_key ik = {};
-	struct upf_urr_data c = {};
+	struct upf_urr c = {};
 	struct upf_fwd_rule rule;
 	int err;
 
@@ -328,14 +277,13 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 				   , VTY_NEWLINE);
 			return -1;
 		}
-		bpf_map__lookup_elem(bd->upf_urr_data,
+		bpf_map__lookup_elem(bd->upf_urr,
 				     &rule.urr_idx, sizeof(rule.urr_idx),
 				     &c, sizeof(c), 0);
 
 		vty_out(vty, "            packets:%lld bytes:%lld\n"
 			     "            drop:%lld\n"
-			   , c.fwd_pkt_ul, c.fwd_bytes_ul
-			   , c.drop_pkt_ul);
+			   , c.ul.pkt, c.ul.bytes, c.ul.drop_pkt);
 		return 0;
 	}
 
@@ -351,13 +299,12 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 			vty_out(vty, "              IPv4 - no data-plane ?!!%s"
 				   , VTY_NEWLINE);
 		} else {
-			bpf_map__lookup_elem(bd->upf_urr_data,
+			bpf_map__lookup_elem(bd->upf_urr,
 					     &rule.urr_idx, sizeof(rule.urr_idx),
 					     &c, sizeof(c), 0);
 			vty_out(vty, "              IPv4 - packets:%lld bytes:%lld\n"
 				     "                     drop:%lld\n"
-				   , c.fwd_pkt_dl, c.fwd_bytes_dl
-				   , c.drop_pkt_dl);
+				   , c.dl.pkt, c.dl.bytes, c.dl.drop_pkt);
 		}
 	}
 
@@ -370,13 +317,12 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 			vty_out(vty, "              IPv6 - no data-plane ?!!%s"
 				   , VTY_NEWLINE);
 		} else {
-			bpf_map__lookup_elem(bd->upf_urr_data,
+			bpf_map__lookup_elem(bd->upf_urr,
 					     &rule.urr_idx, sizeof(rule.urr_idx),
 					     &c, sizeof(c), 0);
 			vty_out(vty, "              IPv6 - packets:%lld bytes:%lld\n"
 				     "                     drop:%lld\n"
-				   , c.fwd_pkt_dl, c.fwd_bytes_dl
-				   , c.drop_pkt_dl);
+				   , c.dl.pkt, c.dl.bytes, c.dl.drop_pkt);
 		}
 	}
 
@@ -392,7 +338,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 	struct upf_egress_key ek = {};
 	struct upf_ingress_key ik = {};
 	struct upf_fwd_rule rule;
-	struct upf_urr_data c = {};
+	struct upf_urr c = {};
 	union addr addr, laddr, addr_ue;
 	char buf1[26], buf2[40], buf3[26], action_str[40];
 	uint32_t key = 0;
@@ -416,7 +362,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 				"teid_key:0x%.8x (%m)\n", key);
 			break;
 		}
-		bpf_map__lookup_elem(bd->upf_urr_data,
+		bpf_map__lookup_elem(bd->upf_urr,
 				     &rule.urr_idx, sizeof(rule.urr_idx),
 				     &c, sizeof(c), 0);
 
@@ -433,7 +379,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
 				  addr_stringify(&laddr, buf3, sizeof (buf3)),
-				  c.fwd_pkt_dl, c.fwd_bytes_dl);
+				  c.dl.pkt, c.dl.bytes);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
@@ -453,7 +399,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 				"teid_key:0x%.8x (%m)\n", key);
 			break;
 		}
-		bpf_map__lookup_elem(bd->upf_urr_data,
+		bpf_map__lookup_elem(bd->upf_urr,
 				     &rule.urr_idx, sizeof(rule.urr_idx),
 				     &c, sizeof(c), 0);
 
@@ -471,10 +417,144 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(ek.gtpu_local_teid),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
-				  action_str, c.fwd_pkt_ul, c.fwd_bytes_ul);
+				  action_str, c.ul.pkt, c.ul.bytes);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
+}
+
+
+/*************************************************************************/
+/* urr_ctl syscall */
+
+struct pfcp_bpf_data_thread
+{
+	struct pfcp_bpf_data	*bd;
+	pthread_t		task;
+	pthread_cond_t		cond;
+	pthread_mutex_t		lock;
+	struct list_head	cmd_list;
+	bool			run;
+};
+
+static int
+_thread_urr_ctl(struct pfcp_bpf_data *bd, struct upf_urr_cmd_req *uc)
+{
+	int ret;
+
+	LIBBPF_OPTS(bpf_test_run_opts, rcfg,
+		    .ctx_in = uc,
+		    .ctx_size_in = sizeof (*uc));
+
+	ret = bpf_prog_test_run_opts(bd->urr_ctl_prog_fd, &rcfg);
+	if (ret) {
+		log_message(LOG_INFO, "%s: run bpf failed: %m",
+			    __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+static void *
+_thread_main_loop(void *arg)
+{
+	struct pfcp_bpf_data_thread *th = arg;
+	struct list_head tmp_list = LIST_HEAD_INIT(tmp_list);
+	struct pfcp_urr_cmd *puc;
+
+	pthread_mutex_lock(&th->lock);
+	while (th->run) {
+		if (list_empty(&th->cmd_list))
+			pthread_cond_wait(&th->cond, &th->lock);
+		list_splice_init(&th->cmd_list, &tmp_list);
+
+		pthread_mutex_unlock(&th->lock);
+		list_for_each_entry(puc, &tmp_list, clist) {
+			_thread_urr_ctl(th->bd, &puc->uc);
+		}
+		INIT_LIST_HEAD(&tmp_list);
+		pthread_mutex_lock(&th->lock);
+	}
+	pthread_mutex_unlock(&th->lock);
+
+	return NULL;
+}
+
+static struct pfcp_bpf_data_thread *
+_thread_start(struct pfcp_bpf_data *bd, int cpu)
+{
+	struct pfcp_bpf_data_thread *th;
+	cpu_set_t set;
+	int ret;
+
+	th = calloc(1, sizeof (*th));
+	if (th == NULL)
+		return NULL;
+
+	th->bd = bd;
+	pthread_cond_init(&th->cond, NULL);
+	pthread_mutex_init(&th->lock, NULL);
+	INIT_LIST_HEAD(&th->cmd_list);
+	th->run = true;
+	ret = pthread_create(&th->task, NULL, _thread_main_loop, th);
+	if (ret < 0) {
+		log_message(LOG_INFO, "pthread_create: %m");
+		free(th);
+		return NULL;
+	}
+
+	CPU_ZERO(&set);
+	CPU_SET(cpu, &set);
+	pthread_setaffinity_np(th->task, sizeof(set), &set);
+	return th;
+}
+
+struct upf_urr_cmd_req *
+pfcp_bpf_urr_alloc_cmd(struct pfcp_session *s)
+{
+	struct pfcp_urr_cmd *puc;
+
+	puc = calloc(1, sizeof (*puc));
+	if (puc == NULL)
+		return NULL;
+	puc->uc.seid = s->seid;
+	puc->uc.request_id = ++s->urr_cmd_next_id;
+
+	return &puc->uc;
+}
+
+int
+pfcp_bpf_urr_ctl(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
+{
+	struct pfcp_bpf_data *bd = s->router->bpf_data;
+	struct pfcp_bpf_data_thread *th;
+	struct pfcp_urr_cmd *puc = (struct pfcp_urr_cmd *)uc;
+
+	if (bd == NULL) {
+		free(uc);
+		return -1;
+	}
+
+	th = bd->ctl_task[s->cpu];
+	if (th == NULL) {
+		th = _thread_start(bd, s->cpu);
+		if (th == NULL) {
+			free(uc);
+			return -1;
+		}
+		bd->ctl_task[s->cpu] = th;
+	}
+
+	pthread_mutex_lock(&th->lock);
+	if (list_empty(&th->cmd_list))
+		pthread_cond_signal(&th->cond);
+	list_add_tail(&puc->clist, &th->cmd_list);
+	pthread_mutex_unlock(&th->lock);
+
+	list_add_tail(&puc->plist, &s->urr_cmd_pending_list);
+
+	return 0;
 }
 
 uint32_t
@@ -499,28 +579,79 @@ pfcp_bpf_release_urr_idx(struct pfcp_session *s, uint32_t urr_idx)
 {
 	struct pfcp_bpf_data *bd = s->router->bpf_data;
 
-	bd->urr_alloc[urr_idx] = 0;
+	if (bd != NULL)
+		bd->urr_alloc[urr_idx] = 0;
 }
 
+
+
+/*************************************************************************/
+/* ring buffer */
+
 static int
-ring_buffer_process(void *ctx, void *data, size_t size)
+pfcp_bpf_ring_buffer_process(void *ctx, void *data, size_t size)
 {
-	struct upf_urr_data *uud = data;
+	struct upf_urr_report *ur;
+	struct upf_urr_report_data *urd;
+	struct pfcp_urr_cmd *puc;
 	struct pfcp_session *s;
 
-	if (size != sizeof (*uud))
+	if (size == sizeof (*urd)) {
+		urd = data;
+		ur = data;
+	} else if (sizeof (*ur)) {
+		ur = data;
+	} else {
+		log_message(LOG_INFO, "%s: unexpected size: %ld", __func__, size);
 		return 0;
+	}
 
-	s = pfcp_session_get(uud->seid);
-	if (s != NULL)
-		pfcp_session_report_triggered(s, uud);
+	/* get pfcp session */
+	s = pfcp_session_get(ur->seid);
+	if (s == NULL) {
+		log_message(LOG_DEBUG, "%s: report (size:%ld) for unknown seid %lld",
+			    __func__, size, ur->seid);
+		return 0;
+	}
+
+	/* it's a trigger */
+	if (!ur->request_id) {
+		if (urd != NULL)
+			pfcp_session_report_triggered(s, urd);
+		return 0;
+	}
+
+	/* it's a ack for a previous command */
+	list_for_each_entry(puc, &s->urr_cmd_pending_list, plist) {
+		if (puc->uc.request_id == ur->request_id) {
+			list_del(&puc->plist);
+			free(puc);
+			goto next;
+		}
+	}
+	log_message(LOG_DEBUG, "urr request_id %d doesn't match any request",
+		    ur->request_id);
+
+ next:
+	/* no more pending urr command, send reply */
+	/* XXX should go elsewhere */
+	if (s->pending_pbuff != NULL && list_empty(&s->urr_cmd_pending_list)) {
+		struct pkt_buffer *pbuff = s->pending_pbuff;
+		struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
+		if (pfcph->type == PFCP_SESSION_DELETION_RESPONSE)
+			pfcp_session_put_usage_report_deletion(pbuff, s);
+		inet_server_snd(&s->router->s.s, s->router->s.s.fd, pbuff,
+				&s->pending_addr.sin);
+		pkt_buffer_free(pbuff);
+		s->pending_pbuff = NULL;
+	}
 
 	return 0;
 }
 
 
 static void
-ring_buffer_event_cb(struct thread *th)
+pfcp_bpf_ring_buffer_event_cb(struct thread *th)
 {
 	struct pfcp_bpf_data *bd = THREAD_ARG(th);
 	int ret;
@@ -529,9 +660,13 @@ ring_buffer_event_cb(struct thread *th)
 	if (ret < 0)
 		log_message(LOG_INFO, "ring_buffer consume: %m");
 
-	bd->rbuf_th = thread_add_read(master, ring_buffer_event_cb,
+	bd->rbuf_th = thread_add_read(master, pfcp_bpf_ring_buffer_event_cb,
 				      bd, THREAD_FD(th), TIMER_NEVER, 0);
 }
+
+
+/*************************************************************************/
+/* bpf template */
 
 static void *
 pfcp_bpf_alloc(struct gtp_bpf_prog *p)
@@ -543,6 +678,12 @@ pfcp_bpf_alloc(struct gtp_bpf_prog *p)
 		return NULL;
 
 	bd->urr_alloc = calloc(BPF_UPF_USER_COUNTER_MAP_SIZE, 1);
+	bd->ctl_task = calloc(libbpf_num_possible_cpus(),
+			      sizeof (*bd->ctl_task));
+	if (bd->urr_alloc == NULL || bd->ctl_task == NULL) {
+		free(bd);
+		return NULL;
+	}
 	INIT_LIST_HEAD(&bd->pfcp_router_list);
 
 	return bd;
@@ -553,12 +694,23 @@ pfcp_bpf_release(struct gtp_bpf_prog *p, void *udata)
 {
 	struct pfcp_bpf_data *bd = udata;
 	struct pfcp_router *c, *tmp;
+	int nr_cpu = libbpf_num_possible_cpus();
+	int i;
 
 	list_for_each_entry_safe(c, tmp, &bd->pfcp_router_list, bpf_list) {
 		c->bpf_prog = NULL;
 		c->bpf_data = NULL;
 		list_del_init(&c->bpf_list);
 	}
+	for (i = 0; i < nr_cpu; i++) {
+		if (bd->ctl_task[i] != NULL) {
+			bd->ctl_task[i]->run = false;
+			pthread_cond_signal(&bd->ctl_task[i]->cond);
+			pthread_join(bd->ctl_task[i]->task, NULL);
+			free(bd->ctl_task[i]);
+		}
+	}
+	free(bd->ctl_task);
 	free(bd->urr_alloc);
 	free(bd);
 }
@@ -568,35 +720,36 @@ static int
 pfcp_bpf_loaded(struct gtp_bpf_prog *p, void *udata, bool reload)
 {
 	struct pfcp_bpf_data *bd = udata;
-	struct bpf_program *init_prg, *report_prg;
+	struct bpf_program *prg;
 	struct bpf_map *map;
 	int fd;
 
 	bd->user_egress = gtp_bpf_prog_load_map(p->obj_load, "user_egress");
 	bd->user_ingress = gtp_bpf_prog_load_map(p->obj_load, "user_ingress");
 	bd->upf_urr = gtp_bpf_prog_load_map(p->obj_load, "upf_urr");
-	bd->upf_urr_data = gtp_bpf_prog_load_map(p->obj_load, "upf_urr_data");
 	if (bd->user_egress == NULL || bd->user_ingress == NULL ||
-	    bd->upf_urr == NULL || bd->upf_urr_data == NULL)
+	    bd->upf_urr == NULL)
 		return -1;
 
-	init_prg = bpf_object__find_program_by_name(p->obj_load, "urr_ctl_init");
-	report_prg = bpf_object__find_program_by_name(p->obj_load, "urr_ctl_report");
-	if (init_prg == NULL || report_prg == NULL) {
-		log_message(LOG_INFO, "cannot find urr_ctl_init / urr_ctl_report");
+	prg = bpf_object__find_program_by_name(p->obj_load, "urr_ctl");
+	if (prg == NULL) {
+		log_message(LOG_INFO, "cannot find urr_ctl in ebpf prog");
 		return -1;
 	}
-	bd->urr_ctl_init_prog_fd = bpf_program__fd(init_prg);
-	bd->urr_ctl_report_prog_fd = bpf_program__fd(report_prg);
+	bd->urr_ctl_prog_fd = bpf_program__fd(prg);
 
 	map = gtp_bpf_prog_load_map(p->obj_load, "upf_events");
 	if (map == NULL)
 		return -1;
 	fd = bpf_map__fd(map);
-	bd->rbuf = ring_buffer__new(fd, ring_buffer_process, bd, NULL);
+
+	if (reload)
+		return 0;
+
+	bd->rbuf = ring_buffer__new(fd, pfcp_bpf_ring_buffer_process, bd, NULL);
 	if (bd->rbuf == NULL)
 		return -1;
-	bd->rbuf_th = thread_add_read(master, ring_buffer_event_cb,
+	bd->rbuf_th = thread_add_read(master, pfcp_bpf_ring_buffer_event_cb,
 				      bd, fd, TIMER_NEVER, 0);
 
 	return 0;

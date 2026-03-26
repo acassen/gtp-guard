@@ -41,13 +41,6 @@ struct {
 	__type(value, struct upf_urr);
 } upf_urr SEC(".maps");
 
-struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__uint(max_entries, BPF_UPF_USER_COUNTER_MAP_SIZE);
-	__type(key, __u32);
-	__type(value, struct upf_urr_data);
-} upf_urr_data SEC(".maps");
-
 
 #include "upf_urr.h"
 
@@ -55,7 +48,6 @@ struct {
 static __always_inline int
 _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 {
-	struct upf_urr_data *uud;
 	struct upf_urr *uu;
 	struct iphdr *iph;
 	struct udphdr *udph;
@@ -68,11 +60,10 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 				  BPF_CAPTURE_EFL_INPUT | BPF_CAPTURE_EFL_CORE);
 
 	uu = bpf_map_lookup_elem(&upf_urr, &u->urr_idx);
-	uud = bpf_map_lookup_elem(&upf_urr_data, &u->urr_idx);
-	if (uu == NULL || uud == NULL)
+	if (uu == NULL)
 		return XDP_DROP;
 
-	if (uud->quota_reached)
+	if (uu->flags & UPF_FL_QUOTA_REACHED)
 		goto drop;
 
 	/* encap in gtp-u, make room */
@@ -131,8 +122,8 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	d->dst_addr.ip4 = u->gtpu_remote_addr;
 
 	/* metrics */
-	++uud->fwd_pkt_dl;
-	uud->fwd_bytes_dl += pkt_len;
+	++uu->dl.pkt;
+	uu->dl.bytes += pkt_len;
 
 	UPF_DBG("to_gtpu: encap len:%d teid:0x%08x src:%pI4:%d dst:%pI4:%d",
 		pkt_len, bpf_ntohl(u->gtpu_remote_teid),
@@ -142,13 +133,13 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	capture_xdp_to_userspc_out(d, &u->capture, BPF_CAPTURE_EFL_OUTPUT |
 				   BPF_CAPTURE_EFL_ACCESS);
 
-	_update_urr_inactivity_time(uu, uud);
-	_check_urr_dl(uu, uud);
+	_urr_check_volume(uu, &uu->dl);
+	_urr_timer_on_pkt(uu);
 
 	return XDP_IFR_FORWARD;
 
  drop:
-	++uud->drop_pkt_dl;
+	++uu->dl.drop_pkt;
 
 	return XDP_DROP;
 }
@@ -218,7 +209,6 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 	struct upf_egress_key k;
 	struct upf_fwd_rule *u;
 	struct upf_urr *uu;
-	struct upf_urr_data *uud;
 	struct iphdr *ip4h_inner;
 	struct ipv6hdr *ip6h_inner;
 	struct gtphdr *gtph;
@@ -248,11 +238,10 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 				  BPF_CAPTURE_EFL_ACCESS);
 
 	uu = bpf_map_lookup_elem(&upf_urr, &u->urr_idx);
-	uud = bpf_map_lookup_elem(&upf_urr_data, &u->urr_idx);
-	if (uu == NULL || uud == NULL)
+	if (uu == NULL)
 		return XDP_DROP;
 
-	if (uud->quota_reached)
+	if (uu->flags & UPF_FL_QUOTA_REACHED)
 		goto drop;
 
 #if __clang_major__ == 21 && __clang_minor__ == 1
@@ -289,8 +278,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 			   bpf_ntohl(gtph->teid));
 
 		/* metrics */
-		++uud->fwd_pkt_ul;
-		uud->fwd_bytes_ul += pkt_len;
+		++uu->ul.pkt;
+		uu->ul.bytes += pkt_len;
 
 		d->dst_addr.ip4 = iph->daddr;
 		return XDP_IFR_FORWARD;
@@ -326,16 +315,16 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 				   BPF_CAPTURE_EFL_CORE);
 
 	/* metrics */
-	++uud->fwd_pkt_ul;
-	uud->fwd_bytes_ul += pkt_len - adjust_sz;
+	++uu->ul.pkt;
+	uu->ul.bytes += pkt_len - adjust_sz;
 
-	_update_urr_inactivity_time(uu, uud);
-	_check_urr_ul(uu, uud);
+	_urr_check_volume(uu, &uu->ul);
+	_urr_timer_on_pkt(uu);
 
 	return XDP_IFR_FORWARD;
 
  drop:
-	++uud->drop_pkt_ul;
+	++uu->ul.drop_pkt;
 
 	return XDP_DROP;
 }

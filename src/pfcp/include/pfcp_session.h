@@ -203,6 +203,7 @@ struct pfcp_session {
 	struct gtp_apn		*apn;
 	struct gtp_cdr		*cdr;
 
+	int			cpu;		/* xdp pinned cpu */
 	uint8_t			action;
 
 	/* Expiration handling */
@@ -216,8 +217,14 @@ struct pfcp_session {
 	/* packet capture */
 	struct gtp_capture_entry capture;
 
-	/* indexing */
+	/* urr handling */
 	uint32_t		bpf_urr_idx;
+	uint32_t		urr_cmd_next_id;
+	struct list_head	urr_cmd_pending_list;
+	struct pkt_buffer	*pending_pbuff;
+	union addr		pending_addr;
+
+	/* indexing */
 	struct list_head	next;
 	struct hlist_node	hlist;
 

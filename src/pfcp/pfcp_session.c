@@ -193,6 +193,7 @@ pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *
 	INIT_LIST_HEAD(&new->qer_list);
 	INIT_LIST_HEAD(&new->urr_list);
 	INIT_LIST_HEAD(&new->te_list);
+	INIT_LIST_HEAD(&new->urr_cmd_pending_list);
 	new->apn = apn;
 	new->conn = c;
 	new->router = r;

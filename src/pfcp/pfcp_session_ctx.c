@@ -559,7 +559,7 @@ pfcp_session_link_urr(struct pfcp_session *s)
  * for all other cases it won't probably work as expected
  */
 static int
-pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
+pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
 {
 	union pfcp_measurement_method mm;
 	struct urr *urr;
@@ -567,9 +567,7 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
 	int pdr_cnt, pdr_urr_cnt;
 	int i;
 
-	memset(uu, 0x00, sizeof (*uu));
-	uu->urr_idx = s->bpf_urr_idx;
-	uu->cur_ver = 1;
+	uc->cur_ver = 1;
 
 	list_for_each_entry(urr, &s->urr_list, next) {
 		/* is this urr is used in any/all pdrs ? */
@@ -591,50 +589,51 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr *uu)
 			printf("urr[%d]: included in %d/%d pdr\n",
 			       urr->id, pdr_urr_cnt, pdr_cnt);
 
+		uc->urr_id = urr->id;
+
 		mm = urr->measurement_method;
-		uu->flags = (mm.volum ? UPF_FL_MEAS_VOL : 0) |
+		uc->flags = (mm.volum ? UPF_FL_MEAS_VOL : 0) |
 			(mm.durat ? UPF_FL_MEAS_DUR : 0);
 
 		/* take the first triggering values of all urrs */
 		if (mm.volum && urr->triggers.volth) {
-			uu->vol_thres_to =
-				!uu->vol_thres_to ? urr->volume_threshold_to :
-				min(uu->vol_thres_to, urr->volume_threshold_to);
-			uu->vol_thres_ul =
-				!uu->vol_thres_ul ? urr->volume_threshold_ul :
-				min(uu->vol_thres_ul, urr->volume_threshold_ul);
-			uu->vol_thres_dl =
-				!uu->vol_thres_dl ? urr->volume_threshold_dl :
-				min(uu->vol_thres_dl, urr->volume_threshold_dl);
+			uc->total_th =
+				!uc->total_th ? urr->volume_threshold_to :
+				min(uc->total_th, urr->volume_threshold_to);
+			uc->ul_th =
+				!uc->ul_th ? urr->volume_threshold_ul :
+				min(uc->ul_th, urr->volume_threshold_ul);
+			uc->dl_th =
+				!uc->dl_th ? urr->volume_threshold_dl :
+				min(uc->dl_th, urr->volume_threshold_dl);
 		}
 		if (mm.volum && urr->triggers.volqu) {
-			uu->vol_quota_to =
-				!uu->vol_quota_to ? urr->volume_quota_to :
-				min(uu->vol_quota_to, urr->volume_quota_to);
-			uu->vol_quota_ul =
-				!uu->vol_quota_ul ? urr->volume_quota_ul :
-				min(uu->vol_quota_ul, urr->volume_quota_ul);
-			uu->vol_quota_dl =
-				!uu->vol_quota_dl ? urr->volume_quota_dl :
-				min(uu->vol_quota_dl, urr->volume_quota_dl);
+			uc->total_qu =
+				!uc->total_qu ? urr->volume_quota_to :
+				min(uc->total_qu, urr->volume_quota_to);
+			uc->ul_qu =
+				!uc->ul_qu ? urr->volume_quota_ul :
+				min(uc->ul_qu, urr->volume_quota_ul);
+			uc->dl_qu =
+				!uc->dl_qu ? urr->volume_quota_dl :
+				min(uc->dl_qu, urr->volume_quota_dl);
 		}
 		if (mm.durat && urr->triggers.timth)
-			uu->time_threshold = min(uu->time_threshold ?: ~0,
-						 urr->time_threshold);
+			uc->time_th = min(uc->time_th ?: ~0, urr->time_threshold);
 		if (mm.durat && urr->triggers.timqu)
-			uu->time_quota = min(uu->time_quota ?: ~0,
-						 urr->time_quota);
+			uc->time_qu = min(uc->time_qu ?: ~0, urr->time_quota);
 		if (mm.durat)
-			uu->inactivity_det_time =
-				min(uu->inactivity_det_time ?: ~0,
+			uc->inactivity_det_time =
+				min(uc->inactivity_det_time ?: ~0,
 				    urr->inactivity_detection_time);
 
 		if (urr->triggers.perio)
-			uu->time_periodic = min(uu->time_periodic ?: ~0,
+			uc->time_periodic = min(uc->time_periodic ?: ~0,
 					     urr->time_periodic);
 		if (urr->triggers.quhti)
-			uu->time_quota = min(uu->time_quota ?: ~0,
-					     urr->quota_holdtime);
+			uc->time_inactivity =
+				min(uc->time_inactivity ?: ~0,
+				    urr->quota_holdtime);
 	}
 
 	return 0;
@@ -856,13 +855,17 @@ static int
 pfcp_session_create_fwd_rules(struct pfcp_session *s)
 {
 	struct pfcp_fwd_rule *new;
-	struct upf_urr uu;
+	struct upf_urr_cmd_req *uc;
 	struct pdr *p;
 
 	if (!s->bpf_urr_idx)
 		s->bpf_urr_idx = pfcp_bpf_alloc_urr_idx(s);
-	pfcp_session_merge_urr(s, &uu);
-	pfcp_bpf_urr_init(s, &uu, 0);
+
+	uc = pfcp_bpf_urr_alloc_cmd(s);
+	uc->urr_idx = s->bpf_urr_idx;
+	uc->ctl_fl = UPF_FL_CTL_INIT | UPF_FL_CTL_UPDATE;
+	pfcp_session_merge_urr(s, uc);
+	pfcp_bpf_urr_ctl(s, uc);
 
 	list_for_each_entry(p, &s->pdr_list, next) {
 		if (!p->action || !p->far)
@@ -1063,7 +1066,10 @@ pfcp_session_delete(struct pfcp_session *s)
 		free(te);
 	}
 
+	/* Free URR data */
 	pfcp_bpf_release_urr_idx(s, s->bpf_urr_idx);
+	if (!list_empty(&s->urr_cmd_pending_list))
+		printf("%s: entries remain in urr_cmd_pending_list\n", __func__);
 
 	return 0;
 }

@@ -27,18 +27,26 @@
 struct pfcp_router;
 struct gtp_bpf_prog;
 
+struct pfcp_urr_cmd
+{
+	struct upf_urr_cmd_req	uc;
+	struct list_head	clist;
+	struct list_head	plist;
+};
+
 struct pfcp_bpf_data
 {
 	struct list_head	pfcp_router_list;
 
 	struct bpf_map		*user_egress;
 	struct bpf_map		*user_ingress;
+
+	/* urr */
 	struct bpf_map		*upf_urr;
-	struct bpf_map		*upf_urr_data;
-	int			urr_ctl_init_prog_fd;
-	int			urr_ctl_report_prog_fd;
 	uint8_t			*urr_alloc;
 	int			urr_alloc_cur;
+	int			urr_ctl_prog_fd;
+	struct pfcp_bpf_data_thread **ctl_task;
 
 	/* upf_events ring_buffer */
 	struct ring_buffer	*rbuf;
@@ -46,10 +54,8 @@ struct pfcp_bpf_data
 };
 
 /* Prototypes */
-int pfcp_bpf_urr_init(struct pfcp_session *s, struct upf_urr *uu,
-		      uint32_t urr_id);
-int pfcp_bpf_urr_report(struct pfcp_router *rtr, uint32_t urr_idx,
-			struct upf_urr_data *uud);
+struct upf_urr_cmd_req *pfcp_bpf_urr_alloc_cmd(struct pfcp_session *s);
+int pfcp_bpf_urr_ctl(struct pfcp_session *s, struct upf_urr_cmd_req *uc);
 int pfcp_bpf_teid_action(struct pfcp_router *r, int action, struct pfcp_teid *t,
 			 struct ue_ip_address *ue);
 int pfcp_bpf_action(struct pfcp_router *rtr, struct pfcp_fwd_rule *r,

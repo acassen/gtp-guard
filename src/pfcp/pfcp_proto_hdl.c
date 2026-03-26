@@ -334,6 +334,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 
 	err = pfcp_session_create(s, req, addr);
 	if (err) {
+		pfcp_session_delete(s);
 		if (errno == ENOSPC) {
 			pfcph->seid = s->remote_seid.id;
 			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
@@ -357,7 +358,16 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
+			pfcp_session_delete(s);
 		return -1;
+	}
+
+	/* Some urr commands are still pending, delay reply */
+	if (!list_empty(&s->urr_cmd_pending_list)) {
+		s->pending_addr = *addr;
+		s->pending_pbuff = srv->s.pbuff;
+		srv->s.pbuff = NULL;
+		return PFCP_ROUTER_DELAYED;
 	}
 
 	return 0;
@@ -423,6 +433,14 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return -1;
 	}
 
+	/* Some urr commands are still pending, delay reply */
+	if (!list_empty(&s->urr_cmd_pending_list)) {
+		s->pending_addr = *addr;
+		s->pending_pbuff = srv->s.pbuff;
+		srv->s.pbuff = NULL;
+		return PFCP_ROUTER_DELAYED;
+	}
+
 	return 0;
 }
 
@@ -458,14 +476,34 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, cause);
-	err = (err) ? : pfcp_session_put_usage_report_deletion(pbuff, s);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
 		return -1;
 	}
 
+	/* Delete URRs, and generate the latest report  */
+	if (s->bpf_urr_idx) {
+		struct upf_urr_cmd_req *uc = pfcp_bpf_urr_alloc_cmd(s);
+		uc->urr_idx = s->bpf_urr_idx;
+		uc->ctl_fl = UPF_FL_CTL_REPORT | UPF_FL_CTL_DELETE;
+		pfcp_bpf_urr_ctl(s, uc);
+
+		s->pending_addr = *addr;
+		s->pending_pbuff = srv->s.pbuff;
+		srv->s.pbuff = NULL;
+
+		return PFCP_ROUTER_DELAYED;
+	}
+
+	err = pfcp_session_put_usage_report_deletion(pbuff, s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
+	}
 	pfcp_session_destroy(s);
+
 	return 0;
 }
 
@@ -541,7 +579,7 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *raddr)
 	pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
 	err = (*(pfcp_msg_hdl[pfcph->type].hdl)) (msg, srv, addr);
 
-	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
+	if (!err && __test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
 		pfcp_proto_dump(srv, NULL, addr, PFCP_DIR_EGRESS);
 
 end:

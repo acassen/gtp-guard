@@ -191,7 +191,7 @@ pfcp_session_report(struct pfcp_session *s,
 
 void
 pfcp_session_report_triggered(struct pfcp_session *s,
-			      struct upf_urr_data *uud)
+			      struct upf_urr_report_data *urd)
 {
 	union pfcp_usage_report_trigger rtrig = {};
 	struct urr *urr, *lu;
@@ -200,28 +200,28 @@ pfcp_session_report_triggered(struct pfcp_session *s,
 
 	/* who did the trigger ? */
 	list_for_each_entry(urr, &s->urr_list, next) {
-		if ((uud->report_flags & UPF_TRIG_FL_VOLTH) &&
+		if ((urd->r.report_flags & UPF_TRIG_FL_VOLTH) &&
 		    urr->triggers.volth &&
 		    urr->volume_threshold_to != ~0) {
 			urr_id = urr->id;
 			rtrig.volth = 1;
 		}
-		if ((uud->report_flags & UPF_TRIG_FL_VOLQU) &&
+		if ((urd->r.report_flags & UPF_TRIG_FL_VOLQU) &&
 		    urr->triggers.volqu) {
 			urr_id = urr->id;
 			rtrig.volqu = 1;
 		}
-		if ((uud->report_flags & UPF_TRIG_FL_TIMTH) &&
+		if ((urd->r.report_flags & UPF_TRIG_FL_TIMTH) &&
 		    urr->triggers.timth) {
 			urr_id = urr->id;
 			rtrig.timth = 1;
 		}
-		if ((uud->report_flags & UPF_TRIG_FL_TIMQU) &&
+		if ((urd->r.report_flags & UPF_TRIG_FL_TIMQU) &&
 		    urr->triggers.timqu) {
 			urr_id = urr->id;
 			rtrig.timqu = 1;
 		}
-		if ((uud->report_flags & UPF_TRIG_FL_PERIO) &&
+		if ((urd->r.report_flags & UPF_TRIG_FL_PERIO) &&
 		    urr->triggers.perio) {
 			urr_id = urr->id;
 			rtrig.perio = 1;
@@ -232,7 +232,8 @@ pfcp_session_report_triggered(struct pfcp_session *s,
 	}
 
 	if (!urr_id) {
-		printf("%s: did not find triggered urr\n", __func__);
+		printf("%s: did not find triggered urr (wanted:%d)\n",
+		       __func__, urd->r.urr_id);
 		return;
 	}
 
@@ -245,11 +246,11 @@ pfcp_session_report_triggered(struct pfcp_session *s,
 	r->query_urr_ref = 0;
 	r->rtrig = rtrig;
 
-	/* add metrics */
-	urr->ul.bytes += uud->fwd_bytes_ul;
-	urr->ul.count += uud->fwd_pkt_ul;
-	urr->dl.bytes += uud->fwd_bytes_dl;
-	urr->dl.count += uud->fwd_pkt_dl;
+	/* retrieve last metrics */
+	urr->ul.bytes = urd->ul_bytes;
+	urr->ul.count = urd->ul_pkt;
+	urr->dl.bytes = urd->dl_bytes;
+	urr->dl.count = urd->dl_pkt;
 
 	/* add linked urrs */
 	list_for_each_entry(lu, &s->urr_list, next) {
