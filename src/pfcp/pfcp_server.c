@@ -36,10 +36,9 @@ extern struct thread_master *master;
  *	Worker
  */
 static int
-pfcp_server_snd(struct inet_server *srv, ssize_t nbytes)
+pfcp_server_snd(struct inet_server *srv, struct pkt_buffer *pbuff, ssize_t nbytes)
 {
 	struct pfcp_server *s = srv->ctx;
-	struct pkt_buffer *pbuff = srv->pbuff;
 	struct pfcp_hdr *h = (struct pfcp_hdr *) pbuff->head;
 
 	/* metrics */

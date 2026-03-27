@@ -59,7 +59,7 @@ inet_server_snd(struct inet_server *s, int fd, struct pkt_buffer *pbuff,
 
 	s->tx_pkts++;
 	if (s->snd)
-		(*s->snd) (s, nbytes);
+		(*s->snd) (s, pbuff, nbytes);
 
 	return nbytes;
 }
