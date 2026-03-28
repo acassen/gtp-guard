@@ -110,7 +110,9 @@ struct qer {
 };
 
 struct urr {
-	uint32_t			id;
+	uint32_t		id;		/* ie.urr_id */
+	uint32_t		urr_idx;	/* index in bpf map */
+
 	uint8_t				action;
 	union pfcp_measurement_method	measurement_method;
 	union pfcp_measurement_information measurement_info;
@@ -137,6 +139,9 @@ struct urr {
 	uint32_t		seqn;
 	uint32_t		start_time;
 	uint32_t		end_time;
+	uint32_t		pkt_first_time;
+	uint32_t		pkt_last_time;
+	int			duration;
 	struct pfcp_metrics_pkt	ul;
 	struct pfcp_metrics_pkt	dl;
 	struct pfcp_metrics_pkt	last_report_ul;
@@ -254,10 +259,9 @@ int pfcp_session_create(struct pfcp_session *s,
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
 int pfcp_session_delete(struct pfcp_session *s);
+int pfcp_session_urr_report(struct pfcp_session *s, struct upf_urr_report_data *rd);
 int pfcp_session_update_fwd_rules(struct pfcp_session *s);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
 					      struct pfcp_session *s);
-int pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff,
-					   struct pfcp_session *s);

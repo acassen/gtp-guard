@@ -103,7 +103,8 @@ struct upf_urr {
 	__u64		total_qu;
 	__u64		total_qu_next;
 
-	__u32		urr_id;			/* pfcp urr_id ie */
+	__u64		seid;
+	__u32		urr_idx;
 
 	/* duration (u32 in sec. u64 in nsec) (10u64) */
 	__u32		time_th;
@@ -119,8 +120,6 @@ struct upf_urr {
 	__u64		inactive_time;		/* cumulative */
 	__u64		time_periodic_next;
 	__u64		time_inactivity_next;
-
-	__u64		seid;
 };
 
 
@@ -133,7 +132,6 @@ struct upf_urr {
 
 struct upf_urr_cmd_req {
 	__u64		seid;
-	__u32		urr_id;			/* pfcp ie.urr_id */
 	__u32		urr_idx;		/* idx in bpf map array */
 	__u16		request_id;		/* trigger by syscall */
 	__u8		flags;			/* UPF_FL_* */
@@ -156,7 +154,7 @@ struct upf_urr_cmd_req {
 
 struct upf_urr_report {
 	__u64		seid;
-	__u32		urr_id;			/* pfcp urr_id ie */
+	__u32		urr_idx;
 	__u16		request_id;		/* if trigged by syscall */
 	__u16		report_flags;		/* UPF_TRIG_FL_* */
 };
@@ -172,4 +170,5 @@ struct upf_urr_report_data {
 	__u64		ul_drop_pkt;
 	__u32		fwd_pkt_first;		/* first pkt seen */
 	__u32		fwd_pkt_last;		/* last pkt seen */
+	__u32		duration;		/* duration wrt inactive time */
 };

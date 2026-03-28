@@ -415,7 +415,7 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	/* URR query ? */
 	if ((req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) || req->nr_query_urr) {
 		/* handle request before recycle buffer mangling */
-		pfcp_session_report(s, req);
+		pfcp_session_report_put_modification(NULL, s, req);
 
 		err = pfcp_ie_put_additional_usage_reports_info(pbuff, true, 0);
 		if (err) {
@@ -496,7 +496,7 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return PFCP_ROUTER_DELAYED;
 	}
 
-	err = pfcp_session_put_usage_report_deletion(pbuff, s);
+	err = pfcp_session_report_put_deletion(pbuff, s);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);

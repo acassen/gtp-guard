@@ -3318,20 +3318,14 @@ int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
 			    const struct in6_addr *ipv6, const struct in_addr *ue_ipv4,
 			    const struct in6_addr *ue_ipv6);
 int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
-		           const uint32_t teid,
+			   const uint32_t teid,
 			   const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,
 			   const struct in_addr *ue_ipv4, const struct in6_addr *ue_ipv6);
-int pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
-				      uint32_t start_time, uint32_t end_time, uint32_t seqn,
-				      union pfcp_measurement_method meas,
-				      struct pfcp_metrics_pkt *uplink,
-				      struct pfcp_metrics_pkt *downlink);
-int pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
-				     uint32_t id, uint32_t start_time, uint32_t end_time,
-				     uint32_t seqn, union pfcp_usage_report_trigger rtrig,
-				     union pfcp_measurement_method meas,
-				     struct pfcp_metrics_pkt *uplink,
-				     struct pfcp_metrics_pkt *downlink);
 int pfcp_ie_put_report_type(struct pkt_buffer *pbuff, uint8_t type);
 int pfcp_ie_put_additional_usage_reports_info(struct pkt_buffer *pbuff, bool auri,
 					      uint16_t nr_reports);
+int pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint8_t type, uint32_t id,
+			     uint32_t seqn, union pfcp_usage_report_trigger rtrig,
+			     uint32_t query_urr_ref, uint32_t pkt_first, uint32_t pkt_last,
+			     uint32_t start_time, uint32_t end_time, int duration,
+			     struct pfcp_metrics_pkt *uplink, struct pfcp_metrics_pkt *downlink);

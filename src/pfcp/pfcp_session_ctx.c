@@ -451,6 +451,7 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 	urr->id = ntohl(ie->urr_id->value);
 
 	urr->start_time = time_now_to_ntp();
+	urr->end_time = urr->start_time;
 
 	urr->measurement_method = ie->measurement_method->v;
 
@@ -589,10 +590,10 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
 			printf("urr[%d]: included in %d/%d pdr\n",
 			       urr->id, pdr_urr_cnt, pdr_cnt);
 
-		uc->urr_id = urr->id;
+		urr->urr_idx = uc->urr_idx;
 
 		mm = urr->measurement_method;
-		uc->flags = (mm.volum ? UPF_FL_MEAS_VOL : 0) |
+		uc->flags |= (mm.volum ? UPF_FL_MEAS_VOL : 0) |
 			(mm.durat ? UPF_FL_MEAS_DUR : 0);
 
 		/* take the first triggering values of all urrs */
@@ -634,6 +635,37 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
 			uc->time_inactivity =
 				min(uc->time_inactivity ?: ~0,
 				    urr->quota_holdtime);
+	}
+
+	return 0;
+}
+
+/* got new metrics from bpf. save them */
+int
+pfcp_session_urr_report(struct pfcp_session *s, struct upf_urr_report_data *rd)
+{
+	struct urr *u;
+
+	list_for_each_entry(u, &s->urr_list, next) {
+		if (u->urr_idx != rd->r.urr_idx)
+			continue;
+
+		u->start_time = u->end_time;
+		u->end_time = time_now_to_ntp();
+		u->pkt_first_time = rd->fwd_pkt_first;
+		u->pkt_last_time = rd->fwd_pkt_last;
+
+		if (u->measurement_method.volum) {
+			u->ul.bytes = rd->ul_bytes;
+			u->ul.count = rd->ul_pkt;
+			u->dl.bytes = rd->dl_bytes;
+			u->dl.count = rd->dl_pkt;
+		}
+
+		if (u->measurement_method.durat)
+			u->duration = rd->duration;
+		else
+			u->duration = -1;
 	}
 
 	return 0;
@@ -1166,25 +1198,6 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 			errno = EINVAL;
 			return -1;
 		}
-	}
-
-	return 0;
-}
-
-int
-pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff, struct pfcp_session *s)
-{
-	struct urr *u;
-	int err;
-
-	list_for_each_entry(u, &s->urr_list, next) {
-		u->end_time = time_now_to_ntp();
-		err = pfcp_ie_put_usage_report_deletion(pbuff, u->id,
-							u->start_time, u->end_time,
-							u->seqn++, u->measurement_method,
-							&u->ul, &u->dl);
-		if (err)
-			return -1;
 	}
 
 	return 0;

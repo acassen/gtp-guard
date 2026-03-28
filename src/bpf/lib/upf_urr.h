@@ -20,7 +20,7 @@ _urr_send_report(struct upf_urr *uu, __u16 trigger_fl, __u16 request_id)
 
 	/* sends interesting values through ringbuf */
 	ur.r.seid = uu->seid;
-	ur.r.urr_id = uu->urr_id;
+	ur.r.urr_idx = uu->urr_idx;
 	ur.r.report_flags = trigger_fl;
 	ur.r.request_id = request_id;
 	ur.dl_bytes = uu->dl.bytes;
@@ -190,7 +190,7 @@ int urr_ctl(struct upf_urr_cmd_req *c)
 		return -1;
 
 	if (c->ctl_fl & UPF_FL_CTL_UPDATE) {
-		uu->urr_id = c->urr_id;
+		uu->urr_idx = c->urr_idx;
 		uu->flags = c->flags;
 		uu->cur_ver = c->cur_ver;
 		uu->time_th = c->time_th;
@@ -252,7 +252,7 @@ int urr_ctl(struct upf_urr_cmd_req *c)
 	if (!(c->ctl_fl & UPF_FL_CTL_REPORT)) {
 		struct upf_urr_report ur = {
 			.seid = c->seid,
-			.urr_id = c->urr_id,
+			.urr_idx = c->urr_idx,
 			.request_id = c->request_id,
 		};
 		bpf_ringbuf_output(&upf_events, &ur, sizeof(ur), 0);

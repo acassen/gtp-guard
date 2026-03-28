@@ -300,6 +300,32 @@ session delete 1
 EOF
 }
 
+smf_more_adv_urr() {
+    arr=$1
+    key=$2
+    shift 2
+
+    urr_def=''
+    urr_expect=''
+    for l in "$@"; do
+	if [[ "$l" == urr* ]]; then
+	    urr_def+="$l"$'\n'
+	elif [[ "$l" == expect* ]]; then
+	    urr_expect+="$l"$'\n'
+	fi
+    done
+
+    urr_expect+="expect no report timeout 4"
+
+    _hash_set $arr $key <<EOF
+$urr_def
+session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr 2,3
+session ping 1 8.8.8.8 count 3
+$urr_expect
+session delete 1
+EOF
+}
+
 
 run_with_smf() {
     smf_cmd="ip netns exec cloud python3 ./test/smf.py --smf-ip 192.168.61.193 --upf-ip 192.168.61.194 --gtpu-ip 192.168.61.2 --upf-port 8805"
@@ -316,6 +342,12 @@ run_with_smf() {
     smf_basic_urr testset volth3			\
     "triggers volth measure volume volth total 176"	\
     "trigger volth total_min 176"
+
+    # don't work well, trigger 2 will also report 3 (trig volth)
+    smf_more_adv_urr testset volth4			\
+    "urr set id 2 triggers volth measure volume volth total 176"	\
+    "urr set id 3 triggers volth measure volume volth total 240"	\
+    "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 3 trigger volth total_min 176"
 
     # no measure vol, do not expect report
     smf_basic_urr testset volth10			\
@@ -337,14 +369,21 @@ run_with_smf() {
     smf_basic_urr testset quht				\
     "triggers quht qht 3"				\
     "trigger quht"
-    smf_basic_urr testset period			\
+
+    # period
+    smf_basic_urr testset period1			\
     "triggers perio period 2"				\
     "trigger perio"
+    smf_basic_urr testset period2			\
+    "triggers perio measure volume period 2"		\
+    "trigger perio"
 
-    printf '%s' "${testset[volth1]}"
 
     if [ "$smf_test_id" ]; then
 	if [ "${testset[$smf_test_id]}" ]; then
+	    # echo "*****"
+	    # printf '%s' "${testset[$smf_test_id]}"
+	    # echo "*****"
 	    echo "${testset[$smf_test_id]}" | $smf_cmd
 	else
 	    echo "no such smf-test: $smf_test_id"

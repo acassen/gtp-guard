@@ -614,6 +614,10 @@ pfcp_bpf_ring_buffer_process(void *ctx, void *data, size_t size)
 		return 0;
 	}
 
+	/* save metrics, if set */
+	if (urd != NULL)
+		pfcp_session_urr_report(s, urd);
+
 	/* it's a trigger */
 	if (!ur->request_id) {
 		if (urd != NULL)
@@ -639,7 +643,7 @@ pfcp_bpf_ring_buffer_process(void *ctx, void *data, size_t size)
 		struct pkt_buffer *pbuff = s->pending_pbuff;
 		struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 		if (pfcph->type == PFCP_SESSION_DELETION_RESPONSE)
-			pfcp_session_put_usage_report_deletion(pbuff, s);
+			pfcp_session_report_put_deletion(pbuff, s);
 		inet_server_snd(&s->router->s.s, s->router->s.s.fd, pbuff,
 				&s->pending_addr.sin);
 		pkt_buffer_free(pbuff);
