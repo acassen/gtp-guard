@@ -33,8 +33,8 @@
 struct pfcp_report {
 	struct pfcp_session	*s;
 	uint32_t		query_urr_ref;
-	union pfcp_usage_report_trigger rtrig;
 	struct urr		*urr[PFCP_MAX_NR_ELEM];
+	union pfcp_usage_report_trigger rtrig[PFCP_MAX_NR_ELEM];
 	int			urr_n;
 };
 
@@ -91,7 +91,7 @@ pfcp_session_report_build_and_send(struct pfcp_report *r)
 
 	for (i = 0; i < r->urr_n; i++) {
 		err = _put_usage_report(pbuff, r->urr[i], PFCP_IE_USAGE_REPORT,
-					r->rtrig, r->query_urr_ref);
+					r->rtrig[i], r->query_urr_ref);
 		if (!err)
 			nr_report_urr++;
 	}
@@ -145,6 +145,7 @@ pfcp_session_report_triggered(struct pfcp_session *s,
 	struct pfcp_report r = {
 		.s = s,
 	};
+	int i;
 
 	/* who did the trigger ? */
 	list_for_each_entry(urr, &s->urr_list, next) {
@@ -187,13 +188,16 @@ pfcp_session_report_triggered(struct pfcp_session *s,
 		/* add this urr and linked urrs */
 		if (r.urr_n >= PFCP_MAX_NR_ELEM)
 			break;
-		r.rtrig.trigger_flags |= rtrig.trigger_flags;
+		r.rtrig[r.urr_n] = rtrig;
 		r.urr[r.urr_n++] = urr;
 		list_for_each_entry(lu, &s->urr_list, next) {
 			if (r.urr_n >= PFCP_MAX_NR_ELEM)
 				break;
-			if (lu->linked_urr == urr)
-				r.urr[r.urr_n++] = lu;
+			for (i = 0; i < PFCP_MAX_NR_ELEM && lu->linked_urr_id[i]; i++)
+				if (lu->linked_urr_id[i] == urr->id) {
+					r.rtrig[r.urr_n].liusa = 1;
+					r.urr[r.urr_n++] = lu;
+				}
 		}
 	}
 
@@ -215,14 +219,13 @@ pfcp_session_report_put_modification(struct pkt_buffer *pbuff,
 				     struct pfcp_session_modification_request *req)
 {
 	struct pfcp_ie_query_urr_reference *ie_urr_ref = req->query_urr_reference;
+	union pfcp_usage_report_trigger rtrig = { .immer = 1 };
 	struct urr *u;
 	int i, err;
 
 	struct pfcp_report r = {
 		.s = s,
 		.query_urr_ref = ie_urr_ref ? ie_urr_ref->value : 0,
-		.rtrig = { .immer = 1 },
-		.urr_n = 0,
 	};
 
 	if (req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) {
@@ -231,11 +234,12 @@ pfcp_session_report_put_modification(struct pkt_buffer *pbuff,
 			if (pbuff == NULL) {
 				if (r.urr_n >= PFCP_MAX_NR_ELEM)
 					break;
+				r.rtrig[r.urr_n] = rtrig;
 				r.urr[r.urr_n++] = u;
 			} else {
 				err = _put_usage_report(pbuff, u,
 							PFCP_IE_USAGE_REPORT_MODIFICATION,
-							r.rtrig,
+							rtrig,
 							r.query_urr_ref);
 				if (err)
 					return -1;
@@ -248,6 +252,7 @@ pfcp_session_report_put_modification(struct pkt_buffer *pbuff,
 			if (pbuff == NULL) {
 				list_for_each_entry(u, &s->urr_list, next) {
 					if (u->id == req->query_urr[i]->urr_id->value) {
+						r.rtrig[r.urr_n] = rtrig;
 						r.urr[r.urr_n++] = u;
 						break;
 					}
@@ -255,7 +260,7 @@ pfcp_session_report_put_modification(struct pkt_buffer *pbuff,
 			} else {
 				err = _put_usage_report(pbuff, u,
 							PFCP_IE_USAGE_REPORT_MODIFICATION,
-							r.rtrig,
+							rtrig,
 							r.query_urr_ref);
 				if (err)
 					return -1;

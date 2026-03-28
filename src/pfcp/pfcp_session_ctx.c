@@ -446,6 +446,8 @@ static int
 pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 			struct pfcp_ie_create_urr *ie)
 {
+	int i;
+
 	urr->action = PFCP_ACT_CREATE;
 
 	urr->id = ntohl(ie->urr_id->value);
@@ -517,31 +519,12 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 	if (ie->measurement_period)
 		urr->time_periodic = ntohl(ie->measurement_period->measurement_period);
 
-	if (ie->linked_urr_id)
-		urr->linked_urr_id = ntohl(ie->linked_urr_id->value);
+	for (i = 0; i < PFCP_MAX_NR_ELEM && i < ie->nr_linked_urr_id; i++)
+		urr->linked_urr_id[i] = ntohl(ie->linked_urr_id[i]->value);
 
 	return 0;
 }
 
-static int
-pfcp_session_link_urr(struct pfcp_session *s)
-{
-	struct urr *u, *r;
-
-	list_for_each_entry(u, &s->urr_list, next) {
-		if (!u->linked_urr_id)
-			continue;
-
-		r = pfcp_session_get_urr_by_id(s, u->linked_urr_id);
-		if (!r)
-			continue;
-
-		u->linked_urr = r;
-		r->parent_urr = u->linked_urr;
-	}
-
-	return 0;
-}
 
 /*
  * take the FAST PATH
@@ -966,7 +949,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		pfcp_session_create_urr(s, urr, req->create_urr[i]);
 		list_add_tail(&urr->next, &s->urr_list);
 	}
-	pfcp_session_link_urr(s);
 
 	/* PDR will reference parsed elem */
 	for (i = 0; i < req->nr_create_pdr; i++) {

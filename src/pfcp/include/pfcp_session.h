@@ -117,6 +117,7 @@ struct urr {
 	union pfcp_measurement_method	measurement_method;
 	union pfcp_measurement_information measurement_info;
 	union pfcp_reporting_triggers	triggers;
+	uint32_t		linked_urr_id[PFCP_MAX_NR_ELEM];
 
 	uint32_t		inactivity_detection_time;
 	uint32_t		quota_holdtime;
@@ -129,11 +130,6 @@ struct urr {
 	uint32_t		time_threshold;
 	uint32_t		time_quota;
 	uint32_t		time_periodic;
-
-	/* parent/Linked urr */
-	struct urr		*parent_urr;
-	uint32_t		linked_urr_id;
-	struct urr		*linked_urr;
 
 	/* metrics */
 	uint32_t		seqn;

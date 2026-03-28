@@ -267,7 +267,7 @@ struct pfcp_ie_create_urr {
 	struct pfcp_ie_subsequent_event_threshold *subsequent_event_threshold;
 	struct pfcp_ie_subsequent_event_quota *subsequent_event_quota;
 	struct pfcp_ie_inactivity_detection_time *inactivity_detection_time;
-	struct pfcp_ie_linked_urr_id *linked_urr_id;
+	struct pfcp_ie_linked_urr_id **linked_urr_id;
 	struct pfcp_ie_measurement_information *measurement_information;
 	struct pfcp_ie_time_quota_mechanism *time_quota_mechanism;
 	struct pfcp_ie_aggregated_urrs *aggregated_urrs;
@@ -275,6 +275,7 @@ struct pfcp_ie_create_urr {
 	struct pfcp_ie_ethernet_inactivity_timer *ethernet_inactivity_timer;
 	struct pfcp_ie_additional_monitoring_time *additional_monitoring_time;
 	struct pfcp_ie_number_of_reports *number_of_reports;
+	int nr_linked_urr_id;
 };
 
 /* Create QER (QoS Enhancement Rule) Grouped IE */
@@ -560,7 +561,7 @@ struct pfcp_ie_update_urr {
 	struct pfcp_ie_subsequent_event_threshold *subsequent_event_threshold;
 	struct pfcp_ie_subsequent_event_quota *subsequent_event_quota;
 	struct pfcp_ie_inactivity_detection_time *inactivity_detection_time;
-	struct pfcp_ie_linked_urr_id *linked_urr_id;
+	struct pfcp_ie_linked_urr_id **linked_urr_id;
 	struct pfcp_ie_measurement_information *measurement_information;
 	struct pfcp_ie_time_quota_mechanism *time_quota_mechanism;
 	struct pfcp_ie_aggregated_urrs *aggregated_urrs;
@@ -568,6 +569,7 @@ struct pfcp_ie_update_urr {
 	struct pfcp_ie_ethernet_inactivity_timer *ethernet_inactivity_timer;
 	struct pfcp_ie_additional_monitoring_time *additional_monitoring_time;
 	struct pfcp_ie_number_of_reports *number_of_reports;
+	int nr_linked_urr_id;
 };
 
 /* Update QER Grouped IE */

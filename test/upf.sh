@@ -307,19 +307,24 @@ smf_more_adv_urr() {
 
     urr_def=''
     urr_expect=''
+    urr_ids=''
     for l in "$@"; do
 	if [[ "$l" == urr* ]]; then
 	    urr_def+="$l"$'\n'
+	    if [[ $l =~ urr\ set\ id\ ([0-9]+) ]]; then
+		urr_ids+="${BASH_REMATCH[1]},"
+	    fi
 	elif [[ "$l" == expect* ]]; then
 	    urr_expect+="$l"$'\n'
 	fi
     done
 
+    urr_ids="${urr_ids::-1}"
     urr_expect+="expect no report timeout 4"
 
     _hash_set $arr $key <<EOF
 $urr_def
-session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr 2,3
+session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr $urr_ids
 session ping 1 8.8.8.8 count 3
 $urr_expect
 session delete 1
@@ -347,6 +352,13 @@ run_with_smf() {
     smf_more_adv_urr testset volth4			\
     "urr set id 2 triggers volth measure volume volth total 176"	\
     "urr set id 3 triggers volth measure volume volth total 240"	\
+    "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 3 trigger volth total_min 176"
+
+    # linked urr
+    smf_more_adv_urr testset volth5			\
+    "urr set id 2 triggers volth measure volume volth total 176"	\
+    "urr set id 3 linked 2"	\
+    "urr set id 4 measure volume linked 2,3"	\
     "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 3 trigger volth total_min 176"
 
     # no measure vol, do not expect report

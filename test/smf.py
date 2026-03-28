@@ -132,6 +132,7 @@ class IET:
     START_TIME                     = 75
     END_TIME                       = 76
     URR_ID                         = 81
+    LINKED_URR_ID                  = 82
     USAGE_REPORT_SRR               = 80
     OUTER_HEADER_CREATION          = 84
     CP_FUNC_FEATURES               = 89
@@ -278,6 +279,7 @@ class URRConfig:
     quota_holding_time:      int | None = None   # seconds
     inactivity_detection:    int | None = None   # seconds
     measurement_period:      int | None = None   # seconds (periodic timer)
+    linked_urr_ids:          list[int] = field(default_factory=list)
 
     def summary(self) -> str:
         trig_names = ",".join(n for f, n in REPORTING_TRIGGER_NAMES_INV.items() if self.triggers & f) or "none"
@@ -294,6 +296,7 @@ class URRConfig:
         if self.quota_holding_time   is not None: parts.append(f"quota_holding={self.quota_holding_time}s")
         if self.inactivity_detection is not None: parts.append(f"inactivity={self.inactivity_detection}s")
         if self.measurement_period   is not None: parts.append(f"period={self.measurement_period}s")
+        if self.linked_urr_ids:                   parts.append(f"linked={self.linked_urr_ids}")
         return "  ".join(parts)
 
 
@@ -617,6 +620,10 @@ def ie_far_id(v: int) -> bytes:
 def ie_urr_id(v: int) -> bytes:
     return _ie(IET.URR_ID, struct.pack("!I", v))
 
+def ie_linked_urr_id(v: int) -> bytes:
+    """Linked URR ID IE (82) — uint32. May appear multiple times in Create URR."""
+    return _ie(IET.LINKED_URR_ID, struct.pack("!I", v))
+
 def ie_apply_action(v: int) -> bytes:
     return _ie(IET.APPLY_ACTION, bytes([v]))
 
@@ -750,6 +757,7 @@ def ie_create_urr_from_config(urr: URRConfig) -> bytes:
     if urr.quota_holding_time   is not None: body += ie_quota_holding_time(urr.quota_holding_time)
     if urr.inactivity_detection is not None: body += ie_inactivity_detection_time(urr.inactivity_detection)
     if urr.measurement_period   is not None: body += ie_measurement_period(urr.measurement_period)
+    body += b"".join(ie_linked_urr_id(uid) for uid in urr.linked_urr_ids)
     return _ie(IET.CREATE_URR, body)
 
 def ie_ue_ip_address_pool_information(ni: str, pool: str) -> bytes:
@@ -1175,6 +1183,7 @@ HELP_TEXT = """\
                  [qht <seconds>]
                  [inactivity <seconds>]
                  [period <seconds>]
+                 [linked <id1,id2,...>]
       Configure a URR.  Trigger/measure names (comma-separated, no spaces):
       Trigger names for urr set (§8.2.19 Reporting Triggers):
         perio volth timth quhti start stopt droth liusa
@@ -1226,6 +1235,7 @@ def parse_urr_set(tokens: list[str]) -> URRConfig:
     volth_total = volth_ul = volth_dl = timth = None
     vol_quota_total = vol_quota_ul = vol_quota_dl = None
     time_quota = quota_holding_time = inactivity_detection = measurement_period = None
+    linked_urr_ids: list[int] = []
     it = iter(tokens)
     for key in it:
         match key:
@@ -1249,6 +1259,7 @@ def parse_urr_set(tokens: list[str]) -> URRConfig:
             case "qht":         quota_holding_time   = int(next(it))
             case "inactivity":  inactivity_detection = int(next(it))
             case "period":      measurement_period   = int(next(it))
+            case "linked":      linked_urr_ids       = [int(x) for x in next(it).split(",")]
             case _:             raise ValueError(f"Unknown urr option: {key!r}")
     if urr_id is None:
         raise ValueError("urr id is required")
@@ -1260,6 +1271,7 @@ def parse_urr_set(tokens: list[str]) -> URRConfig:
         time_quota=time_quota, quota_holding_time=quota_holding_time,
         inactivity_detection=inactivity_detection,
         measurement_period=measurement_period,
+        linked_urr_ids=linked_urr_ids,
     )
 
 
