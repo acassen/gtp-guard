@@ -1461,7 +1461,7 @@ vty_create(struct thread_master *m, int vty_sock, struct sockaddr_storage *addr)
 	vty->type = VTY_TERM;
 	vty->address = *addr;
 	if (no_password_check) {
-		vty->node = VIEW_NODE;
+		vty->node = (host.advanced) ? ENABLE_NODE : VIEW_NODE;
 	} else {
 		vty->node = AUTH_NODE;
 	}
@@ -1616,16 +1616,44 @@ vty_listen(struct thread_master *m, struct sockaddr_storage *addr)
 
 /* Start unix domain socket listener */
 int
-vty_listen_unix(struct thread_master *m, const char *path)
+vty_listen_unix(struct thread_master *m, const char *path,
+		const char *user, const char *group)
 {
+	struct vty_unix_sock *usock;
 	struct sockaddr_un *addr;
+	struct passwd *pw = NULL;
+	struct group *gr = NULL;
 	int ret, accept_sock;
+	uid_t uid = -1;
+	gid_t gid = -1;
 	mode_t old_mask;
 
-	addr = MALLOC(sizeof(struct sockaddr_un));
-	memset(addr, 0, sizeof(*addr));
+	/* Resolve user and group names */
+	if (user) {
+		pw = getpwnam(user);
+		if (!pw) {
+			log_message(LOG_INFO, "Vty error unknown user %s", user);
+			return -1;
+		}
+		uid = pw->pw_uid;
+	}
+
+	if (group) {
+		gr = getgrnam(group);
+		if (!gr) {
+			log_message(LOG_INFO, "Vty error unknown group %s", group);
+			return -1;
+		}
+		gid = gr->gr_gid;
+	}
+
+	usock = MALLOC(sizeof(struct vty_unix_sock));
+	memset(usock, 0, sizeof(*usock));
+	addr = &usock->addr;
 	addr->sun_family = AF_UNIX;
 	strncpy(addr->sun_path, path, sizeof(addr->sun_path) - 1);
+	usock->uid = uid;
+	usock->gid = gid;
 
 	old_mask = umask(0077);
 
@@ -1644,6 +1672,24 @@ vty_listen_unix(struct thread_master *m, const char *path)
 		goto err;
 	}
 
+	/* Set socket ownership */
+	ret = chown(path, uid, gid);
+	if (ret < 0) {
+		log_message(LOG_INFO, "Vty error cant chown %s (%m)", path);
+		close(accept_sock);
+		goto err;
+	}
+
+	/* Allow group read/write access */
+	if (gid != (gid_t)-1) {
+		ret = chmod(path, 0770);
+		if (ret < 0) {
+			log_message(LOG_INFO, "Vty error cant chmod %s (%m)", path);
+			close(accept_sock);
+			goto err;
+		}
+	}
+
 	ret = listen(accept_sock, 3);
 	if (ret < 0) {
 		log_message(LOG_INFO, "Vty error cant listen on %s (%m)", path);
@@ -1652,12 +1698,13 @@ vty_listen_unix(struct thread_master *m, const char *path)
 	}
 
 	umask(old_mask);
-	log_message(LOG_INFO, "Vty start listening on unix:%s", path);
-	vty_event(m, VTY_SERV, accept_sock, addr);
+	log_message(LOG_INFO, "Vty start listening on unix:%s (uid:%d gid:%d)"
+			    , path, uid, gid);
+	vty_event(m, VTY_SERV, accept_sock, usock);
 	return accept_sock;
 
   err:
-	FREE(addr);
+	FREE(usock);
 	umask(old_mask);
 	return -1;
 }
@@ -2149,19 +2196,31 @@ DEFUN(no_vty_line_listen,
 
 DEFUN(vty_line_listen_unix,
       vty_line_listen_unix_cmd,
-      "listen unix WORD",
+      "listen unix WORD [owner WORD] [group WORD]",
       "Launch unix socket listener\n"
       "UNIX domain socket\n"
-      "Socket path\n")
+      "Socket path\n"
+      "Set socket owner\n"
+      "Username\n"
+      "Set socket group\n"
+      "Group name\n")
 {
-	int ret;
+	const char *user = NULL, *group = NULL;
+	int ret, i;
 
 	if (argc < 1) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
 		return CMD_WARNING;
 	}
 
-	ret = vty_listen_unix(master, argv[0]);
+	for (i = 1; i < argc - 1; i++) {
+		if (!strcmp(argv[i], "owner"))
+			user = argv[++i];
+		else if (!strcmp(argv[i], "group"))
+			group = argv[++i];
+	}
+
+	ret = vty_listen_unix(master, argv[0], user, group);
 	if (ret < 0) {
 		vty_out(vty, "%% Error starting vty unix listener%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -2178,7 +2237,7 @@ DEFUN(no_vty_line_listen_unix,
       "UNIX domain socket\n"
       "Socket path\n")
 {
-	struct sockaddr_un *sun;
+	struct vty_unix_sock *usock;
 	struct thread *vty_serv_thread;
 	unsigned int i;
 
@@ -2191,17 +2250,18 @@ DEFUN(no_vty_line_listen_unix,
 		vty_serv_thread = vector_slot(Vvty_serv_thread, i);
 		if (!vty_serv_thread)
 			continue;
-		sun = THREAD_ARG(vty_serv_thread);
-		if (sun->sun_family != AF_UNIX)
+		usock = THREAD_ARG(vty_serv_thread);
+		if (usock->addr.sun_family != AF_UNIX)
 			continue;
-		if (strcmp(sun->sun_path, argv[0]) != 0)
+		if (strcmp(usock->addr.sun_path, argv[0]) != 0)
 			continue;
 
 		thread_del(vty_serv_thread);
 		vector_slot(Vvty_serv_thread, i) = NULL;
-		log_message(LOG_INFO, "Vty stop unix listener on %s", sun->sun_path);
-		unlink(sun->sun_path);
-		FREE(sun);
+		log_message(LOG_INFO, "Vty stop unix listener on %s"
+				    , usock->addr.sun_path);
+		unlink(usock->addr.sun_path);
+		FREE(usock);
 		close(i);
 		break;
 	}
@@ -2314,9 +2374,22 @@ vty_config_write(struct vty *vty)
 			continue;
 		sa = (struct sockaddr *)THREAD_ARG(vty_serv_thread);
 		if (sa->sa_family == AF_UNIX) {
-			vty_out(vty, " listen unix %s%s"
-				   , ((struct sockaddr_un *)sa)->sun_path
-				   , VTY_NEWLINE);
+			struct vty_unix_sock *usock = THREAD_ARG(vty_serv_thread);
+			struct passwd *pw;
+			struct group *gr;
+
+			vty_out(vty, " listen unix %s", usock->addr.sun_path);
+			if (usock->uid != (uid_t)-1) {
+				pw = getpwuid(usock->uid);
+				if (pw)
+					vty_out(vty, " owner %s", pw->pw_name);
+			}
+			if (usock->gid != (gid_t)-1) {
+				gr = getgrgid(usock->gid);
+				if (gr)
+					vty_out(vty, " group %s", gr->gr_name);
+			}
+			vty_out(vty, "%s", VTY_NEWLINE);
 		} else {
 			addr = (struct sockaddr_storage *)sa;
 			vty_out(vty, " listen %s %d%s"
@@ -2365,9 +2438,10 @@ vty_reset(void)
 		thread_del(vty_serv_thread);
 		vector_slot(Vvty_serv_thread, i) = NULL;
 		if (sa->sa_family == AF_UNIX) {
+			struct vty_unix_sock *usock = (struct vty_unix_sock *)sa;
 			log_message(LOG_INFO, "Vty stop unix listener on %s"
-					    , ((struct sockaddr_un *)sa)->sun_path);
-			unlink(((struct sockaddr_un *)sa)->sun_path);
+					    , usock->addr.sun_path);
+			unlink(usock->addr.sun_path);
 		} else {
 			addr = (struct sockaddr_storage *)sa;
 			log_message(LOG_INFO, "Vty stop listener on [%s]:%d"

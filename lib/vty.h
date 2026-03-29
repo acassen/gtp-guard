@@ -6,6 +6,9 @@
 
 #include <errno.h>
 #include <netinet/in.h>
+#include <sys/un.h>
+#include <pwd.h>
+#include <grp.h>
 #include "timer.h"
 #include "thread.h"
 #include "buffer.h"
@@ -153,10 +156,19 @@ do {									\
 } while (0)
 
 
+/* Unix domain socket context */
+struct vty_unix_sock {
+	struct sockaddr_un addr;	/* must be first for sockaddr cast */
+	uid_t uid;
+	gid_t gid;
+};
+
 /* Prototypes. */
 void vty_init(void);
 void vty_terminate(void);
 int vty_listen(struct thread_master *m, struct sockaddr_storage *addr);
+int vty_listen_unix(struct thread_master *m, const char *path,
+		    const char *user, const char *group);
 void vty_reset(void);
 struct vty *vty_new(void);
 int vty_out(struct vty *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);

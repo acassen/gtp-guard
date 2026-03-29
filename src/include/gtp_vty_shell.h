@@ -20,15 +20,5 @@
  */
 #pragma once
 
-#include <syslog.h>
-#include "thread.h"
-#include "gtp_data.h"
-
-/* global var */
-struct thread_master *master = NULL;				/* Scheduling master thread */
-char *conf_file = NULL;						/* Configuration file */
-char *vty_shell_file = NULL;					/* VTY Shell file */
-int log_facility = LOG_DAEMON;					/* Optional logging facilities */
-struct data *daemon_data = NULL;				/* Daemon Control Block data */
-char *default_conf_file = "/etc/gtp-guard/gtp-guard.conf";	/* Default configuration file */
-char *default_vty_shell_file = "/var/run/gtp-guard.sock";	/* Default VTY Shell file */
+/* Prototypes */
+extern int gtp_vtysh(const char *path);

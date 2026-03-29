@@ -28,7 +28,7 @@
 #include "gtp_conn.h"
 #include "gtp_teid.h"
 #include "gtp_session.h"
-#include "gtp_bpf_utils.h"
+#include "gtp_vty_shell.h"
 #include "command.h"
 #include "bitops.h"
 #include "signals.h"
@@ -38,6 +38,7 @@
 #include "memory.h"
 #include "daemon.h"
 #include "config.h"
+#include "libbpf.h"
 #include "main.h"
 
 
@@ -133,6 +134,7 @@ usage(const char *prog)
 		"Commands:\n"
 		"Either long or short options are allowed.\n"
 		"  %s --dont-fork          -n    Dont fork the daemon process.\n"
+		"  %s --vty-shell          -V    Open VTY Shell with local daemon.\n"
 		"  %s --use-file           -f    Use the specified configuration file.\n"
 		"                                Default is /etc/gtp-guard/gtp-guard.conf.\n"
 		"  %s --enable-bpf-debug   -b    Enable verbose libbpf log debug.\n"
@@ -142,7 +144,7 @@ usage(const char *prog)
 		"  %s --log-facility       -S    0-7 Set syslog facility to LOG_LOCAL[0-7]. (default=LOG_DAEMON)\n"
 		"  %s --help               -h    Display this short inlined help screen.\n"
 		"  %s --version            -v    Display the version number\n",
-		prog, prog, prog, prog, prog, prog, prog, prog, prog);
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* Command line parser */
@@ -160,13 +162,18 @@ parse_cmdline(int argc, char **argv)
 		{"dump-conf",		no_argument,		NULL, 'd'},
 		{"enable-bpf-debug",	no_argument,		NULL, 'b'},
 		{"use-file",		required_argument,	NULL, 'f'},
+		{"vty-shell",		required_argument,	NULL, 'V'},
 		{"version",		no_argument,		NULL, 'v'},
 		{"help",		no_argument,		NULL, 'h'},
 		{NULL,			0,			NULL,  0 }
 	};
 
+	/* VTY Shell. force default value for login Shell */
+	if (argv[0][0] == '-')
+		exit(gtp_vtysh(VTY_UNIX_PATH));
+
 	curind = optind;
-	while (longindex = -1, (c = getopt_long(argc, argv, ":vhlndDbf:S:"
+	while (longindex = -1, (c = getopt_long(argc, argv, ":vhlndDbf:V:S:"
 						, long_options, &longindex)) != -1) {
 		if (longindex >= 0 && long_options[longindex].has_arg == required_argument &&
 		    optarg && !optarg[0]) {
@@ -205,6 +212,10 @@ parse_cmdline(int argc, char **argv)
 			break;
 		case 'f':
 			conf_file = optarg;
+			break;
+		case 'V':
+			vty_shell_file = optarg;
+			exit(gtp_vtysh(vty_shell_file ? : VTY_UNIX_PATH));
 			break;
 		case '?':
 			if (optopt && argv[curind][1] != '-')
@@ -249,8 +260,7 @@ main(int argc, char **argv)
 	mem_allocated = 0;
 	debug = 0;
 
-	/*
-	 * Parse command line and set debug level.
+	/* Parse command line and set debug level.
 	 * bits 0..7 reserved by main.c
 	 */
 	parse_cmdline(argc, argv);
