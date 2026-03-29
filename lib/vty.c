@@ -17,6 +17,7 @@
 #include <sys/param.h>
 #include <netinet/tcp.h>
 #include <sys/utsname.h>
+#include <sys/un.h>
 
 #include "utils.h"
 #include "inet_utils.h"
@@ -71,7 +72,7 @@ vty_buffer_build(char *dst, size_t dsize, int *len, const char *fmt, va_list arg
 		goto err;
 
 	/* Initial buffer is not enough */
-	if (*len >= dsize) {
+	if ((size_t)*len >= dsize) {
 		p = MALLOC(*len + 1);
 		if (!p)
 			goto err;
@@ -1061,7 +1062,7 @@ vty_hist_add(struct vty *vty)
 
 /* Get telnet window size. */
 static int
-vty_telnet_option(struct vty *vty, unsigned char *buf, int nbytes)
+vty_telnet_option(struct vty *vty, unsigned char *buf, __attribute__((unused)) int nbytes)
 {
 	switch (buf[0]) {
 	case SB:
@@ -1460,7 +1461,7 @@ vty_create(struct thread_master *m, int vty_sock, struct sockaddr_storage *addr)
 	vty->type = VTY_TERM;
 	vty->address = *addr;
 	if (no_password_check) {
-		vty->node = (host.advanced) ? ENABLE_NODE : VIEW_NODE;
+		vty->node = VIEW_NODE;
 	} else {
 		vty->node = AUTH_NODE;
 	}
@@ -1519,6 +1520,7 @@ static void
 vty_accept(struct thread *t)
 {
 	struct sockaddr_storage sock;
+	struct sockaddr *saddr = (struct sockaddr *) THREAD_ARG(t);
 	socklen_t len;
 	int vty_sock, ret;
 	unsigned int on = 1;
@@ -1543,77 +1545,121 @@ vty_accept(struct thread *t)
 		return;
 	}
 
-	/* Set NODELAY */
-	ret = setsockopt(vty_sock, IPPROTO_TCP, TCP_NODELAY, 
-			 (char *) &on, sizeof(on));
-	if (ret < 0) {
-		log_message(LOG_INFO, "can't set sockopt to vty_sock : %m");
+	if (saddr->sa_family == AF_UNIX) {
+		log_message(LOG_INFO, "Vty unix connection accepted");
+		goto end;
 	}
 
-	log_message(LOG_INFO, "Vty connection from %s" , inet_sockaddrtos(&sock));
+	ret = setsockopt(vty_sock, IPPROTO_TCP, TCP_NODELAY,
+			 (char *) &on, sizeof(on));
+	if (ret < 0)
+		log_message(LOG_INFO, "can't set sockopt to vty_sock : %m");
+	log_message(LOG_INFO, "Vty connection from %s", inet_sockaddrtos(&sock));
 
+end:
 	vty_create(t->master, vty_sock, &sock);
 }
 
-/* Start listner thread */
+/* Start listener thread */
 int
 vty_listen(struct thread_master *m, struct sockaddr_storage *addr)
 {
-	int accept_sock, ret, on = 1;
-	socklen_t len;
+	int ret, accept_sock, on = 1;
 	mode_t old_mask;
 
-	/* Mask */
 	old_mask = umask(0077);
 
-	/* Socket */
 	accept_sock = socket(addr->ss_family, SOCK_STREAM, 0);
 	if (accept_sock < 0) {
 		log_message(LOG_INFO, "Vty error creating listening socket on [%s]:%d (%m)"
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
+		umask(old_mask);
 		return -1;
 	}
 
-	/* Socket tweaking */
 	ret = setsockopt(accept_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 	if (ret < 0) {
 		log_message(LOG_INFO, "Vty error cant do SO_REUSEADDR errno=%d (%m)"
 				    , errno);
-		close(accept_sock);
-		return -1;
+		goto err;
 	}
 
-	/* Socket bind */
-	len = sizeof(*addr);
-	ret = bind(accept_sock, (struct sockaddr *) addr, len);
+	ret = bind(accept_sock, (struct sockaddr *) addr, sizeof(*addr));
 	if (ret < 0) {
 		log_message(LOG_INFO, "Vty error cant bind to [%s]:%d (%m)"
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
-		close(accept_sock);
-		return -1;
+		goto err;
 	}
 
-	/* Socket listen */
 	ret = listen(accept_sock, 3);
 	if (ret < 0) {
 		log_message(LOG_INFO, "Vty error cant listen to [%s]:%d (%m)"
 				    , inet_sockaddrtos(addr)
 				    , ntohs(inet_sockaddrport(addr)));
-		close(accept_sock);
-		return -1;
+		goto err;
 	}
 
-	/* Restore old mask */
 	umask(old_mask);
-
 	log_message(LOG_INFO, "Vty start listening on [%s]:%d"
 			    , inet_sockaddrtos(addr)
 			    , ntohs(inet_sockaddrport(addr)));
-
 	vty_event(m, VTY_SERV, accept_sock, addr);
 	return accept_sock;
+
+  err:
+	close(accept_sock);
+	umask(old_mask);
+	return -1;
+}
+
+/* Start unix domain socket listener */
+int
+vty_listen_unix(struct thread_master *m, const char *path)
+{
+	struct sockaddr_un *addr;
+	int ret, accept_sock;
+	mode_t old_mask;
+
+	addr = MALLOC(sizeof(struct sockaddr_un));
+	memset(addr, 0, sizeof(*addr));
+	addr->sun_family = AF_UNIX;
+	strncpy(addr->sun_path, path, sizeof(addr->sun_path) - 1);
+
+	old_mask = umask(0077);
+
+	accept_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (accept_sock < 0) {
+		log_message(LOG_INFO, "Vty error creating unix socket (%m)");
+		goto err;
+	}
+
+	unlink(path);
+
+	ret = bind(accept_sock, (struct sockaddr *) addr, sizeof(*addr));
+	if (ret < 0) {
+		log_message(LOG_INFO, "Vty error cant bind to %s (%m)", path);
+		close(accept_sock);
+		goto err;
+	}
+
+	ret = listen(accept_sock, 3);
+	if (ret < 0) {
+		log_message(LOG_INFO, "Vty error cant listen on %s (%m)", path);
+		close(accept_sock);
+		goto err;
+	}
+
+	umask(old_mask);
+	log_message(LOG_INFO, "Vty start listening on unix:%s", path);
+	vty_event(m, VTY_SERV, accept_sock, addr);
+	return accept_sock;
+
+  err:
+	FREE(addr);
+	umask(old_mask);
+	return -1;
 }
 
 /* Close vty interface.  Warning: call this only from functions that
@@ -2066,7 +2112,8 @@ DEFUN(no_vty_line_listen,
 	struct sockaddr_storage addr;
 	struct thread *vty_serv_thread;
 	uint16_t port = 0;
-	int ret, i;
+	unsigned int i;
+	int ret;
 
 	if (argc < 2) {
 		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
@@ -2095,6 +2142,68 @@ DEFUN(no_vty_line_listen,
 				close(i);
 			}
 		}
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(vty_line_listen_unix,
+      vty_line_listen_unix_cmd,
+      "listen unix WORD",
+      "Launch unix socket listener\n"
+      "UNIX domain socket\n"
+      "Socket path\n")
+{
+	int ret;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ret = vty_listen_unix(master, argv[0]);
+	if (ret < 0) {
+		vty_out(vty, "%% Error starting vty unix listener%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_vty_line_listen_unix,
+      no_vty_line_listen_unix_cmd,
+      "no listen unix WORD",
+      NO_STR
+      "Stop unix socket listener\n"
+      "UNIX domain socket\n"
+      "Socket path\n")
+{
+	struct sockaddr_un *sun;
+	struct thread *vty_serv_thread;
+	unsigned int i;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	for (i = 0; i < vector_active(Vvty_serv_thread); i++) {
+		vty_serv_thread = vector_slot(Vvty_serv_thread, i);
+		if (!vty_serv_thread)
+			continue;
+		sun = THREAD_ARG(vty_serv_thread);
+		if (sun->sun_family != AF_UNIX)
+			continue;
+		if (strcmp(sun->sun_path, argv[0]) != 0)
+			continue;
+
+		thread_del(vty_serv_thread);
+		vector_slot(Vvty_serv_thread, i) = NULL;
+		log_message(LOG_INFO, "Vty stop unix listener on %s", sun->sun_path);
+		unlink(sun->sun_path);
+		FREE(sun);
+		close(i);
+		break;
 	}
 
 	return CMD_SUCCESS;
@@ -2181,7 +2290,7 @@ vty_config_write(struct vty *vty)
 {
 	struct sockaddr_storage *addr;
 	struct thread *vty_serv_thread;
-	int i;
+	unsigned int i;
 
 	vty_out(vty, "line vty%s", VTY_NEWLINE);
 
@@ -2198,8 +2307,18 @@ vty_config_write(struct vty *vty)
 
 	/* Listener */
 	for (i = 0; i < vector_active(Vvty_serv_thread); i++) {
-		if ((vty_serv_thread = vector_slot(Vvty_serv_thread, i)) != NULL) {
-			addr = THREAD_ARG(vty_serv_thread);
+		struct sockaddr *sa;
+
+		vty_serv_thread = vector_slot(Vvty_serv_thread, i);
+		if (!vty_serv_thread)
+			continue;
+		sa = (struct sockaddr *)THREAD_ARG(vty_serv_thread);
+		if (sa->sa_family == AF_UNIX) {
+			vty_out(vty, " listen unix %s%s"
+				   , ((struct sockaddr_un *)sa)->sun_path
+				   , VTY_NEWLINE);
+		} else {
+			addr = (struct sockaddr_storage *)sa;
 			vty_out(vty, " listen %s %d%s"
 				   , inet_sockaddrtos(addr), ntohs(inet_sockaddrport(addr))
 				   , VTY_NEWLINE);
@@ -2237,16 +2356,26 @@ vty_reset(void)
 	}
 
 	for (i = 0; i < vector_active(Vvty_serv_thread); i++) {
-		if ((vty_serv_thread = vector_slot(Vvty_serv_thread, i)) != NULL) {
-			addr = THREAD_ARG(vty_serv_thread);
-			thread_del(vty_serv_thread);
-			vector_slot(Vvty_serv_thread, i) = NULL;
+		struct sockaddr *sa;
+
+		vty_serv_thread = vector_slot(Vvty_serv_thread, i);
+		if (!vty_serv_thread)
+			continue;
+		sa = (struct sockaddr *)THREAD_ARG(vty_serv_thread);
+		thread_del(vty_serv_thread);
+		vector_slot(Vvty_serv_thread, i) = NULL;
+		if (sa->sa_family == AF_UNIX) {
+			log_message(LOG_INFO, "Vty stop unix listener on %s"
+					    , ((struct sockaddr_un *)sa)->sun_path);
+			unlink(((struct sockaddr_un *)sa)->sun_path);
+		} else {
+			addr = (struct sockaddr_storage *)sa;
 			log_message(LOG_INFO, "Vty stop listener on [%s]:%d"
 					    , inet_sockaddrtos(addr)
 					    , ntohs(inet_sockaddrport(addr)));
-			FREE(addr);
-			close(i);
 		}
+		FREE(sa);
+		close(i);
 	}
 
 	vty_timeout_val = VTY_TIMEOUT_DEFAULT;
@@ -2328,6 +2457,8 @@ vty_init(void)
 	install_element(VTY_NODE, &no_vty_login_cmd);
 	install_element(VTY_NODE, &vty_line_listen_cmd);
 	install_element(VTY_NODE, &no_vty_line_listen_cmd);
+	install_element(VTY_NODE, &vty_line_listen_unix_cmd);
+	install_element(VTY_NODE, &no_vty_line_listen_unix_cmd);
 }
 
 void
