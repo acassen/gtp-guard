@@ -1,21 +1,17 @@
 site_name: GTP-Guard
-copyright: Copyright &copy; 2023 - 2024 Alexandre Cassen
+copyright: Copyright &copy; 2023 - 2026 Alexandre Cassen
 repo_url: https://github.com/acassen/gtp-guard
 repo_name: GTP-Guard
 theme:
   name: material
   logo: assets/logo.png
   favicon: images/favicon.ico
+#  custom_dir: overrides
   features:
     - navigation.tabs
     - toc.integrate
     - header.autohide
   palette:
-    - scheme: slate
-      primary: orange
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
     - scheme: default
       primary: orange
       toggle:
@@ -26,6 +22,18 @@ theme:
 extra:
   homepage: https://www.gtp-guard.org
   generator: false
+extra_css:
+  - stylesheets/extra.css
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - def_list
+  - tables
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed:
+      alternate_style: true
 plugins:
   - search
   - tags
