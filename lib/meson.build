@@ -18,6 +18,7 @@ lib_src = files(
   'md5.c',
   'memory.c',
   'mempool.c',
+  'pci.c',
   'pidfile.c',
   'pkt_buffer.c',
   'prefix.c',

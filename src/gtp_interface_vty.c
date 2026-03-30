@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdlib.h>
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
@@ -31,6 +32,7 @@
 #include "command.h"
 #include "bitops.h"
 #include "memory.h"
+#include "pci.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -390,8 +392,39 @@ DEFUN(interface_no_shutdown,
 }
 
 
-
 /* Show */
+DEFUN(show_interface_topology,
+      show_interface_topology_cmd,
+      "show interface topology",
+      SHOW_STR
+      "Interface\n"
+      "Display PCI ethernet devices and NUMA topology\n")
+{
+	struct pci_eth_dev *devs;
+	int ndevs;
+
+	devs = calloc(PCI_MAX_ETH_DEVS, sizeof(*devs));
+	if (!devs)
+		return CMD_WARNING;
+
+	ndevs = pci_eth_dev_fetch(devs, PCI_MAX_ETH_DEVS);
+	if (ndevs < 0) {
+		vty_out(vty, "%% cannot enumerate PCI devices%s", VTY_NEWLINE);
+		free(devs);
+		return CMD_WARNING;
+	}
+
+	if (!ndevs) {
+		vty_out(vty, "No PCI ethernet devices found%s", VTY_NEWLINE);
+		free(devs);
+		return CMD_SUCCESS;
+	}
+
+	pci_eth_dev_vty(vty, devs, ndevs);
+	free(devs);
+	return CMD_SUCCESS;
+}
+
 DEFUN(show_interface,
       show_interface_cmd,
       "show interface [STRING]",
@@ -488,6 +521,8 @@ cmd_ext_interface_install(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_interface_cmd);
 	install_element(ENABLE_NODE, &show_interface_cmd);
+	install_element(VIEW_NODE, &show_interface_topology_cmd);
+	install_element(ENABLE_NODE, &show_interface_topology_cmd);
 
 	return 0;
 }
