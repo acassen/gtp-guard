@@ -23,6 +23,7 @@
 #include "inet_utils.h"
 #include "command.h"
 #include "memory.h"
+#include "config.h"
 #include "logger.h"
 
 
@@ -1648,7 +1649,6 @@ vty_listen_unix(struct thread_master *m, const char *path,
 	}
 
 	usock = MALLOC(sizeof(struct vty_unix_sock));
-	memset(usock, 0, sizeof(*usock));
 	addr = &usock->addr;
 	addr->sun_family = AF_UNIX;
 	strncpy(addr->sun_path, path, sizeof(addr->sun_path) - 1);
@@ -2196,31 +2196,29 @@ DEFUN(no_vty_line_listen,
 
 DEFUN(vty_line_listen_unix,
       vty_line_listen_unix_cmd,
-      "listen unix WORD [owner WORD] [group WORD]",
+      "listen unix [path WORD] [owner WORD] [group WORD]",
       "Launch unix socket listener\n"
       "UNIX domain socket\n"
+      "Socket path\n"
       "Socket path\n"
       "Set socket owner\n"
       "Username\n"
       "Set socket group\n"
       "Group name\n")
 {
-	const char *user = NULL, *group = NULL;
+	const char *path = VTY_UNIX_PATH, *user = NULL, *group = NULL;
 	int ret, i;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	for (i = 1; i < argc - 1; i++) {
-		if (!strcmp(argv[i], "owner"))
+	for (i = 0; i < argc - 1; i++) {
+		if (!strcmp(argv[i], "path"))
+			path = argv[++i];
+		else if (!strcmp(argv[i], "owner"))
 			user = argv[++i];
 		else if (!strcmp(argv[i], "group"))
 			group = argv[++i];
 	}
 
-	ret = vty_listen_unix(master, argv[0], user, group);
+	ret = vty_listen_unix(master, path, user, group);
 	if (ret < 0) {
 		vty_out(vty, "%% Error starting vty unix listener%s", VTY_NEWLINE);
 		return CMD_WARNING;
@@ -2231,20 +2229,20 @@ DEFUN(vty_line_listen_unix,
 
 DEFUN(no_vty_line_listen_unix,
       no_vty_line_listen_unix_cmd,
-      "no listen unix WORD",
+      "no listen unix [path WORD]",
       NO_STR
       "Stop unix socket listener\n"
       "UNIX domain socket\n"
+      "Socket path\n"
       "Socket path\n")
 {
+	const char *path = VTY_UNIX_PATH;
 	struct vty_unix_sock *usock;
 	struct thread *vty_serv_thread;
 	unsigned int i;
 
-	if (argc < 1) {
-		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
+	if (argc >= 2 && !strcmp(argv[0], "path"))
+		path = argv[1];
 
 	for (i = 0; i < vector_active(Vvty_serv_thread); i++) {
 		vty_serv_thread = vector_slot(Vvty_serv_thread, i);
@@ -2253,7 +2251,7 @@ DEFUN(no_vty_line_listen_unix,
 		usock = THREAD_ARG(vty_serv_thread);
 		if (usock->addr.sun_family != AF_UNIX)
 			continue;
-		if (strcmp(usock->addr.sun_path, argv[0]) != 0)
+		if (strcmp(usock->addr.sun_path, path) != 0)
 			continue;
 
 		thread_del(vty_serv_thread);
@@ -2378,7 +2376,10 @@ vty_config_write(struct vty *vty)
 			struct passwd *pw;
 			struct group *gr;
 
-			vty_out(vty, " listen unix %s", usock->addr.sun_path);
+			vty_out(vty, " listen unix");
+			if (strcmp(usock->addr.sun_path, VTY_UNIX_PATH))
+				vty_out(vty, " path %s"
+					   , usock->addr.sun_path);
 			if (usock->uid != (uid_t)-1) {
 				pw = getpwuid(usock->uid);
 				if (pw)
@@ -2393,7 +2394,8 @@ vty_config_write(struct vty *vty)
 		} else {
 			addr = (struct sockaddr_storage *)sa;
 			vty_out(vty, " listen %s %d%s"
-				   , inet_sockaddrtos(addr), ntohs(inet_sockaddrport(addr))
+				   , inet_sockaddrtos(addr)
+				   , ntohs(inet_sockaddrport(addr))
 				   , VTY_NEWLINE);
 		}
 	}
