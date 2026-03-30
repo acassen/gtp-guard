@@ -48,13 +48,11 @@ struct gtp_vtysh {
 	enum telnet_state tel_state;
 	unsigned char tel_cmd;
 };
+static struct gtp_vtysh gtp_vtysh_data;
 
 static void gtp_vtysh_stdin_read(struct thread *t);
 static void gtp_vtysh_sock_read(struct thread *t);
 
-/* Globals for signal handlers */
-static struct termios *orig_termios;
-static struct gtp_vtysh *vtysh_ctx_global;
 
 static void
 gtp_vtysh_send_naws(int fd)
@@ -84,15 +82,13 @@ gtp_vtysh_send_naws(int fd)
 static void
 gtp_vtysh_sigwinch(__attribute__((unused)) int sig)
 {
-	if (vtysh_ctx_global)
-		gtp_vtysh_send_naws(vtysh_ctx_global->sock_fd);
+	gtp_vtysh_send_naws(gtp_vtysh_data.sock_fd);
 }
 
 static void
 gtp_vtysh_signal_handler(__attribute__((unused)) int sig)
 {
-	if (orig_termios)
-		tcsetattr(STDIN_FILENO, TCSANOW, orig_termios);
+	tcsetattr(STDIN_FILENO, TCSANOW, &gtp_vtysh_data.orig);
 	_exit(1);
 }
 
@@ -235,7 +231,7 @@ close:
 int
 gtp_vtysh(const char *path)
 {
-	struct gtp_vtysh ctx;
+	struct gtp_vtysh *ctx = &gtp_vtysh_data;
 	struct sockaddr_un addr;
 	struct termios raw;
 	int fd;
@@ -255,23 +251,21 @@ gtp_vtysh(const char *path)
 		goto err;
 	}
 
-	memset(&ctx, 0, sizeof(ctx));
-	ctx.sock_fd = fd;
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->sock_fd = fd;
 
-	if (tcgetattr(STDIN_FILENO, &ctx.orig) < 0) {
+	if (tcgetattr(STDIN_FILENO, &ctx->orig) < 0) {
 		fprintf(stderr, "tcgetattr error (%m)\n");
 		goto err;
 	}
 
-	ctx.master = thread_make_master(true);
-	if (!ctx.master) {
+	ctx->master = thread_make_master(true);
+	if (!ctx->master) {
 		fprintf(stderr, "Failed to create scheduler\n");
 		goto err;
 	}
 
 	/* Restore terminal on fatal signals */
-	orig_termios = &ctx.orig;
-	vtysh_ctx_global = &ctx;
 	signal(SIGINT, gtp_vtysh_signal_handler);
 	signal(SIGTERM, gtp_vtysh_signal_handler);
 	signal(SIGQUIT, gtp_vtysh_signal_handler);
@@ -279,18 +273,18 @@ gtp_vtysh(const char *path)
 	signal(SIGHUP, gtp_vtysh_signal_handler);
 	signal(SIGWINCH, gtp_vtysh_sigwinch);
 
-	raw = ctx.orig;
+	raw = ctx->orig;
 	cfmakeraw(&raw);
 	tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
-	ctx.t_stdin = thread_add_read(ctx.master, gtp_vtysh_stdin_read, &ctx,
-				      STDIN_FILENO, TIMER_NEVER, 0);
-	ctx.t_sock = thread_add_read(ctx.master, gtp_vtysh_sock_read, &ctx,
-				     ctx.sock_fd, TIMER_NEVER, 0);
+	ctx->t_stdin = thread_add_read(ctx->master, gtp_vtysh_stdin_read, ctx,
+				       STDIN_FILENO, TIMER_NEVER, 0);
+	ctx->t_sock = thread_add_read(ctx->master, gtp_vtysh_sock_read, ctx,
+				      ctx->sock_fd, TIMER_NEVER, 0);
 
-	launch_thread_scheduler(ctx.master);
+	launch_thread_scheduler(ctx->master);
 
-	thread_destroy_master(ctx.master);
+	thread_destroy_master(ctx->master);
 	return 0;
 
 err:
