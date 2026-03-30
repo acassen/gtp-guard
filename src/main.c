@@ -134,7 +134,7 @@ usage(const char *prog)
 		"Commands:\n"
 		"Either long or short options are allowed.\n"
 		"  %s --dont-fork          -n    Dont fork the daemon process.\n"
-		"  %s --vty-shell          -V    Open VTY Shell with local daemon.\n"
+		"  %s --vty-shell/--cli    -V    Open VTY Shell with local daemon.\n"
 		"  %s --use-file           -f    Use the specified configuration file.\n"
 		"                                Default is /etc/gtp-guard/gtp-guard.conf.\n"
 		"  %s --enable-bpf-debug   -b    Enable verbose libbpf log debug.\n"
@@ -162,7 +162,8 @@ parse_cmdline(int argc, char **argv)
 		{"dump-conf",		no_argument,		NULL, 'd'},
 		{"enable-bpf-debug",	no_argument,		NULL, 'b'},
 		{"use-file",		required_argument,	NULL, 'f'},
-		{"vty-shell",		required_argument,	NULL, 'V'},
+		{"vty-shell",		optional_argument,	NULL, 'V'},
+		{"cli",			optional_argument,	NULL, 'V'},
 		{"version",		no_argument,		NULL, 'v'},
 		{"help",		no_argument,		NULL, 'h'},
 		{NULL,			0,			NULL,  0 }
@@ -173,7 +174,7 @@ parse_cmdline(int argc, char **argv)
 		exit(gtp_vtysh(VTY_UNIX_PATH));
 
 	curind = optind;
-	while (longindex = -1, (c = getopt_long(argc, argv, ":vhlndDbf:V:S:"
+	while (longindex = -1, (c = getopt_long(argc, argv, ":vhlndDbf:V::S:"
 						, long_options, &longindex)) != -1) {
 		if (longindex >= 0 && long_options[longindex].has_arg == required_argument &&
 		    optarg && !optarg[0]) {
