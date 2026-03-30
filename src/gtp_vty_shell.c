@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <arpa/telnet.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 
@@ -45,13 +46,47 @@ struct gtp_vtysh {
 	struct thread *t_stdin;
 	struct thread *t_sock;
 	enum telnet_state tel_state;
+	unsigned char tel_cmd;
 };
 
 static void gtp_vtysh_stdin_read(struct thread *t);
 static void gtp_vtysh_sock_read(struct thread *t);
 
-/* Global for signal handler terminal restore */
+/* Globals for signal handlers */
 static struct termios *orig_termios;
+static struct gtp_vtysh *vtysh_ctx_global;
+
+static void
+gtp_vtysh_send_naws(int fd)
+{
+	/* struct winsize layout: ws_row, ws_col, ws_xpixel, ws_ypixel */
+	unsigned short winsz[4] = {24, 80, 0, 0};
+	unsigned char buf[12];
+	int len = 0;
+
+	ioctl(STDIN_FILENO, TIOCGWINSZ, winsz);
+
+	buf[len++] = IAC;
+	buf[len++] = WILL;
+	buf[len++] = TELOPT_NAWS;
+	buf[len++] = IAC;
+	buf[len++] = SB;
+	buf[len++] = TELOPT_NAWS;
+	buf[len++] = (winsz[1] >> 8) & 0xff;	/* cols high */
+	buf[len++] = winsz[1] & 0xff;		/* cols low */
+	buf[len++] = (winsz[0] >> 8) & 0xff;	/* rows high */
+	buf[len++] = winsz[0] & 0xff;		/* rows low */
+	buf[len++] = IAC;
+	buf[len++] = SE;
+	write(fd, buf, len);
+}
+
+static void
+gtp_vtysh_sigwinch(__attribute__((unused)) int sig)
+{
+	if (vtysh_ctx_global)
+		gtp_vtysh_send_naws(vtysh_ctx_global->sock_fd);
+}
 
 static void
 gtp_vtysh_signal_handler(__attribute__((unused)) int sig)
@@ -103,6 +138,7 @@ gtp_vtysh_telnet_filter(struct gtp_vtysh *ctx, const unsigned char *in,
 			case WONT:
 			case DO:
 			case DONT:
+				ctx->tel_cmd = c;
 				ctx->tel_state = TEL_OPT;
 				break;
 			default:
@@ -112,7 +148,8 @@ gtp_vtysh_telnet_filter(struct gtp_vtysh *ctx, const unsigned char *in,
 			}
 			break;
 		case TEL_OPT:
-			/* Skip option byte */
+			if (ctx->tel_cmd == DO && c == TELOPT_NAWS)
+				gtp_vtysh_send_naws(ctx->sock_fd);
 			ctx->tel_state = TEL_NORMAL;
 			break;
 		case TEL_SB:
@@ -234,11 +271,13 @@ gtp_vtysh(const char *path)
 
 	/* Restore terminal on fatal signals */
 	orig_termios = &ctx.orig;
+	vtysh_ctx_global = &ctx;
 	signal(SIGINT, gtp_vtysh_signal_handler);
 	signal(SIGTERM, gtp_vtysh_signal_handler);
 	signal(SIGQUIT, gtp_vtysh_signal_handler);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGHUP, gtp_vtysh_signal_handler);
+	signal(SIGWINCH, gtp_vtysh_sigwinch);
 
 	raw = ctx.orig;
 	cfmakeraw(&raw);
