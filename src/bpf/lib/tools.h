@@ -27,6 +27,9 @@
 #ifndef min
 # define min(x,y) ((x)<(y) ? x : y)
 #endif
+#ifndef max
+# define max(x,y) ((x)>(y) ? x : y)
+#endif
 
 #ifndef ARRAY_SIZE
 # define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))

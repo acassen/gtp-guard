@@ -486,7 +486,7 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	if (s->bpf_urr_idx) {
 		struct upf_urr_cmd_req *uc = pfcp_bpf_urr_alloc_cmd(s);
 		uc->urr_idx = s->bpf_urr_idx;
-		uc->ctl_fl = UPF_FL_CTL_REPORT | UPF_FL_CTL_DELETE;
+		uc->ctl_fl = UPF_FL_CTL_DELETE;
 		pfcp_bpf_urr_ctl(s, uc);
 
 		s->pending_addr = *addr;

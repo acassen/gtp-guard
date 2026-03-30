@@ -551,8 +551,6 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
 	int pdr_cnt, pdr_urr_cnt;
 	int i;
 
-	uc->cur_ver = 1;
-
 	list_for_each_entry(urr, &s->urr_list, next) {
 		/* is this urr is used in any/all pdrs ? */
 		pdr_cnt = 0;
@@ -577,7 +575,7 @@ pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
 
 		mm = urr->measurement_method;
 		uc->flags |= (mm.volum ? UPF_FL_MEAS_VOL : 0) |
-			(mm.durat ? UPF_FL_MEAS_DUR : 0);
+			(mm.durat ? UPF_FL_MEAS_TIME : 0);
 
 		/* take the first triggering values of all urrs */
 		if (mm.volum && urr->triggers.volth) {
@@ -635,8 +633,10 @@ pfcp_session_urr_report(struct pfcp_session *s, struct upf_urr_report_data *rd)
 
 		u->start_time = u->end_time;
 		u->end_time = time_now_to_ntp();
-		u->pkt_first_time = rd->fwd_pkt_first;
-		u->pkt_last_time = rd->fwd_pkt_last;
+		u->pkt_first_time = rd->report_first_pkt ?
+			rd->report_first_pkt + s->router->mono2ntptime_off : 0;
+		u->pkt_last_time = rd->report_last_pkt ?
+			rd->report_last_pkt + s->router->mono2ntptime_off : 0;
 
 		if (u->measurement_method.volum) {
 			u->ul.bytes = rd->ul_bytes;
@@ -878,7 +878,7 @@ pfcp_session_create_fwd_rules(struct pfcp_session *s)
 
 	uc = pfcp_bpf_urr_alloc_cmd(s);
 	uc->urr_idx = s->bpf_urr_idx;
-	uc->ctl_fl = UPF_FL_CTL_INIT | UPF_FL_CTL_UPDATE;
+	uc->ctl_fl = UPF_FL_CTL_INIT;
 	pfcp_session_merge_urr(s, uc);
 	pfcp_bpf_urr_ctl(s, uc);
 

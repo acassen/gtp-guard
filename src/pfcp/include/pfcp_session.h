@@ -138,6 +138,7 @@ struct urr {
 	uint32_t		pkt_first_time;
 	uint32_t		pkt_last_time;
 	int			duration;
+	int			last_report_duration;
 	struct pfcp_metrics_pkt	ul;
 	struct pfcp_metrics_pkt	dl;
 	struct pfcp_metrics_pkt	last_report_ul;

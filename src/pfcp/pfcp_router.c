@@ -236,6 +236,11 @@ pfcp_router_alloc(const char *name)
 	/* by default same as instance name */
 	new->recovery_ts = time_now_to_ntp();
 
+	/* monotonic time to ntp time */
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	new->mono2ntptime_off = time_now_to_ntp() - ts.tv_sec;
+
 	list_add_tail(&new->next, &daemon_data->pfcp_router_ctx);
 
 	return new;

@@ -26,6 +26,9 @@ Commands (stdin):
                 [total <b>] [total_min <b>] [total_max <b>]
                 [ul <b>]    [ul_min <b>]    [ul_max <b>]
                 [dl <b>]    [dl_min <b>]    [dl_max <b>]
+                [duration_min <s>] [duration_max <s>] [idt <s>]
+      idt: inactivity_detection_time — loosens duration_min by up to idt seconds,
+           since the UPF pauses the duration timer during inactive periods.
 
   pause <seconds>
   help / quit / exit
@@ -919,6 +922,8 @@ class SMF:
         self._next_cp_seid   = 1
         self.sessions:    dict[int, Session]   = {}
         self.urr_configs: dict[int, URRConfig] = {}
+        # (cp_seid, urr_id) → end_time string of last received report
+        self._last_report_end: dict[tuple[int,int], str] = {}
         # Queue of SessionReport objects for `expect report` command
         self.report_queue: asyncio.Queue[SessionReport] = asyncio.Queue()
 
@@ -1134,16 +1139,18 @@ async def wait_for_report(queue: asyncio.Queue[SessionReport],
 
 
 def validate_report(report: SessionReport,
-                    urr_id:    int | None = None,
-                    trigger:   int | None = None,
-                    total:     int | None = None, total_min: int | None = None, total_max: int | None = None,
-                    ul:        int | None = None, ul_min:    int | None = None, ul_max:    int | None = None,
-                    dl:        int | None = None, dl_min:    int | None = None, dl_max:    int | None = None,
+                    last_report_end: dict[tuple[int,int], str],
+                    urr_id:                  int | None = None,
+                    trigger:                 int | None = None,
+                    total:                   int | None = None, total_min: int | None = None, total_max: int | None = None,
+                    ul:                      int | None = None, ul_min:    int | None = None, ul_max:    int | None = None,
+                    dl:                      int | None = None, dl_min:    int | None = None, dl_max:    int | None = None,
+                    duration_min:            int | None = None, duration_max: int | None = None,
+                    inactivity_detection_time: int | None = None,
                     ) -> list[str]:
     """Returns list of failure strings (empty = PASS)."""
     failures = []
 
-    # Find matching usage report
     candidates = [ur for ur in report.usage_reports
                   if urr_id is None or ur.urr_id == urr_id]
     if not candidates:
@@ -1166,6 +1173,39 @@ def validate_report(report: SessionReport,
     check_vol(ur.total, total, total_min, total_max, "total")
     check_vol(ur.ul,    ul,    ul_min,    ul_max,    "ul")
     check_vol(ur.dl,    dl,    dl_min,    dl_max,    "dl")
+
+    # Duration checks
+    # If inactivity_detection_time is configured, the UPF pauses the duration
+    # timer during silent periods — so effective duration may be shorter than
+    # wall-clock time by up to inactivity_detection_time seconds.
+    if duration_min is not None or duration_max is not None:
+        if ur.duration is None:
+            failures.append("duration: not present in report")
+        else:
+            effective_min = duration_min
+            if duration_min is not None and inactivity_detection_time is not None:
+                effective_min = max(0, duration_min - inactivity_detection_time)
+                log.debug(f"duration_min adjusted {duration_min}s → {effective_min}s "
+                          f"(inactivity_detection_time={inactivity_detection_time}s)")
+            if effective_min is not None and ur.duration < effective_min:
+                failures.append(f"duration: got={ur.duration}s < min={effective_min}s"
+                                 + (f" (adjusted from {duration_min}s by idt={inactivity_detection_time}s)"
+                                    if inactivity_detection_time else ""))
+            if duration_max is not None and ur.duration > duration_max:
+                failures.append(f"duration: got={ur.duration}s > max={duration_max}s")
+
+    # Time window continuity: START_TIME of this report must be >= END_TIME of last report
+    key = (report.cp_seid, ur.urr_id)
+    prev_end = last_report_end.get(key)
+    if prev_end and ur.start:
+        if ur.start < prev_end:
+            failures.append(
+                f"start_time={ur.start} is before previous report end_time={prev_end} "
+                f"(non-contiguous window)")
+
+    # Basic sanity: end must not precede start within the same report
+    if ur.start and ur.end and ur.end < ur.start:
+        failures.append(f"end_time={ur.end} is before start_time={ur.start}")
 
     return failures
 
@@ -1438,7 +1478,12 @@ async def command_loop(smf: SMF, gtpu: GTPUSender, stop_event: asyncio.Event):
                         print(f"FAIL: timeout after {timeout}s "
                               f"waiting for session report", flush=True)
                     else:
-                        failures = validate_report(report, **p)
+                        failures = validate_report(report, smf._last_report_end, **p)
+                        # Update _last_report_end only after validation so that
+                        # validate_report sees the previous report's end time, not the current one.
+                        for ur in report.usage_reports:
+                            if ur.end:
+                                smf._last_report_end[(report.cp_seid, ur.urr_id)] = ur.end
                         if failures:
                             for f in failures:
                                 print(f"FAIL: {f}", flush=True)

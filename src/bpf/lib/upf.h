@@ -122,8 +122,8 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	d->dst_addr.ip4 = u->gtpu_remote_addr;
 
 	/* metrics */
-	++uu->dl.pkt;
-	uu->dl.bytes += pkt_len;
+	++uu->dl_pkt;
+	uu->dl_bytes += pkt_len;
 
 	UPF_DBG("to_gtpu: encap len:%d teid:0x%08x src:%pI4:%d dst:%pI4:%d",
 		pkt_len, bpf_ntohl(u->gtpu_remote_teid),
@@ -133,13 +133,12 @@ _encap_gtpu(struct xdp_md *ctx, struct if_rule_data *d, struct upf_fwd_rule *u)
 	capture_xdp_to_userspc_out(d, &u->capture, BPF_CAPTURE_EFL_OUTPUT |
 				   BPF_CAPTURE_EFL_ACCESS);
 
-	_urr_check_volume(uu, &uu->dl);
-	_urr_timer_on_pkt(uu);
+	upf_urr_check_dl(uu);
 
 	return XDP_IFR_FORWARD;
 
  drop:
-	++uu->dl.drop_pkt;
+	++uu->dl_drop_pkt;
 
 	return XDP_DROP;
 }
@@ -278,8 +277,8 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 			   bpf_ntohl(gtph->teid));
 
 		/* metrics */
-		++uu->ul.pkt;
-		uu->ul.bytes += pkt_len;
+		++uu->ul_pkt;
+		uu->ul_bytes += pkt_len;
 
 		d->dst_addr.ip4 = iph->daddr;
 		return XDP_IFR_FORWARD;
@@ -315,16 +314,15 @@ _handle_gtpu(struct xdp_md *ctx, struct if_rule_data *d,
 				   BPF_CAPTURE_EFL_CORE);
 
 	/* metrics */
-	++uu->ul.pkt;
-	uu->ul.bytes += pkt_len - adjust_sz;
+	++uu->ul_pkt;
+	uu->ul_bytes += pkt_len - adjust_sz;
 
-	_urr_check_volume(uu, &uu->ul);
-	_urr_timer_on_pkt(uu);
+	upf_urr_check_ul(uu);
 
 	return XDP_IFR_FORWARD;
 
  drop:
-	++uu->ul.drop_pkt;
+	++uu->ul_drop_pkt;
 
 	return XDP_DROP;
 }

@@ -48,17 +48,24 @@ _put_usage_report(struct pkt_buffer *pbuff, struct urr *u, int type,
 {
 	struct pfcp_metrics_pkt ul, dl;
 	bool vol = u->measurement_method.volum;
+	int duration;
 
 	if (vol) {
 		pfcp_metrics_pkt_sub(&u->ul, &u->last_report_ul, &ul);
 		pfcp_metrics_pkt_sub(&u->dl, &u->last_report_dl, &dl);
-		u->last_report_ul = ul;
-		u->last_report_dl = dl;
+		u->last_report_ul = u->ul;
+		u->last_report_dl = u->dl;
+	}
+	if (u->measurement_method.durat) {
+		duration = u->duration - u->last_report_duration;
+		u->last_report_duration = u->duration;
+	} else {
+		duration = -1;
 	}
 
 	return pfcp_ie_put_usage_report(pbuff, type, u->id, u->seqn, rtrig, qurr_ref,
 					u->pkt_first_time, u->pkt_last_time,
-					u->start_time, u->end_time, u->duration,
+					u->start_time, u->end_time, duration,
 					vol ? &ul : NULL, vol ? &dl : NULL);
 }
 
@@ -180,6 +187,11 @@ pfcp_session_report_triggered(struct pfcp_session *s,
 		    urr->triggers.perio) {
 			urr_id = urr->id;
 			rtrig.perio = 1;
+		}
+		if ((urd->r.report_flags & UPF_TRIG_FL_QUHTI) &&
+		    urr->triggers.quhti) {
+			urr_id = urr->id;
+			rtrig.quhti = 1;
 		}
 
 		if (!urr_id)

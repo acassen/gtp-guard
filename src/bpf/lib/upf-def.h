@@ -67,8 +67,9 @@ struct upf_fwd_rule {
 
 
 #define UPF_FL_MEAS_VOL				0x01
-#define UPF_FL_MEAS_DUR				0x02
+#define UPF_FL_MEAS_TIME			0x02
 #define UPF_FL_QUOTA_REACHED			0x04
+#define UPF_FL_TIME_IMMEDIATE_METER		0x08
 
 #define UPF_TRIG_FL_VOLTH			0x0001
 #define UPF_TRIG_FL_TIMTH			0x0002
@@ -79,47 +80,67 @@ struct upf_fwd_rule {
 #define UPF_TRIG_FL_START			0x0040
 #define UPF_TRIG_FL_STOPT			0x0080
 
-/* current urr stats. owned by bpf (256 bytes) */
+/*
+ * URR config and counters.
+ *
+ * owned by bpf, never written from userspace: modified through sysctl urr_ctl,
+ * reports sent through ring_buffer.
+ *
+ * time counters are nanoseconds shifted by 24 bits, stored as __u32.
+ * resolution is 16.7ms, max time about 2 years. more than enough for upf needs.
+ *
+ * keep it 64B pagecache aligned, with accessed fields on hot datapath together
+ */
 struct upf_urr {
-	struct bpf_timer timer;			/* 2u64 bytes */
-
-	__u8		flags;			/* UPF_FL_* */
-	__u8		cur_ver;
+	/* cache line 1 (datapath, hot) 64B */
+	__u16		flags;			/* UPF_FL_* */
 	__u16		_pad1;
-	__u32		_pad2;
-
-	/* volume counters, thresholds and quota (18u64) */
-	struct upf_uur_vol_path {
-		__u64	drop_pkt;
-		__u64	pkt;
-		__u64	bytes;			/* forwarded bytes */
-		__u64	th;			/* config thres. in bytes */
-		__u64	th_next;		/* trigger limit */
-		__u64	qu;
-		__u64	qu_next;
-	}		ul, dl;
-	__u64		total_th;
+	__u32		report_first_pkt;	/* first pkt seen for next report */
+	__u32		report_last_pkt;	/* last pkt seen for next report */
+	__u32		ul_last_pkt;
+	__u32		dl_last_pkt;
+	__u32		inactivity_det_time;
+	__u32		duration_ts_last;	/* last time duration was computed */
+	__u32		inactive_time;		/* cum since last duration compute  */
 	__u64		total_th_next;
-	__u64		total_qu;
 	__u64		total_qu_next;
+	__u64		dl_bytes;
+	__u64		dl_pkt;
 
+	/* cache line 2 (datapath, hot) 64B */
+	__u64		dl_drop_pkt;
+	__u64		dl_th_next;
+	__u64		dl_qu_next;
+	__u64		ul_bytes;
+	__u64		ul_pkt;
+	__u64		ul_drop_pkt;
+	__u64		ul_th_next;
+	__u64		ul_qu_next;
+
+	/* cache line 3 (volume config, cold) 64B */
+	__u64		total_th;
+	__u64		total_qu;
+	__u64		ul_th;
+	__u64		ul_qu;
+	__u64		dl_th;
+	__u64		dl_qu;
 	__u64		seid;
 	__u32		urr_idx;
+	__u32		_pad2;
 
-	/* duration (u32 in sec. u64 in nsec) (10u64) */
+	/* cache line 4 (mostly timer, cold) 52B */
+	struct bpf_timer timer;			/* 16B bytes */
 	__u32		time_th;
 	__u32		time_qu;
 	__u32		time_periodic;
 	__u32		time_inactivity;	/* quota holding time */
-	__u32		inactivity_det_time;
+	__u32		duration;		/* cumulative */
+	__u32		duration_th_last;
+	__u32		duration_qu_last;
+	__u32		time_periodic_next;
+	__u32		time_inactivity_next;
 
-	__u64		fwd_pkt_first;		/* first pkt seen */
-	__u64		fwd_pkt_last;		/* last pkt seen */
-	__u64		time_th_next;
-	__u64		time_qu_next;
-	__u64		inactive_time;		/* cumulative */
-	__u64		time_periodic_next;
-	__u64		time_inactivity_next;
+	__u8		_pad[12];
 };
 
 
@@ -133,10 +154,9 @@ struct upf_urr {
 struct upf_urr_cmd_req {
 	__u64		seid;
 	__u32		urr_idx;		/* idx in bpf map array */
-	__u16		request_id;		/* trigger by syscall */
-	__u8		flags;			/* UPF_FL_* */
+	__u16		flags;			/* UPF_FL_* */
 	__u8		ctl_fl;			/* UPF_FL_CTL_* */
-	__u8		cur_ver;
+	__u8		request_id;		/* trigger by syscall */
 
 	__u32		time_th;
 	__u32		time_qu;
@@ -168,7 +188,7 @@ struct upf_urr_report_data {
 	__u64		ul_bytes;
 	__u64		ul_pkt;
 	__u64		ul_drop_pkt;
-	__u32		fwd_pkt_first;		/* first pkt seen */
-	__u32		fwd_pkt_last;		/* last pkt seen */
-	__u32		duration;		/* duration wrt inactive time */
+	__u32		report_first_pkt;	/* first pkt seen */
+	__u32		report_last_pkt;	/* last pkt seen */
+	__u32		duration;		/* total duraction (wrt inactive time) */
 };

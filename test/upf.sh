@@ -301,10 +301,11 @@ EOF
 }
 
 smf_more_adv_urr() {
-    arr=$1
-    key=$2
-    shift 2
-
+    local arr=$1
+    local key=$2
+    local params="$3"
+    shift 3
+    
     urr_def=''
     urr_expect=''
     urr_ids=''
@@ -322,10 +323,17 @@ smf_more_adv_urr() {
     urr_ids="${urr_ids::-1}"
     urr_expect+="expect no report timeout 4"
 
+    ping_count=3
+    for pair in $params; do
+	k=${pair%%=*}
+	v=${pair#*=}
+	printf -v "$k" '%s' "$v"
+    done
+    
     _hash_set $arr $key <<EOF
 $urr_def
 session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr $urr_ids
-session ping 1 8.8.8.8 count 3
+session ping 1 8.8.8.8 count $ping_count
 $urr_expect
 session delete 1
 EOF
@@ -349,22 +357,33 @@ run_with_smf() {
     "trigger volth total_min 176"
 
     # don't work well, trigger 2 will also report 3 (trig volth)
-    smf_more_adv_urr testset volth4			\
+    smf_more_adv_urr testset volth4 ''			\
     "urr set id 2 triggers volth measure volume volth total 176"	\
     "urr set id 3 triggers volth measure volume volth total 240"	\
     "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 3 trigger volth total_min 176"
 
     # linked urr
-    smf_more_adv_urr testset volth5			\
+    smf_more_adv_urr testset volth5 ''			\
     "urr set id 2 triggers volth measure volume volth total 176"	\
     "urr set id 3 linked 2"	\
     "urr set id 4 measure volume linked 2,3"	\
-    "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 3 trigger volth total_min 176"
+    "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 4 trigger liusa total_min 176 urr_id 3 trigger liusa"
 
     # no measure vol, do not expect report
     smf_basic_urr testset volth10			\
-    "triggers volth volth ul 160 volth dl 120"	\
+    "triggers volth volth ul 160 volth dl 120"		\
     ""
+
+    smf_more_adv_urr testset all1 "ping_count=10"			\
+    "urr set id 1 measure volume,duration inactivity 5 linked 19"	\
+    "urr set id 2 measure volume,duration inactivity 5 linked 19"	\
+    "urr set id 15 triggers quhti measure volume qht 5"	\
+    "urr set id 19 triggers volth measure volume volth total 240 linked 15"	\
+    "expect report timeout 3 cp_seid 1 urr_id 19 trigger volth total_min 240 urr_id 1 trigger liusa total_min 240 urr_id 2 trigger liusa"	\
+    "expect report timeout 3 cp_seid 1 urr_id 19 trigger volth total_min 240 urr_id 1 trigger liusa total_min 240 urr_id 2 trigger liusa"	\
+    "expect report timeout 3 cp_seid 1 urr_id 19 trigger volth total_min 240 urr_id 1 trigger liusa total_min 240 urr_id 2 trigger liusa"	\
+    "expect report timeout 8 cp_seid 1 urr_id 15 trigger quhti total_min 880 urr_id 19 trigger liusa total_min 44"	\
+    "expect no report timeout 2"
 
     # volume quota
     smf_basic_urr testset volqu1			\
@@ -373,22 +392,22 @@ run_with_smf() {
 
     # duration
     smf_basic_urr testset timth1			\
-    "triggers timth measure duration timth 3"		\
+    "triggers timth measure duration timth 2"		\
     "trigger timth"
     smf_basic_urr testset timqu1			\
-    "triggers timqu measure duration timquota 3"	\
+    "triggers timqu measure duration timquota 2"	\
     "trigger timqu"
     smf_basic_urr testset quht				\
-    "triggers quht qht 3"				\
-    "trigger quht"
-
-    # period
+    "triggers quhti qht 4"				\
+    "trigger quhti"
     smf_basic_urr testset period1			\
     "triggers perio period 2"				\
     "trigger perio"
-    smf_basic_urr testset period2			\
-    "triggers perio measure volume period 2"		\
-    "trigger perio"
+    smf_more_adv_urr testset period2 ''			\
+    "urr set id 1 triggers perio measure volume,duration period 2"	\
+    "expect report timeout 10 cp_seid 1 urr_id 1 trigger perio"		\
+    "expect report timeout 10 cp_seid 1 urr_id 1 trigger perio"		\
+    "expect report timeout 10 cp_seid 1 urr_id 1 trigger perio"
 
 
     if [ "$smf_test_id" ]; then

@@ -283,7 +283,7 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 
 		vty_out(vty, "            packets:%lld bytes:%lld\n"
 			     "            drop:%lld\n"
-			   , c.ul.pkt, c.ul.bytes, c.ul.drop_pkt);
+			   , c.ul_pkt, c.ul_bytes, c.ul_drop_pkt);
 		return 0;
 	}
 
@@ -304,7 +304,7 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 					     &c, sizeof(c), 0);
 			vty_out(vty, "              IPv4 - packets:%lld bytes:%lld\n"
 				     "                     drop:%lld\n"
-				   , c.dl.pkt, c.dl.bytes, c.dl.drop_pkt);
+				   , c.dl_pkt, c.dl_bytes, c.dl_drop_pkt);
 		}
 	}
 
@@ -322,7 +322,7 @@ pfcp_bpf_teid_vty(struct vty *vty, struct gtp_bpf_prog *p, int dir,
 					     &c, sizeof(c), 0);
 			vty_out(vty, "              IPv6 - packets:%lld bytes:%lld\n"
 				     "                     drop:%lld\n"
-				   , c.dl.pkt, c.dl.bytes, c.dl.drop_pkt);
+				   , c.dl_pkt, c.dl_bytes, c.dl_drop_pkt);
 		}
 	}
 
@@ -379,7 +379,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 				  addr_stringify(&addr_ue, buf2, sizeof (buf2)),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
 				  addr_stringify(&laddr, buf3, sizeof (buf3)),
-				  c.dl.pkt, c.dl.bytes);
+				  c.dl_pkt, c.dl_bytes);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
@@ -417,7 +417,7 @@ pfcp_bpf_vty(struct gtp_bpf_prog *p, void *ud, struct vty *vty,
 		table_add_row_fmt(tbl, "0x%.8x|%s|%s|%lld|%lld",
 				  ntohl(ek.gtpu_local_teid),
 				  addr_stringify(&addr, buf1, sizeof (buf1)),
-				  action_str, c.ul.pkt, c.ul.bytes);
+				  action_str, c.ul_pkt, c.ul_bytes);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);
