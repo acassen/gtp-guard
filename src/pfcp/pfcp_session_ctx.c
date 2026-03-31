@@ -795,6 +795,7 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	struct upf_fwd_rule *u = &r->rule;
 	struct far *f = p->far;
 	struct qer *q = p->qer;
+	union addr *laddr;
 
 	/* Rule flags init */
 	u->flags = 0;
@@ -807,26 +808,11 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 		u->gtpu_remote_teid = f->outer_header_teid;
 		u->gtpu_remote_addr = f->outer_header_ip4.s_addr;
 		u->gtpu_remote_port = htons(GTP_U_PORT);
-		if (p->teid) {
-			/* Non-optimized pdi */
-			u->gtpu_local_addr = p->teid->ipv4.s_addr;
-		} else if (p->te && p->te->teid) {
-			/* Optimized PDI */
-			u->gtpu_local_addr = p->te->teid->ipv4.s_addr;
-		} else {
-			/* No local f-teid allocated (downlink) */
-			union addr *gtpu_addr = NULL;
-			struct in_addr *ipv4;
 
-			gtpu_addr = pfcp_session_get_addr_by_interface(s->router, f->dst_interface_type);
-			if (gtpu_addr) {
-				ipv4 = (gtpu_addr->family == AF_INET) ?
-					&gtpu_addr->sin.sin_addr : NULL;
-				if (ipv4)
-					u->gtpu_local_addr = ipv4->s_addr;
-			}
-		}
-
+		laddr = pfcp_session_get_addr_by_interface(s->router,
+							   f->dst_interface_type);
+		if (laddr && laddr->family == AF_INET)
+			u->gtpu_local_addr = laddr->sin.sin_addr.s_addr;
 		u->gtpu_local_port = htons(GTP_U_PORT);
 	}
 
