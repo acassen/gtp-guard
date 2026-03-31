@@ -2,6 +2,7 @@
 
 lib_src = files(
   'addr.c',
+  'cpu.c',
   'asn1_decoder.c',
   'asn1_encoder.c',
   'ethtool.c',
