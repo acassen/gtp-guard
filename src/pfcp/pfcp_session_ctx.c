@@ -116,7 +116,6 @@ pfcp_session_get_gtp_server_by_interface(struct pfcp_router *r, uint8_t interfac
 		break;
 	}
 
-
 	if (!srv && __test_bit(PFCP_ROUTER_FL_ALL, &r->flags))
 		srv = &r->gtpu;
 

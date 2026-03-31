@@ -20,6 +20,10 @@
  */
 #pragma once
 
+/* forward declaration — avoids pulling vty.h into every consumer */
+struct vty;
+
 /* Prototypes */
 int gtp_cpu_init(void);
 int gtp_cpu_destroy(void);
+int gtp_cpu_vty_show(struct vty *vty);

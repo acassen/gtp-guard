@@ -28,6 +28,7 @@
 #include "gtp_request.h"
 #include "gtp_cmd.h"
 #include "gtp_utils.h"
+#include "gtp_cpu.h"
 #include "command.h"
 #include "bitops.h"
 #include "memory.h"
@@ -352,6 +353,17 @@ vty_request_worker(struct inet_worker *w, void *arg)
 }
 
 /* Show */
+DEFUN(show_system_cpu,
+      show_system_cpu_cmd,
+      "show system cpu",
+      SHOW_STR
+      "System information\n"
+      "Per-core CPU utilization\n")
+{
+	gtp_cpu_vty_show(vty);
+	return CMD_SUCCESS;
+}
+
 DEFUN(show_workers_request_channel,
       show_workers_request_channel_cmd,
       "show workers request-channel",
@@ -420,9 +432,11 @@ cmd_ext_pdn_install(void)
 	install_element(PDN_NODE, &metrics_channel_cmd);
 
 	/* Install show commands */
+	install_element(VIEW_NODE, &show_system_cpu_cmd);
 	install_element(VIEW_NODE, &show_workers_request_channel_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
+	install_element(ENABLE_NODE, &show_system_cpu_cmd);
 	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);
