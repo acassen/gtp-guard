@@ -118,11 +118,10 @@ pfcp_teid_get_by_ie_f_teid(struct hlist_head *h, struct pfcp_ie_f_teid *ie)
 	if (ie->v6)
 		ipv6 = ie->s.ip.v6;
 	head = pfcp_teid_hashkey(h, id, (ie->v4) ? &ipv4 : NULL,
-				 (ie->v4) ? &ipv6 : NULL);
-
+				 (ie->v6) ? &ipv6 : NULL);
 	hlist_for_each_entry(t, head, hlist) {
 		if (!pfcp_teid_cmp(t, id, (ie->v4) ? &ipv4 : NULL,
-				   (ie->v4) ? &ipv6 : NULL)) {
+				   (ie->v6) ? &ipv6 : NULL)) {
 			return t;
 		}
 	}

@@ -65,6 +65,7 @@ struct pfcp_router {
 	struct pfcp_peer_list	*peer_list;
 	struct pfcp_server	s;
 	unsigned long		debug;
+	uint32_t		mono2ntptime_off;
 
 	uint8_t			node_id[GTP_STR_MAX_LEN];
 	uint8_t			node_id_len;

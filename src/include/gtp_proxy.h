@@ -91,8 +91,6 @@ void gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 				  void *ud, void *arg);
 int gtp_proxy_rules_show_key(const struct gtp_if_rule *r, char *buf,
 			     int size, bool short_out);
-void gtp_proxy_rules_set(void *ud, struct gtp_interface *from, bool from_ingress,
-			 struct gtp_interface *to, bool add);
 int gtp_proxy_rules_remote_exists(struct gtp_proxy *ctx,
 				  __be32 addr, bool *egress);
 void gtp_proxy_rules_remote_set(struct gtp_proxy *ctx, __be32 addr,

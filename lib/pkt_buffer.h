@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #pragma once
@@ -27,15 +27,15 @@
 #include "list_head.h"
 
 /* defines */
-#define DEFAULT_PKT_BUFFER_SIZE	4096
+#define DEFAULT_PKT_BUFFER_SIZE	4064
 #define DEFAULT_PKT_QUEUE_SIZE	128
 
 /* pkt related */
 struct pkt_buffer {
-	unsigned char		*head,
-				*data;
+	unsigned char		*data;
 	unsigned char		*end;
 	unsigned char		*tail;
+	unsigned char		head[];
 };
 
 struct pkt {

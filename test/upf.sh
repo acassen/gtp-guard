@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (c) 2025 Olivier Gournet
+# Copyright (c) 2025-2026 Olivier Gournet
 
 . $(dirname $0)/_gtpg_cmd.sh
 
@@ -47,7 +47,7 @@ setup_combined() {
     ip route add default via 192.168.61.2 dev upf table 1020
     ip route add default via fc::2 dev upf table 1020
 
-    ip netns exec cloud ethtool -K veth0 gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
@@ -103,13 +103,13 @@ setup_split() {
     ip neigh add 192.168.62.1 lladdr d2:ad:ca:fe:aa:02 dev pub
     ip -6 neigh add fc::1:2 lladdr d2:ad:ca:fe:aa:02 nud permanent dev pub
 
-    ip netns exec access ethtool -K veth0 gro on
+    ip -n access link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec access ethtool -K veth0 tx-checksumming off >/dev/null
-    ip netns exec internet ethtool -K veth0 gro on
+    ip -n internet link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec internet ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
-run_split_combined() {
+run_pkt() {
     # start gtp-guard if not yet started
     start_gtpguard
 
@@ -120,20 +120,23 @@ no pfcp-router pfcp-1
 "
 
     if [ $with_cgn == "no" ]; then
-	prg=upf.bpf
+	gtpg_conf "
+bpf-program upf-1 
+ path bin/upf.bpf
+ no shutdown
+" || fail "cannot load bpf program"
     else
 	prg=upf_cgn.bpf
 	gtpg_conf "
-carrier-grade-nat upf-1
- ipv4-pool 37.141.0.0/24
-" || fail "cannot configure cgn"
-    fi
-
-    gtpg_conf "
-    bpf-program upf-1 
- path bin/$prg
+bpf-program upf-1 
+ path bin/upf_cgn.bpf
  no shutdown
-" || fail "cannot load bpf program"
+
+carrier-grade-nat upf-1
+ bpf-program upf-1
+ ipv4-pool 37.141.0.0/24
+" || fail "cannot configure cgn / load bpf"
+    fi
 
     if [ $type == "combined" ]; then
 	gtpg_conf "
@@ -156,10 +159,26 @@ interface pub
     fi
 
     gtpg_conf "
+ip pool upf-v4
+ prefix 10.0.0.0/12
+ no shutdown
+
+ip pool upf-v6
+ prefix 2a01:e00:6020::/44
+ no shutdown
+
+access-point-name boa
+ ip pool upf-v4
+ ip pool upf-v6
+
 pfcp-router pfcp-1
  description first_one
+ node-id sut.example.com
+ strict-apn
  bpf-program upf-1
- listen 192.168.61.194 port 2123
+ listen 192.168.61.194 port 8805
+ debug ingress_msg
+ debug egress_msg
  gtpu-tunnel-endpoint all 192.168.61.1 port 2152
  debug teid add ingress 1 192.168.61.2 10.0.0.1
  debug teid add ingress 2 192.168.61.2 1234::1
@@ -178,10 +197,11 @@ show interface-rule all
 show interface-rule input
 show bpf pfcp
 "
-}
 
-run_combined() { run_split_combined; }
-run_split() { run_split_combined; }
+    gtpg_show "
+capture prog upf-1 start upf
+"
+}
 
 #
 # 1st pkt: simulate a ping (in a gtp-u packet) from UE.
@@ -255,19 +275,175 @@ Ether(src='d2:ad:ca:fe:aa:01', dst='d2:f0:0c:ba:bb:01') /
 }
 
 
+_hash_set() {
+    local -n _arr=$1
+    local key=$2
+    local line
+
+    while IFS= read -r line; do
+        _arr["$key"]+="$line"$'\n'
+    done
+}
+
+smf_basic_urr() {
+    if [ "$4" ]; then
+	urr_expect="expect report timeout 10 cp_seid 1 urr_id 1 $4"
+    else
+	urr_expect="expect no report timeout 4"
+    fi
+    _hash_set $1 $2 <<EOF
+urr set id 1 $3
+session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr 1
+session ping 1 8.8.8.8 count 3
+$urr_expect
+session delete 1
+EOF
+}
+
+smf_more_adv_urr() {
+    local arr=$1
+    local key=$2
+    local params="$3"
+    shift 3
+    
+    urr_def=''
+    urr_expect=''
+    urr_ids=''
+    for l in "$@"; do
+	if [[ "$l" == urr* ]]; then
+	    urr_def+="$l"$'\n'
+	    if [[ $l =~ urr\ set\ id\ ([0-9]+) ]]; then
+		urr_ids+="${BASH_REMATCH[1]},"
+	    fi
+	elif [[ "$l" == expect* ]]; then
+	    urr_expect+="$l"$'\n'
+	fi
+    done
+
+    urr_ids="${urr_ids::-1}"
+    urr_expect+="expect no report timeout 4"
+
+    ping_count=3
+    for pair in $params; do
+	k=${pair%%=*}
+	v=${pair#*=}
+	printf -v "$k" '%s' "$v"
+    done
+    
+    _hash_set $arr $key <<EOF
+$urr_def
+session add imsi 208010101234568 dnn boa.com.example.fr enb-ip 192.168.61.2 enb-teid 8 urr $urr_ids
+session ping 1 8.8.8.8 count $ping_count
+$urr_expect
+session delete 1
+EOF
+}
+
+
+run_with_smf() {
+    smf_cmd="ip netns exec cloud python3 ./test/smf.py --smf-ip 192.168.61.193 --upf-ip 192.168.61.194 --gtpu-ip 192.168.61.2 --upf-port 8805"
+
+    declare -A testset
+
+    # volume measurement
+    smf_basic_urr testset volth1			\
+    "triggers volth measure volume volth total 240"	\
+    "trigger volth total_min 240"
+    smf_basic_urr testset volth2			\
+    "triggers volth measure volume volth ul 160 volth dl 120"	\
+    "trigger volth total_min 240 ul_min 120 dl_min 120"
+    smf_basic_urr testset volth3			\
+    "triggers volth measure volume volth total 176"	\
+    "trigger volth total_min 176"
+
+    # don't work well, trigger 2 will also report 3 (trig volth)
+    smf_more_adv_urr testset volth4 ''			\
+    "urr set id 2 triggers volth measure volume volth total 176"	\
+    "urr set id 3 triggers volth measure volume volth total 240"	\
+    "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 3 trigger volth total_min 176"
+
+    # linked urr
+    smf_more_adv_urr testset volth5 ''			\
+    "urr set id 2 triggers volth measure volume volth total 176"	\
+    "urr set id 3 linked 2"	\
+    "urr set id 4 measure volume linked 2,3"	\
+    "expect report timeout 10 cp_seid 1 urr_id 2 trigger volth total_min 176 urr_id 4 trigger liusa total_min 176 urr_id 3 trigger liusa"
+
+    # no measure vol, do not expect report
+    smf_basic_urr testset volth10			\
+    "triggers volth volth ul 160 volth dl 120"		\
+    ""
+
+    smf_more_adv_urr testset all1 "ping_count=10"			\
+    "urr set id 1 measure volume,duration inactivity 5 linked 19"	\
+    "urr set id 2 measure volume,duration inactivity 5 linked 19"	\
+    "urr set id 15 triggers quhti measure volume qht 5"	\
+    "urr set id 19 triggers volth measure volume volth total 240 linked 15"	\
+    "expect report timeout 3 cp_seid 1 urr_id 19 trigger volth total_min 240 urr_id 1 trigger liusa total_min 240 urr_id 2 trigger liusa"	\
+    "expect report timeout 3 cp_seid 1 urr_id 19 trigger volth total_min 240 urr_id 1 trigger liusa total_min 240 urr_id 2 trigger liusa"	\
+    "expect report timeout 3 cp_seid 1 urr_id 19 trigger volth total_min 240 urr_id 1 trigger liusa total_min 240 urr_id 2 trigger liusa"	\
+    "expect report timeout 8 cp_seid 1 urr_id 15 trigger quhti total_min 880 urr_id 19 trigger liusa total_min 44"	\
+    "expect no report timeout 2"
+
+    # volume quota
+    smf_basic_urr testset volqu1			\
+    "triggers volqu measure volume volquota total 120"	\
+    "trigger volqu total_min 120"
+
+    # duration
+    smf_basic_urr testset timth1			\
+    "triggers timth measure duration timth 2"		\
+    "trigger timth"
+    smf_basic_urr testset timqu1			\
+    "triggers timqu measure duration timquota 2"	\
+    "trigger timqu"
+    smf_basic_urr testset quht				\
+    "triggers quhti qht 4"				\
+    "trigger quhti"
+    smf_basic_urr testset period1			\
+    "triggers perio period 2"				\
+    "trigger perio"
+    smf_more_adv_urr testset period2 ''			\
+    "urr set id 1 triggers perio measure volume,duration period 2"	\
+    "expect report timeout 10 cp_seid 1 urr_id 1 trigger perio"		\
+    "expect report timeout 10 cp_seid 1 urr_id 1 trigger perio"		\
+    "expect report timeout 10 cp_seid 1 urr_id 1 trigger perio"
+
+
+    if [ "$smf_test_id" ]; then
+	if [ "${testset[$smf_test_id]}" ]; then
+	    # echo "*****"
+	    # printf '%s' "${testset[$smf_test_id]}"
+	    # echo "*****"
+	    echo "${testset[$smf_test_id]}" | $smf_cmd
+	else
+	    echo "no such smf-test: $smf_test_id"
+	fi
+    else
+	echo "XXXX run all tests"
+    fi
+    
+}
+
+
+
 action=${1:-setup}
 type=${2:-combined}
 with_cgn=${3:-no}
+smf_test_id=${3}
 
 case $action in
     clean)
-	clean ;;
+	clean
+	exit 0 ;;
     setup)
 	clean
 	sleep 0.5
 	setup_$type ;;
     run)
-	run_$type ;;
+	run_with_smf ;;
+    run-pkt)
+	run_pkt ;;
     pkt)
 	pkt ;;
 

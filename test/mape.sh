@@ -39,7 +39,7 @@ setup_combined() {
     ip route add default via 192.168.61.2 dev mapebr table 1020
     ip neigh add 192.168.61.2 lladdr d2:ad:ca:fe:aa:01 dev mapebr
 
-    ip netns exec cloud ethtool -K veth0 gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 

@@ -47,7 +47,7 @@ gtp_bpf_mirror_load_maps(struct gtp_bpf_prog *p, void *udata, bool reload)
 	struct gtp_bpf_mirror *pm = udata;
 
 	/* MAP ref for faster access */
-	pm->mrules = gtp_bpf_prog_load_map(p->load.obj, "mirror_rules");
+	pm->mrules = gtp_bpf_prog_load_map(p->obj_load, "mirror_rules");
 	if (!pm->mrules)
 		return -1;
 

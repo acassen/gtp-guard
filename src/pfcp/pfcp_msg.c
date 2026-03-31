@@ -1288,7 +1288,11 @@ pfcp_parse_ie_create_urr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_LINKED_URR_ID:
-		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->linked_urr_id, cp, size);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&create_urr->linked_urr_id,
+					   &create_urr->nr_linked_urr_id,
+					   sizeof(struct pfcp_ie_linked_urr_id), NULL);
+		pfcp_msg_alloc_scheme(msg, (void **)&create_urr->linked_urr_id[create_urr->nr_linked_urr_id - 1],
+				      cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_INFORMATION:
@@ -2149,7 +2153,11 @@ pfcp_parse_ie_update_urr(void *m, void *n, const uint8_t *cp)
 		break;
 
 	case PFCP_IE_LINKED_URR_ID:
-		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->linked_urr_id, cp, size);
+		pfcp_parse_add_ie_to_array(msg, cp, (void ***)&update_urr->linked_urr_id,
+					   &update_urr->nr_linked_urr_id,
+					   sizeof(struct pfcp_ie_linked_urr_id), NULL);
+		pfcp_msg_alloc_scheme(msg, (void **)&update_urr->linked_urr_id[update_urr->nr_linked_urr_id - 1],
+				      cp, size);
 		break;
 
 	case PFCP_IE_MEASUREMENT_INFORMATION:

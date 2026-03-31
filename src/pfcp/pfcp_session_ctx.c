@@ -123,7 +123,7 @@ pfcp_session_get_gtp_server_by_interface(struct pfcp_router *r, uint8_t interfac
 	return srv;
 }
 
-struct sockaddr_storage *
+union addr *
 pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 {
 	struct gtp_server *srv;
@@ -135,14 +135,14 @@ pfcp_session_get_addr_by_interface(struct pfcp_router *r, uint8_t interface)
 		return NULL;
 	}
 
-	return &srv->s.addr;
+	return (union addr *)&srv->s.addr;
 }
 
 static struct pfcp_teid *
 pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 {
 	struct pfcp_router *r = s->router;
-	struct sockaddr_storage *gtpu_addr = NULL;
+	union addr *gtpu_addr = NULL;
 	struct in_addr *ipv4;
 	struct in6_addr *ipv6;
 	struct pfcp_teid *t;
@@ -152,8 +152,8 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 	if (!gtpu_addr)
 		return NULL;
 
-	ipv4 = (gtpu_addr->ss_family == AF_INET) ? &((struct sockaddr_in *)gtpu_addr)->sin_addr : NULL;
-	ipv6 = (gtpu_addr->ss_family == AF_INET6) ? &((struct sockaddr_in6 *)gtpu_addr)->sin6_addr : NULL;
+	ipv4 = (gtpu_addr->family == AF_INET) ? &gtpu_addr->sin.sin_addr : NULL;
+	ipv6 = (gtpu_addr->family == AF_INET6) ? &gtpu_addr->sin6.sin6_addr : NULL;
 
 	/* Try to use same TEID for different IP Address */
 	if (!*id)  {
@@ -330,7 +330,7 @@ pfcp_session_create_far(struct pfcp_session *s, struct far *far,
 	}
 
 	/* TODO: Support IPv6... */
-	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4 && far->dst_te) {
+	if (ohc && ntohs(ohc->description) == PFCP_OUTER_HEADER_GTPUV4) {
 		far->outer_header_teid = ohc->teid;
 		far->outer_header_ip4 = ohc->ip_address.v4;
 	}
@@ -446,18 +446,21 @@ static int
 pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 			struct pfcp_ie_create_urr *ie)
 {
+	int i;
+
 	urr->action = PFCP_ACT_CREATE;
 
-	urr->id = ie->urr_id->value;
+	urr->id = ntohl(ie->urr_id->value);
 
 	urr->start_time = time_now_to_ntp();
+	urr->end_time = urr->start_time;
 
-	urr->measurement_method = ie->measurement_method->measurement_method;
+	urr->measurement_method = ie->measurement_method->v;
 
-	urr->triggers = ntohs(ie->reporting_triggers->triggers);
+	urr->triggers = ie->reporting_triggers->v;
 
 	if (ie->measurement_information)
-		urr->measurement_info = ie->measurement_information->flags;
+		urr->measurement_info = ie->measurement_information->v;
 
 	if (ie->inactivity_detection_time)
 		urr->inactivity_detection_time = ntohl(ie->inactivity_detection_time->value);
@@ -466,45 +469,198 @@ pfcp_session_create_urr(struct pfcp_session *s, struct urr *urr,
 		urr->quota_holdtime = ntohl(ie->quota_holding_time->value);
 
 	if (ie->volume_threshold) {
-		if (ie->volume_threshold->tovol)
-			urr->volume_threshold_to = be64toh(ie->volume_threshold->total_volume);
-		if (ie->volume_threshold->ulvol)
-			urr->volume_threshold_ul = be64toh(ie->volume_threshold->uplink_volume);
-		if (ie->volume_threshold->dlvol)
-			urr->volume_threshold_dl = be64toh(ie->volume_threshold->downlink_volume);
+		const struct pfcp_ie_volume_threshold *vth = ie->volume_threshold;
+
+		if (vth->tovol)
+			urr->volume_threshold_to = be64toh(vth->total_volume);
+		if (vth->ulvol) {
+			if (vth->tovol)
+				urr->volume_threshold_ul = be64toh(vth->uplink_volume);
+			else
+				urr->volume_threshold_ul = be64toh(vth->total_volume);
+		}
+		if (vth->dlvol) {
+			if (vth->tovol && vth->ulvol)
+				urr->volume_threshold_dl = be64toh(vth->downlink_volume);
+			else if (vth->tovol ^ vth->ulvol)
+				urr->volume_threshold_dl = be64toh(vth->uplink_volume);
+			else
+				urr->volume_threshold_dl = be64toh(vth->total_volume);
+		}
 	}
 
-	if (ie->linked_urr_id)
-		urr->linked_urr_id = ie->linked_urr_id->value;
+	if (ie->volume_quota) {
+		const struct pfcp_ie_volume_quota *vqu = ie->volume_quota;
+
+		if (vqu->tovol)
+			urr->volume_quota_to = be64toh(vqu->total_volume);
+		if (vqu->ulvol) {
+			if (vqu->tovol)
+				urr->volume_quota_ul = be64toh(vqu->uplink_volume);
+			else
+				urr->volume_quota_ul = be64toh(vqu->total_volume);
+		}
+		if (vqu->dlvol) {
+			if (vqu->tovol && vqu->ulvol)
+				urr->volume_quota_dl = be64toh(vqu->downlink_volume);
+			else if (vqu->tovol ^ vqu->ulvol)
+				urr->volume_quota_dl = be64toh(vqu->uplink_volume);
+			else
+				urr->volume_quota_dl = be64toh(vqu->total_volume);
+		}
+	}
+
+	if (ie->time_threshold)
+		urr->time_threshold = ntohl(ie->time_threshold->time_threshold);
+
+	if (ie->time_quota)
+		urr->time_quota = ntohl(ie->time_quota->value);
+
+	if (ie->measurement_period)
+		urr->time_periodic = ntohl(ie->measurement_period->measurement_period);
+
+	for (i = 0; i < PFCP_MAX_NR_ELEM && i < ie->nr_linked_urr_id; i++)
+		urr->linked_urr_id[i] = ntohl(ie->linked_urr_id[i]->value);
 
 	return 0;
 }
 
+
+/*
+ * take the FAST PATH
+ *
+ * if, for a create session, we have:
+ *  URR[1]: volth, vol measurement
+ *  URR[2]: quhti, vol measurement
+ *  URR[3]: something else
+ * and:
+ *  PDR[1]: UL, references urr[1] and urr[2]
+ *  PDR[2]: DL, references urr[1] and urr[2]
+ * then
+ *  merge URR[1] and URR[2] into one and unique URR, put it on bpf map,
+ *  and PDR[1] and PDR[2] will reference it
+ *
+ * for all other cases it won't probably work as expected
+ */
 static int
-pfcp_session_link_urr(struct pfcp_session *s)
+pfcp_session_merge_urr(struct pfcp_session *s, struct upf_urr_cmd_req *uc)
 {
-	struct urr *u, *r;
+	union pfcp_measurement_method mm;
+	struct urr *urr;
+	struct pdr *p;
+	int pdr_cnt, pdr_urr_cnt;
+	int i;
+
+	list_for_each_entry(urr, &s->urr_list, next) {
+		/* is this urr is used in any/all pdrs ? */
+		pdr_cnt = 0;
+		pdr_urr_cnt = 0;
+		list_for_each_entry(p, &s->pdr_list, next) {
+			pdr_cnt++;
+			for (i = 0; i < PFCP_MAX_NR_ELEM && p->urr[i]; i++)
+				if (p->urr[i] == urr) {
+					pdr_urr_cnt++;
+					break;
+				}
+		}
+		/* not used, skip it */
+		if (!pdr_urr_cnt)
+			continue;
+		/* not used in all pdr, problems ahead */
+		if (pdr_urr_cnt != pdr_cnt)
+			printf("urr[%d]: included in %d/%d pdr\n",
+			       urr->id, pdr_urr_cnt, pdr_cnt);
+
+		urr->urr_idx = uc->urr_idx;
+
+		mm = urr->measurement_method;
+		uc->flags |= (mm.volum ? UPF_FL_MEAS_VOL : 0) |
+			(mm.durat ? UPF_FL_MEAS_TIME : 0);
+
+		/* take the first triggering values of all urrs */
+		if (mm.volum && urr->triggers.volth) {
+			uc->total_th =
+				!uc->total_th ? urr->volume_threshold_to :
+				min(uc->total_th, urr->volume_threshold_to);
+			uc->ul_th =
+				!uc->ul_th ? urr->volume_threshold_ul :
+				min(uc->ul_th, urr->volume_threshold_ul);
+			uc->dl_th =
+				!uc->dl_th ? urr->volume_threshold_dl :
+				min(uc->dl_th, urr->volume_threshold_dl);
+		}
+		if (mm.volum && urr->triggers.volqu) {
+			uc->total_qu =
+				!uc->total_qu ? urr->volume_quota_to :
+				min(uc->total_qu, urr->volume_quota_to);
+			uc->ul_qu =
+				!uc->ul_qu ? urr->volume_quota_ul :
+				min(uc->ul_qu, urr->volume_quota_ul);
+			uc->dl_qu =
+				!uc->dl_qu ? urr->volume_quota_dl :
+				min(uc->dl_qu, urr->volume_quota_dl);
+		}
+		if (mm.durat && urr->triggers.timth)
+			uc->time_th = min(uc->time_th ?: ~0, urr->time_threshold);
+		if (mm.durat && urr->triggers.timqu)
+			uc->time_qu = min(uc->time_qu ?: ~0, urr->time_quota);
+		if (mm.durat)
+			uc->inactivity_det_time =
+				min(uc->inactivity_det_time ?: ~0,
+				    urr->inactivity_detection_time);
+
+		if (urr->triggers.perio)
+			uc->time_periodic = min(uc->time_periodic ?: ~0,
+					     urr->time_periodic);
+		if (urr->triggers.quhti)
+			uc->time_inactivity =
+				min(uc->time_inactivity ?: ~0,
+				    urr->quota_holdtime);
+	}
+
+	return 0;
+}
+
+/* got new metrics from bpf. save them */
+int
+pfcp_session_urr_report(struct pfcp_session *s, struct upf_urr_report_data *rd)
+{
+	struct urr *u;
 
 	list_for_each_entry(u, &s->urr_list, next) {
-		if (!u->linked_urr_id)
+		if (u->urr_idx != rd->r.urr_idx)
 			continue;
 
-		r = pfcp_session_get_urr_by_id(s, u->linked_urr_id);
-		if (!r)
-			continue;
+		u->start_time = u->end_time;
+		u->end_time = time_now_to_ntp();
+		u->pkt_first_time = rd->report_first_pkt ?
+			rd->report_first_pkt + s->router->mono2ntptime_off : 0;
+		u->pkt_last_time = rd->report_last_pkt ?
+			rd->report_last_pkt + s->router->mono2ntptime_off : 0;
 
-		u->linked_urr = r;
-		r->parent_urr = u->linked_urr;
+		if (u->measurement_method.volum) {
+			u->ul.bytes = rd->ul_bytes;
+			u->ul.count = rd->ul_pkt;
+			u->dl.bytes = rd->dl_bytes;
+			u->dl.count = rd->dl_pkt;
+		}
+
+		if (u->measurement_method.durat)
+			u->duration = rd->duration;
+		else
+			u->duration = -1;
 	}
 
 	return 0;
 }
+
 
 static int
 pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pdi,
 		 uint32_t *id)
 {
 	struct ue_ip_address *ue_ip;
+	struct ue_ip_address *ue_ip_s = &s->ue_ip;
 	struct pfcp_ie_f_teid *fteid;
 	struct pfcp_teid *t;
 
@@ -525,11 +681,31 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 		return pdr->te ? 0 : -1;
 	}
 
-	if (!fteid)
-		return 0;
-
 	if (pdi->ue_ip_address) {
 		ue_ip = &pdr->ue_ip;
+		if (pdi->ue_ip_address->chv4) {
+			ue_ip->flags |= UE_CHV4;
+			/* Session UE IP Address is not initialized */
+			if (!(ue_ip_s->flags & UE_IPV4)) {
+				if (pfcp_session_alloc_ue_ip(s, AF_INET)) {
+					errno = ENOSPC;
+					return -1;
+				}
+			}
+		}
+
+		if (pdi->ue_ip_address->chv6) {
+			ue_ip->flags |= UE_CHV6;
+			/* Session UE IP Address is not initialized */
+			if (!(ue_ip_s->flags & UE_IPV6)) {
+				if (pfcp_session_alloc_ue_ip(s, AF_INET6)) {
+					pfcp_session_release_ue_ip(s);
+					errno = ENOSPC;
+					return -1;
+				}
+			}
+		}
+
 		if (pdi->ue_ip_address->v4) {
 			ue_ip->flags |= UE_IPV4;
 			ue_ip->v4 = pdi->ue_ip_address->ip_address.v4;
@@ -541,6 +717,9 @@ pfcp_session_pdi(struct pfcp_session *s, struct pdr *pdr, struct pfcp_ie_pdi *pd
 			       sizeof(struct in6_addr));
 		}
 	}
+
+	if (!fteid)
+		return 0;
 
 	if (fteid->chid)
 		pdr->choose_id = fteid->choose_id;
@@ -583,11 +762,11 @@ pfcp_session_create_pdr(struct pfcp_session *s, struct pdr *pdr,
 		pdr->far = pfcp_session_get_far_by_id(s, ie->far_id->value);
 
 	if (ie->outer_header_removal)
-		pdr->flags |= UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER; 
+		pdr->flags |= UPF_FWD_FL_ACT_REMOVE_OUTER_HEADER;
 
 	if (ie->urr_id) {
 		for (i = 0; i < ie->nr_urr_id && i < PFCP_MAX_NR_ELEM; i++) {
-			pdr->urr[i] = pfcp_session_get_urr_by_id(s, ie->urr_id[i]->value);
+			pdr->urr[i] = pfcp_session_get_urr_by_id(s, ntohl(ie->urr_id[i]->value));
 			if (!pdr->urr[i])
 				return -1;
 		}
@@ -616,7 +795,8 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	struct upf_fwd_rule *u = &r->rule;
 	struct far *f = p->far;
 	struct qer *q = p->qer;
-	
+	union addr *laddr;
+
 	/* Rule flags init */
 	u->flags = 0;
 	u->flags |= p->flags;
@@ -629,12 +809,10 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 		u->gtpu_remote_addr = f->outer_header_ip4.s_addr;
 		u->gtpu_remote_port = htons(GTP_U_PORT);
 
-		/* Non-optimized pdi */
-		if (p->teid)
-			u->gtpu_local_addr = p->teid->ipv4.s_addr;
-		else if (p->te)	/* Optimized PDI */
-			u->gtpu_local_addr = p->te->teid ? p->te->teid->ipv4.s_addr : 0;
-
+		laddr = pfcp_session_get_addr_by_interface(s->router,
+							   f->dst_interface_type);
+		if (laddr && laddr->family == AF_INET)
+			u->gtpu_local_addr = laddr->sin.sin_addr.s_addr;
 		u->gtpu_local_port = htons(GTP_U_PORT);
 	}
 
@@ -648,6 +826,16 @@ pfcp_session_set_fwd_rule(struct pfcp_session *s, struct pdr *p)
 	/* FAR Level Marking */
 	u->tos_tclass = f->tos_tclass ? : 0;
 	u->tos_mask = f->tos_mask ? : 0;
+
+	/* URR map index */
+	u->urr_idx = s->bpf_urr_idx;
+
+	/* Packet capture */
+	u->capture.flags = s->capture.flags &
+		(GTP_CAPTURE_FL_DIRECTION_MASK | GTP_CAPTURE_FL_SIDE_MASK);
+	u->capture.cap_len = s->capture.cap_len;
+	u->capture.entry_id = s->capture.entry_id;
+	s->capture.flags &= ~GTP_CAPTURE_FL_NEED_BPF_UPDATE;
 
 	/* Set data-path */
 	if (u->flags & UPF_FWD_FL_EGRESS) {
@@ -668,13 +856,20 @@ static int
 pfcp_session_create_fwd_rules(struct pfcp_session *s)
 {
 	struct pfcp_fwd_rule *new;
+	struct upf_urr_cmd_req *uc;
 	struct pdr *p;
-	struct far *f;
+
+	if (!s->bpf_urr_idx)
+		s->bpf_urr_idx = pfcp_bpf_alloc_urr_idx(s);
+
+	uc = pfcp_bpf_urr_alloc_cmd(s);
+	uc->urr_idx = s->bpf_urr_idx;
+	uc->ctl_fl = UPF_FL_CTL_INIT;
+	pfcp_session_merge_urr(s, uc);
+	pfcp_bpf_urr_ctl(s, uc);
 
 	list_for_each_entry(p, &s->pdr_list, next) {
-		f = p->far;
-
-		if (!p->action || !f)
+		if (!p->action || !p->far)
 			continue;
 
 		new = calloc(1, sizeof(*new));
@@ -691,7 +886,7 @@ pfcp_session_create_fwd_rules(struct pfcp_session *s)
 
 int
 pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_request *req,
-		    struct sockaddr_storage *addr)
+		    union addr *addr)
 {
 	int i, err = 0;
 	uint32_t id = 0;
@@ -705,7 +900,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct traffic_endpoint *te = calloc(1, sizeof(*te));
 		if (!te)
 			return -1;
-		INIT_LIST_HEAD(&te->next);
 		err = pfcp_session_create_te(s, te,
 					     req->create_traffic_endpoint[i], &id);
 		if (err) {
@@ -720,7 +914,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct far *far = calloc(1, sizeof(*far));
 		if (!far)
 			return -1;
-		INIT_LIST_HEAD(&far->next);
 		pfcp_session_create_far(s, far, req->create_far[i]);
 		list_add_tail(&far->next, &s->far_list);
 	}
@@ -730,7 +923,6 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct qer *qer = calloc(1, sizeof(*qer));
 		if (!qer)
 			return -1;
-		INIT_LIST_HEAD(&qer->next);
 		pfcp_session_create_qer(s, qer, req->create_qer[i]);
 		list_add_tail(&qer->next, &s->qer_list);
 	}
@@ -740,18 +932,15 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 		struct urr *urr = calloc(1, sizeof(*urr));
 		if (!urr)
 			return -1;
-		INIT_LIST_HEAD(&urr->next);
 		pfcp_session_create_urr(s, urr, req->create_urr[i]);
 		list_add_tail(&urr->next, &s->urr_list);
 	}
-	pfcp_session_link_urr(s);
 
 	/* PDR will reference parsed elem */
 	for (i = 0; i < req->nr_create_pdr; i++) {
 		struct pdr *pdr = calloc(1, sizeof(*pdr));
 		if (!pdr)
 			return -1;
-		INIT_LIST_HEAD(&pdr->next);
 		err = pfcp_session_create_pdr(s, pdr, req->create_pdr[i], &id);
 		if (err) {
 			free(pdr);
@@ -765,7 +954,7 @@ pfcp_session_create(struct pfcp_session *s, struct pfcp_session_establishment_re
 	return 0;
 }
 
-static int
+int
 pfcp_session_update_fwd_rules(struct pfcp_session *s)
 {
 	struct pfcp_fwd_rule *r;
@@ -783,7 +972,8 @@ pfcp_session_update_fwd_rules(struct pfcp_session *s)
 			continue;
 
 		/* Update needed ? */
-		if (!p->action && (f && !f->action) && (q && !q->action))
+		if (!p->action && (f && !f->action) && (q && !q->action) &&
+		    !(s->capture.flags & GTP_CAPTURE_FL_NEED_BPF_UPDATE))
 			continue;
 
 		r->action = PFCP_ACT_UPDATE;
@@ -805,6 +995,8 @@ pfcp_session_modify(struct pfcp_session *s, struct pfcp_session_modification_req
 		if (err)
 			return -1;
 	}
+
+	/* XXX Update URR */
 
 	/* Update data-path forwarding rules */
 	pfcp_session_update_fwd_rules(s);
@@ -874,6 +1066,11 @@ pfcp_session_delete(struct pfcp_session *s)
 		free(te);
 	}
 
+	/* Free URR data */
+	pfcp_bpf_release_urr_idx(s, s->bpf_urr_idx);
+	if (!list_empty(&s->urr_cmd_pending_list))
+		printf("%s: entries remain in urr_cmd_pending_list\n", __func__);
+
 	return 0;
 }
 
@@ -900,11 +1097,10 @@ pfcp_session_init_teid_values(struct pfcp_teid *t, uint32_t *teid,
 }
 
 static int
-pfcp_session_init_ue_values(struct pfcp_session *s, struct traffic_endpoint *te,
+pfcp_session_init_ue_values(struct pfcp_session *s, struct ue_ip_address *ue_ip,
 			    struct in_addr **ipv4, struct in6_addr **ipv6)
 {
 	struct ue_ip_address *ue_ip_s = &s->ue_ip;
-	struct ue_ip_address *ue_ip = &te->ue_ip;
 	struct in_addr *v4 = &ue_ip_s->v4;
 	struct in6_addr *v6 = &ue_ip_s->v6;
 
@@ -926,13 +1122,20 @@ pfcp_session_put_created_pdr(struct pkt_buffer *pbuff, struct pfcp_session *s)
 {
 	struct pdr *p;
 	uint32_t teid;
-	struct in_addr *ipv4;
-	struct in6_addr *ipv6;
+	struct in_addr *t_ipv4, *ue_ipv4;
+	struct in6_addr *t_ipv6, *ue_ipv6;
 	int err;
 
 	list_for_each_entry(p, &s->pdr_list, next) {
-		pfcp_session_init_teid_values(p->teid, &teid, &ipv4, &ipv6);
-		err = pfcp_ie_put_created_pdr(pbuff, p->id, htonl(teid), ipv4, ipv6);
+		pfcp_session_init_teid_values(p->teid, &teid, &t_ipv4, &t_ipv6);
+		err = pfcp_session_init_ue_values(s, &p->ue_ip, &ue_ipv4, &ue_ipv6);
+		if (err) {
+			errno = ENOSPC;
+			return -1;
+		}
+
+		err = pfcp_ie_put_created_pdr(pbuff, p->id, htonl(teid),
+					      t_ipv4, t_ipv6, ue_ipv4, ue_ipv6);
 		if (err)
 			return -1;
 	}
@@ -951,7 +1154,7 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 
 	list_for_each_entry(te, &s->te_list, next) {
 		pfcp_session_init_teid_values(te->teid, &teid, &t_ipv4, &t_ipv6);
-		err = pfcp_session_init_ue_values(s, te, &ue_ipv4, &ue_ipv6);
+		err = pfcp_session_init_ue_values(s, &te->ue_ip, &ue_ipv4, &ue_ipv6);
 		if (err) {
 			errno = ENOSPC;
 			return -1;
@@ -963,23 +1166,6 @@ pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff, struct pfcp_
 			errno = EINVAL;
 			return -1;
 		}
-	}
-
-	return 0;
-}
-
-int
-pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff, struct pfcp_session *s)
-{
-	struct urr *u;
-	int err;
-
-	list_for_each_entry(u, &s->urr_list, next) {
-		u->end_time = time_now_to_ntp();
-		err = pfcp_ie_put_usage_report_deletion(pbuff, u->id, u->start_time, u->end_time,
-							u->seqn++, &u->ul, &u->dl);
-		if (err)
-			return -1;
 	}
 
 	return 0;

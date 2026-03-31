@@ -24,6 +24,17 @@
 #define __always_inline		inline __attribute__((always_inline))
 #define __no_inline		__attribute__((noinline))
 
+#ifndef min
+# define min(x,y) ((x)<(y) ? x : y)
+#endif
+#ifndef max
+# define max(x,y) ((x)>(y) ? x : y)
+#endif
+
+#ifndef ARRAY_SIZE
+# define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+
 /*********************************/
 /* l2 stuff */
 
@@ -282,6 +293,7 @@ ipv6_skip_exthdr(struct ipv6hdr *ip6h, void *data_end, __u8 *out_nh)
 
 /*********************************/
 
+#define	NSEC_PER_SEC		1000000000
 
 /* Program statistics */
 enum pkt_stats_type {

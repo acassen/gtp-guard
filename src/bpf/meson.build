@@ -3,15 +3,17 @@
 fs = import('fs')
 
 bpf_sources = files(
+  'capture_trace.c',
+  'cgn.c',
   'gtp_fwd.c',
   'gtp_fwd_mirror.c',
   'gtp_route.c',
   'gtp_mirror.c',
-  'cgn.c',
   'mape.c',
   'upf.c',
   'upf_cgn.c',
-  'test_cgn.c',
+#  'test_cgn.c',
+  'xdp_pass.c',
 )
 
 clang_bpf_flags = [

@@ -36,7 +36,7 @@ setup_simple() {
     ip neigh add 192.168.61.2 lladdr d2:ad:ca:fe:aa:01 dev gtpp
     ip neigh add 192.168.61.3 lladdr d2:ad:ca:fe:aa:01 dev gtpp
 
-    ip netns exec cloud ethtool -K veth0 gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
@@ -95,7 +95,7 @@ setup_combined() {
     # ip addr add 192.168.62.2/30 dev ptun
     ip neigh add 192.168.61.129 lladdr d2:ad:ca:fe:aa:01 dev $tun_dev
 
-    ip netns exec cloud ethtool -K veth0 gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
@@ -188,9 +188,9 @@ setup_vip() {
     ip link set ptun up
     ip neigh add 192.168.61.129 lladdr d2:ad:ca:fe:aa:01 dev $tun_dev
 
-    ip netns exec cloud ethtool -K veth0 gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud ethtool -K veth0 tx-checksumming off >/dev/null
-    ip netns exec cloud-r2 ethtool -K veth0 gro on
+    ip -n cloud-r2 link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
     ip netns exec cloud-r2 ethtool -K veth0 tx-checksumming off >/dev/null
 }
 
@@ -284,10 +284,9 @@ setup_split() {
     ethtool -K gtpptun rx-vlan-offload off
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec cloud ethtool -K veth0 gro on
-    ip netns exec pgw ethtool -K pgw gro on
-    ip netns exec sgw ethtool -K sgw gro on
+    ip -n cloud link set veth0 xdp obj bin/xdp_pass.bpf sec xdp
+    ip -n pgw link set pgw xdp obj bin/xdp_pass.bpf sec xdp
+    ip -n sgw link set sgw xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 run_simple() {

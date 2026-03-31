@@ -30,49 +30,54 @@
 #include "inet_utils.h"
 #include "logger.h"
 
+struct pfcp_report {
+	struct pfcp_session	*s;
+	uint32_t		query_urr_ref;
+	struct urr		*urr[PFCP_MAX_NR_ELEM];
+	union pfcp_usage_report_trigger rtrig[PFCP_MAX_NR_ELEM];
+	int			urr_n;
+};
+
 /* Extern data */
 extern struct thread_master *master;
 
 
-
-static int
-pfcp_session_report_add_urr(struct pkt_buffer *pbuff, struct urr *u,
-			    uint32_t query_urr_ref)
+static inline int
+_put_usage_report(struct pkt_buffer *pbuff, struct urr *u, int type,
+		  union pfcp_usage_report_trigger rtrig, uint32_t qurr_ref)
 {
-	struct pfcp_metrics_pkt ul_tmp, dl_tmp;
-	uint32_t end_time;
-	int err;
+	struct pfcp_metrics_pkt ul, dl;
+	bool vol = u->measurement_method.volum;
+	int duration;
 
-	pfcp_metrics_pkt_sub(&u->ul, &u->last_report_ul, &ul_tmp);
-	pfcp_metrics_pkt_sub(&u->dl, &u->last_report_dl, &dl_tmp);
-	end_time = time_now_to_ntp();
+	if (vol) {
+		pfcp_metrics_pkt_sub(&u->ul, &u->last_report_ul, &ul);
+		pfcp_metrics_pkt_sub(&u->dl, &u->last_report_dl, &dl);
+		u->last_report_ul = u->ul;
+		u->last_report_dl = u->dl;
+	}
+	if (u->measurement_method.durat) {
+		duration = u->duration - u->last_report_duration;
+		u->last_report_duration = u->duration;
+	} else {
+		duration = -1;
+	}
 
-	err = pfcp_ie_put_usage_report_request(pbuff, query_urr_ref, u->id,
-					       u->start_time, end_time,
-					       u->seqn++, &ul_tmp, &dl_tmp);
-	if (err)
-		return -1;
-
-	/* update counters */
-	u->end_time = end_time;
-	u->start_time = time_now_to_ntp();
-	pfcp_metrics_pkt_cpy(&u->last_report_ul, &u->ul);
-	pfcp_metrics_pkt_cpy(&u->last_report_dl, &u->dl);
-	return 0;
+	return pfcp_ie_put_usage_report(pbuff, type, u->id, u->seqn, rtrig, qurr_ref,
+					u->pkt_first_time, u->pkt_last_time,
+					u->start_time, u->end_time, duration,
+					vol ? &ul : NULL, vol ? &dl : NULL);
 }
 
 static void
-pfcp_session_report_send(struct thread *t)
+pfcp_session_report_build_and_send(struct pfcp_report *r)
 {
-	struct pfcp_session *s = THREAD_ARG(t);
-	struct pfcp_router *r = s->router;
-	struct pfcp_server *srv = &r->s;
-	struct pfcp_report *report = &s->report;
-	struct urr *u;
+	struct pfcp_session *s = r->s;
+	struct pfcp_server *srv = &s->router->s;
 	struct pkt *p;
 	struct pkt_buffer *pbuff;
 	struct f_seid *remote_seid = &s->remote_seid;
-	int err, nr_urr = 0, nr_null = 0, nr_report_urr = 0;
+	int err, i, nr_report_urr = 0;
 
 	p = __pkt_queue_get(&srv->pkt_q);
 	if (!p) {
@@ -91,25 +96,9 @@ pfcp_session_report_send(struct thread *t)
 	if (err)
 		goto end;
 
-	list_for_each_entry(u, &s->urr_list, next) {
-		nr_urr++;
-		if (pfcp_metrics_pkt_cmp(&u->ul, &u->last_report_ul) <= 0 &&
-		    pfcp_metrics_pkt_cmp(&u->dl, &u->last_report_dl) <= 0) {
-			nr_null++;
-			continue;
-		}
-
-		err = pfcp_session_report_add_urr(pbuff, u, report->query_urr_ref);
-		if (!err)
-			nr_report_urr++;
-	}
-
-	/* If report is requested but no updates available, then simply use
-	 * first urr.
-	 */
-	if (nr_urr && nr_null == nr_urr) {
-		u = list_first_entry(&s->urr_list, struct urr, next);
-		err = pfcp_session_report_add_urr(pbuff, u, report->query_urr_ref);
+	for (i = 0; i < r->urr_n; i++) {
+		err = _put_usage_report(pbuff, r->urr[i], PFCP_IE_USAGE_REPORT,
+					r->rtrig[i], r->query_urr_ref);
 		if (!err)
 			nr_report_urr++;
 	}
@@ -126,38 +115,194 @@ pfcp_session_report_send(struct thread *t)
 	}
 
 	/* Run, Baby, Run */
-	inet_server_snd(&srv->s, srv->s.fd, pbuff, (struct sockaddr_in *) &report->addr);
+	inet_server_snd(&srv->s, srv->s.fd, pbuff, &s->remote_seid.addr.sin);
 end:
 	__pkt_queue_put(&srv->pkt_q, p);
 }
 
-void
-pfcp_session_report(struct pfcp_session *s,
-		    struct pfcp_session_modification_request *req,
-		    struct sockaddr_storage *addr)
+
+static void
+pfcp_session_report_delayed_cb(struct thread *t)
 {
-	struct pfcp_report *r = &s->report;
-	struct pfcp_ie_query_urr_reference *ie_urr_ref = req->query_urr_reference;
-	struct urr *u;
+	struct pfcp_report *r = THREAD_ARG(t);
+
+	pfcp_session_report_build_and_send(r);
+	free(r);
+}
+
+
+static void
+pfcp_session_report_send_delayed(struct pfcp_report *r)
+{
+	struct pfcp_report *ar;
+
+	ar = malloc(sizeof (*ar));
+	*ar = *r;
+	thread_add_event(master, pfcp_session_report_delayed_cb, ar, 0);
+}
+
+
+void
+pfcp_session_report_triggered(struct pfcp_session *s,
+			      struct upf_urr_report_data *urd)
+{
+	union pfcp_usage_report_trigger rtrig;
+	struct urr *urr, *lu;
+	uint32_t urr_id;
+	struct pfcp_report r = {
+		.s = s,
+	};
 	int i;
 
-	/* Requested URR */
-	if (req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) {
-		i = 0;
-		list_for_each_entry(u, &s->urr_list, next) {
-			if (i >= PFCP_MAX_NR_ELEM)
-				break;
-			r->urr_id[i++] = u->id;
+	/* who did the trigger ? */
+	list_for_each_entry(urr, &s->urr_list, next) {
+		if (urr->urr_idx != urd->r.urr_idx)
+			continue;
+
+		urr_id = 0;
+		rtrig.trigger_flags = 0;
+
+		if ((urd->r.report_flags & UPF_TRIG_FL_VOLTH) &&
+		    urr->triggers.volth &&
+		    urr->volume_threshold_to != ~0) {
+			urr_id = urr->id;
+			rtrig.volth = 1;
 		}
-	} else {
-		for (i = 0; i < PFCP_MAX_NR_ELEM && req->query_urr[i]; i++)
-			r->urr_id[i] = req->query_urr[i]->urr_id->value;
+		if ((urd->r.report_flags & UPF_TRIG_FL_VOLQU) &&
+		    urr->triggers.volqu) {
+			urr_id = urr->id;
+			rtrig.volqu = 1;
+		}
+		if ((urd->r.report_flags & UPF_TRIG_FL_TIMTH) &&
+		    urr->triggers.timth) {
+			urr_id = urr->id;
+			rtrig.timth = 1;
+		}
+		if ((urd->r.report_flags & UPF_TRIG_FL_TIMQU) &&
+		    urr->triggers.timqu) {
+			urr_id = urr->id;
+			rtrig.timqu = 1;
+		}
+		if ((urd->r.report_flags & UPF_TRIG_FL_PERIO) &&
+		    urr->triggers.perio) {
+			urr_id = urr->id;
+			rtrig.perio = 1;
+		}
+		if ((urd->r.report_flags & UPF_TRIG_FL_QUHTI) &&
+		    urr->triggers.quhti) {
+			urr_id = urr->id;
+			rtrig.quhti = 1;
+		}
+
+		if (!urr_id)
+			continue;
+
+		/* add this urr and linked urrs */
+		if (r.urr_n >= PFCP_MAX_NR_ELEM)
+			break;
+		r.rtrig[r.urr_n] = rtrig;
+		r.urr[r.urr_n++] = urr;
+		list_for_each_entry(lu, &s->urr_list, next) {
+			if (r.urr_n >= PFCP_MAX_NR_ELEM)
+				break;
+			for (i = 0; i < PFCP_MAX_NR_ELEM && lu->linked_urr_id[i]; i++)
+				if (lu->linked_urr_id[i] == urr->id) {
+					r.rtrig[r.urr_n].liusa = 1;
+					r.urr[r.urr_n++] = lu;
+				}
+		}
 	}
 
-	/* Query URR ref */
-	r->query_urr_ref = (ie_urr_ref) ? ie_urr_ref->value : 0;
+	if (!r.urr_n) {
+		printf("%s: did not find triggered urr (urr_idx:%d)\n",
+		       __func__, urd->r.urr_idx);
+		return;
+	}
 
-	r->addr = *addr;
+	pfcp_session_report_build_and_send(&r);
+}
 
-	thread_add_event(master, pfcp_session_report_send, s, 0);
+
+/* report usage on session modification request.
+ * if pbuff is NULL, then send a separate session report request */
+int
+pfcp_session_report_put_modification(struct pkt_buffer *pbuff,
+				     struct pfcp_session *s,
+				     struct pfcp_session_modification_request *req)
+{
+	struct pfcp_ie_query_urr_reference *ie_urr_ref = req->query_urr_reference;
+	union pfcp_usage_report_trigger rtrig = { .immer = 1 };
+	struct urr *u;
+	int i, err;
+
+	struct pfcp_report r = {
+		.s = s,
+		.query_urr_ref = ie_urr_ref ? ie_urr_ref->value : 0,
+	};
+
+	if (req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) {
+		/* Report for all URRs */
+		list_for_each_entry(u, &s->urr_list, next) {
+			if (pbuff == NULL) {
+				if (r.urr_n >= PFCP_MAX_NR_ELEM)
+					break;
+				r.rtrig[r.urr_n] = rtrig;
+				r.urr[r.urr_n++] = u;
+			} else {
+				err = _put_usage_report(pbuff, u,
+							PFCP_IE_USAGE_REPORT_MODIFICATION,
+							rtrig,
+							r.query_urr_ref);
+				if (err)
+					return -1;
+			}
+		}
+
+	} else {
+		/* Report for queried and their linked URRs */
+		for (i = 0; i < PFCP_MAX_NR_ELEM && req->query_urr[i]; i++) {
+			if (pbuff == NULL) {
+				list_for_each_entry(u, &s->urr_list, next) {
+					if (u->id == req->query_urr[i]->urr_id->value) {
+						r.rtrig[r.urr_n] = rtrig;
+						r.urr[r.urr_n++] = u;
+						break;
+					}
+				}
+			} else {
+				err = _put_usage_report(pbuff, u,
+							PFCP_IE_USAGE_REPORT_MODIFICATION,
+							rtrig,
+							r.query_urr_ref);
+				if (err)
+					return -1;
+			}
+		}
+	}
+
+	if (pbuff == NULL)
+		pfcp_session_report_send_delayed(&r);
+
+	return 0;
+}
+
+
+int
+pfcp_session_report_put_deletion(struct pkt_buffer *pbuff, struct pfcp_session *s)
+{
+	union pfcp_usage_report_trigger report_trigger = {
+		.immer = 1,
+		.termr = 1,
+	};
+	struct urr *u;
+	int err;
+
+	list_for_each_entry(u, &s->urr_list, next) {
+		err = _put_usage_report(pbuff, u, PFCP_IE_USAGE_REPORT_DELETION,
+					report_trigger, 0);
+		if (err)
+			return -1;
+	}
+
+	return 0;
 }

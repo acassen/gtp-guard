@@ -47,7 +47,7 @@
 /* Heartbeat */
 static int
 pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv,
-		       struct sockaddr_storage *addr)
+		       union addr *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -73,7 +73,7 @@ pfcp_heartbeat_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 /* pfd management */
 static int
 pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv,
-			    struct sockaddr_storage *addr)
+			    union addr *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -100,7 +100,7 @@ pfcp_pfd_management_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 /* Association setup */
 static int
 pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv,
-			 struct sockaddr_storage *addr)
+			 union addr *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -146,7 +146,7 @@ pfcp_assoc_setup_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 
 static int
 pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv,
-			  struct sockaddr_storage *addr)
+			  union addr *addr)
 {
 	struct pfcp_association_setup_response *rsp;
 	struct pfcp_assoc *assoc;
@@ -157,7 +157,7 @@ pfcp_assoc_setup_response(struct pfcp_msg *msg, struct pfcp_server *srv,
 	if (rsp->cause->value != PFCP_CAUSE_REQUEST_ACCEPTED) {
 		log_message(LOG_INFO, "%s(): remote PFCP peer:'%s' rejection (%s)"
 				    , __FUNCTION__
-				    , inet_sockaddrtos(addr)
+				    , inet_sockaddrtos(&addr->ss)
 				    , pfcp_cause2str(rsp->cause->value));
 		return -1;
 	}
@@ -258,7 +258,7 @@ pfcp_session_get_apn(struct pfcp_ie_apn_dnn *apn_dnn)
 
 static int
 pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv,
-				   struct sockaddr_storage *addr)
+				   union addr *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -278,6 +278,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	pfcp_msg_reset_hlen(pbuff);
 	pfcph->type = PFCP_SESSION_ESTABLISHMENT_RESPONSE;
 
+	if (!pfcph->s) {
+		log_message(LOG_INFO, "%s(): Session-ID is not present... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_cause(pbuff, PFCP_CAUSE_REQUEST_REJECTED);
+	}
+
 	assoc = pfcp_assoc_get_by_ie(req->node_id);
 	if (!assoc)
 		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
@@ -289,6 +295,12 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 		if (!apn)
 			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
 						       PFCP_CAUSE_REQUEST_REJECTED);
+	}
+	if (!apn) {
+		log_message(LOG_INFO, "%s(): No APN selected... rejecting..."
+				    , __FUNCTION__);
+		return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
+					       PFCP_CAUSE_REQUEST_REJECTED);
 	}
 
 	/* User infos */
@@ -322,6 +334,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 
 	err = pfcp_session_create(s, req, addr);
 	if (err) {
+		pfcp_session_delete(s);
 		if (errno == ENOSPC) {
 			pfcph->seid = s->remote_seid.id;
 			return pfcp_ie_put_error_cause(pbuff, ctx->node_id, ctx->node_id_len,
@@ -345,7 +358,16 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
+			pfcp_session_delete(s);
 		return -1;
+	}
+
+	/* Some urr commands are still pending, delay reply */
+	if (!list_empty(&s->urr_cmd_pending_list)) {
+		s->pending_addr = *addr;
+		s->pending_pbuff = srv->s.pbuff;
+		srv->s.pbuff = NULL;
+		return PFCP_ROUTER_DELAYED;
 	}
 
 	return 0;
@@ -354,7 +376,7 @@ pfcp_session_establishment_request(struct pfcp_msg *msg, struct pfcp_server *srv
 /* Session modification */
 static int
 pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
-				  struct sockaddr_storage *addr)
+				  union addr *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -393,7 +415,7 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 	/* URR query ? */
 	if ((req->pfcpsmreq_flags && req->pfcpsmreq_flags->qaurr) || req->nr_query_urr) {
 		/* handle request before recycle buffer mangling */
-		pfcp_session_report(s, req, addr);
+		pfcp_session_report_put_modification(NULL, s, req);
 
 		err = pfcp_ie_put_additional_usage_reports_info(pbuff, true, 0);
 		if (err) {
@@ -411,13 +433,21 @@ pfcp_session_modification_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 		return -1;
 	}
 
+	/* Some urr commands are still pending, delay reply */
+	if (!list_empty(&s->urr_cmd_pending_list)) {
+		s->pending_addr = *addr;
+		s->pending_pbuff = srv->s.pbuff;
+		srv->s.pbuff = NULL;
+		return PFCP_ROUTER_DELAYED;
+	}
+
 	return 0;
 }
 
 /* Session deletion */
 static int
 pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
-			      struct sockaddr_storage *addr)
+			      union addr *addr)
 {
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
@@ -446,28 +476,48 @@ pfcp_session_deletion_request(struct pfcp_msg *msg, struct pfcp_server *srv,
 
 	/* Append IEs */
 	err = pfcp_ie_put_cause(pbuff, cause);
-	err = (err) ? : pfcp_session_put_usage_report_deletion(pbuff, s);
 	if (err) {
 		log_message(LOG_INFO, "%s(): Error while Appending IEs"
 				    , __FUNCTION__);
 		return -1;
 	}
 
+	/* Delete URRs, and generate the latest report  */
+	if (s->bpf_urr_idx) {
+		struct upf_urr_cmd_req *uc = pfcp_bpf_urr_alloc_cmd(s);
+		uc->urr_idx = s->bpf_urr_idx;
+		uc->ctl_fl = UPF_FL_CTL_DELETE;
+		pfcp_bpf_urr_ctl(s, uc);
+
+		s->pending_addr = *addr;
+		s->pending_pbuff = srv->s.pbuff;
+		srv->s.pbuff = NULL;
+
+		return PFCP_ROUTER_DELAYED;
+	}
+
+	err = pfcp_session_report_put_deletion(pbuff, s);
+	if (err) {
+		log_message(LOG_INFO, "%s(): Error while Appending IEs"
+				    , __FUNCTION__);
+		return -1;
+	}
 	pfcp_session_destroy(s);
+
 	return 0;
 }
 
 /* Session Report Response */
 static int
 pfcp_session_report_response(struct pfcp_msg *msg, struct pfcp_server *srv,
-			      struct sockaddr_storage *addr)
+			      union addr *addr)
 {
 	struct pfcp_session_report_response *rsp = msg->session_report_response;
 
 	if (rsp->cause->value != PFCP_CAUSE_REQUEST_ACCEPTED)
 		log_message(LOG_INFO, "%s(): remote PFCP peer:'%s' rejection (%s)"
 				    , __FUNCTION__
-				    , inet_sockaddrtos(addr)
+				    , inet_sockaddrtos(&addr->ss)
 				    , pfcp_cause2str(rsp->cause->value));
 	return -1;
 }
@@ -477,7 +527,7 @@ pfcp_session_report_response(struct pfcp_msg *msg, struct pfcp_server *srv,
  *	PFCP FSM
  */
 static const struct {
-	int (*hdl) (struct pfcp_msg *, struct pfcp_server *, struct sockaddr_storage *);
+	int (*hdl) (struct pfcp_msg *, struct pfcp_server *, union addr *);
 } pfcp_msg_hdl[1 << 8] = {
 	/* PFCP Node related */
 	[PFCP_HEARTBEAT_REQUEST]		= { pfcp_heartbeat_request },
@@ -499,12 +549,13 @@ static const struct {
 };
 
 int
-pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
+pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *raddr)
 {
 	struct pfcp_router *c = srv->ctx;
 	struct pkt_buffer *pbuff = srv->s.pbuff;
 	struct pfcp_hdr *pfcph = (struct pfcp_hdr *) pbuff->head;
 	struct pfcp_msg *msg = srv->msg;
+	union addr *addr = (union addr *)raddr;
 	int err;
 
 	err = pfcp_msg_parse(msg, srv->s.pbuff);
@@ -528,7 +579,7 @@ pfcp_proto_hdl(struct pfcp_server *srv, struct sockaddr_storage *addr)
 	pfcp_metrics_rx(&srv->msg_metrics, pfcph->type);
 	err = (*(pfcp_msg_hdl[pfcph->type].hdl)) (msg, srv, addr);
 
-	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
+	if (!err && __test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
 		pfcp_proto_dump(srv, NULL, addr, PFCP_DIR_EGRESS);
 
 end:
@@ -560,7 +611,7 @@ gtpu_send_end_marker(struct gtp_server *srv, struct far *f)
 }
 
 static int
-gtpu_echo_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
+gtpu_echo_request_hdl(struct gtp_server *srv, union addr *addr)
 {
 	struct gtp1_hdr *h = (struct gtp1_hdr *) srv->s.pbuff->head;
 	struct gtp1_ie_recovery *rec;
@@ -580,20 +631,20 @@ gtpu_echo_request_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 }
 
 static int
-gtpu_error_indication_hdl(struct gtp_server *s, struct sockaddr_storage *addr)
+gtpu_error_indication_hdl(struct gtp_server *s, union addr *addr)
 {
 	return 0;
 }
 
 static int
-gtpu_end_marker_hdl(struct gtp_server *s, struct sockaddr_storage *addr)
+gtpu_end_marker_hdl(struct gtp_server *s, union addr *addr)
 {
 	/* TODO: Release related TEID */
 	return 0;
 }
 
 static const struct {
-	int (*hdl) (struct gtp_server *, struct sockaddr_storage *);
+	int (*hdl) (struct gtp_server *, union addr *);
 } gtpu_msg_hdl[1 << 8] = {
 	[GTPU_ECHO_REQ_TYPE]			= { gtpu_echo_request_hdl },
 	[GTPU_ERR_IND_TYPE]			= { gtpu_error_indication_hdl },
@@ -601,9 +652,10 @@ static const struct {
 };
 
 int
-pfcp_gtpu_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
+pfcp_gtpu_hdl(struct gtp_server *srv, struct sockaddr_storage *raddr)
 {
 	struct gtp_hdr *gtph = (struct gtp_hdr *) srv->s.pbuff->head;
+	union addr *addr = (union addr *)raddr;
 	ssize_t len;
 
 	len = gtpu_get_header_len(srv->s.pbuff);
@@ -620,7 +672,7 @@ pfcp_gtpu_hdl(struct gtp_server *srv, struct sockaddr_storage *addr)
 	log_message(LOG_INFO, "%s(): GTP-U/path-mgt msg_type:0x%.2x from %s not supported..."
 			    , __FUNCTION__
 			    , gtph->type
-			    , inet_sockaddrtos(addr));
+			    , inet_sockaddrtos(raddr));
 
 	gtp_metrics_rx_notsup(&srv->msg_metrics, gtph->type);
 	return -1;

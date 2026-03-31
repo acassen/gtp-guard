@@ -59,7 +59,7 @@ inet_server_snd(struct inet_server *s, int fd, struct pkt_buffer *pbuff,
 
 	s->tx_pkts++;
 	if (s->snd)
-		(*s->snd) (s, nbytes);
+		(*s->snd) (s, pbuff, nbytes);
 
 	return nbytes;
 }
@@ -135,6 +135,9 @@ inet_server_udp_async_recv_thread(struct thread *t)
 
 	if (t->type == THREAD_READ_TIMEOUT)
 		goto next_read;
+
+	if (s->pbuff == NULL)
+		s->pbuff = pkt_buffer_alloc(DEFAULT_PKT_BUFFER_SIZE);
 
 	/* Perform ingress packet handling */
 	nbytes = inet_server_rcv(s, (struct sockaddr *) &addr_from, &addrlen);

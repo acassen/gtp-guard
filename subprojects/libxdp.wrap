@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/xdp-project/xdp-tools
+revision = v1.5.8
+depth = 1
+patch_directory = libxdp
+
+[provide]
+dependency_names = libxdp_dep

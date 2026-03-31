@@ -92,9 +92,13 @@ setup_iface() {
     ip netns exec cgn-priv ethtool -K priv tx-checksumming off >/dev/null
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec cgn-pub ethtool -K pub gro on
-    ip netns exec cgn-priv ethtool -K priv gro on
+    ip -n cgn-pub link set pub xdp obj bin/xdp_pass.bpf sec xdp
+    ip -n cgn-priv link set priv xdp obj bin/xdp_pass.bpf sec xdp
+
+    ethtool -K pub gro off gso off tso off
+    ethtool -K priv gro off gso off tso off
+
+    #ethtool -L priv rx 4 tx 4
 }
 
 
@@ -186,9 +190,8 @@ setup_iface_vlan() {
     ethtool -K priv rx-vlan-offload off
     
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec cgn-pub ethtool -K pub gro on
-    ip netns exec cgn-priv ethtool -K priv gro on
+    ip -n cgn-pub link set pub xdp obj bin/xdp_pass.bpf sec xdp
+    ip -n cgn-priv link set priv xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 
@@ -293,8 +296,7 @@ setup_vlan() {
     ethtool -K virt-eth0 rx-vlan-offload off
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec router ethtool -K router gro on
+    ip -n router link set router xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 
@@ -404,8 +406,7 @@ setup_gre() {
     ethtool -K virt-eth0 rx-vlan-offload off
 
     # xdp prg must be loaded on the 2 side of veth pair.
-    # enabling gro does it too
-    ip netns exec router ethtool -K router gro on
+    ip -n router link set router xdp obj bin/xdp_pass.bpf sec xdp
 }
 
 
@@ -426,7 +427,7 @@ run_iface() {
 
     gtpg_conf_nofail "
 no carrier-grade-nat cgn-ng-1
-no bpf-program cgn-ng-1
+no bpf-program cgn
 no cdr-fwd cgn
 "
 
@@ -437,44 +438,45 @@ cdr-fwd cgn
  remote 127.0.0.1:1900
 ! no shutdown
 
-bpf-program cgn-ng-1
+bpf-program cgn
  path bin/cgn.bpf
+ xsk desc-count 128
  no shutdown
 
 carrier-grade-nat cgn-ng-1
  description trop_bien
- ipv4-pool 37.141.0.0/24
- protocol timeout icmp 2
- protocol timeout udp 2
-! interface priv side ingress
-! interface pub side egress
- cdr-fwd cgn
+ bpf-program cgn
+ ipv4-pool 37.141.0.0/20
+ block-port start 1024 end 65535 size 2000
+ user max 1000000 block 8 flow 15000
+! protocol timeout icmp 2
+! protocol timeout udp 2
+ interface ingress priv
+ interface egress pub
+! cdr-fwd cgn
 
 interface priv
  description priv_itf
- bpf-program cgn-ng-1
+ bpf-program cgn
  ip route table-id 1290
  no shutdown
 
 interface pub
  description pub_itf
- bpf-program cgn-ng-1
+ bpf-program cgn
  ip route table-id 1290
  no shutdown
+
 " || fail "cannot execute vty commands"
 
     ip netns exec cgn-priv ping -c 1 -W 2 -I 10.0.0.1 8.8.8.8
 
     gtpg_show "
-show interface
+show carrier-grade-nat config
 show carrier-grade-nat flows 10.0.0.1
+show interface-rule all
+show bpf xsk
 "
-    sleep 4
-
-    gtpg_show "
-show carrier-grade-nat flows 10.0.0.1
-"
-
 }
 
 
@@ -490,18 +492,16 @@ no bpf-program cgn-ng-1
 "
 
     gtpg_conf "
-carrier-grade-nat cgn-ng-1
- description doit_avoir_le_meme_nom_que_le_prog_bpf
- ipv4-pool 37.141.0.0/24
-! interface priv.20 side ingress
-! interface priv.21 side ingress
-! interface priv.22 side ingress
-! interface priv.23 side ingress
-! interface pub.10 side egress
-
 bpf-program cgn-ng-1
  path bin/cgn.bpf
  no shutdown
+
+carrier-grade-nat cgn-ng-1
+ bpf-program cgn-ng-1
+ description doit_avoir_le_meme_nom_que_le_prog_bpf
+ ipv4-pool 37.141.0.0/24
+ interface ingress priv.20 priv.21 priv.22 priv.23
+ interface egress pub.10
 
 interface priv.20
  ip route table-id 1310
@@ -562,9 +562,10 @@ bpf-program cgn-ng-1
 
 carrier-grade-nat cgn-ng-1
  description doit_avoir_le_meme_nom_que_le_prog_bpf
+ bpf-program cgn-ng-1
  ipv4-pool 37.141.0.0/24
-! interface priv.20 side ingress
-! interface pub.10 side egress
+! interface ingress priv.20
+! interface egress pub.10
 
 interface priv.20
  description priv_itf
@@ -608,7 +609,7 @@ bpf-program cgn-ng-1
  no shutdown
 
 carrier-grade-nat cgn-ng-1
- description doit_avoir_le_meme_nom_que_le_prog_bpf
+ bpf-program cgn-ng-1
  ipv4-pool 37.141.0.0/24
 ! interface gre-priv side ingress
 ! interface virt-eth0 side egress
@@ -660,7 +661,8 @@ type=${2:-iface}
 
 case $action in
     clean)
-	clean ;;
+	clean
+	exit 0 ;;
     setup)
 	clean
 	sleep 0.5

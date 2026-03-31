@@ -33,7 +33,7 @@
  */
 int
 pfcp_ie_foreach(const uint8_t *buffer, size_t bsize,
-	        int (*hdl) (void *, void *, const uint8_t *), void *arg1, void *arg2)
+		int (*hdl) (void *, void *, const uint8_t *), void *arg1, void *arg2)
 {
 	struct pfcp_ie *ie;
 	const uint8_t *cp, *end = buffer + bsize;
@@ -62,8 +62,6 @@ pfcp_ie_decode_bcd_field(const uint8_t **cp, const uint8_t *end, uint64_t *outpu
 	uint8_t len;
 
 	/* init, NULL argument supported */
-	if (!*output)
-		return 0;
 	*output = 0;
 
 	/* bound checking */
@@ -90,14 +88,26 @@ pfcp_ie_decode_user_id(struct pfcp_ie_user_id *uid, uint64_t *imsi, uint64_t *im
 	const uint8_t *end = (const uint8_t *)uid + sizeof(struct pfcp_ie) + ntohs(uid->h.length);
 	const uint8_t *cp = uid->value;
 
-	if (uid->imsif && pfcp_ie_decode_bcd_field(&cp, end, imsi))
-		return -1;
+	if (uid->imsif) {
+		if (pfcp_ie_decode_bcd_field(&cp, end, imsi))
+			return -1;
+	} else {
+		*imsi = 0;
+	}
 
-	if (uid->imeif && pfcp_ie_decode_bcd_field(&cp, end, imei))
-		return -1;
+	if (uid->imeif) {
+		if (pfcp_ie_decode_bcd_field(&cp, end, imei))
+			return -1;
+	} else {
+		*imei = 0;
+	}
 
-	if (uid->msisdnf && pfcp_ie_decode_bcd_field(&cp, end, msisdn))
-		return -1;
+	if (uid->msisdnf) {
+		if (pfcp_ie_decode_bcd_field(&cp, end, msisdn))
+			return -1;
+	} else {
+		*msisdn = 0;
+	}
 
 	return 0;
 }
@@ -304,59 +314,6 @@ pfcp_ie_put_f_teid(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t t
 }
 
 static int
-pfcp_ie_put_pdr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint16_t pdr_id)
-{
-	struct pfcp_ie_pdr_id *ie;
-	unsigned int length = sizeof(*ie);
-
-	if (pfcp_ie_put(pbuff, PFCP_IE_PDR_ID, length) < 0)
-		return -1;
-
-	/* Update Container IE */
-	c->length = htons(ntohs(c->length) + length);
-
-	ie = (struct pfcp_ie_pdr_id *) pbuff->data;
-	ie->rule_id = pdr_id;
-	pkt_buffer_put_data(pbuff, length);
-	pkt_buffer_put_end(pbuff, length);
-	return 0;
-}
-
-int
-pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
-		       const uint32_t teid, const struct in_addr *ipv4,
-		       const struct in6_addr *ipv6)
-{
-	struct pfcp_ie *ie_created_pdr = (struct pfcp_ie *) pbuff->data;
-	int err;
-
-	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_PDR);
-	err = (err) ? : pfcp_ie_put_pdr_id(pbuff, ie_created_pdr, pdr_id);
-	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_pdr, teid, ipv4, ipv6);
-
-	return err;
-}
-
-static int
-pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
-{
-	struct pfcp_ie_traffic_endpoint_id *ie;
-	unsigned int length = sizeof(*ie);
-
-	if (pfcp_ie_put(pbuff, PFCP_IE_TRAFFIC_ENDPOINT_ID, length) < 0)
-		return -1;
-
-	/* Update Container IE */
-	c->length = htons(ntohs(c->length) + length);
-
-	ie = (struct pfcp_ie_traffic_endpoint_id *) pbuff->data;
-	ie->value = id;
-	pkt_buffer_put_data(pbuff, length);
-	pkt_buffer_put_end(pbuff, length);
-	return 0;
-}
-
-static int
 pfcp_ie_put_ue_ip_address(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 			  const struct in_addr *ipv4, const struct in6_addr *ipv6)
 {
@@ -401,6 +358,61 @@ pfcp_ie_put_ue_ip_address(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 	return 0;
 }
 
+static int
+pfcp_ie_put_pdr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint16_t pdr_id)
+{
+	struct pfcp_ie_pdr_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_PDR_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_pdr_id *) pbuff->data;
+	ie->rule_id = pdr_id;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
+int
+pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
+			const uint32_t teid, const struct in_addr *ipv4,
+			const struct in6_addr *ipv6, const struct in_addr *ue_ipv4,
+			const struct in6_addr *ue_ipv6)
+{
+	struct pfcp_ie *ie_created_pdr = (struct pfcp_ie *) pbuff->data;
+	int err;
+
+	err = pfcp_ie_put_type(pbuff, PFCP_IE_CREATED_PDR);
+	err = (err) ? : pfcp_ie_put_pdr_id(pbuff, ie_created_pdr, pdr_id);
+	err = (err) ? : pfcp_ie_put_f_teid(pbuff, ie_created_pdr, teid, ipv4, ipv6);
+	err = (err) ? : pfcp_ie_put_ue_ip_address(pbuff, ie_created_pdr, ue_ipv4, ue_ipv6);
+
+	return err;
+}
+
+static int
+pfcp_ie_put_te_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint8_t id)
+{
+	struct pfcp_ie_traffic_endpoint_id *ie;
+	unsigned int length = sizeof(*ie);
+
+	if (pfcp_ie_put(pbuff, PFCP_IE_TRAFFIC_ENDPOINT_ID, length) < 0)
+		return -1;
+
+	/* Update Container IE */
+	c->length = htons(ntohs(c->length) + length);
+
+	ie = (struct pfcp_ie_traffic_endpoint_id *) pbuff->data;
+	ie->value = id;
+	pkt_buffer_put_data(pbuff, length);
+	pkt_buffer_put_end(pbuff, length);
+	return 0;
+}
+
 int
 pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id, const uint32_t teid,
 		       const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,
@@ -431,7 +443,7 @@ pfcp_ie_put_urr_id(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t i
 	c->length = htons(ntohs(c->length) + length);
 
 	ie = (struct pfcp_ie_urr_id *) pbuff->data;
-	ie->value = id;
+	ie->value = htonl(id);
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
@@ -457,7 +469,8 @@ pfcp_ie_put_ur_seqn(struct pkt_buffer *pbuff, struct pfcp_ie *c, const uint32_t 
 }
 
 static int
-pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c, bool term)
+pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c,
+		       union pfcp_usage_report_trigger rtrig)
 {
 	struct pfcp_ie_usage_report_trigger *ie;
 	unsigned int length = sizeof(*ie);
@@ -469,8 +482,7 @@ pfcp_ie_put_ur_trigger(struct pkt_buffer *pbuff, struct pfcp_ie *c, bool term)
 	c->length = htons(ntohs(c->length) + length);
 
 	ie = (struct pfcp_ie_usage_report_trigger *) pbuff->data;
-	ie->immer = 1;		/* Immediate report */
-	ie->termr = (term);	/* Termination report */
+	ie->v = rtrig;
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
@@ -608,46 +620,6 @@ pfcp_ie_put_time_last_pkt(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 }
 
 static int
-pfcp_ie_put_usage_report(uint8_t type, struct pkt_buffer *pbuff, uint32_t id,
-			 uint32_t start_time, uint32_t end_time, uint32_t seqn,
-			 bool termr,
-			 struct pfcp_metrics_pkt *uplink,
-			 struct pfcp_metrics_pkt *downlink)
-{
-	struct pfcp_ie *ie_usage_report = (struct pfcp_ie *) pbuff->data;
-	uint32_t duration = end_time - start_time;
-	int err;
-
-	err = pfcp_ie_put_type(pbuff, type);
-	err = (err) ? : pfcp_ie_put_urr_id(pbuff, ie_usage_report, id);
-	err = (err) ? : pfcp_ie_put_ur_seqn(pbuff, ie_usage_report, seqn);
-	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report, termr);
-	err = (err) ? : pfcp_ie_put_start_time(pbuff, ie_usage_report, start_time);
-	err = (err) ? : pfcp_ie_put_end_time(pbuff, ie_usage_report, end_time);
-	err = (err) ? : pfcp_ie_put_volume_measurement(pbuff, ie_usage_report,
-						       uplink, downlink);
-	err = (err) ? : pfcp_ie_put_duration_measurement(pbuff, ie_usage_report,
-							 duration);
-	if (!pfcp_metrics_pkt_is_null(uplink) && !pfcp_metrics_pkt_is_null(downlink)) {
-		err = (err) ? : pfcp_ie_put_time_first_pkt(pbuff, ie_usage_report, start_time);
-		err = (err) ? : pfcp_ie_put_time_last_pkt(pbuff, ie_usage_report, end_time);
-	}
-
-	return err;
-}
-
-int
-pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
-				  uint32_t start_time, uint32_t end_time, uint32_t seqn,
-				  struct pfcp_metrics_pkt *uplink,
-				  struct pfcp_metrics_pkt *downlink)
-{
-	return pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT_DELETION, pbuff, id,
-					start_time, end_time, seqn, true,
-					uplink, downlink);
-}
-
-static int
 pfcp_ie_put_query_urr_ref(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 			  const uint32_t query_urr_ref)
 {
@@ -668,23 +640,6 @@ pfcp_ie_put_query_urr_ref(struct pkt_buffer *pbuff, struct pfcp_ie *c,
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
-}
-
-int
-pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
-				 uint32_t id, uint32_t start_time, uint32_t end_time,
-				 uint32_t seqn, struct pfcp_metrics_pkt *uplink,
-				 struct pfcp_metrics_pkt *downlink)
-{
-	struct pfcp_ie *ie_usage_report = (struct pfcp_ie *) pbuff->data;
-	int err;
-
-	err = pfcp_ie_put_usage_report(PFCP_IE_USAGE_REPORT, pbuff, id,
-				       start_time, end_time, seqn, false,
-				       uplink, downlink);
-	err  = (err) ? : pfcp_ie_put_query_urr_ref(pbuff, ie_usage_report, query_urr_ref);
-
-	return err;
 }
 
 int
@@ -721,4 +676,39 @@ pfcp_ie_put_additional_usage_reports_info(struct pkt_buffer *pbuff, bool auri,
 	pkt_buffer_put_data(pbuff, length);
 	pkt_buffer_put_end(pbuff, length);
 	return 0;
+}
+
+
+int
+pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint8_t type, uint32_t id,
+			 uint32_t seqn, union pfcp_usage_report_trigger rtrig,
+			 uint32_t query_urr_ref, uint32_t pkt_first, uint32_t pkt_last,
+			 uint32_t start_time, uint32_t end_time, int duration,
+			 struct pfcp_metrics_pkt *uplink,
+			 struct pfcp_metrics_pkt *downlink)
+{
+	struct pfcp_ie *ie_usage_report = (struct pfcp_ie *) pbuff->data;
+	int err;
+
+	err = pfcp_ie_put_type(pbuff, type);
+	err = (err) ? : pfcp_ie_put_urr_id(pbuff, ie_usage_report, id);
+	err = (err) ? : pfcp_ie_put_ur_seqn(pbuff, ie_usage_report, seqn);
+	err = (err) ? : pfcp_ie_put_ur_trigger(pbuff, ie_usage_report, rtrig);
+	err = (err) ? : pfcp_ie_put_start_time(pbuff, ie_usage_report, start_time);
+	err = (err) ? : pfcp_ie_put_end_time(pbuff, ie_usage_report, end_time);
+	if (pkt_first && pkt_last) {
+		err = (err) ? : pfcp_ie_put_time_first_pkt(pbuff, ie_usage_report, pkt_first);
+		err = (err) ? : pfcp_ie_put_time_last_pkt(pbuff, ie_usage_report, pkt_last);
+	}
+	if (uplink && downlink)
+		err = (err) ? : pfcp_ie_put_volume_measurement(pbuff, ie_usage_report,
+							       uplink, downlink);
+	if (duration >= 0)
+		err = (err) ? : pfcp_ie_put_duration_measurement(pbuff, ie_usage_report,
+								 duration);
+	if (query_urr_ref)
+		err  = (err) ? : pfcp_ie_put_query_urr_ref(pbuff, ie_usage_report,
+							   query_urr_ref);
+
+	return err;
 }

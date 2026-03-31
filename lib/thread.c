@@ -345,6 +345,7 @@ thread_make_master(bool nosignal)
 	INIT_LIST_HEAD(&new->event);
 	INIT_LIST_HEAD(&new->ready);
 	INIT_LIST_HEAD(&new->unuse);
+	new->signal_fd = -1;
 
 	/* Register timerfd thread */
 	new->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);

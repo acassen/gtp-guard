@@ -39,7 +39,6 @@ struct data {
 	struct inet_server	metrics_channel;
 	char			restart_counter_filename[GTP_STR_MAX_LEN];
 	uint8_t			restart_counter;
-	unsigned		nl_rcvbuf_size;
 
 	struct list_head	mirror;
 	struct list_head	cgn;

@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <stdio.h>
@@ -441,30 +441,20 @@ pkt_buffer_pad(struct pkt_buffer *b, unsigned int size)
 struct pkt_buffer *
 pkt_buffer_alloc(unsigned int size)
 {
-	struct pkt_buffer *new;
-	void *data;
+	struct pkt_buffer *b;
 
-	PMALLOC(new);
-	if (!new)
+	b = calloc(1, sizeof (*b) + size);
+	if (!b)
 		return NULL;
-	data = MALLOC(size);
-	if (!data) {
-		FREE(new);
-		return NULL;
-	}
 
-	new->head = data;
-	new->data = new->end = data;
-	new->tail = data + size;
+	b->tail = b->head + size;
+	b->data = b->end = b->head;
 
-	return new;
+	return b;
 }
 
 void
 pkt_buffer_free(struct pkt_buffer *b)
 {
-	if (!b)
-		return;
-	FREE(b->head);
-	FREE(b);
+	free(b);
 }

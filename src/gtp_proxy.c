@@ -355,21 +355,6 @@ gtp_proxy_iface_tun_event_cb(struct gtp_interface *iface,
 		ctx->ipip_iface = NULL;
 }
 
-void
-gtp_proxy_rules_set(void *ud, struct gtp_interface *from, bool from_ingress,
-		    struct gtp_interface *to, bool add)
-{
-	struct gtp_if_rule ifr = {
-		.from = from,
-		.action = 10,
-		.prio = from_ingress ? 100 : 500,
-	};
-	if (from == to)
-		ifr.prio -= 10;
-	gtp_bpf_ifrules_set(&ifr, add);
-}
-
-
 struct gtp_proxy *
 gtp_proxy_get(const char *name)
 {

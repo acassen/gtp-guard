@@ -13,27 +13,8 @@
 
 #include "tools.h"
 #include "if_rule-def.h"
-
-
-/*
- * this is an optional way to add custom data to if_rule key: define
- * if_rule_key, IF_RULE_CUSTOM_KEY, and add a parser function to
- * if_rule_data.
- */
-#ifndef IF_RULE_CUSTOM_KEY
-
-struct if_rule_key
-{
-	struct if_rule_key_base b;
-} __attribute__((packed));
-typedef void *rule_selector_t;
-
-#else /* ifdef IF_RULE_CUSTOM_KEY */
-
-struct if_rule_data;
-typedef int (*rule_selector_t)(struct if_rule_data *d, struct iphdr *iph);
-
-#endif
+#include "if_rule-priv.h"
+#include "capture.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
@@ -51,36 +32,11 @@ struct {
 } if_rule_attr SEC(".maps");
 
 
-
-#define IF_RULE_FL_SRC_IPV6		0x0001
-#define IF_RULE_FL_DST_IPV6		0x0002
-#define IF_RULE_FL_XDP_ADJUSTED		0x0004
-
-struct if_rule_data
-{
-	struct if_rule_key	k;
-	struct if_rule		*r;
-	__u16			flags;
-	__u16			pl_off;
-	union v4v6addr		dst_addr;
-};
-
-
-
 static __always_inline int
-_acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
-	  rule_selector_t rscb, struct iphdr *iph)
+_rule_selector_def(struct if_rule_data *d, struct iphdr *iph)
 {
 	struct if_rule_key_base *k = &d->k.b;
-	int action = XDP_PASS;
 
-	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%pI4|%pI4",
-		ctx->ingress_ifindex, k->ifindex, k->vlan_id,
-		&k->tun_local, &k->tun_remote);
-
-#ifdef IF_RULE_CUSTOM_KEY
-	action = rscb(d, iph);
-#else
 	if (k->tun_remote) {
 		/* tunnels are not bound to specific interface.
 		 * remove these info for map lookup */
@@ -94,10 +50,26 @@ _acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
 	} else {
 		d->r = bpf_map_lookup_elem(&if_rule, k);
 	}
-#endif
+	return XDP_PASS;
+}
 
-	if (d->r == NULL)
+static __always_inline int
+_acl_ipv4(struct xdp_md	*ctx, struct if_rule_data *d,
+	  rule_selector_t rscb, struct iphdr *iph)
+{
+	struct if_rule_key_base *k = &d->k.b;
+	int action;
+
+	IFR_DBG("acl: in if:%d, searching if:%d vlan:%d tun:%pI4|%pI4",
+		ctx->ingress_ifindex, k->ifindex, k->vlan_id,
+		&k->tun_local, &k->tun_remote);
+
+	action = rscb(d, iph);
+
+	if (d->r == NULL) {
+		IFR_DBG("no rule found");
 		return action;
+	}
 
 	IFR_DBG("got the rule! action:%d table:%d", d->r->action, d->r->table_id);
 
@@ -135,7 +107,7 @@ _acl_ipv6(struct xdp_md	*ctx, struct if_rule_data *d, struct ipv6hdr *ip6h)
  *
  * looks in 'if_rule' a rule that can match incoming trafic.
  *
- * thes rules are set by userapp. if found, rule gives an 'action'.
+ * if_rules are set by userapp. if found, rule gives an 'action'.
  * action is either XDP_*, or a custom value that caller will know.
  *
  * eg. for cgn: 10 for traffic coming from 'network-in', 11 for
@@ -145,8 +117,8 @@ _acl_ipv6(struct xdp_md	*ctx, struct if_rule_data *d, struct ipv6hdr *ip6h)
  *   - returns XDP_PASS on unsupported protocols
  *   - returns XDP_DROP on invalid packets
  */
-static __attribute__((noinline)) int
-if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rscb)
+static __always_inline int
+_if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d, rule_selector_t rscb)
 {
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
@@ -251,6 +223,18 @@ if_rule_parse_pkt(struct xdp_md	*ctx, struct if_rule_data *d, rule_selector_t rs
 	}
 }
 
+static __attribute__((noinline)) int
+if_rule_parse_pkt_sel(struct xdp_md *ctx, struct if_rule_data *d, rule_selector_t rscb)
+{
+	return _if_rule_parse_pkt(ctx, d, rscb);
+}
+
+static __attribute__((noinline)) int
+if_rule_parse_pkt(struct xdp_md *ctx, struct if_rule_data *d)
+{
+	return _if_rule_parse_pkt(ctx, d, _rule_selector_def);
+}
+
 
 /*
  * rewrite packet according to 'if_rule'. usually the latest
@@ -268,7 +252,7 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 	struct if_rule *r = d->r;
 	void *data, *data_end, *payload;
 	struct ethhdr *ethh;
-	int fibl_ret, adjust_sz;
+	int i, fibl_ret, adjust_sz;
 	__u32 flags;
 
 	if (r->force_ifindex) {
@@ -385,23 +369,32 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 		/* adjusted somewhere else. rewrite all eth/vlan fields */
 		if (d->flags & IF_RULE_FL_XDP_ADJUSTED)
 			adjust_sz = 1;
+		else {
+			/* switch from/to ipv4/ipv6 */
+			__u8 fl = d->flags & 0x03;
+			if (fl == IF_RULE_FL_SRC_IPV6 || fl == IF_RULE_FL_DST_IPV6)
+				adjust_sz = 1;
+		}
 	}
 
 	/* build output packet iface encap */
 	ethh = data = (void *)(long)ctx->data;
 	data_end = (void *)(long)ctx->data_end;
 
-	if (a->vlan_id && (k->vlan_id != a->vlan_id || adjust_sz)) {
-		/* need to set/modify vlan hdr */
+	if (a->vlan_id) {
 		struct vlan_hdr *vlanh = (struct vlan_hdr *)(ethh + 1);
+
 		if ((void *)(vlanh + 1) > data_end)
 			return XDP_DROP;
 
-		vlanh->vlan_tci = bpf_ntohs(a->vlan_id);
-		vlanh->next_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
-			__constant_htons(ETH_P_IPV6) :
-			__constant_htons(ETH_P_IP);
-		ethh->h_proto = __constant_htons(ETH_P_8021Q);
+		/* need to set/modify vlan hdr */
+		if ((k->vlan_id != a->vlan_id || adjust_sz)) {
+			vlanh->vlan_tci = bpf_ntohs(a->vlan_id);
+			vlanh->next_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+				__constant_htons(ETH_P_IPV6) :
+				__constant_htons(ETH_P_IP);
+			ethh->h_proto = __constant_htons(ETH_P_8021Q);
+		}
 		payload = vlanh + 1;
 
 	} else {
@@ -409,10 +402,11 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 			return XDP_DROP;
 
 		/* remove vlan header */
-		ethh->h_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
-			__constant_htons(ETH_P_IPV6) :
-			__constant_htons(ETH_P_IP);
-
+		if (adjust_sz) {
+			ethh->h_proto = d->flags & IF_RULE_FL_DST_IPV6 ?
+				__constant_htons(ETH_P_IPV6) :
+				__constant_htons(ETH_P_IP);
+		}
 		payload = ethh + 1;
 	}
 
@@ -459,6 +453,14 @@ if_rule_rewrite_pkt(struct xdp_md *ctx, struct if_rule_data *d)
 
 	__builtin_memcpy(ethh->h_source, fibp.smac, ETH_ALEN);
 	__builtin_memcpy(ethh->h_dest, fibp.dmac, ETH_ALEN);
+
+	/* output capture(s) should be done once full headers rewrite is done */
+#pragma unroll
+	for (i = 0; i < ARRAY_SIZE(d->cap_entries) && d->cap_entries[i]; i++) {
+		capture_xdp_to_userspc(ctx, data, data_end,
+				       d->cap_entries[i], d->cap_len[i],
+				       BPF_CAPTURE_EFL_OUTPUT);
+	}
 
 	if (a->ifindex == ctx->ingress_ifindex)
 		return XDP_TX;

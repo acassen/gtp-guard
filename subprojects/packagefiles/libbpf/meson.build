@@ -55,7 +55,7 @@ libbpf_lib = static_library(
 
 libbpf_dep = declare_dependency(
   link_with: libbpf_lib,
-  include_directories: ['src'],
+  include_directories: ['.'],
   dependencies: [libelf_dep, zlib_dep],
   variables: [
     'includedir=' + meson.project_source_root(),

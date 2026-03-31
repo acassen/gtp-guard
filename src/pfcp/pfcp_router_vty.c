@@ -817,21 +817,6 @@ DEFUN(show_pfcp_bpf,
  *	Configuration writer
  */
 static int
-config_pfcp_router_debug(struct vty *vty, struct pfcp_router *c)
-{
-	if (!c->debug)
-		return -1;
-
-	vty_out(vty, " debug ");
-	if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG, &c->debug))
-		vty_out(vty, "ingress_msg");
-	if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
-		vty_out(vty, "|egress_msg");
-	vty_out(vty, "%s", VTY_NEWLINE);
-	return 0;
-}
-
-static int
 config_pfcp_router_write(struct vty *vty)
 {
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
@@ -841,10 +826,13 @@ config_pfcp_router_write(struct vty *vty)
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "pfcp-router %s%s", c->name, VTY_NEWLINE);
-		config_pfcp_router_debug(vty, c);
 		if (c->description[0])
 			vty_out(vty, " description %s%s"
 				   , c->description, VTY_NEWLINE);
+		if (__test_bit(PFCP_DEBUG_FL_INGRESS_MSG, &c->debug))
+			vty_out(vty, " debug ingress_msg\n");
+		if (__test_bit(PFCP_DEBUG_FL_EGRESS_MSG, &c->debug))
+			vty_out(vty, " debug egress_msg\n");
 		if (c->node_id_len)
 			vty_out(vty, " node-id %s%s"
 				   , inet_fqdn2str(node_id, GTP_STR_MAX_LEN,

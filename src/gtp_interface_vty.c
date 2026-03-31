@@ -78,7 +78,7 @@ gtp_interface_show(struct gtp_interface *iface, void *arg)
 			   , addr_stringify(&iface->tunnel_remote
 					    , addr2_str, sizeof (addr2_str))
 			   , VTY_NEWLINE);
-	if (__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags))
+	if (__test_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags))
 		vty_out(vty, " bpf-input-pkt: rule-disabled\n");
 	if (iface->direct_tx_gw.family)
 		vty_out(vty, " direct-tx-gw:%s ll_addr:" ETHER_FMT "%s"
@@ -114,7 +114,6 @@ DEFUN(interface,
 
 	vty->node = INTERFACE_NODE;
 	vty->index = new;
-	gtp_interface_put(new);
 	return CMD_SUCCESS;
 }
 
@@ -132,8 +131,8 @@ DEFUN(no_interface,
 		return CMD_WARNING;
 	}
 
-	gtp_interface_put(iface);
 	gtp_interface_destroy(iface);
+
 	return CMD_SUCCESS;
 }
 
@@ -187,7 +186,6 @@ DEFUN(interface_bpf_prog,
 		vty_out(vty, "%% bpf-program:'%s' already loaded on this interface%s"
 			   , iface->bpf_prog->name
 			   , VTY_NEWLINE);
-		gtp_bpf_prog_put(p);
 		return CMD_WARNING;
 	}
 
@@ -211,9 +209,9 @@ DEFUN(interface_bpf_pkt,
 	bool set = !strcmp(argv[0], "default");
 
 	if (set)
-		__clear_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
+		__clear_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags);
 	else
-		__set_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags);
+		__set_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags);
 
 	gtp_bpf_ifrules_set_auto_input_rule(iface, set);
 
@@ -391,6 +389,80 @@ DEFUN(interface_no_shutdown,
 	return CMD_SUCCESS;
 }
 
+/* Capture */
+DEFUN(capture_start_interface,
+      capture_start_interface_cmd,
+      "capture interface IFNAME start [CAPENTRY side (input|output|both) caplen <32-10000>]",
+      "Capture menu\n"
+      "Capture interface submenu\n"
+      "Interface name\n"
+      "Start capture\n"
+      "Capture file entry\n"
+      "Capture side, on interface entry and/or exit\n"
+      "Capture on interface ingress/input\n"
+      "Capture on interface egress/output\n"
+      "Capture on interface ingress and egress\n"
+      "Capture packet max length\n"
+      "Value\n")
+{
+	struct gtp_interface *iface = NULL;
+	char capname[64];
+
+	iface = gtp_interface_get(argv[0], false);
+	if (!iface) {
+		vty_out(vty, "%% Unknown interface:'%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	if (iface->bpf_prog == NULL) {
+		vty_out(vty, "%% No bpf-program attached to interface %s\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	if (argc > 1)
+		snprintf(capname, sizeof (capname), "%s", argv[1]);
+	else
+		snprintf(capname, sizeof (capname), "%s", iface->ifname);
+
+	iface->capture_entry.flags = 0;
+	if (argc > 3) {
+		if (!strcmp(argv[3], "output") || !strcmp(argv[3], "both"))
+			iface->capture_entry.flags |= GTP_CAPTURE_FL_OUTPUT;
+		if (!strcmp(argv[3], "input") || !strcmp(argv[3], "both"))
+			iface->capture_entry.flags |= GTP_CAPTURE_FL_INPUT;
+	} else {
+		iface->capture_entry.flags |= GTP_CAPTURE_FL_INPUT;
+	}
+
+	if (gtp_capture_start_iface(&iface->capture_entry, iface->bpf_prog,
+				    capname, iface->ifindex)) {
+		vty_out(vty, "%% Error starting interface trace\n");
+		return CMD_WARNING;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(capture_stop_interface,
+      capture_stop_interface_cmd,
+      "capture interface IFNAME stop",
+      "Capture menu\n"
+      "Capture interface submenu\n"
+      "Interface name\n"
+      "Stop capture\n")
+{
+	struct gtp_interface *iface = NULL;
+
+	iface = gtp_interface_get(argv[0], false);
+	if (!iface) {
+		vty_out(vty, "%% Unknown interface:'%s'\n", argv[0]);
+		return CMD_WARNING;
+	}
+
+	gtp_capture_stop(&iface->capture_entry);
+
+	return CMD_SUCCESS;
+}
 
 /* Show */
 DEFUN(show_interface_topology,
@@ -441,7 +513,6 @@ DEFUN(show_interface,
 		}
 
 		gtp_interface_show(iface, vty);
-		gtp_interface_put(iface);
 		return CMD_SUCCESS;
 	}
 
@@ -463,7 +534,7 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " description %s%s", iface->description, VTY_NEWLINE);
 		if (iface->bpf_prog)
 			vty_out(vty, " bpf-program %s%s", iface->bpf_prog->name, VTY_NEWLINE);
-		if (__test_bit(GTP_INTERFACE_FL_BFP_NO_DEFAULT_ROUTE_BIT, &iface->flags))
+		if (__test_bit(GTP_INTERFACE_FL_BPF_NO_DEFAULT_ROUTE_BIT, &iface->flags))
 			vty_out(vty, " bpf-packet input disable-rule\n");
 		if (__test_bit(GTP_INTERFACE_FL_DIRECT_TX_GW_BIT, &iface->flags))
 			vty_out(vty, " direct-tx-gw %s%s"
@@ -517,6 +588,10 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &no_interface_metrics_link_cmd);
 	install_element(INTERFACE_NODE, &interface_shutdown_cmd);
 	install_element(INTERFACE_NODE, &interface_no_shutdown_cmd);
+
+	/* Install capture commands */
+	install_element(ENABLE_NODE, &capture_start_interface_cmd);
+	install_element(ENABLE_NODE, &capture_stop_interface_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_interface_cmd);

@@ -28,6 +28,11 @@
 #include "pfcp_metrics.h"
 #include "pkt_buffer.h"
 
+#if __BYTE_ORDER != __LITTLE_ENDIAN && __BYTE_ORDER != __BIG_ENDIAN
+#error "Please fix <asm/byteorder.h>"
+#endif
+
+
 /*
  * PFCP (Packet Forwarding Control Protocol) Information Elements
  * Based on 3GPP TS 29.244 8.2
@@ -352,8 +357,6 @@ struct pfcp_ie_f_teid {
 			uint8_t ch:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		} __attribute__((packed));
 	};
@@ -399,8 +402,6 @@ struct pfcp_ie_sdf_filter {
 			uint8_t spi:1;
 			uint8_t ttc:1;
 			uint8_t fd:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -424,8 +425,6 @@ struct pfcp_ie_gate_status {
 	uint8_t spare:4;
 	uint8_t ul_gate:2;
 	uint8_t dl_gate:2;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 	uint8_t value[];
 } __attribute__((packed));
@@ -480,8 +479,6 @@ struct pfcp_ie_volume_threshold {
 			uint8_t dlvol:1;
 			uint8_t ulvol:1;
 			uint8_t tovol:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -518,8 +515,6 @@ struct pfcp_ie_subsequent_volume_threshold {
 			uint8_t dlvol:1;
 			uint8_t ulvol:1;
 			uint8_t tovol:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -541,50 +536,49 @@ struct pfcp_ie_inactivity_detection_time {
 } __attribute__((packed));
 
 /* Reporting Triggers IE */
+union pfcp_reporting_triggers {
+	uint16_t triggers;
+	struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		uint16_t perio:1;
+		uint16_t volth:1;
+		uint16_t timth:1;
+		uint16_t quhti:1;
+		uint16_t start:1;
+		uint16_t stopt:1;
+		uint16_t droth:1;
+		uint16_t liusa:1;
+		uint16_t volqu:1;
+		uint16_t timqu:1;
+		uint16_t envcl:1;
+		uint16_t macar:1;
+		uint16_t eveth:1;
+		uint16_t evequ:1;
+		uint16_t ipmjl:1;
+		uint16_t quvti:1;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+		uint16_t quvti:1;
+		uint16_t ipmjl:1;
+		uint16_t evequ:1;
+		uint16_t eveth:1;
+		uint16_t macar:1;
+		uint16_t envcl:1;
+		uint16_t timqu:1;
+		uint16_t volqu:1;
+		uint16_t liusa:1;
+		uint16_t droth:1;
+		uint16_t stopt:1;
+		uint16_t start:1;
+		uint16_t quhti:1;
+		uint16_t timth:1;
+		uint16_t volth:1;
+		uint16_t perio:1;
+#endif
+	};
+};
 struct pfcp_ie_reporting_triggers {
 	struct pfcp_ie h;
-	union {
-		uint16_t triggers;
-		struct {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint16_t perio:1;
-			uint16_t volth:1;
-			uint16_t timth:1;
-			uint16_t quhti:1;
-			uint16_t start:1;
-			uint16_t stopt:1;
-			uint16_t droth:1;
-			uint16_t liusa:1;
-			uint16_t volqu:1;
-			uint16_t timqu:1;
-			uint16_t envcl:1;
-			uint16_t macar:1;
-			uint16_t eveth:1;
-			uint16_t evequ:1;
-			uint16_t ipmjl:1;
-			uint16_t quvti:1;
-#elif __BYTE_ORDER == __BIG_ENDIAN
-			uint16_t quvti:1;
-			uint16_t ipmjl:1;
-			uint16_t evequ:1;
-			uint16_t eveth:1;
-			uint16_t macar:1;
-			uint16_t envcl:1;
-			uint16_t timqu:1;
-			uint16_t volqu:1;
-			uint16_t liusa:1;
-			uint16_t droth:1;
-			uint16_t stopt:1;
-			uint16_t start:1;
-			uint16_t quhti:1;
-			uint16_t timth:1;
-			uint16_t volth:1;
-			uint16_t perio:1;
-#else
-#error "Please fix <asm/byteorder.h>"
-#endif
-		};
-	};
+	union pfcp_reporting_triggers v;
 } __attribute__((packed));
 
 /* Redirect Information IE */
@@ -620,8 +614,6 @@ struct pfcp_ie_report_type {
 			uint8_t erir:1;
 			uint8_t usar:1;
 			uint8_t dldr:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -762,8 +754,6 @@ struct pfcp_ie_up_function_features {
 			uint8_t vtime:1;
 			uint8_t rttl:1;
 			uint8_t mpas:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -793,8 +783,6 @@ struct pfcp_ie_apply_action {
 			uint8_t buff:1;
 			uint8_t forw:1;
 			uint8_t drop:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -814,8 +802,6 @@ struct pfcp_ie_downlink_data_service_information {
 			uint8_t spare:6;
 			uint8_t qfii:1;
 			uint8_t ppi:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -866,8 +852,6 @@ struct pfcp_ie_pfcpsmreq_flags {
 			uint8_t qaurr:1;
 			uint8_t sndem:1;
 			uint8_t drobu:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -885,8 +869,6 @@ struct pfcp_ie_pfcpsrrsp_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t drobu:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -931,8 +913,6 @@ struct pfcp_ie_f_seid {
 			uint8_t spare:6;
 			uint8_t v4:1;
 			uint8_t v6:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -963,8 +943,6 @@ struct pfcp_ie_node_id {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:4;
 			uint8_t type:4;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -999,8 +977,6 @@ struct pfcp_ie_pfd_contents {
 			uint8_t dn:1;
 			uint8_t url:1;
 			uint8_t fd:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1008,73 +984,71 @@ struct pfcp_ie_pfd_contents {
 } __attribute__((packed));
 
 /* Measurement Method IE */
+union pfcp_measurement_method {
+	uint8_t measurement_method;
+	struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		uint8_t durat:1;
+		uint8_t volum:1;
+		uint8_t event:1;
+		uint8_t spare:5;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+		uint8_t spare:5;
+		uint8_t event:1;
+		uint8_t volum:1;
+		uint8_t durat:1;
+#endif
+	};
+};
 struct pfcp_ie_measurement_method {
 	struct pfcp_ie h;
-	union {
-		uint8_t measurement_method;
-		struct {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint8_t durat:1;
-			uint8_t volum:1;
-			uint8_t event:1;
-			uint8_t spare:5;
-#elif __BYTE_ORDER == __BIG_ENDIAN
-			uint8_t spare:5;
-			uint8_t event:1;
-			uint8_t volum:1;
-			uint8_t durat:1;
-#else
-#error "Please fix <asm/byteorder.h>"
-#endif
-		};
-	};
+	union pfcp_measurement_method v;
 } __attribute__((packed));
 
 /* Usage Report Trigger IE */
+union pfcp_usage_report_trigger {
+	uint16_t trigger_flags;
+	struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		uint16_t perio:1;
+		uint16_t volth:1;
+		uint16_t timth:1;
+		uint16_t quhti:1;
+		uint16_t start:1;
+		uint16_t stopt:1;
+		uint16_t droth:1;
+		uint16_t immer:1;
+		uint16_t volqu:1;
+		uint16_t timqu:1;
+		uint16_t liusa:1;
+		uint16_t termr:1;
+		uint16_t monit:1;
+		uint16_t envcl:1;
+		uint16_t macar:1;
+		uint16_t eveth:1;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+		uint16_t eveth:1;
+		uint16_t macar:1;
+		uint16_t envcl:1;
+		uint16_t monit:1;
+		uint16_t termr:1;
+		uint16_t liusa:1;
+		uint16_t timqu:1;
+		uint16_t volqu:1;
+		uint16_t immer:1;
+		uint16_t droth:1;
+		uint16_t stopt:1;
+		uint16_t start:1;
+		uint16_t quhti:1;
+		uint16_t timth:1;
+		uint16_t volth:1;
+		uint16_t perio:1;
+#endif
+	};
+};
 struct pfcp_ie_usage_report_trigger {
 	struct pfcp_ie h;
-	union {
-		uint16_t trigger_flags;
-		struct {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint16_t perio:1;
-			uint16_t volth:1;
-			uint16_t timth:1;
-			uint16_t quhti:1;
-			uint16_t start:1;
-			uint16_t stopt:1;
-			uint16_t droth:1;
-			uint16_t immer:1;
-			uint16_t volqu:1;
-			uint16_t timqu:1;
-			uint16_t liusa:1;
-			uint16_t termr:1;
-			uint16_t monit:1;
-			uint16_t envcl:1;
-			uint16_t macar:1;
-			uint16_t eveth:1;
-#elif __BYTE_ORDER == __BIG_ENDIAN
-			uint16_t eveth:1;
-			uint16_t macar:1;
-			uint16_t envcl:1;
-			uint16_t monit:1;
-			uint16_t termr:1;
-			uint16_t liusa:1;
-			uint16_t timqu:1;
-			uint16_t volqu:1;
-			uint16_t immer:1;
-			uint16_t droth:1;
-			uint16_t stopt:1;
-			uint16_t start:1;
-			uint16_t quhti:1;
-			uint16_t timth:1;
-			uint16_t volth:1;
-			uint16_t perio:1;
-#else
-#error "Please fix <asm/byteorder.h>"
-#endif
-		};
-	};
+	union pfcp_usage_report_trigger v;
 } __attribute__((packed));
 
 /* Measurement Period IE */
@@ -1095,8 +1069,6 @@ struct pfcp_ie_fq_csid {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t ntype:4;
 			uint8_t num_csid:4;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1130,8 +1102,6 @@ struct pfcp_ie_volume_measurement {
 			uint8_t dlvol:1;
 			uint8_t ulvol:1;
 			uint8_t tovol:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1181,8 +1151,6 @@ struct pfcp_ie_dropped_dl_traffic_threshold {
 			uint8_t spare:6;
 			uint8_t dlby:1;
 			uint8_t dlpa:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1206,8 +1174,6 @@ struct pfcp_ie_volume_quota {
 			uint8_t dlvol:1;
 			uint8_t ulvol:1;
 			uint8_t tovol:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1305,8 +1271,6 @@ struct pfcp_ie_cp_function_features {
 			uint8_t ciot:1;
 			uint8_t rpgur:1;
 			uint8_t psucc:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1330,8 +1294,6 @@ struct pfcp_ie_usage_information {
 			uint8_t uae:1;
 			uint8_t aft:1;
 			uint8_t bef:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1355,8 +1317,6 @@ struct pfcp_ie_flow_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t fd:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1388,8 +1348,6 @@ struct pfcp_ie_ue_ip_address {
 			uint8_t sd:1;
 			uint8_t v4:1;
 			uint8_t v6:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1421,8 +1379,6 @@ struct pfcp_ie_packet_rate {
 			uint8_t aprc:1;
 			uint8_t dlpr:1;
 			uint8_t ulpr:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1467,8 +1423,6 @@ struct pfcp_ie_enrichment {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:3;
 			uint8_t header_type:5;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1477,34 +1431,33 @@ struct pfcp_ie_enrichment {
 } __attribute__((packed));
 
 /* Measurement Information IE */
+union pfcp_measurement_information {
+	uint8_t flags;
+	struct {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		uint8_t mbqe:1;
+		uint8_t inam:1;
+		uint8_t radi:1;
+		uint8_t istm:1;
+		uint8_t mnop:1;
+		uint8_t sspoc:1;
+		uint8_t aspoc:1;
+		uint8_t ciam:1;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+		uint8_t ciam:1;
+		uint8_t aspoc:1;
+		uint8_t sspoc:1;
+		uint8_t mnop:1;
+		uint8_t istm:1;
+		uint8_t radi:1;
+		uint8_t inam:1;
+		uint8_t mbqe:1;
+#endif
+	};
+};
 struct pfcp_ie_measurement_information {
 	struct pfcp_ie h;
-	union {
-		uint8_t flags;
-		struct {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-			uint8_t mbqe:1;
-			uint8_t inam:1;
-			uint8_t radi:1;
-			uint8_t istm:1;
-			uint8_t mnop:1;
-			uint8_t sspoc:1;
-			uint8_t aspoc:1;
-			uint8_t ciam:1;
-#elif __BYTE_ORDER == __BIG_ENDIAN
-			uint8_t ciam:1;
-			uint8_t aspoc:1;
-			uint8_t sspoc:1;
-			uint8_t mnop:1;
-			uint8_t istm:1;
-			uint8_t radi:1;
-			uint8_t inam:1;
-			uint8_t mbqe:1;
-#else
-#error "Please fix <asm/byteorder.h>"
-#endif
-		};
-	};
+	union pfcp_measurement_information v;
 } __attribute__((packed));
 
 /* Node Report Type IE */
@@ -1525,8 +1478,6 @@ struct pfcp_ie_node_report_type {
 			uint8_t ckdr:1;
 			uint8_t uprr:1;
 			uint8_t upfr:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1550,8 +1501,6 @@ struct pfcp_ie_remote_gtp_u_peer {
 			uint8_t di:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1601,8 +1550,6 @@ struct pfcp_ie_oci_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t aoci:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1620,8 +1567,6 @@ struct pfcp_ie_pfcp_association_release_request {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t sarr:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1651,8 +1596,6 @@ struct pfcp_ie_pdn_type {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:5;
 			uint8_t type:3;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1675,8 +1618,6 @@ struct pfcp_ie_failed_rule_id {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:4;
 			uint8_t type:4;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1695,8 +1636,6 @@ struct pfcp_ie_time_quota_mechanism {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:6;
 			uint8_t btit:2;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1723,8 +1662,6 @@ struct pfcp_ie_user_plane_ip_resource_information {
 			uint8_t teidri:3;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1774,8 +1711,6 @@ struct pfcp_ie_subsequent_volume_quota {
 			uint8_t dlvol:1;
 			uint8_t ulvol:1;
 			uint8_t tovol:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1802,8 +1737,6 @@ struct pfcp_ie_rqi {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t rqi:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1821,8 +1754,6 @@ struct pfcp_ie_qfi {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:2;
 			uint8_t qfi:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1848,8 +1779,6 @@ struct pfcp_ie_additional_usage_reports_information {
 			uint8_t auri:1;
 			uint8_t spare:7;
 			uint8_t number_of_additional_usage_reports_value;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1879,8 +1808,6 @@ struct pfcp_ie_mac_address {
 			uint8_t usou:1;
 			uint8_t dest:1;
 			uint8_t sour:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1906,8 +1833,6 @@ struct pfcp_ie_c_tag {
 			uint8_t vid:1;
 			uint8_t dei:1;
 			uint8_t pcp:3;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1932,8 +1857,6 @@ struct pfcp_ie_s_tag {
 			uint8_t vid:1;
 			uint8_t dei:1;
 			uint8_t pcp:3;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1962,8 +1885,6 @@ struct pfcp_ie_proxying {
 			uint8_t spare:6;
 			uint8_t ipv6_nd:1;
 			uint8_t arp:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -1987,8 +1908,6 @@ struct pfcp_ie_ethernet_filter_properties {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t bide:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2024,8 +1943,6 @@ struct pfcp_ie_user_id {
 			uint8_t msisdnf:1;
 			uint8_t imeif:1;
 			uint8_t imsif:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2044,8 +1961,6 @@ struct pfcp_ie_ethernet_pdu_session_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t ethi:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2161,8 +2076,6 @@ struct pfcp_ie_3gpp_interface_type {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t spare:2;
 	uint8_t value:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2175,8 +2088,6 @@ struct pfcp_ie_pfcpsrreq_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t psdbu:1;
 	uint8_t spare:7;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2189,8 +2100,6 @@ struct pfcp_ie_pfcpaureq_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t parps:1;
 	uint8_t spare:7;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2259,8 +2168,6 @@ struct pfcp_ie_alternative_smf_ip_address {
 			uint8_t pfe:1;
 			uint8_t v4:1;
 			uint8_t v6:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2291,8 +2198,6 @@ struct pfcp_ie_pkt_replication_and_detection_carry_on_information {
 	uint8_t priueai:1;
 	uint8_t prin19i:1;
 	uint8_t spare2:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2323,8 +2228,6 @@ struct pfcp_ie_pfcpasrsp_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t uupsi:1;
 	uint8_t spare:7;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2342,8 +2245,6 @@ struct pfcp_ie_cp_pfcp_entity_ip_address {
 			uint8_t spare:6;
 			uint8_t v4:1;
 			uint8_t v6:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2366,8 +2267,6 @@ struct pfcp_ie_pfcpsereq_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t sumpc:1;
 	uint8_t spare:7;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2388,8 +2287,6 @@ struct pfcp_ie_ip_multicast_address {
 	uint8_t v6:1;
 	uint8_t v4:1;
 	uint8_t spare2:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 	union {
 		struct {
@@ -2421,8 +2318,6 @@ struct pfcp_ie_source_ip_address {
 			uint8_t mpl:1;
 			uint8_t v4:1;
 			uint8_t v6:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2454,8 +2349,6 @@ struct pfcp_ie_packet_rate_status {
 	uint8_t apr2:1;
 	uint8_t dl:1;
 	uint8_t spare2:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 	uint16_t ul_time_unit;
 	uint32_t max_ul_packet_rate;
@@ -2474,8 +2367,6 @@ struct pfcp_ie_create_bridge_router_info {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 	uint8_t bir:1;
 	uint8_t spare:7;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2502,8 +2393,6 @@ struct pfcp_ie_5gs_user_plane_node {
 	uint8_t vid:1;
 	uint8_t bid:1;
 	uint8_t spare:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 	uint8_t value[];
 } __attribute__((packed));
@@ -2525,8 +2414,6 @@ struct pfcp_ie_requested_clock_drift_information {
 	uint8_t rrto:1;
 	uint8_t rrcr:1;
 	uint8_t spare:6;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 } __attribute__((packed));
 
@@ -2591,8 +2478,6 @@ struct pfcp_ie_mptcp_control_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t tci:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2610,8 +2495,6 @@ struct pfcp_ie_atsss_ll_control_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t lli:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2629,8 +2512,6 @@ struct pfcp_ie_pmf_control_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:5;
 			uint8_t pmfi:3;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2651,8 +2532,6 @@ struct pfcp_ie_mptcp_address_information {
 			uint8_t spare:6;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2685,8 +2564,6 @@ struct pfcp_ie_ue_link_specific_ip_address {
 			uint8_t nv4:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2724,8 +2601,6 @@ struct pfcp_ie_pmf_address_information {
 			uint8_t mac:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2761,8 +2636,6 @@ struct pfcp_ie_atsss_ll_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t lli:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2807,8 +2680,6 @@ struct pfcp_ie_qos_report_trigger {
 			uint8_t spare:6;
 			uint8_t thr:1;
 			uint8_t per:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2828,8 +2699,6 @@ struct pfcp_ie_gtp_u_path_interface_type {
 			uint8_t spare:6;
 			uint8_t n3:1;
 			uint8_t n9:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2853,8 +2722,6 @@ struct pfcp_ie_requested_qos_monitoring {
 			uint8_t rp:1;
 			uint8_t ul:1;
 			uint8_t dl:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2876,8 +2743,6 @@ struct pfcp_ie_reporting_frequency {
 			uint8_t sesrl:1;
 			uint8_t perio:1;
 			uint8_t evett:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2899,8 +2764,6 @@ struct pfcp_ie_packet_delay_thresholds {
 			uint8_t rp:1;
 			uint8_t ul:1;
 			uint8_t dl:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2933,8 +2796,6 @@ struct pfcp_ie_qos_monitoring_measurement {
 			uint8_t rp:1;
 			uint8_t ul:1;
 			uint8_t dl:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2957,8 +2818,6 @@ struct pfcp_ie_mt_edt_control_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t rdsi:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -2982,8 +2841,6 @@ struct pfcp_ie_qer_control_indications {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t rcsr:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3016,8 +2873,6 @@ struct pfcp_ie_ip_version {
 			uint8_t spare:6;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3035,8 +2890,6 @@ struct pfcp_ie_pfcpasreq_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t uupsi:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3056,8 +2909,6 @@ struct pfcp_ie_data_status {
 			uint8_t spare:6;
 			uint8_t buff:1;
 			uint8_t drop:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3075,8 +2926,6 @@ struct pfcp_ie_rds_configuration_information {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t rds:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3094,8 +2943,6 @@ struct pfcp_ie_mptcp_applicable_indication {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t mai:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3121,8 +2968,6 @@ struct pfcp_ie_number_of_ue_ip_addresses {
 			uint8_t spare:6;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3170,8 +3015,6 @@ struct pfcp_ie_tunnel_preference {
 			uint8_t v6:1;
 			uint8_t v4:1;
 			uint8_t ch:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3225,8 +3068,6 @@ struct pfcp_ie_thresholds {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t rtt:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3259,8 +3100,6 @@ struct pfcp_ie_cp_ip_address {
 			uint8_t spare:6;
 			uint8_t v4:1;
 			uint8_t v6:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3298,8 +3137,6 @@ struct pfcp_ie_ip_address_and_port_number_replacement {
 			uint8_t dpn:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3353,8 +3190,6 @@ struct pfcp_ie_reporting_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t dupl:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3382,8 +3217,6 @@ struct pfcp_ie_local_ingress_tunnel {
 			uint8_t ch:1;
 			uint8_t v6:1;
 			uint8_t v4:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3416,8 +3249,6 @@ struct pfcp_ie_pfcpsdrsp_flags {
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			uint8_t spare:7;
 			uint8_t eir:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3437,8 +3268,6 @@ struct pfcp_ie_qer_indications {
 			uint8_t spare:6;
 			uint8_t empu:1;
 			uint8_t nord:1;
-#else
-#error "Please fix <asm/byteorder.h>"
 #endif
 		};
 	};
@@ -3486,19 +3315,17 @@ int pfcp_ie_put_f_seid(struct pkt_buffer *pbuff, const uint64_t seid,
 		       const struct sockaddr_storage *addr);
 int pfcp_ie_put_created_pdr(struct pkt_buffer *pbuff, const uint16_t pdr_id,
 			    const uint32_t teid, const struct in_addr *ipv4,
-			    const struct in6_addr *ipv6);
+			    const struct in6_addr *ipv6, const struct in_addr *ue_ipv4,
+			    const struct in6_addr *ue_ipv6);
 int pfcp_ie_put_created_te(struct pkt_buffer *pbuff, const uint8_t id,
-		           const uint32_t teid,
+			   const uint32_t teid,
 			   const struct in_addr *t_ipv4, const struct in6_addr *t_ipv6,
 			   const struct in_addr *ue_ipv4, const struct in6_addr *ue_ipv6);
-int pfcp_ie_put_usage_report_deletion(struct pkt_buffer *pbuff, uint32_t id,
-				      uint32_t start_time, uint32_t end_time, uint32_t seqn,
-				      struct pfcp_metrics_pkt *uplink,
-				      struct pfcp_metrics_pkt *downlink);
-int pfcp_ie_put_usage_report_request(struct pkt_buffer *pbuff, uint32_t query_urr_ref,
-				     uint32_t id, uint32_t start_time, uint32_t end_time,
-				     uint32_t seqn, struct pfcp_metrics_pkt *uplink,
-				     struct pfcp_metrics_pkt *downlink);
 int pfcp_ie_put_report_type(struct pkt_buffer *pbuff, uint8_t type);
 int pfcp_ie_put_additional_usage_reports_info(struct pkt_buffer *pbuff, bool auri,
 					      uint16_t nr_reports);
+int pfcp_ie_put_usage_report(struct pkt_buffer *pbuff, uint8_t type, uint32_t id,
+			     uint32_t seqn, union pfcp_usage_report_trigger rtrig,
+			     uint32_t query_urr_ref, uint32_t pkt_first, uint32_t pkt_last,
+			     uint32_t start_time, uint32_t end_time, int duration,
+			     struct pfcp_metrics_pkt *uplink, struct pfcp_metrics_pkt *downlink);

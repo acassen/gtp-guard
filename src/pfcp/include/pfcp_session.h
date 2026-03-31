@@ -25,6 +25,7 @@
 #include "pfcp.h"
 #include "pfcp_msg.h"
 #include "pfcp_metrics.h"
+#include "gtp_bpf_capture.h"
 #include "bpf/lib/upf-def.h"
 
 /* Default values */
@@ -54,7 +55,7 @@ enum {
 /* Session components */
 struct f_seid {
 	uint64_t		id;
-	struct sockaddr_storage	addr;
+	union addr		addr;
 };
 
 #define UE_IPV4	(1 << 0)
@@ -109,26 +110,35 @@ struct qer {
 };
 
 struct urr {
-	uint8_t			action;
-	uint32_t		id;
-	uint8_t			measurement_method;
-	uint8_t			measurement_info;
-	uint16_t		triggers;
+	uint32_t		id;		/* ie.urr_id */
+	uint32_t		urr_idx;	/* index in bpf map */
+
+	uint8_t				action;
+	union pfcp_measurement_method	measurement_method;
+	union pfcp_measurement_information measurement_info;
+	union pfcp_reporting_triggers	triggers;
+	uint32_t		linked_urr_id[PFCP_MAX_NR_ELEM];
+
 	uint32_t		inactivity_detection_time;
 	uint32_t		quota_holdtime;
 	uint64_t		volume_threshold_to;
 	uint64_t		volume_threshold_ul;
 	uint64_t		volume_threshold_dl;
-
-	/* parent/Linked urr */
-	struct urr		*parent_urr;
-	uint32_t		linked_urr_id;
-	struct urr		*linked_urr;
+	uint64_t		volume_quota_to;
+	uint64_t		volume_quota_ul;
+	uint64_t		volume_quota_dl;
+	uint32_t		time_threshold;
+	uint32_t		time_quota;
+	uint32_t		time_periodic;
 
 	/* metrics */
 	uint32_t		seqn;
 	uint32_t		start_time;
 	uint32_t		end_time;
+	uint32_t		pkt_first_time;
+	uint32_t		pkt_last_time;
+	int			duration;
+	int			last_report_duration;
 	struct pfcp_metrics_pkt	ul;
 	struct pfcp_metrics_pkt	dl;
 	struct pfcp_metrics_pkt	last_report_ul;
@@ -177,12 +187,6 @@ struct pfcp_fwd_rule {
 
 
 /* PFCP session */
-struct pfcp_report {
-	struct sockaddr_storage addr;
-	uint32_t		query_urr_ref;
-	uint32_t		urr_id[PFCP_MAX_NR_ELEM];
-};
-
 struct pfcp_session {
 	uint64_t		seid;
 	struct f_seid		remote_seid;
@@ -201,10 +205,8 @@ struct pfcp_session {
 	struct gtp_apn		*apn;
 	struct gtp_cdr		*cdr;
 
+	int			cpu;		/* xdp pinned cpu */
 	uint8_t			action;
-
-	/* Reporting context */
-	struct pfcp_report	report;
 
 	/* Expiration handling */
 	char			tmp_str[64];
@@ -213,6 +215,16 @@ struct pfcp_session {
 
 	/* I/O MUX */
 	struct thread		*timer;
+
+	/* packet capture */
+	struct gtp_capture_entry capture;
+
+	/* urr handling */
+	uint32_t		bpf_urr_idx;
+	uint32_t		urr_cmd_next_id;
+	struct list_head	urr_cmd_pending_list;
+	struct pkt_buffer	*pending_pbuff;
+	union addr		pending_addr;
 
 	/* indexing */
 	struct list_head	next;
@@ -223,8 +235,8 @@ struct pfcp_session {
 
 /* Prototypes */
 int pfcp_sessions_count_read(void);
-struct sockaddr_storage *pfcp_session_get_addr_by_interface(struct pfcp_router *r,
-							    uint8_t interface);
+union addr *pfcp_session_get_addr_by_interface(struct pfcp_router *r,
+					       uint8_t interface);
 struct pfcp_session *pfcp_session_get(uint64_t id);
 struct pfcp_session *pfcp_session_alloc(struct gtp_conn *c,
 					struct gtp_apn *apn,
@@ -240,13 +252,13 @@ int pfcp_sessions_init(void);
 int pfcp_sessions_destroy(void);
 int pfcp_session_create(struct pfcp_session *s,
 			struct pfcp_session_establishment_request *req,
-			struct sockaddr_storage *addr);
+			union addr *addr);
 int pfcp_session_modify(struct pfcp_session *s,
 			struct pfcp_session_modification_request *req);
 int pfcp_session_delete(struct pfcp_session *s);
+int pfcp_session_urr_report(struct pfcp_session *s, struct upf_urr_report_data *rd);
+int pfcp_session_update_fwd_rules(struct pfcp_session *s);
 int pfcp_session_put_created_pdr(struct pkt_buffer *pbuff,
 				 struct pfcp_session *s);
 int pfcp_session_put_created_traffic_endpoint(struct pkt_buffer *pbuff,
 					      struct pfcp_session *s);
-int pfcp_session_put_usage_report_deletion(struct pkt_buffer *pbuff,
-					   struct pfcp_session *s);

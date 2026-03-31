@@ -38,9 +38,9 @@ pfcp_init(void)
 int
 pfcp_destroy(void)
 {
+	pfcp_sessions_destroy();
 	pfcp_peer_list_destroy();
 	pfcp_assoc_destroy();
 	pfcp_router_destroy();
-	pfcp_sessions_destroy();
 	return 0;
 }

@@ -6,7 +6,6 @@ test_src = files(
   '../../../src/carrier-grade-nat/cdr_fwd_adj.c',
   '../../../src/carrier-grade-nat/cdr_fwd_disk.c',
   '../../../src/carrier-grade-nat/cdr_fwd_spool.c',
-  '../../../src/carrier-grade-nat/tools.c',
 )
 
 gtpg_obj = gtp_guard_exe.extract_objects(lib_src)
