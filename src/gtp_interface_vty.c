@@ -464,6 +464,7 @@ DEFUN(capture_stop_interface,
 	return CMD_SUCCESS;
 }
 
+
 /* Show */
 DEFUN(show_interface_topology,
       show_interface_topology_cmd,

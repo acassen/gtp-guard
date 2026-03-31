@@ -4,6 +4,7 @@ lib_src = files(
   'addr.c',
   'asn1_decoder.c',
   'asn1_encoder.c',
+  'ethtool.c',
   'buffer.c',
   'command.c',
   'daemon.c',

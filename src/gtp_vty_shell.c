@@ -54,7 +54,7 @@ static void gtp_vtysh_stdin_read(struct thread *t);
 static void gtp_vtysh_sock_read(struct thread *t);
 
 
-static void
+static ssize_t
 gtp_vtysh_send_naws(int fd)
 {
 	/* struct winsize layout: ws_row, ws_col, ws_xpixel, ws_ypixel */
@@ -76,7 +76,7 @@ gtp_vtysh_send_naws(int fd)
 	buf[len++] = winsz[0] & 0xff;		/* rows low */
 	buf[len++] = IAC;
 	buf[len++] = SE;
-	write(fd, buf, len);
+	return write(fd, buf, len);
 }
 
 static void

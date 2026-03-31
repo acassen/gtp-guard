@@ -35,8 +35,6 @@
 #include <linux/prctl.h>
 #include <linux/if.h>
 #include <linux/if_link.h>
-#include <linux/ethtool.h>
-#include <linux/sockios.h>
 #include <pthread.h>
 #include <libbpf.h>
 #include <xdp/xsk.h>
@@ -44,6 +42,7 @@
 #include "thread.h"
 #include "list_head.h"
 #include "utils.h"
+#include "ethtool.h"
 #include "bitops.h"
 #include "logger.h"
 #include "vty.h"
@@ -188,123 +187,6 @@ static int next_instance_id;
 
 /* Extern data */
 extern struct thread_master *master;
-
-
-
-/*************************************************************************/
-/*
- *	ethtool helpers
- */
-
-
-#define MAX_DEV_QUEUE_PATH_LEN 64
-
-static void
-xsk_get_queues_from_sysfs(const char* ifname, uint32_t *rx, uint32_t *tx)
-{
-	char buf[MAX_DEV_QUEUE_PATH_LEN];
-	struct dirent *entry;
-	DIR *dir;
-
-	snprintf(buf, MAX_DEV_QUEUE_PATH_LEN,
-		 "/sys/class/net/%s/queues/", ifname);
-
-	dir = opendir(buf);
-	if (dir == NULL)
-		return;
-
-	while ((entry = readdir(dir))) {
-		if (!strncmp(entry->d_name, "rx", 2))
-			++*rx;
-
-		if (!strncmp(entry->d_name, "tx", 2))
-			++*tx;
-	}
-
-	closedir(dir);
-}
-
-/*
- * get configured number of rx/tx queues for requested iface,
- * from kernel ethtool
- */
-static int
-xsk_get_cur_queues(const char *ifname, uint32_t *rx, uint32_t *tx)
-{
-	struct ethtool_channels channels = { .cmd = ETHTOOL_GCHANNELS };
-	struct ifreq ifr = {};
-	int fd, err;
-
-	fd = socket(AF_LOCAL, SOCK_DGRAM, 0);
-	if (fd < 0)
-		return -errno;
-
-	*rx = 0;
-	*tx = 0;
-
-	ifr.ifr_data = (void *)&channels;
-	memcpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
-	ifr.ifr_name[IFNAMSIZ - 1] = '\0';
-	err = ioctl(fd, SIOCETHTOOL, &ifr);
-	if (err && errno != EOPNOTSUPP) {
-		close(fd);
-		return -errno;
-	}
-
-	if (err) {
-		/* If the device says it has no channels, try to get rx tx
-		 * from sysfs */
-		xsk_get_queues_from_sysfs(ifr.ifr_name, rx, tx);
-	} else {
-		/* Take the max of rx, tx, combined. Drivers return
-		 * the number of channels in different ways.
-		 */
-		*rx = channels.rx_count;
-		if (!*rx)
-			*rx = channels.combined_count;
-		*tx = channels.tx_count;
-		if (!*tx)
-			*tx = channels.combined_count;
-	}
-
-	close(fd);
-
-	return *rx > 0 && *tx > 0 ? 0 : -1;
-}
-
-static int
-xsk_set_iface_forwarding(const char *ifname, bool ipv4, bool ipv6)
-{
-	char path[256];
-	const char on[3] = "1\n";
-	int fd;
-
-	if (ipv4) {
-		snprintf(path, sizeof(path), "/proc/sys/net/ipv4/conf/%s/forwarding",
-			 ifname);
-		fd = open(path, O_WRONLY);
-		if (fd < 0) {
-			log_message(LOG_ERR, "%s: %m", path);
-			return -1;
-		}
-		write(fd, on, sizeof (on));
-		close(fd);
-	}
-
-	if (ipv6) {
-		snprintf(path, sizeof(path), "/proc/sys/net/ipv6/conf/%s/forwarding",
-			 ifname);
-		fd = open(path, O_WRONLY);
-		if (fd < 0) {
-			log_message(LOG_ERR, "%s: %m", path);
-			return -1;
-		}
-		write(fd, on, sizeof (on));
-		close(fd);
-	}
-
-	return 0;
-}
 
 
 /*************************************************************************/
@@ -919,7 +801,7 @@ _xsk_iface_add(struct gtp_xsk_ctx *xc, struct gtp_interface *iface, bool is_veth
 	xi->iface = iface;
 	xi->bpf_base_index = x->bpf_next_base_index;
 
-	ret = xsk_get_cur_queues(iface->ifname, &xi->rx_sock_n, &xi->tx_sock_n);
+	ret = ethtool_get_nr_queues(iface->ifname, &xi->rx_sock_n, &xi->tx_sock_n);
 	if (ret < 0) {
 		log_message(LOG_ERR, "xsk: %s: cannot get queues count",
 			    iface->ifname);
@@ -1074,7 +956,7 @@ _xsk_create_veth_socket(struct gtp_xsk_ctx *xc)
 	xc->veth_iface_rx = iface;
 
 	/* veth will need to forward packets back to physical interface */
-	if (xsk_set_iface_forwarding(veth_in, 1, 1))
+	if (sysfs_set_iface_forwarding(veth_in, 1, 1))
 		goto err;
 
 	/* retrieve interface on the 'rx' side of the veth, and attach
