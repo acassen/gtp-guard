@@ -28,6 +28,7 @@
 #include "gtp_bpf_rt.h"
 #include "gtp_bpf_ifrules.h"
 #include "gtp_interface.h"
+#include "gtp_interface_rxq.h"
 #include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
@@ -466,6 +467,17 @@ DEFUN(capture_stop_interface,
 
 
 /* Show */
+DEFUN(show_interface_rxq,
+      show_interface_rxq_cmd,
+      "show interface rx-queue",
+      SHOW_STR
+      "Interface\n"
+      "Display RX queue IRQ affinity and NUMA diagnostic\n")
+{
+	gtp_interface_rxq_show(vty);
+	return CMD_SUCCESS;
+}
+
 DEFUN(show_interface_topology,
       show_interface_topology_cmd,
       "show interface topology",
@@ -597,6 +609,8 @@ cmd_ext_interface_install(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_interface_cmd);
 	install_element(ENABLE_NODE, &show_interface_cmd);
+	install_element(VIEW_NODE, &show_interface_rxq_cmd);
+	install_element(ENABLE_NODE, &show_interface_rxq_cmd);
 	install_element(VIEW_NODE, &show_interface_topology_cmd);
 	install_element(ENABLE_NODE, &show_interface_topology_cmd);
 
