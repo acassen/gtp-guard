@@ -156,25 +156,6 @@ rxq_iface_get_bdf(const char *ifname, char *bdf, size_t size)
 	return 0;
 }
 
-/* Get NUMA node for ifname from /sys/class/net/{ifname}/device/numa_node. */
-static int
-rxq_iface_get_numa(const char *ifname)
-{
-	char path[128], buf[16];
-	FILE *f;
-
-	snprintf(path, sizeof(path), "/sys/class/net/%s/device/numa_node",
-		 ifname);
-	f = fopen(path, "r");
-	if (!f)
-		return -1;
-	if (!fgets(buf, sizeof(buf), f)) {
-		fclose(f);
-		return -1;
-	}
-	fclose(f);
-	return atoi(buf);
-}
 
 /* Get rx_queue from BDF formated buffer */
 static int
@@ -287,13 +268,41 @@ rxq_iface_get_irqs(const char *ifname, int *irqs, int max_q)
 	return found;
 }
 
-/* Return NUMA node for iface, using its physical parent if it has one. */
+/* Infer NUMA node from the first IRQ pinned to a NIC queue. */
 static int
-rxq_iface_numa(const struct gtp_interface *iface)
+rxq_iface_numa_from_irq(const char *ifname, const struct rxq_numa *numa)
+{
+	int irqs[RXQUEUE_MAX];
+	char cpulist[64];
+	int i, cpu, n;
+
+	memset(irqs, -1, sizeof(irqs));
+	if (rxq_iface_get_irqs(ifname, irqs, RXQUEUE_MAX) <= 0)
+		return -1;
+
+	for (i = 0; i < RXQUEUE_MAX; i++) {
+		if (irqs[i] < 0)
+			continue;
+		if (rxq_irq_get_affinity(irqs[i], cpulist, sizeof(cpulist)) < 0)
+			continue;
+		cpu = rxq_cpulist_first_cpu(cpulist);
+		if (cpu < 0)
+			continue;
+		for (n = 0; n < numa->nr; n++) {
+			if (rxq_cpulist_contains(numa->cpulist[n], cpu))
+				return n;
+		}
+	}
+	return -1;
+}
+
+/* Return NUMA node for iface using IRQ affinity, physical parent if available. */
+static int
+rxq_iface_numa(const struct gtp_interface *iface, const struct rxq_numa *numa)
 {
 	const char *pif = iface->link_iface ? iface->link_iface->ifname
 					    : iface->ifname;
-	return rxq_iface_get_numa(pif);
+	return rxq_iface_numa_from_irq(pif, numa);
 }
 
 /* Load NUMA node cpulists from sysfs. */
@@ -326,11 +335,9 @@ rxq_show_iface_queues(struct vty *vty, struct gtp_interface *iface)
 {
 	char cpulist[64];
 	int irqs[RXQUEUE_MAX];
-	uint32_t nr_rx, nr_tx;
+	uint32_t nr_rx = 0, nr_tx = 0;
 	int q;
 
-	nr_rx = 0;
-	nr_tx = 0;
 	ethtool_get_nr_queues(iface->ifname, &nr_rx, &nr_tx);
 	if (nr_rx > RXQUEUE_MAX)
 		nr_rx = RXQUEUE_MAX;
@@ -363,7 +370,7 @@ rxq_show_by_numa(struct vty *vty, struct list_head *l, struct rxq_numa *numa)
 	for (n = 0; n < numa->nr; n++) {
 		header_printed = false;
 		list_for_each_entry(iface, l, next) {
-			if (rxq_iface_numa(iface) != n)
+			if (rxq_iface_numa(iface, numa) != n)
 				continue;
 			if (!header_printed) {
 				vty_out(vty, " NUMA node %d  [cpus: %s  %d CPUs]%s",
@@ -380,13 +387,13 @@ rxq_show_by_numa(struct vty *vty, struct list_head *l, struct rxq_numa *numa)
 
 /* Display interfaces whose NUMA node could not be determined. */
 static void
-rxq_show_unknown_numa(struct vty *vty, struct list_head *l)
+rxq_show_unknown_numa(struct vty *vty, struct list_head *l, struct rxq_numa *numa)
 {
 	struct gtp_interface *iface;
 	bool header_printed = false;
 
 	list_for_each_entry(iface, l, next) {
-		if (rxq_iface_numa(iface) != -1)
+		if (rxq_iface_numa(iface, numa) != -1)
 			continue;
 		if (!header_printed) {
 			vty_out(vty, " NUMA node: unknown%s", VTY_NEWLINE);
@@ -404,13 +411,11 @@ rxq_diag_iface(struct vty *vty, struct gtp_interface *iface, struct rxq_numa *nu
 {
 	char cpulist[64];
 	int irqs[RXQUEUE_MAX];
-	uint32_t nr_rx, nr_tx;
+	uint32_t nr_rx = 0, nr_tx = 0;
 	int iface_numa, q, cpu;
 	bool ok = true;
 
-	iface_numa = rxq_iface_numa(iface);
-	nr_rx = 0;
-	nr_tx = 0;
+	iface_numa = rxq_iface_numa(iface, numa);
 	ethtool_get_nr_queues(iface->ifname, &nr_rx, &nr_tx);
 	if (!nr_rx)
 		return true;
@@ -422,11 +427,10 @@ rxq_diag_iface(struct vty *vty, struct gtp_interface *iface, struct rxq_numa *nu
 
 	if (iface_numa >= 0 && iface_numa < numa->nr &&
 	    (int)nr_rx > numa->cpu_count[iface_numa]) {
-		vty_out(vty,
-			"  [WARN] %s: rx_queue count (%u) exceeds "
-			"NUMA node %d CPU count (%d)%s",
-			iface->ifname, nr_rx, iface_numa,
-			numa->cpu_count[iface_numa], VTY_NEWLINE);
+		vty_out(vty, "  [WARN] %s: rx_queue count (%u) exceeds "
+			     "NUMA node %d CPU count (%d)%s"
+			   , iface->ifname, nr_rx, iface_numa
+			   , numa->cpu_count[iface_numa], VTY_NEWLINE);
 		ok = false;
 	}
 
@@ -438,10 +442,9 @@ rxq_diag_iface(struct vty *vty, struct gtp_interface *iface, struct rxq_numa *nu
 			continue;
 
 		if (rxq_cpulist_count(cpulist) != 1) {
-			vty_out(vty,
-				"  [WARN] %s: rx-%d irq:%d not pinned to "
-				"single CPU (affinity: %s)%s",
-				iface->ifname, q, irqs[q], cpulist, VTY_NEWLINE);
+			vty_out(vty, "  [WARN] %s: rx-%d irq:%d not pinned to "
+				     "single CPU (affinity: %s)%s"
+				   , iface->ifname, q, irqs[q], cpulist, VTY_NEWLINE);
 			ok = false;
 			continue;
 		}
@@ -452,11 +455,10 @@ rxq_diag_iface(struct vty *vty, struct gtp_interface *iface, struct rxq_numa *nu
 
 		if (iface_numa >= 0 && iface_numa < numa->nr &&
 		    !rxq_cpulist_contains(numa->cpulist[iface_numa], cpu)) {
-			vty_out(vty,
-				"  [WARN] %s: rx-%d irq:%d bound to cpu %d "
-				"(not on NUMA node %d)%s",
-				iface->ifname, q, irqs[q],
-				cpu, iface_numa, VTY_NEWLINE);
+			vty_out(vty, "  [WARN] %s: rx-%d irq:%d bound to cpu %d "
+				     "(not on NUMA node %d)%s"
+				   , iface->ifname, q, irqs[q]
+				   , cpu, iface_numa, VTY_NEWLINE);
 			ok = false;
 		}
 	}
@@ -520,13 +522,12 @@ rxq_diag_cpu_uniqueness(struct vty *vty, struct list_head *l)
 		for (m = k + 1; m < nassigns; m++) {
 			if (assign_cpu[k] != assign_cpu[m])
 				continue;
-			vty_out(vty,
-				"  [WARN] cpu %d shared: %s/rx-%d (irq:%d)"
-				" and %s/rx-%d (irq:%d)%s",
-				assign_cpu[k],
-				assign_iface[k], assign_q[k], assign_irq[k],
-				assign_iface[m], assign_q[m], assign_irq[m],
-				VTY_NEWLINE);
+			vty_out(vty, "  [WARN] cpu %d shared: %s/rx-%d (irq:%d)"
+				     " and %s/rx-%d (irq:%d)%s"
+				   , assign_cpu[k]
+				   , assign_iface[k], assign_q[k], assign_irq[k]
+				   , assign_iface[m], assign_q[m], assign_irq[m]
+				   , VTY_NEWLINE);
 			ok = false;
 		}
 	}
@@ -546,7 +547,7 @@ gtp_interface_rxq_show(struct vty *vty)
 
 	rxq_numa_load(&numa);
 	rxq_show_by_numa(vty, l, &numa);
-	rxq_show_unknown_numa(vty, l);
+	rxq_show_unknown_numa(vty, l, &numa);
 
 	vty_out(vty, "Diagnostic:%s", VTY_NEWLINE);
 
@@ -557,11 +558,11 @@ gtp_interface_rxq_show(struct vty *vty)
 
 	vty_out(vty, "%s", VTY_NEWLINE);
 	if (ok)
-		vty_out(vty, "  Overall: rx queue affinity configuration is optimal%s",
-			VTY_NEWLINE);
+		vty_out(vty, "  Overall: rx queue affinity configuration is optimal%s"
+			   , VTY_NEWLINE);
 	else
-		vty_out(vty, "  Overall: rx queue affinity has issues, review warnings above%s",
-			VTY_NEWLINE);
+		vty_out(vty, "  Overall: rx queue affinity has issues, review warnings above%s"
+			   , VTY_NEWLINE);
 
 	return 0;
 }
