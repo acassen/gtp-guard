@@ -15,7 +15,7 @@ The UPF is a key routing element in this context: it acts as a border relay betw
 the mobile core network and a Layer 3 network (Internet or any private network).
 The main UPF protocol stack looks like:
 
-<p style="text-align: center"><img src="gtp-guard-upf-protocol-stack-5g.png"></p>
+<p style="text-align: center"><img src="/assets/gtp-guard-upf-protocol-stack-5g.png"></p>
 
 Mobile Core-Network is encapsulating all UE traffic into GTP until UPF where traffic
 is decapsulated and routed to reach the destination network. Each UE session is
@@ -34,7 +34,7 @@ adapters (`MCX755106AC-HEAT`, 200GbE / NDR200 IB, 2 ports each) are fitted, one 
 NUMA node, attached to the local PCIe bus. Each port exposes multiple `rx_queue`s;
 IRQ affinity pins every `rx_queue` to a dedicated core on the same NUMA node:
 
-<p style="text-align: center"><img src="gtp-guard-upf-numa-irq-affinity.png"></p>
+<p style="text-align: center"><img src="/assets/gtp-guard-upf-numa-irq-affinity.png"></p>
 
 The concrete sizing: **48 cores** total, 24 per NUMA node. Each port is configured
 with **8 RX queues** — 16 per adapter, 32 system-wide. Cores 16–23 (NUMA 0) and
@@ -508,7 +508,7 @@ reply it submits the packet to its own ring without touching any other core's st
 Both legs of a UE session — receive and transmit — are therefore handled by the
 same CPU, keeping the UE context shard continuously warm in local cache.
 
-<p style="text-align: center"><img src="gtp-u-teid-flow-steering-upf-5g.png"></p>
+<p style="text-align: center"><img src="/assets/gtp-u-teid-flow-steering-upf-5g.png"></p>
 
 ## Flow Steering Configuration
 
@@ -544,7 +544,7 @@ the same way, then rebuild the `tc` binary and place it alongside the scripts.
 
 ### Test Environment
 
-<p style="text-align: center"><img src="test-env.png"></p>
+<p style="text-align: center"><img src="/assets/test-env.png"></p>
 
 The setup involves two nodes connected back-to-back:
 
