@@ -9,6 +9,7 @@ theme:
 #  custom_dir: overrides
   features:
     - navigation.tabs
+    - navigation.indexes
     - toc.integrate
     - header.autohide
   palette:
@@ -34,6 +35,12 @@ markdown_extensions:
       custom_checkbox: true
   - pymdownx.tabbed:
       alternate_style: true
+nav:
+  - Home: index.md
+  - Articles:
+    - articles/index.md
+    - Per-Core CPU Load Measurement: articles/cpu_load_measurement.md
+    - "5G UPF: Pump Up the Volume!": articles/5g-upf-pump-up-the-volume.md
 plugins:
   - search
   - tags
