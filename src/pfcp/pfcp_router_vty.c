@@ -18,6 +18,7 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <net/if.h>
 #include <string.h>
 #include <assert.h>
 
@@ -33,6 +34,7 @@
 #include "command.h"
 #include "bitops.h"
 #include "logger.h"
+#include "utils.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -196,7 +198,7 @@ DEFUN(pfcp_listen,
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "listening UDP Port (default = 8805)\n"
-      "Number\n")
+      "Number between 1024 and 65535\n")
 {
 	struct pfcp_router *c = vty->index;
 	struct pfcp_server *srv = &c->s;
@@ -214,7 +216,7 @@ DEFUN(pfcp_listen,
 		return CMD_WARNING;
 	}
 
-	if (argc == 2)
+	if (argc >= 2)
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
@@ -223,6 +225,9 @@ DEFUN(pfcp_listen,
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
 	}
+
+	if (argc >= 3)
+		bsd_strlcpy(srv->s.if_boundto, argv[2], GTP_NAME_MAX_LEN);
 
 	err = pfcp_server_init(srv, c, pfcp_router_ingress_init,
 			       pfcp_router_ingress_process);
@@ -238,6 +243,17 @@ DEFUN(pfcp_listen,
 	__set_bit(PFCP_ROUTER_FL_LISTEN, &c->flags);
 	return CMD_SUCCESS;
 }
+
+ALIAS(pfcp_listen,
+      pfcp_listen_bind_cmd,
+      "listen (A.B.C.D|X:X::X:X) port <1024-65535> bind WORD",
+      "PFCP Session channel endpoint\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 8805)\n"
+      "Number between 1024 and 65535\n"
+      "Bind to interface\n"
+      "Interface name\n")
 
 DEFUN(pfcp_debug,
       pfcp_debug_cmd,
@@ -621,6 +637,9 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
+	if (argc >= 4)
+		bsd_strlcpy(srv->s.if_boundto, argv[3], GTP_NAME_MAX_LEN);
+
 	err = gtp_server_init(srv, c, pfcp_gtpu_ingress_init,
 			      pfcp_gtpu_ingress_process);
 	if (err) {
@@ -629,10 +648,27 @@ DEFUN(pfcp_gtpu_tunnel_endpoint,
 		memset(&srv->s.addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
 	}
-	__set_bit(fl, &c->flags);
 
+	__set_bit(fl, &c->flags);
 	return CMD_SUCCESS;
 }
+
+ALIAS(pfcp_gtpu_tunnel_endpoint,
+      pfcp_gtpu_tunnel_endpoint_bind_cmd,
+      "gtpu-tunnel-endpoint (all|s1|s5|s8|n9|n3) (A.B.C.D|X:X::X:X) port <1024-65535> bind WORD",
+      "3GPP GTP-U interface\n"
+      "All interface\n"
+      "S1-U interface\n"
+      "S5-U interface\n"
+      "S8-U interface\n"
+      "N9-U interface\n"
+      "N3-U interface\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "UDP port to listen to\n"
+      "Number between 1024 and 65535\n"
+      "Bind to interface\n"
+      "Interface name\n")
 
 /*
  *	Show commands
@@ -822,7 +858,6 @@ config_pfcp_router_write(struct vty *vty)
 	struct list_head *l = &daemon_data->pfcp_router_ctx;
 	char node_id[GTP_STR_MAX_LEN];
 	struct pfcp_router *c;
-	struct pfcp_server *srv;
 
 	list_for_each_entry(c, l, next) {
 		vty_out(vty, "pfcp-router %s%s", c->name, VTY_NEWLINE);
@@ -844,39 +879,24 @@ config_pfcp_router_write(struct vty *vty)
 		if (c->peer_list)
 			vty_out(vty, " pfcp-peer-list %s%s"
 				   , c->peer_list->name, VTY_NEWLINE);
-		srv = &c->s;
-		if (srv->s.addr.ss_family)
-			vty_out(vty, " listen %s port %d%s"
-				   , inet_sockaddrtos(&srv->s.addr)
-				   , ntohs(inet_sockaddrport(&srv->s.addr))
-				   , VTY_NEWLINE);
+
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
 
+		inet_server_vty(vty, " listen", &c->s.s);
+
 		if (__test_bit(PFCP_ROUTER_FL_ALL, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint all %s port %d\n"
-				   , inet_sockaddrtos(&c->gtpu.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu.s.addr)));
+			inet_server_vty(vty, " gtpu-tunnel-endpoint all", &c->gtpu.s);
 		if (__test_bit(PFCP_ROUTER_FL_S1U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s1 %s port %d\n"
-				   , inet_sockaddrtos(&c->gtpu_s1.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_s1.s.addr)));
+			inet_server_vty(vty, " gtpu-tunnel-endpoint s1",&c->gtpu_s1.s);
 		if (__test_bit(PFCP_ROUTER_FL_S5U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s5 %s port %d\n"
-				   , inet_sockaddrtos(&c->gtpu_s5.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_s5.s.addr)));
+			inet_server_vty(vty, " gtpu-tunnel-endpoint s5", &c->gtpu_s5.s);
 		if (__test_bit(PFCP_ROUTER_FL_S8U, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint s8 %s port %d\n"
-				   , inet_sockaddrtos(&c->gtpu_s8.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_s8.s.addr)));
+			inet_server_vty(vty, " gtpu-tunnel-endpoint s8", &c->gtpu_s8.s);
 		if (__test_bit(PFCP_ROUTER_FL_N9, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint n9 %s port %d\n"
-				   , inet_sockaddrtos(&c->gtpu_n9.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_n9.s.addr)));
+			inet_server_vty(vty, " gtpu-tunnel-endpoint n9", &c->gtpu_n9.s);
 		if (__test_bit(PFCP_ROUTER_FL_N3, &c->flags))
-			vty_out(vty, " gtpu-tunnel-endpoint n3 %s port %d\n"
-				   , inet_sockaddrtos(&c->gtpu_n3.s.addr)
-				   , ntohs(inet_sockaddrport(&c->gtpu_n3.s.addr)));
+			inet_server_vty(vty, " gtpu-tunnel-endpoint n3", &c->gtpu_n3.s);
 
 		vty_out(vty, "!\n");
 	}
@@ -926,11 +946,13 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_bpf_prog_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_router_peer_list_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_listen_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_listen_bind_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_debug_teid_cmd);
 	install_element(PFCP_ROUTER_NODE, &no_pfcp_debug_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_strict_apn_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_bind_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <net/if.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -497,7 +498,6 @@ inet_fd2str(int fd, char *dst, size_t dsize)
 	return dst;
 }
 
-
 /*
  *	Setsockopt
  */
@@ -827,6 +827,11 @@ inet_setsockopt_bindtodevice(int fd, const char *ifname)
 {
 	int err;
 
+	if (!if_nametoindex(ifname)) {
+		errno = ENODEV;
+		return -1;
+	}
+
 	/* -> inbound processing option
 	 * Specify the bound_dev_if.
 	 * why IP_ADD_MEMBERSHIP & IP_MULTICAST_IF doesnt set
@@ -838,8 +843,7 @@ inet_setsockopt_bindtodevice(int fd, const char *ifname)
 	 */
 	err = setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, ifname, (socklen_t)strlen(ifname) + 1);
 	if (err)
-		log_message(LOG_INFO, "can't bind to device %s. errno=%d. (try to run it as root)"
-				    , ifname, errno);
+		log_message(LOG_INFO, "can't bind to device %s. errno=%d (%m)", ifname, errno);
 
 	return err;
 }

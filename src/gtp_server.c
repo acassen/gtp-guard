@@ -96,5 +96,6 @@ gtp_server_init(struct gtp_server *s, void *ctx,
 int
 gtp_server_destroy(struct gtp_server *s)
 {
+	__clear_bit(GTP_FL_RUNNING_BIT, &s->s.flags);
 	return inet_server_destroy(&s->s);
 }

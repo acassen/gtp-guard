@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <sys/prctl.h>
 #include <sys/un.h>
+#include <net/if.h>
 #include <errno.h>
 
 /* local includes */
@@ -38,6 +39,19 @@
 /*
  *	Generic helpers
  */
+int
+inet_server_vty(struct vty *vty, const char *type_str, struct inet_server *srv)
+{
+	vty_out(vty, "%s %s port %d"
+		   , type_str
+		   , inet_sockaddrtos(&srv->addr)
+		   , ntohs(inet_sockaddrport(&srv->addr)));
+	if (srv->if_boundto[0])
+		vty_out(vty, " bind %s", srv->if_boundto);
+	vty_out(vty, "%s", VTY_NEWLINE);
+	return 0;
+}
+
 ssize_t
 inet_server_snd(struct inet_server *s, int fd, struct pkt_buffer *pbuff,
 		struct sockaddr_in *addr)
@@ -87,9 +101,11 @@ inet_server_rcv(struct inet_server *s, struct sockaddr *addr, socklen_t *addrlen
 /*
  *	Inet Server UDP
  */
-int
-inet_server_udp_init(struct sockaddr_storage *addr)
+static int
+inet_server_udp_init(struct inet_server *s)
 {
+	struct sockaddr_storage *addr = &s->addr;
+	const char *ifname = s->if_boundto[0] ? s->if_boundto : NULL;
 	socklen_t addrlen;
 	int fd, err;
 
@@ -99,6 +115,7 @@ inet_server_udp_init(struct sockaddr_storage *addr)
 	err = (err) ? : inet_setsockopt_reuseport(fd, 1);
 	err = (err) ? : inet_setsockopt_rcvbuf(fd, INET_SOCKBUF_SIZE);
 	err = (err) ? : inet_setsockopt_sndbuf(fd, INET_SOCKBUF_SIZE);
+	err = (err) ? : (ifname) ? inet_setsockopt_bindtodevice(fd, ifname) : err;
 	if (err) {
 		log_message(LOG_INFO, "%s(): error creating UDP [%s]:%d socket"
 				    , __FUNCTION__
@@ -149,7 +166,7 @@ inet_server_udp_async_recv_thread(struct thread *t)
 		/* re-init on error */
 		thread_del(t);
 		close(s->fd);
-		s->fd = inet_server_udp_init(&s->addr);
+		s->fd = inet_server_udp_init(s);
 		if (s->fd < 0) {
 			log_message(LOG_INFO, "%s(): Error creating UDP on [%s]:%d...dying..."
 					    , __FUNCTION__
@@ -625,7 +642,7 @@ inet_server_init(struct inet_server *s, int type)
 
 	switch (type) {
 	case SOCK_DGRAM:
-		fd = inet_server_udp_init(&s->addr);
+		fd = inet_server_udp_init(s);
 		if (fd < 0)
 			return -1;
 		s->fd  = fd;

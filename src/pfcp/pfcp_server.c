@@ -111,5 +111,6 @@ pfcp_server_destroy(struct pfcp_server *s)
 {
 	pfcp_msg_free(s->msg);
 	pkt_queue_destroy(&s->pkt_q);
+	__clear_bit(PFCP_FL_RUNNING_BIT, &s->s.flags);
 	return inet_server_destroy(&s->s);
 }

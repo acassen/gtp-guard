@@ -89,7 +89,7 @@ tsc_freq_calibrate(void)
  *	by the kernel using per-CPU timekeeping. On multi-socket NUMA systems this
  *	is inherently local to the CPU's own socket, no cross-socket TSC skew.
  *
- *	load = Δref_cycles / (Δtime_enabled_ns × base_freq_hz / 1e9)
+ *	load = delta(ref_cycles) / (delta(time_enabled_ns) × base_freq_hz / 1e9)
  */
 int
 cpu_load_init(struct cpu_load **pctx)
@@ -161,7 +161,7 @@ cpu_load_init(struct cpu_load **pctx)
  *	algorithm which can therefore be treated/considered as negligible.
  *
  *	Compared to cpu_load_init(), this variant requires no calibration sleep
- *	and no per-CPU time_enabled field: load = Δref_cycles / Δtsc is a
+ *	and no per-CPU time_enabled field: load = delta(ref_cycles) / delta(tsc) is a
  *	dimensionless ratio that needs no frequency conversion.
  */
 int

@@ -29,6 +29,7 @@
 #include "command.h"
 #include "memory.h"
 #include "bitops.h"
+#include "utils.h"
 #include "inet_utils.h"
 
 
@@ -124,7 +125,7 @@ DEFUN(gtpc_router_tunnel_endpoint,
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "listening UDP Port (default = 2123)\n"
-      "Number\n")
+      "Number between 1024 and 65535\n")
 {
 	struct gtp_router *ctx = vty->index;
 	struct gtp_server *srv = &ctx->gtpc;
@@ -141,7 +142,7 @@ DEFUN(gtpc_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	if (argc == 2)
+	if (argc >= 2)
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
@@ -151,7 +152,9 @@ DEFUN(gtpc_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
+	if (argc >= 3)
+		bsd_strlcpy(srv->s.if_boundto, argv[2], GTP_NAME_MAX_LEN);
+
 	err = gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
 	if (err) {
 		vty_out(vty, "%% Error initializing GTP-C listener on [%s]:%d%s"
@@ -159,8 +162,20 @@ DEFUN(gtpc_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
+	__set_bit(GTP_FL_CTL_BIT, &srv->flags);
 	return CMD_SUCCESS;
 }
+
+ALIAS(gtpc_router_tunnel_endpoint,
+      gtpc_router_tunnel_endpoint_bind_cmd,
+      "gtpc-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> bind WORD",
+      "GTP Control channel tunnel endpoint\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2123)\n"
+      "Number between 1024 and 65535\n"
+      "Bind to interface\n"
+      "Interface name\n")
 
 DEFUN(gtpu_router_tunnel_endpoint,
       gtpu_router_tunnel_endpoint_cmd,
@@ -169,7 +184,7 @@ DEFUN(gtpu_router_tunnel_endpoint,
       "Bind IPv4 Address\n"
       "Bind IPv6 Address\n"
       "listening UDP Port (default = 2152)\n"
-      "Number\n")
+      "Number between 1024 and 65535\n")
 {
 	struct gtp_router *ctx = vty->index;
 	struct gtp_server *srv = &ctx->gtpu;
@@ -186,7 +201,7 @@ DEFUN(gtpu_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
-	if (argc == 2)
+	if (argc >= 2)
 		VTY_GET_INTEGER_RANGE("UDP Port", port, argv[1], 1024, 65535);
 
 	err = inet_stosockaddr(argv[0], port, addr);
@@ -196,6 +211,9 @@ DEFUN(gtpu_router_tunnel_endpoint,
 		return CMD_WARNING;
 	}
 
+	if (argc >= 3)
+		bsd_strlcpy(srv->s.if_boundto, argv[2], GTP_NAME_MAX_LEN);
+
 	err = gtp_server_init(srv, ctx, gtp_router_ingress_init, gtp_router_ingress_process);
 	if (err) {
 		vty_out(vty, "%% Error initializing GTP-U listener on [%s]:%d%s"
@@ -203,10 +221,21 @@ DEFUN(gtpu_router_tunnel_endpoint,
 		memset(addr, 0, sizeof(struct sockaddr_storage));
 		return CMD_WARNING;
 	}
-	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 
+	__set_bit(GTP_FL_UPF_BIT, &srv->flags);
 	return CMD_SUCCESS;
 }
+
+ALIAS(gtpu_router_tunnel_endpoint,
+      gtpu_router_tunnel_endpoint_bind_cmd,
+      "gtpu-tunnel-endpoint (A.B.C.D|X:X:X:X) port <1024-65535> bind WORD",
+      "GTP Userplane channel tunnel endpoint\n"
+      "Bind IPv4 Address\n"
+      "Bind IPv6 Address\n"
+      "listening UDP Port (default = 2152)\n"
+      "Number between 1024 and 65535\n"
+      "Bind to interface\n"
+      "Interface name\n")
 
 
 /* Configuration writer */
@@ -223,19 +252,13 @@ gtp_config_write(struct vty *vty)
 			vty_out(vty, " bpf-program %s%s"
 				   , ctx->bpf_prog->name, VTY_NEWLINE);
 		srv = &ctx->gtpc;
-		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags)) {
-			vty_out(vty, " gtpc-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->s.addr)
-				   , ntohs(inet_sockaddrport(&srv->s.addr))
-				   , VTY_NEWLINE);
-		}
+		if (__test_bit(GTP_FL_CTL_BIT, &srv->flags))
+			inet_server_vty(vty, " gtpc-tunnel-endpoint", &srv->s);
+
 		srv = &ctx->gtpu;
-		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags)) {
-			vty_out(vty, " gtpu-tunnel-endpoint %s port %d%s"
-				   , inet_sockaddrtos(&srv->s.addr)
-				   , ntohs(inet_sockaddrport(&srv->s.addr))
-				   , VTY_NEWLINE);
-		}
+		if (__test_bit(GTP_FL_UPF_BIT, &srv->flags))
+			inet_server_vty(vty, " gtpu-tunnel-endpoint", &srv->s);
+
 		vty_out(vty, "!%s", VTY_NEWLINE);
 	}
 
@@ -415,7 +438,9 @@ cmd_ext_gtp_router_install(void)
 	install_default(GTP_ROUTER_NODE);
 	install_element(GTP_ROUTER_NODE, &gtp_router_bpf_program_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_cmd);
+	install_element(GTP_ROUTER_NODE, &gtpc_router_tunnel_endpoint_bind_cmd);
 	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_cmd);
+	install_element(GTP_ROUTER_NODE, &gtpu_router_tunnel_endpoint_bind_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_gtp_router_cmd);

@@ -25,6 +25,8 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include "gtp_stddef.h"
+#include "vty.h"
 #include "thread.h"
 #include "pkt_buffer.h"
 
@@ -83,6 +85,7 @@ struct inet_worker {
 
 struct inet_server {
 	struct sockaddr_storage	addr;
+	char			if_boundto[GTP_NAME_MAX_LEN];
 	int			type;		/* SOCK_DGRAM or SOCK_STREAM */
 
 	/* async I/O MUX related */
@@ -120,6 +123,7 @@ struct inet_server {
 
 
 /* Prototypes */
+int inet_server_vty(struct vty *vty, const char *type_str, struct inet_server *srv);
 ssize_t inet_server_snd(struct inet_server *s, int fd, struct pkt_buffer *pbuff,
 			struct sockaddr_in *addr);
 ssize_t inet_http_read(struct inet_cnx *c);
