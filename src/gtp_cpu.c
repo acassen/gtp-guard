@@ -112,7 +112,7 @@ gtp_cpu_list_show(struct vty *vty, const char *list)
 }
 
 int
-gtp_cpu_vty_show(struct vty *vty)
+gtp_cpu_show(struct vty *vty)
 {
 	char path[64], cpulist[256];
 	FILE *f;

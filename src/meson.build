@@ -63,6 +63,7 @@ src += files(
   'gtp_ip_vrf.c',
   'gtp_ip_vrf_vty.c',
   'gtp_vty.c',
+  'gtp_vty_monitor.c',
   'gtp_vty_shell.c',
   'gtp_cpu.c',
   'main.c',

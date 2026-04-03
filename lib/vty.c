@@ -1753,6 +1753,15 @@ vty_close(struct vty *vty)
 	FREE(vty);
 }
 
+/* Re-register the VTY read thread after external suspension. */
+void
+vty_read_resume(struct vty *vty)
+{
+	if (!vty->t_read)
+		vty->t_read = thread_add_read(master, vty_read, vty, vty->fd,
+					      VTY_IO_TIMEOUT, 0);
+}
+
 /* When time out occur output message then close connection. */
 static void
 vty_timeout(struct thread *t)

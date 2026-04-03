@@ -360,7 +360,7 @@ DEFUN(show_system_cpu,
       "System information\n"
       "Per-core CPU utilization\n")
 {
-	gtp_cpu_vty_show(vty);
+	gtp_cpu_show(vty);
 	return CMD_SUCCESS;
 }
 

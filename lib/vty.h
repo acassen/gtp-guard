@@ -176,6 +176,7 @@ int vty_brd_out(const char *fmt, ...);
 ssize_t vty_send_out(struct vty *vty, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 void vty_prompt_hold(struct vty *vty);
 void vty_prompt_restore(struct vty *vty);
+void vty_read_resume(struct vty *vty);
 int vty_read_config(char *config_file, char *config_default_dir);
 void vty_time_print(struct vty *vty, int cr);
 void vty_close(struct vty *vty);
