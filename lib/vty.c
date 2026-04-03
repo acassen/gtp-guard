@@ -28,7 +28,6 @@
 
 
 static void vty_event(struct thread_master *, enum vty_event, int, void *);
-static void vty_timeout(struct thread *);
 
 /* Extern host structure from command.c */
 extern struct host host;
@@ -1189,18 +1188,13 @@ vty_read(struct thread *t)
 	struct vty *vty = THREAD_ARG(t);
 	vty->t_read = NULL;
 
-	/* Handle Read Timeout */
+	/* Read Timeout means idle connection */
 	if (t->type == THREAD_READ_TIMEOUT) {
-		vty_event(t->master, VTY_READ, vty_sock, vty);
+		buffer_reset(vty->obuf);
+		vty_out(vty, "%sVty connection is timed out.%s", VTY_NEWLINE, VTY_NEWLINE);
+		vty->status = VTY_CLOSE;
+		vty_close(vty);
 		return;
-	}
-
-	/* Time out treatment. */
-	if (vty->v_timeout) {
-		if (vty->t_timeout)
-			thread_del(vty->t_timeout);
-		vty->t_timeout = thread_add_timer(t->master, vty_timeout, vty,
-						  vty->v_timeout*TIMER_HZ);
 	}
 
 	/* Read raw data from socket */
@@ -1723,8 +1717,6 @@ vty_close(struct vty *vty)
 		thread_del(vty->t_read);
 	if (vty->t_write)
 		thread_del(vty->t_write);
-	if (vty->t_timeout)
-		thread_del(vty->t_timeout);
 
 	/* Flush buffer. */
 	buffer_flush_all(vty->obuf, vty->fd);
@@ -1759,27 +1751,10 @@ vty_read_resume(struct vty *vty)
 {
 	if (!vty->t_read)
 		vty->t_read = thread_add_read(master, vty_read, vty, vty->fd,
-					      VTY_IO_TIMEOUT, 0);
+					      vty->v_timeout ? vty->v_timeout * TIMER_HZ : TIMER_NEVER,
+					      0);
 }
 
-/* When time out occur output message then close connection. */
-static void
-vty_timeout(struct thread *t)
-{
-	struct vty *vty;
-
-	vty = THREAD_ARG(t);
-	vty->t_timeout = NULL;
-	vty->v_timeout = 0;
-
-	/* Clear buffer*/
-	buffer_reset(vty->obuf);
-	vty_out(vty, "%sVty connection is timed out.%s", VTY_NEWLINE, VTY_NEWLINE);
-
-	/* Close connection. */
-	vty->status = VTY_CLOSE;
-	vty_close(vty);
-}
 
 /* Read up configuration file from file_name. */
 static int
@@ -1988,8 +1963,9 @@ vty_event(struct thread_master *m, enum vty_event event, int sock, void *arg)
 
 	case VTY_READ:
 		vty = (struct vty *) arg;
-		vty->t_read = thread_add_read(m, vty_read, vty, sock, VTY_IO_TIMEOUT, 0);
-
+		vty->t_read = thread_add_read(m, vty_read, vty, sock,
+					      vty->v_timeout ? vty->v_timeout * TIMER_HZ : TIMER_NEVER,
+					      0);
 		break;
 
 	case VTY_WRITE:
@@ -1997,19 +1973,6 @@ vty_event(struct thread_master *m, enum vty_event event, int sock, void *arg)
 		if (!vty->t_write)
 			vty->t_write = thread_add_write(m, vty_flush, vty, sock,
 							VTY_IO_TIMEOUT, 0);
-		break;
-
-	case VTY_TIMEOUT_RESET:
-		vty = (struct vty *) arg;
-		if (vty->t_timeout) {
-			thread_del(vty->t_timeout);
-			vty->t_timeout = NULL;
-		}
-
-		if (vty->v_timeout) {
-			vty->t_timeout = thread_add_timer(m, vty_timeout, vty,
-							  vty->v_timeout*TIMER_HZ);
-		}
 		break;
 	}
 }
@@ -2064,8 +2027,11 @@ exec_timeout(struct vty *vty, const char *min_str, const char *sec_str)
 
 	vty_timeout_val = timeout;
 	vty->v_timeout = timeout;
-	if (vty->master)
-		vty_event(vty->master, VTY_TIMEOUT_RESET, 0, vty);
+	if (vty->master && vty->t_read) {
+		thread_del(vty->t_read);
+		vty->t_read = NULL;
+		vty_event(vty->master, VTY_READ, vty->fd, vty);
+	}
 
 	return CMD_SUCCESS;
 }

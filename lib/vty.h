@@ -21,7 +21,6 @@ enum vty_event {
 	VTY_SERV,
 	VTY_READ,
 	VTY_WRITE,
-	VTY_TIMEOUT_RESET
 };
 
 enum vty_type {
@@ -84,7 +83,6 @@ struct vty {
 	struct thread		*t_read;			/* Read thread */
 	struct thread		*t_write;			/* Write thread */
 	unsigned long		v_timeout;			/* Timeout seconds */
-	struct thread		*t_timeout;			/* Timeout thread */
 	struct sockaddr_storage	address;			/* What address is this vty comming from. */
 };
 
