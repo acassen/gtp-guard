@@ -1521,13 +1521,7 @@ vty_accept(struct thread *t)
 	unsigned int on = 1;
 	int accept_sock = THREAD_FD(t);
 
-	/* Handle Read Timeout */
-	if (t->type == THREAD_READ_TIMEOUT) {
-		vty_event(t->master, VTY_SERV, accept_sock, t->arg);
-		return;
-	}
-
-	/* We continue hearing vty socket. */
+	/* Re-arm the listener for the next connection. */
 	vty_event(t->master, VTY_SERV, accept_sock, t->arg);
 
 	/* We can handle IPv4 or IPv6 socket. */
@@ -1957,7 +1951,7 @@ vty_event(struct thread_master *m, enum vty_event event, int sock, void *arg)
 	switch (event) {
 	case VTY_SERV:
 		vty_serv_thread = thread_add_read(m, vty_accept, arg, sock,
-						  VTY_IO_TIMEOUT, 0);
+						  TIMER_NEVER, 0);
 		vector_set_index(Vvty_serv_thread, sock, vty_serv_thread);
 		break;
 
