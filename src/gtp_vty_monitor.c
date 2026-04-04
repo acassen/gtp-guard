@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include "command.h"
 #include "vty.h"
+#include "vty_gauge.h"
 #include "thread.h"
 #include "timer.h"
 #include "buffer.h"
@@ -39,9 +40,10 @@ extern struct thread_master *master;
 
 /* Private data */
 struct gtp_monitor {
-	struct vty	*vty;
-	int		(*show) (struct vty *);
-	uint64_t	timer;
+	struct vty		*vty;
+	int			(*show) (struct vty *);
+	uint64_t		timer;
+	struct gauge_opts	opts;
 };
 
 static void
@@ -83,7 +85,9 @@ gtp_monitor_refresh(struct thread *t)
 	}
 
 	vty_send_out(vty, MONITOR_CURSOR_HOME);
+	vty->priv = &m->opts;
 	m->show(vty);
+	vty->priv = NULL;
 	vty_out(vty, "%s-- press any key to stop --%s", VTY_NEWLINE, VTY_NEWLINE);
 	buffer_flush_all(vty->obuf, vty->fd);
 	vty_send_out(vty, MONITOR_ERASE_TAIL);
@@ -92,7 +96,8 @@ gtp_monitor_refresh(struct thread *t)
 }
 
 static int
-gtp_monitor_start(struct vty *vty, int interval, int (*show) (struct vty *))
+gtp_monitor_start(struct vty *vty, int interval, int (*show) (struct vty *),
+		  struct gauge_opts opts)
 {
 	struct gtp_monitor *m;
 
@@ -105,6 +110,7 @@ gtp_monitor_start(struct vty *vty, int interval, int (*show) (struct vty *))
 	m->vty = vty;
 	m->show = show;
 	m->timer = interval * TIMER_HZ;
+	m->opts = opts;
 
 	vty->index = m;
 	vty_prompt_hold(vty);
@@ -127,10 +133,54 @@ DEFUN(monitor_system_cpu,
       "System information\n"
       "Per-core CPU utilization\n")
 {
+	struct gauge_opts go = { .style = GAUGE_BRAILLE_GRAPH,
+				 .color_mode = GAUGE_COLOR_TRUE,
+				 .width = GAUGE_DEFAULT_WIDTH,
+				 .left = "[", .right = "]" };
 	int interval;
 
 	VTY_GET_INTEGER_RANGE("interval", interval, argv[0], 1, 60);
-	return gtp_monitor_start(vty, interval, gtp_cpu_show);
+	return gtp_monitor_start(vty, interval, gtp_cpu_show, go);
+}
+
+DEFUN(monitor_system_cpu_style,
+      monitor_system_cpu_style_cmd,
+      "monitor <1-60> system cpu (ascii|block|braille|thin|dot|block-graph|braille-graph)",
+      "Refresh display\n"
+      "Refresh interval in seconds\n"
+      "System information\n"
+      "Per-core CPU utilization\n"
+      "ASCII bar gauge\n"
+      "Solid block gauge with color\n"
+      "Thin line bar gauge with color\n"
+      "Dot bar gauge with color\n"
+      "Density gradient bar with color\n"
+      "Scrolling block graph with color\n"
+      "Braille dot graph with color\n"
+      "Braille filled bar with color\n")
+{
+	struct gauge_opts go = { .style = GAUGE_ASCII,
+				 .color_mode = GAUGE_COLOR_TRUE,
+				 .width = GAUGE_DEFAULT_WIDTH,
+				 .left = "[", .right = "]" };
+	int interval;
+
+	VTY_GET_INTEGER_RANGE("interval", interval, argv[0], 1, 60);
+
+	if (!strcmp(argv[1], "block"))
+		go.style = GAUGE_BLOCK;
+	else if (!strcmp(argv[1], "thin"))
+		go.style = GAUGE_THIN;
+	else if (!strcmp(argv[1], "dot"))
+		go.style = GAUGE_DOT;
+	else if (!strcmp(argv[1], "block-graph"))
+		go.style = GAUGE_BLOCK_GRAPH;
+	else if (!strcmp(argv[1], "braille-graph"))
+		go.style = GAUGE_BRAILLE_GRAPH;
+	else if (!strcmp(argv[1], "braille"))
+		go.style = GAUGE_BRAILLE;
+
+	return gtp_monitor_start(vty, interval, gtp_cpu_show, go);
 }
 
 DEFUN(monitor_interface_rxq,
@@ -153,8 +203,10 @@ static int
 cmd_ext_monitor_install(void)
 {
 	install_element(VIEW_NODE, &monitor_system_cpu_cmd);
+	install_element(VIEW_NODE, &monitor_system_cpu_style_cmd);
 	install_element(VIEW_NODE, &monitor_interface_rxq_cmd);
 	install_element(ENABLE_NODE, &monitor_system_cpu_cmd);
+	install_element(ENABLE_NODE, &monitor_system_cpu_style_cmd);
 	install_element(ENABLE_NODE, &monitor_interface_rxq_cmd);
 	return 0;
 }

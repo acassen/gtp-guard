@@ -84,6 +84,7 @@ struct vty {
 	struct thread		*t_write;			/* Write thread */
 	unsigned long		v_timeout;			/* Timeout seconds */
 	struct sockaddr_storage	address;			/* What address is this vty comming from. */
+	void			*priv;				/* Per-session private data */
 };
 
 /* Small macro to determine newline is newline only or linefeed needed. */

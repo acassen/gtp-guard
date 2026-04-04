@@ -21,16 +21,18 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "logger.h"
 #include "thread.h"
 #include "vty.h"
+#include "vty_gauge.h"
 #include "cpu.h"
 
-#define CPU_GAUGE_WIDTH	20
 #define CPU_NUMA_MAX	8
 
 /* Local data */
 static struct cpu_load *cpu_load;
+static struct gauge_history *cpu_history;
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -43,17 +45,16 @@ extern struct thread_master *master;
 static void
 gtp_cpu_poll(struct thread *t)
 {
+	float load;
 	int i;
 
 	cpu_load_update(cpu_load);
 
 	for (i = 0; i < cpu_load->nr_cpus; i++) {
-		float load = cpu_load_get(cpu_load, i);
-	        if (load < 0.0f)
-			continue;   /* offline CPU */
-#if 0
-		printf("CPU #%i : %f\n", i, load*100);
-#endif
+		load = cpu_load_get(cpu_load, i);
+		if (load < 0.0f)
+			continue;	/* offline CPU */
+		gauge_history_push(&cpu_history[i], load);
 	}
 
 	thread_add_timer(master, gtp_cpu_poll, NULL, TIMER_HZ / 5);
@@ -63,34 +64,15 @@ gtp_cpu_poll(struct thread *t)
 /*
  *	VTY show
  */
-static void
-gtp_cpu_gauge_show(struct vty *vty, int cpu, float load)
-{
-	char bar[CPU_GAUGE_WIDTH + 1];
-	int filled, i;
-
-	if (load < 0.0f) {
-		vty_out(vty, "  cpu%-3d  [%-*s] offline%s",
-			cpu, CPU_GAUGE_WIDTH, "", VTY_NEWLINE);
-		return;
-	}
-
-	filled = (int)(load * CPU_GAUGE_WIDTH);
-	if (filled > CPU_GAUGE_WIDTH)
-		filled = CPU_GAUGE_WIDTH;
-	for (i = 0; i < CPU_GAUGE_WIDTH; i++)
-		bar[i] = (i < filled) ? '#' : '.';
-	bar[CPU_GAUGE_WIDTH] = '\0';
-
-	vty_out(vty, "  cpu%-3d  [%s] %5.1f%%%s"
-		   , cpu, bar, load * 100.0f, VTY_NEWLINE);
-}
 
 /* Walk a cpulist string ("0-3,8,16-19") and show a gauge for each CPU. */
 static void
 gtp_cpu_list_show(struct vty *vty, const char *list)
 {
+	const struct gauge_opts defaults = { .style = GAUGE_ASCII };
+	struct gauge_opts *opts = vty->priv ? : (void *)&defaults;
 	const char *p = list;
+	char label[12];
 	int a, b;
 
 	while (*p >= '0' && *p <= '9') {
@@ -104,8 +86,11 @@ gtp_cpu_list_show(struct vty *vty, const char *list)
 			while (*p >= '0' && *p <= '9')
 				b = b * 10 + (*p++ - '0');
 		}
-		for (; a <= b; a++)
-			gtp_cpu_gauge_show(vty, a, cpu_load_get(cpu_load, a));
+		for (; a <= b; a++) {
+			snprintf(label, sizeof(label), "  cpu%-3d", a);
+			opts->h = &cpu_history[a];
+			vty_gauge(vty, label, cpu_load_get(cpu_load, a), opts);
+		}
 		if (*p == ',')
 			p++;
 	}
@@ -160,6 +145,12 @@ gtp_cpu_init(void)
 		return -1;
 	}
 
+	cpu_history = calloc(cpu_load->nr_cpus, sizeof(*cpu_history));
+	if (!cpu_history) {
+		cpu_load_destroy(cpu_load);
+		return -1;
+	}
+
 	thread_add_event(master, gtp_cpu_poll, NULL, 0);
 	return 0;
 }
@@ -167,6 +158,8 @@ gtp_cpu_init(void)
 int
 gtp_cpu_destroy(void)
 {
-	cpu_load_destroy(cpu_load);	
+	cpu_load_destroy(cpu_load);
+	free(cpu_history);
+	cpu_history = NULL;
 	return 0;
 }
