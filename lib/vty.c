@@ -327,6 +327,19 @@ vty_new(void)
 	return new;
 }
 
+/* Constant-time password comparison to prevent timing side-channels. */
+static int
+passwd_cmp(const char *a, const char *b)
+{
+	size_t la = strlen(a), lb = strlen(b);
+	unsigned char diff = (unsigned char)(la != lb);
+	size_t i;
+
+	for (i = 0; i < la; i++)
+		diff |= (unsigned char)a[i] ^ (unsigned char)(i < lb ? b[i] : 0);
+	return (int)diff;
+}
+
 /* Authentication of vty */
 static void
 vty_auth(struct vty *vty, char *buf)
@@ -334,7 +347,6 @@ vty_auth(struct vty *vty, char *buf)
 	char *passwd = NULL;
 	enum node_type next_node = 0;
 	int fail;
-	char *crypt(const char *, const char *);
 
 	switch (vty->node) {
 	case AUTH_NODE:
@@ -351,7 +363,7 @@ vty_auth(struct vty *vty, char *buf)
 	}
 
 	if (passwd) {
-		fail = strcmp(buf, passwd);
+		fail = passwd_cmp(buf, passwd);
 	} else {
 		fail = 1;
 	}
