@@ -435,7 +435,11 @@ static void
 vty_ensure(struct vty *vty, int length)
 {
 	if (vty->max <= length) {
-		vty->max *= 2;
+		if (vty->max >= VTY_MAX_BUFSIZ) {
+			vty->status = VTY_CLOSE;
+			return;
+		}
+		vty->max = (vty->max * 2 < VTY_MAX_BUFSIZ) ? vty->max * 2 : VTY_MAX_BUFSIZ;
 		vty->buf = REALLOC(vty->buf, vty->max);
 	}
 }

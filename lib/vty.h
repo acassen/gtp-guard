@@ -14,6 +14,7 @@
 #include "buffer.h"
 
 #define VTY_BUFSIZ 512
+#define VTY_MAX_BUFSIZ (64 * 1024)	/* hard cap on input line length */
 #define VTY_MAXHIST 20
 #define TELNET_NAWS_SB_LEN 5
 
