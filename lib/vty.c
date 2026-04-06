@@ -1853,15 +1853,19 @@ vty_use_backup_config(char *fullpath)
 		return NULL;
 	}
 
-	while((c = read(sav, buffer, 512)) > 0) {
-		retval = write(tmp, buffer, c);
-		if (retval < 0) {
-			unlink(fullpath_tmp);
-			FREE(fullpath_sav);
-			FREE(fullpath_tmp);
-			close(sav);
-			close(tmp);
-			return NULL;
+	while ((c = read(sav, buffer, 512)) > 0) {
+		int written = 0;
+		while (written < c) {
+			retval = write(tmp, buffer + written, c - written);
+			if (retval <= 0) {
+				unlink(fullpath_tmp);
+				FREE(fullpath_sav);
+				FREE(fullpath_tmp);
+				close(sav);
+				close(tmp);
+				return NULL;
+			}
+			written += retval;
 		}
 	}
   
