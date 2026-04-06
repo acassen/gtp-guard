@@ -19,35 +19,33 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _CPU_H
-#define _CPU_H
+#pragma once
 
-#include <stdint.h>
+#include "vty_gauge.h"
+#include "vty.h"
 
-#define CPU_NUMA_MAX	8
+#define MATRIX_LABEL_LEN    5	/* recommended label_width for gauge cells */
+#define MATRIX_DEFAULT_COLS 4
 
-struct cpu_perf {
-	int		fd;		/* perf_event fd, -1 if unavailable */
-	uint64_t	prev_cycles;	/* last sampled ref cycle count */
-	uint64_t	prev_time_ns;	/* kernel per-CPU wall ns at last sample */
-	float		load;		/* [0.0, 1.0]: fraction of unhalted wall time */
+/* One cell in the grid.  value is the per-cell scalar (e.g. load ratio).
+ * The render callback receives the entry and the shared opts from matrix_opts. */
+struct matrix_entry {
+	char	label[16];
+	void	(*render)(struct vty *vty, const char *label,
+			  const struct matrix_entry *e, void *arg);
+	float	value;
 };
 
-struct cpu_load {
-	struct cpu_perf	*cpus;
-	int		nr_cpus;
-	uint64_t	base_freq_hz;	/* calibrated mode: cycles→ns conversion; 0 = TSC mode */
-	uint64_t	prev_tsc;	/* TSC mode: TSC at last update */
+/* Layout + shared widget opts.  arg is passed as-is to every render call. */
+struct matrix_opts {
+	int	cols;	/* cells per row, 0 = MATRIX_DEFAULT_COLS */
+	void	*arg;	/* shared widget opts (e.g. struct gauge_opts *) */
 };
 
 /* Prototypes */
-int cpu_load_init(struct cpu_load **ctx);
-int cpu_load_init_tsc(struct cpu_load **ctx);
-void cpu_load_update(struct cpu_load *ctx);
-float cpu_load_get(struct cpu_load *ctx, int cpu);
-int cpu_load_nr(struct cpu_load *ctx);
-void cpu_load_destroy(struct cpu_load *ctx);
-void cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
-			   void *arg);
-
-#endif
+struct matrix_opts *matrix_gauge_opts_alloc(int cols, enum gauge_style style);
+void vty_matrix_gauge_render(struct vty *vty, const char *label,
+			     const struct matrix_entry *e, void *arg);
+void vty_matrix(struct vty *vty, const char *title,
+		const struct matrix_entry *entries, int n,
+		const struct matrix_opts *opts);

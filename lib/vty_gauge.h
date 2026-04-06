@@ -50,17 +50,27 @@ struct gauge_history {
 };
 
 /* Per-command display options — caller-allocated, opaque to vty. */
-#define GAUGE_DEFAULT_WIDTH	40
+#define GAUGE_DEFAULT_WIDTH		40
+#define GAUGE_DEFAULT_LABEL_WIDTH	10
 struct gauge_opts {
 	enum gauge_style		style;
 	enum gauge_color_mode		color_mode;
-	int				width;
-	const char			*left;	/* left delimiter, NULL = none */
-	const char			*right;	/* right delimiter, NULL = none */
-	const struct gauge_history	*h;	/* history for graph styles, NULL = none */
+	int				width;		/* bar width, 0 = GAUGE_DEFAULT_WIDTH */
+	int				label_width;	/* label padding, 0 = GAUGE_DEFAULT_LABEL_WIDTH */
+	const char			*left;		/* left delimiter, NULL = none */
+	const char			*right;		/* right delimiter, NULL = none */
+	const struct gauge_history	*h;		/* history for graph styles, NULL = none */
 };
 
+/* matrix_entry is defined in vty_matrix.h; forward-declare for vty_gauge_render. */
+struct matrix_entry;
+
 /* Prototypes */
+const char *vty_ratio_color(float ratio, enum gauge_color_mode mode);
 void gauge_history_push(struct gauge_history *h, float ratio);
+enum gauge_style gauge_style_parse(const char *s);
+struct gauge_opts *gauge_opts_alloc(enum gauge_style style);
+void vty_gauge_emit(struct vty *vty, const char *label, float ratio,
+		    const struct gauge_opts *opts);
 void vty_gauge(struct vty *vty, const char *label, float ratio,
 	       const struct gauge_opts *opts);

@@ -166,7 +166,7 @@ braille_glyph(uint8_t mask, char *out)
 static void
 gauge_ascii(struct vty *vty, const char *label, float ratio,
 	    const struct gauge_history *h __attribute__((unused)), int width,
-	    const char *left, const char *right,
+	    int label_w, const char *left, const char *right,
 	    gauge_color_fn_t color_fn __attribute__((unused)))
 {
 	char bar[width + 1];
@@ -177,8 +177,8 @@ gauge_ascii(struct vty *vty, const char *label, float ratio,
 		bar[i] = (i < filled) ? '#' : '.';
 	bar[width] = '\0';
 
-	vty_out(vty, "%-10s  %s%s%s %5.1f%%%s",
-		label, left, bar, right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%-*s  %s%s%s %5.1f%%",
+		label_w, label, left, bar, right, ratio * 100.0f);
 }
 
 
@@ -197,19 +197,20 @@ gauge_ascii(struct vty *vty, const char *label, float ratio,
 static void
 gauge_block(struct vty *vty, const char *label, float ratio,
 	    const struct gauge_history *h __attribute__((unused)), int width,
-	    const char *left, const char *right, gauge_color_fn_t color_fn)
+	    int label_w, const char *left, const char *right,
+	    gauge_color_fn_t color_fn)
 {
 	int filled, i;
 
 	filled = (int)(ratio * width);
 
-	vty_out(vty, "%-10s  %s%s", label, left, color_fn(ratio));
+	vty_out(vty, "%-*s  %s%s", label_w, label, left, color_fn(ratio));
 	for (i = 0; i < filled; i++)
 		vty_out(vty, BLOCK_FULL);
 	vty_out(vty, COLOR_RESET);
 	for (i = filled; i < width; i++)
 		vty_out(vty, BLOCK_EMPTY);
-	vty_out(vty, "%s %5.1f%%%s", right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%s %5.1f%%", right, ratio * 100.0f);
 }
 
 
@@ -227,7 +228,8 @@ gauge_block(struct vty *vty, const char *label, float ratio,
 static void
 gauge_braille(struct vty *vty, const char *label, float ratio,
 	      const struct gauge_history *h __attribute__((unused)), int width,
-	      const char *left, const char *right, gauge_color_fn_t color_fn)
+	      int label_w, const char *left, const char *right,
+	      gauge_color_fn_t color_fn)
 {
 	static const uint8_t fill[9] = {
 		0x00, 0x01, 0x03, 0x07, 0x47, 0x4f, 0x5f, 0x7f, 0xff,
@@ -239,7 +241,7 @@ gauge_braille(struct vty *vty, const char *label, float ratio,
 	full_cells = dots / 8;
 	partial = dots % 8;
 
-	vty_out(vty, "%-10s  %s%s", label, left, color_fn(ratio));
+	vty_out(vty, "%-*s  %s%s", label_w, label, left, color_fn(ratio));
 	for (i = 0; i < full_cells; i++) {
 		braille_glyph(fill[8], glyph);
 		vty_out(vty, "%s", glyph);
@@ -251,7 +253,7 @@ gauge_braille(struct vty *vty, const char *label, float ratio,
 	vty_out(vty, COLOR_RESET);
 	for (i = full_cells + (partial ? 1 : 0); i < width; i++)
 		vty_out(vty, " ");
-	vty_out(vty, "%s %5.1f%%%s", right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%s %5.1f%%", right, ratio * 100.0f);
 }
 
 
@@ -267,19 +269,20 @@ gauge_braille(struct vty *vty, const char *label, float ratio,
 static void
 gauge_thin(struct vty *vty, const char *label, float ratio,
 	   const struct gauge_history *h __attribute__((unused)), int width,
-	   const char *left, const char *right, gauge_color_fn_t color_fn)
+	   int label_w, const char *left, const char *right,
+	   gauge_color_fn_t color_fn)
 {
 	int filled, i;
 
 	filled = (int)(ratio * width);
 
-	vty_out(vty, "%-10s  %s%s", label, left, color_fn(ratio));
+	vty_out(vty, "%-*s  %s%s", label_w, label, left, color_fn(ratio));
 	for (i = 0; i < filled; i++)
 		vty_out(vty, BLOCK_THIN);
 	vty_out(vty, COLOR_RESET);
 	for (i = filled; i < width; i++)
 		vty_out(vty, " ");
-	vty_out(vty, "%s %5.1f%%%s", right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%s %5.1f%%", right, ratio * 100.0f);
 }
 
 
@@ -297,19 +300,20 @@ gauge_thin(struct vty *vty, const char *label, float ratio,
 static void
 gauge_dot(struct vty *vty, const char *label, float ratio,
 	  const struct gauge_history *h __attribute__((unused)), int width,
-	  const char *left, const char *right, gauge_color_fn_t color_fn)
+	  int label_w, const char *left, const char *right,
+	  gauge_color_fn_t color_fn)
 {
 	int filled, i;
 
 	filled = (int)(ratio * width);
 
-	vty_out(vty, "%-10s  %s%s", label, left, color_fn(ratio));
+	vty_out(vty, "%-*s  %s%s", label_w, label, left, color_fn(ratio));
 	for (i = 0; i < filled; i++)
 		vty_out(vty, DOT_FULL);
 	vty_out(vty, COLOR_RESET);
 	for (i = filled; i < width; i++)
 		vty_out(vty, DOT_EMPTY);
-	vty_out(vty, "%s %5.1f%%%s", right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%s %5.1f%%", right, ratio * 100.0f);
 }
 
 
@@ -324,7 +328,8 @@ gauge_dot(struct vty *vty, const char *label, float ratio,
 static void
 gauge_block_graph(struct vty *vty, const char *label, float ratio,
 		  const struct gauge_history *h, int width,
-		  const char *left, const char *right, gauge_color_fn_t color_fn)
+		  int label_w, const char *left, const char *right,
+		  gauge_color_fn_t color_fn)
 {
 	/*
 	 * Block elements U+2581..U+2588, UTF-8 encoded.
@@ -340,7 +345,7 @@ gauge_block_graph(struct vty *vty, const char *label, float ratio,
 	samples = h->count < width ? h->count : width;
 	pad = width - samples;
 
-	vty_out(vty, "%-10s  %s", label, left);
+	vty_out(vty, "%-*s  %s", label_w, label, left);
 	for (i = 0; i < pad; i++)
 		vty_out(vty, " ");
 
@@ -353,7 +358,7 @@ gauge_block_graph(struct vty *vty, const char *label, float ratio,
 		vty_out(vty, "%s%s" COLOR_RESET, color_fn(s), blocks[lvl]);
 	}
 
-	vty_out(vty, "%s %5.1f%%%s", right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%s %5.1f%%", right, ratio * 100.0f);
 }
 
 
@@ -388,7 +393,8 @@ static const float braille_thresh[4] = { 0.75f, 0.50f, 0.25f, 0.125f };
 static void
 gauge_braille_graph(struct vty *vty, const char *label, float ratio,
 		    const struct gauge_history *h, int width,
-		    const char *left, const char *right, gauge_color_fn_t color_fn)
+		    int label_w, const char *left, const char *right,
+		    gauge_color_fn_t color_fn)
 {
 	int needed = 2 * width;
 	int samples = h->count < needed ? h->count : needed;
@@ -396,7 +402,7 @@ gauge_braille_graph(struct vty *vty, const char *label, float ratio,
 	int base = h->count - samples;
 	int cell, row;
 
-	vty_out(vty, "%-10s  %s", label, left);
+	vty_out(vty, "%-*s  %s", label_w, label, left);
 	for (cell = 0; cell < pad_cells; cell++)
 		vty_out(vty, " ");
 
@@ -420,16 +426,53 @@ gauge_braille_graph(struct vty *vty, const char *label, float ratio,
 		vty_out(vty, "%s%s" COLOR_RESET, color_fn(col_ratio), glyph);
 	}
 
-	vty_out(vty, "%s %5.1f%%%s", right, ratio * 100.0f, VTY_NEWLINE);
+	vty_out(vty, "%s %5.1f%%", right, ratio * 100.0f);
+}
+
+/*
+ *	Gauge helpers
+ */
+enum gauge_style
+gauge_style_parse(const char *s)
+{
+	if (!strcmp(s, "block"))
+		return GAUGE_BLOCK;
+	if (!strcmp(s, "braille"))
+		return GAUGE_BRAILLE;
+	if (!strcmp(s, "thin"))
+		return GAUGE_THIN;
+	if (!strcmp(s, "dot"))
+		return GAUGE_DOT;
+	if (!strcmp(s, "block-graph"))
+		return GAUGE_BLOCK_GRAPH;
+	if (!strcmp(s, "braille-graph"))
+		return GAUGE_BRAILLE_GRAPH;
+	return GAUGE_ASCII;
+}
+
+struct gauge_opts *
+gauge_opts_alloc(enum gauge_style style)
+{
+	struct gauge_opts *g = calloc(1, sizeof(*g));
+
+	if (!g)
+		return NULL;
+	*g = (struct gauge_opts) {
+		.style = style,
+		.color_mode = GAUGE_COLOR_TRUE,
+		.width = GAUGE_DEFAULT_WIDTH,
+		.left = "[", .right = "]",
+	};
+	return g;
 }
 
 
 /*
- *	VTY helper
+ *	VTY helpers
  */
 static const struct {
 	void (*fn) (struct vty *, const char *, float,
-		    const struct gauge_history *, int,
+		    const struct gauge_history *, int, int,
 		    const char *, const char *, gauge_color_fn_t);
 } vty_gauge_hdl[] = {
 	[GAUGE_ASCII]		= { gauge_ascii },
@@ -446,11 +489,18 @@ static const gauge_color_fn_t color_fns[] = {
 	[GAUGE_COLOR_TRUE] = ratio_color_gradient,
 };
 
+const char *
+vty_ratio_color(float ratio, enum gauge_color_mode mode)
+{
+	return color_fns[mode < ARRAY_SIZE(color_fns) ? mode : 0](ratio);
+}
+
 void
-vty_gauge(struct vty *vty, const char *label, float ratio,
-	  const struct gauge_opts *opts)
+vty_gauge_emit(struct vty *vty, const char *label, float ratio,
+	       const struct gauge_opts *opts)
 {
 	int width = opts->width ? : GAUGE_DEFAULT_WIDTH;
+	int label_w = opts->label_width ? : GAUGE_DEFAULT_LABEL_WIDTH;
 	const char *left = opts->left ? : "";
 	const char *right = opts->right ? : "";
 	gauge_color_fn_t color_fn = ratio_color;
@@ -467,5 +517,13 @@ vty_gauge(struct vty *vty, const char *label, float ratio,
 		color_fn = color_fns[opts->color_mode];
 
 	vty_gauge_hdl[opts->style].fn(vty, label, ratio, opts->h,
-				      width, left, right, color_fn);
+				      width, label_w, left, right, color_fn);
+}
+
+void
+vty_gauge(struct vty *vty, const char *label, float ratio,
+	  const struct gauge_opts *opts)
+{
+	vty_gauge_emit(vty, label, ratio, opts);
+	vty_out(vty, "%s", VTY_NEWLINE);
 }

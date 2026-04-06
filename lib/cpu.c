@@ -19,6 +19,8 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -298,4 +300,31 @@ cpu_load_destroy(struct cpu_load *ctx)
 	}
 	free(ctx->cpus);
 	free(ctx);
+}
+
+/*
+ *	Helpers
+ */
+void
+cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
+		      void *arg)
+{
+	char path[64], cpulist[256];
+	FILE *f;
+	int i;
+
+	for (i = 0; i < CPU_NUMA_MAX; i++) {
+		snprintf(path, sizeof(path),
+			 "/sys/devices/system/node/node%d/cpulist", i);
+		f = fopen(path, "r");
+		if (!f)
+			break;
+		if (!fgets(cpulist, sizeof(cpulist), f)) {
+			fclose(f);
+			continue;
+		}
+		fclose(f);
+		cpulist[strcspn(cpulist, "\n")] = '\0';
+		fn(i, cpulist, arg);
+	}
 }
