@@ -33,6 +33,7 @@
 #include "bitops.h"
 #include "memory.h"
 #include "inet_utils.h"
+#include "vty_gauge.h"
 
 
 /* Extern data */
@@ -360,8 +361,22 @@ DEFUN(show_system_cpu,
       "System information\n"
       "Per-core CPU utilization\n")
 {
-	gtp_cpu_show(vty);
-	return CMD_SUCCESS;
+	struct gauge_opts *go = gauge_opts_alloc(GAUGE_BRAILLE_GRAPH);
+	int ret = CMD_SUCCESS;
+
+	if (!go) {
+		vty_out(vty, "%% out of memory%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vty->priv = go;
+	if (gtp_cpu_show(vty) < 0) {
+		ret = CMD_WARNING;
+	}
+
+	vty->priv = NULL;
+	free(go);
+	return ret;
 }
 
 DEFUN(show_workers_request_channel,

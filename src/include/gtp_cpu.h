@@ -24,3 +24,4 @@
 int gtp_cpu_init(void);
 int gtp_cpu_destroy(void);
 int gtp_cpu_show(struct vty *vty);
+int gtp_cpu_matrix_show(struct vty *vty);

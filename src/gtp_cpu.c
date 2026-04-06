@@ -19,16 +19,13 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include "logger.h"
 #include "thread.h"
 #include "vty.h"
 #include "vty_gauge.h"
+#include "vty_matrix.h"
 #include "cpu.h"
-
-#define CPU_NUMA_MAX	8
 
 /* Local data */
 static struct cpu_load *cpu_load;
@@ -65,9 +62,9 @@ gtp_cpu_poll(struct thread *t)
  *	VTY show
  */
 
-/* Walk a cpulist string ("0-3,8,16-19") and show a gauge for each CPU. */
+/* Walk a cpulist string ("0-3,8,16-19") and call vty_gauge for each CPU. */
 static void
-gtp_cpu_list_show(struct vty *vty, const char *list)
+gtp_cpu_list_gauge(struct vty *vty, const char *list)
 {
 	const struct gauge_opts defaults = { .style = GAUGE_ASCII };
 	struct gauge_opts *opts = vty->priv ? : (void *)&defaults;
@@ -96,42 +93,80 @@ gtp_cpu_list_show(struct vty *vty, const char *list)
 	}
 }
 
+/* Parse cpulist into matrix_entry[], return count filled. */
+static int
+gtp_cpu_list_collect(const char *list, struct matrix_entry *e, int max)
+{
+	const char *p = list;
+	int a, b, n = 0;
+
+	while (*p >= '0' && *p <= '9' && n < max) {
+		a = 0;
+		while (*p >= '0' && *p <= '9')
+			a = a * 10 + (*p++ - '0');
+		b = a;
+		if (*p == '-') {
+			p++;
+			b = 0;
+			while (*p >= '0' && *p <= '9')
+				b = b * 10 + (*p++ - '0');
+		}
+		for (; a <= b && n < max; a++, n++) {
+			snprintf(e[n].label, sizeof(e[n].label), "cpu%-3d", a);
+			e[n].render = vty_matrix_gauge_render;
+			e[n].value = cpu_load_get(cpu_load, a);
+		}
+		if (*p == ',')
+			p++;
+	}
+	return n;
+}
+
+static void
+gtp_cpu_gauge_cb(int node, const char *cpulist, void *arg)
+{
+	struct vty *vty = arg;
+
+	vty_out(vty, " NUMA node %d  [cpus: %s]%s", node, cpulist, VTY_NEWLINE);
+	gtp_cpu_list_gauge(vty, cpulist);
+	vty_out(vty, "%s", VTY_NEWLINE);
+}
+
+static void
+gtp_cpu_matrix_cb(int node, const char *cpulist, void *arg)
+{
+	struct matrix_entry entries[cpu_load->nr_cpus];
+	struct matrix_opts *mopts = ((struct vty *)arg)->priv;
+	struct vty *vty = arg;
+	int n;
+
+	vty_out(vty, " NUMA node %d  [cpus: %s]%s", node, cpulist, VTY_NEWLINE);
+	n = gtp_cpu_list_collect(cpulist, entries, cpu_load->nr_cpus);
+	vty_matrix(vty, NULL, entries, n, mopts);
+	vty_out(vty, "%s", VTY_NEWLINE);
+}
+
 int
 gtp_cpu_show(struct vty *vty)
 {
-	char path[64], cpulist[256];
-	FILE *f;
-	int i;
-
 	if (!cpu_load) {
 		vty_out(vty, "%% CPU monitoring not available%s", VTY_NEWLINE);
 		return -1;
 	}
-
-	for (i = 0; i < CPU_NUMA_MAX; i++) {
-		snprintf(path, sizeof(path)
-			     , "/sys/devices/system/node/node%d/cpulist"
-			     , i);
-		f = fopen(path, "r");
-		if (!f)
-			break;
-
-		if (!fgets(cpulist, sizeof(cpulist), f)) {
-			fclose(f);
-			continue;
-		}
-		fclose(f);
-		cpulist[strcspn(cpulist, "\n")] = '\0';
-
-		vty_out(vty, " NUMA node %d  [cpus: %s]%s"
-			   , i, cpulist, VTY_NEWLINE);
-		gtp_cpu_list_show(vty, cpulist);
-		vty_out(vty, "%s", VTY_NEWLINE);
-	}
-
+	cpu_foreach_numa_node(gtp_cpu_gauge_cb, vty);
 	return 0;
 }
 
+int
+gtp_cpu_matrix_show(struct vty *vty)
+{
+	if (!cpu_load) {
+		vty_out(vty, "%% CPU monitoring not available%s", VTY_NEWLINE);
+		return -1;
+	}
+	cpu_foreach_numa_node(gtp_cpu_matrix_cb, vty);
+	return 0;
+}
 
 /*
  *	CPU monitoring init
