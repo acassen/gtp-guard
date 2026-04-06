@@ -274,11 +274,33 @@ buffer_flush_window(struct buffer *b, int fd, int width, int height,
 
 		cp = data->sp;
 		while ((cp < data->cp) && (height > 0)) {
-			/* Calculate lines remaining and column position after displaying
-			 * this character. */
-			if (data->data[cp] == '\r') {
+			unsigned char c = (unsigned char)data->data[cp];
+
+			/* Skip ANSI/VT CSI escape sequences: ESC [ params final.
+			 * These are invisible and must not count as columns. */
+			if (c == '\033') {
+				cp++;
+				if (cp < data->cp && (unsigned char)data->data[cp] == '[') {
+					cp++;
+					while (cp < data->cp) {
+						unsigned char fc = (unsigned char)data->data[cp++];
+						if (fc >= 0x40 && fc <= 0x7e)
+							break; /* final byte */
+					}
+				}
+				continue;
+			}
+
+			/* Skip UTF-8 multi-byte continuation bytes (0x80-0xBF).
+			 * Only the lead byte counts as one column. */
+			if (c >= 0x80 && c < 0xc0) {
+				cp++;
+				continue;
+			}
+
+			if (c == '\r') {
 				column = 1;
-			} else if ((data->data[cp] == '\n') || (column == width)) {
+			} else if (c == '\n' || column == width) {
 				column = 1;
 				height--;
 			} else {
