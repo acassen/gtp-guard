@@ -185,10 +185,15 @@ vty_send_out(struct vty *vty, const char *fmt, ...)
 	int len = 0;
 	char buf[1024];
 
-	/* Try to write to initial buffer.  */
 	va_start(args, fmt);
 	len = vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
+
+	/* vsnprintf returns the would-be length; clamp to avoid over-read */
+	if (len < 0)
+		return -1;
+	if ((size_t)len >= sizeof(buf))
+		len = sizeof(buf) - 1;
 
 	return write(vty->fd, buf, len);
 }
