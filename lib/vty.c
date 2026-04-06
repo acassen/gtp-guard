@@ -1616,7 +1616,7 @@ vty_listen(struct thread_master *m, struct sockaddr_storage *addr)
 		goto err;
 	}
 
-	ret = listen(accept_sock, 3);
+	ret = listen(accept_sock, 16);
 	if (ret < 0) {
 		log_message(LOG_INFO, "Vty error cant listen to [%s]:%d (%m)"
 				    , inet_sockaddrtos(addr)
@@ -1712,7 +1712,7 @@ vty_listen_unix(struct thread_master *m, const char *path,
 		}
 	}
 
-	ret = listen(accept_sock, 3);
+	ret = listen(accept_sock, 16);
 	if (ret < 0) {
 		log_message(LOG_INFO, "Vty error cant listen on %s (%m)", path);
 		close(accept_sock);
