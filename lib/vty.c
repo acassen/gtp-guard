@@ -53,6 +53,10 @@ static int vty_config;
 /* Login password check. */
 static int no_password_check = 0;
 
+/* Active VTY session count and hard ceiling. */
+static int vty_connections;
+#define VTY_MAX_CONNECTIONS	16
+
 /* Integrated configuration file path */
 #define SYSCONFDIR      "/etc/gtp-guard"
 
@@ -1472,8 +1476,16 @@ vty_create(struct thread_master *m, int vty_sock, struct sockaddr_storage *addr)
 {
 	struct vty *vty;
 
+	if (vty_connections >= VTY_MAX_CONNECTIONS) {
+		log_message(LOG_WARNING, "Vty connection limit (%d) reached, rejecting"
+				       , VTY_MAX_CONNECTIONS);
+		close(vty_sock);
+		return NULL;
+	}
+
 	/* Allocate new vty structure and set up default values. */
 	vty = vty_new();
+	vty_connections++;
 	vty->fd = vty_sock;
 	vty->type = VTY_TERM;
 	vty->address = *addr;
@@ -1751,6 +1763,9 @@ vty_close(struct vty *vty)
 	/* Close socket. */
 	if (vty->fd > 0)
 		close(vty->fd);
+
+	if (vty->type == VTY_TERM)
+		vty_connections--;
 
 	FREE_PTR(vty->buf);
 
