@@ -1246,7 +1246,8 @@ vty_read(struct thread *t)
 		if (vty->iac_sb_in_progress && !vty->iac) {
 			if (vty->sb_len < sizeof(vty->sb_buf))
 				vty->sb_buf[vty->sb_len] = buf[i];
-			vty->sb_len++;
+			if (vty->sb_len < SIZE_MAX)
+				vty->sb_len++;
 			continue;
 		}
 
