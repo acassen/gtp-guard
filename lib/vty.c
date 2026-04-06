@@ -286,32 +286,32 @@ vty_prompt_restore(struct vty *vty)
 static void
 vty_will_echo(struct vty *vty)
 {
-	unsigned char cmd[] = { IAC, WILL, TELOPT_ECHO, '\0' };
-	vty_out(vty, "%s", cmd);
+	unsigned char cmd[] = { IAC, WILL, TELOPT_ECHO };
+	buffer_put(vty->obuf, cmd, sizeof(cmd));
 }
 
 /* Make suppress Go-Ahead telnet option. */
 static void
 vty_will_suppress_go_ahead(struct vty *vty)
 {
-	unsigned char cmd[] = { IAC, WILL, TELOPT_SGA, '\0' };
-	vty_out(vty, "%s", cmd);
+	unsigned char cmd[] = { IAC, WILL, TELOPT_SGA };
+	buffer_put(vty->obuf, cmd, sizeof(cmd));
 }
 
 /* Make don't use linemode over telnet. */
 static void
 vty_dont_linemode(struct vty *vty)
 {
-	unsigned char cmd[] = { IAC, DONT, TELOPT_LINEMODE, '\0' };
-	vty_out(vty, "%s", cmd);
+	unsigned char cmd[] = { IAC, DONT, TELOPT_LINEMODE };
+	buffer_put(vty->obuf, cmd, sizeof(cmd));
 }
 
 /* Use window size. */
 static void
 vty_do_window_size(struct vty *vty)
 {
-	unsigned char cmd[] = { IAC, DO, TELOPT_NAWS, '\0' };
-	vty_out(vty, "%s", cmd);
+	unsigned char cmd[] = { IAC, DO, TELOPT_NAWS };
+	buffer_put(vty->obuf, cmd, sizeof(cmd));
 }
 
 /* Allocate new vty struct. */
