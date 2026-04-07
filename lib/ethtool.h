@@ -22,8 +22,13 @@
 #ifndef _ETHTOOL_H
 #define _ETHTOOL_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 /* Prototypes */
 int sysfs_set_iface_forwarding(const char *ifname, bool ipv4, bool ipv6);
 int ethtool_get_nr_queues(const char *ifname, uint32_t *rx, uint32_t *tx);
+int ethtool_gstats_get(const char *ifname, const char * const *names,
+		       uint64_t *out, int n);
 
 #endif
