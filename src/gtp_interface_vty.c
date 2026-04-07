@@ -20,6 +20,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
@@ -37,6 +38,135 @@
 
 /* Extern data */
 extern struct data *daemon_data;
+
+
+/*
+ *	Interface statistics helpers
+ */
+static void
+bw_format(uint64_t bps, char *buf, size_t len)
+{
+	if (bps >= 1000000000ULL)
+		snprintf(buf, len, "%.2fGbps", (double)bps / 1e9);
+	else if (bps >= 1000000ULL)
+		snprintf(buf, len, "%.2fMbps", (double)bps / 1e6);
+	else if (bps >= 1000ULL)
+		snprintf(buf, len, "%.2fKbps", (double)bps / 1e3);
+	else
+		snprintf(buf, len, "%llubps", (unsigned long long)bps);
+}
+
+static int
+gtp_interface_stats_show_summary(struct gtp_interface *iface, void *arg)
+{
+	const struct gtp_if_phy_stats *s = &iface->phy_stats;
+	struct vty *vty = arg;
+	char rxbw[20], txbw[20];
+
+	bw_format(iface->rx_bw_bps, rxbw, sizeof(rxbw));
+	bw_format(iface->tx_bw_bps, txbw, sizeof(txbw));
+	vty_out(vty, "%-16s  %14llu  %14llu  %14llu  %14llu  %14s  %14s%s",
+		iface->ifname,
+		(unsigned long long)s->rx_packets,
+		(unsigned long long)s->tx_packets,
+		(unsigned long long)s->rx_bytes,
+		(unsigned long long)s->tx_bytes,
+		rxbw, txbw, VTY_NEWLINE);
+	return 0;
+}
+
+static void
+gtp_interface_stats_show_detail(struct vty *vty, struct gtp_interface *iface)
+{
+	const struct gtp_if_phy_stats *p = &iface->phy_stats;
+	char rxbw[20], txbw[20];
+	uint32_t q, nr;
+	int *cpu_per_q;
+
+	bw_format(iface->rx_bw_bps, rxbw, sizeof(rxbw));
+	bw_format(iface->tx_bw_bps, txbw, sizeof(txbw));
+
+	vty_out(vty, "Interface %s%s", iface->ifname, VTY_NEWLINE);
+	vty_out(vty, "  PHY counters:%s", VTY_NEWLINE);
+	vty_out(vty, "    %-24s %-14llu  %-24s %llu%s",
+		"rx_packets:", (unsigned long long)p->rx_packets,
+		"tx_packets:", (unsigned long long)p->tx_packets, VTY_NEWLINE);
+	vty_out(vty, "    %-24s %-14llu  %-24s %llu%s",
+		"rx_bytes:", (unsigned long long)p->rx_bytes,
+		"tx_bytes:", (unsigned long long)p->tx_bytes, VTY_NEWLINE);
+	vty_out(vty, "    %-24s %-14llu  %-24s %llu%s",
+		"rx_discards:", (unsigned long long)p->rx_discards,
+		"tx_discards:", (unsigned long long)p->tx_discards, VTY_NEWLINE);
+	vty_out(vty, "    %-24s %llu%s",
+		"tx_errors:", (unsigned long long)p->tx_errors, VTY_NEWLINE);
+	vty_out(vty, "  Frame size histogram (rx):%s", VTY_NEWLINE);
+	vty_out(vty, "    %-10s %-14llu  %-14s %-14llu  %-16s %llu%s",
+		"[64]", (unsigned long long)p->rx_64,
+		"[65-127]", (unsigned long long)p->rx_65_127,
+		"[128-255]", (unsigned long long)p->rx_128_255, VTY_NEWLINE);
+	vty_out(vty, "    %-10s %-14llu  %-14s %-14llu  %-16s %llu%s",
+		"[256-511]", (unsigned long long)p->rx_256_511,
+		"[512-1023]", (unsigned long long)p->rx_512_1023,
+		"[1024-1518]", (unsigned long long)p->rx_1024_1518, VTY_NEWLINE);
+	vty_out(vty, "    %-10s %-14llu  %-14s %-14llu  %-16s %llu%s",
+		"[1519-2047]", (unsigned long long)p->rx_1519_2047,
+		"[2048-4095]", (unsigned long long)p->rx_2048_4095,
+		"[4096-8191]", (unsigned long long)p->rx_4096_8191, VTY_NEWLINE);
+	vty_out(vty, "    %-10s %llu%s",
+		"[8192-10239]", (unsigned long long)p->rx_8192_10239, VTY_NEWLINE);
+	vty_out(vty, "  Bandwidth: rx:%s  tx:%s%s", rxbw, txbw, VTY_NEWLINE);
+
+	if (!iface->queue_stats || !(iface->nr_rx_queues | iface->nr_tx_queues)) {
+		vty_out(vty, "%s", VTY_NEWLINE);
+		return;
+	}
+
+	nr = iface->nr_rx_queues > iface->nr_tx_queues ?
+	     iface->nr_rx_queues : iface->nr_tx_queues;
+	cpu_per_q = calloc(nr, sizeof(*cpu_per_q));
+	if (!cpu_per_q) {
+		vty_out(vty, "%s", VTY_NEWLINE);
+		return;
+	}
+	memset(cpu_per_q, -1, nr * sizeof(*cpu_per_q));
+	gtp_interface_rxq_cpu(iface, cpu_per_q, nr);
+
+	vty_out(vty, "  Per-queue counters:%s", VTY_NEWLINE);
+	vty_out(vty, "    %3s  %4s  %14s  %14s  %12s  %14s  %14s%s",
+		"q", "cpu", "rx_packets", "rx_bytes", "rx_xdp_drop",
+		"tx_packets", "tx_bytes", VTY_NEWLINE);
+	for (q = 0; q < nr; q++) {
+		const struct gtp_if_queue_stats *qs = &iface->queue_stats[q];
+		vty_out(vty, "    %3u  %4d  %14llu  %14llu  %12llu  %14llu  %14llu%s",
+			q, cpu_per_q[q],
+			(unsigned long long)qs->rx_packets,
+			(unsigned long long)qs->rx_bytes,
+			(unsigned long long)qs->rx_xdp_drop,
+			(unsigned long long)qs->tx_packets,
+			(unsigned long long)qs->tx_bytes, VTY_NEWLINE);
+	}
+	free(cpu_per_q);
+
+	/* BPF XDP counters */
+	if (iface->bpf_ifrules) {
+		struct gtp_bpf_ifrule_metrics m;
+
+		if (!gtp_bpf_ifrules_metrics(iface, &m)) {
+			vty_out(vty, "  BPF XDP counters:%s", VTY_NEWLINE);
+			vty_out(vty, "    %-24s %-14llu  %-24s %-14llu  %-24s %llu%s",
+				"pkt_in:", (unsigned long long)m.pkt_in,
+				"bytes_in:", (unsigned long long)m.bytes_in,
+				"pkt_fwd:", (unsigned long long)m.pkt_fwd,
+				VTY_NEWLINE);
+			if (p->rx_packets)
+				vty_out(vty, "    %-24s %llu%s",
+					"sys_rx_pkts:",
+					(unsigned long long)(p->rx_packets - m.pkt_in),
+					VTY_NEWLINE);
+		}
+	}
+	vty_out(vty, "%s", VTY_NEWLINE);
+}
 
 
 /*
@@ -467,9 +597,9 @@ DEFUN(capture_stop_interface,
 
 
 /* Show */
-DEFUN(show_interface_rxq,
-      show_interface_rxq_cmd,
-      "show interface rx-queue",
+DEFUN(show_interface_rxq_topology,
+      show_interface_rxq_topology_cmd,
+      "show interface rx-queue topology",
       SHOW_STR
       "Interface\n"
       "Display RX queue IRQ affinity and NUMA diagnostic\n")
@@ -532,6 +662,44 @@ DEFUN(show_interface,
 	gtp_interface_foreach(gtp_interface_show, vty);
 	return CMD_SUCCESS;
 }
+
+DEFUN(show_interface_stats_all,
+      show_interface_stats_all_cmd,
+      "show interface statistics",
+      SHOW_STR
+      "Interface\n"
+      "Display cumulative interface statistics\n")
+{
+	vty_out(vty, "%-16s  %14s  %14s  %14s  %14s  %14s  %14s%s",
+		"Interface", "rx-packets", "tx-packets",
+		"rx-bytes", "tx-bytes", "rx-bw", "tx-bw", VTY_NEWLINE);
+	vty_out(vty, "%-16s  %14s  %14s  %14s  %14s  %14s  %14s%s",
+		"----------------", "--------------", "--------------",
+		"--------------", "--------------",
+		"--------------", "--------------", VTY_NEWLINE);
+	gtp_interface_foreach(gtp_interface_stats_show_summary, vty);
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_interface_stats,
+      show_interface_stats_cmd,
+      "show interface statistics WORD",
+      SHOW_STR
+      "Interface\n"
+      "Display cumulative interface statistics\n"
+      "Interface name\n")
+{
+	struct gtp_interface *iface;
+
+	iface = gtp_interface_get(argv[0], false);
+	if (!iface) {
+		vty_out(vty, "%% Unknown interface:'%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+	gtp_interface_stats_show_detail(vty, iface);
+	return CMD_SUCCESS;
+}
+
 
 /* Configuration writer */
 static int
@@ -609,10 +777,14 @@ cmd_ext_interface_install(void)
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_interface_cmd);
 	install_element(ENABLE_NODE, &show_interface_cmd);
-	install_element(VIEW_NODE, &show_interface_rxq_cmd);
-	install_element(ENABLE_NODE, &show_interface_rxq_cmd);
+	install_element(VIEW_NODE, &show_interface_rxq_topology_cmd);
+	install_element(ENABLE_NODE, &show_interface_rxq_topology_cmd);
 	install_element(VIEW_NODE, &show_interface_topology_cmd);
 	install_element(ENABLE_NODE, &show_interface_topology_cmd);
+	install_element(VIEW_NODE, &show_interface_stats_all_cmd);
+	install_element(ENABLE_NODE, &show_interface_stats_all_cmd);
+	install_element(VIEW_NODE, &show_interface_stats_cmd);
+	install_element(ENABLE_NODE, &show_interface_stats_cmd);
 
 	return 0;
 }
