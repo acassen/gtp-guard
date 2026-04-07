@@ -20,8 +20,17 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <stdbool.h>
+
 struct gtp_bpf_ifrules;
 struct gtp_bpf_prog;
+
+struct gtp_bpf_ifrule_metrics {
+	uint64_t pkt_in;
+	uint64_t bytes_in;
+	uint64_t pkt_fwd;
+};
 
 struct gtp_if_rule
 {
@@ -51,6 +60,10 @@ typedef void (*gtp_bpf_ifrules_event_cb_t)(void *user_data,
 					   void *arg);
 
 /* Prototypes */
+int gtp_bpf_ifrules_metrics(const struct gtp_interface *iface,
+			    struct gtp_bpf_ifrule_metrics *out);
+int gtp_bpf_ifrules_cpu_metrics(const struct gtp_interface *iface, int cpu,
+				struct gtp_bpf_ifrule_metrics *out);
 int gtp_bpf_ifrules_set(struct gtp_if_rule *, bool add);
 void gtp_bpf_ifrules_set_auto_input_rule(struct gtp_interface *iface, bool set);
 void gtp_bpf_ifrules_register_event(struct gtp_bpf_ifrules *bir,

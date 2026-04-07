@@ -29,8 +29,6 @@
 #include "addr.h"
 #include "gtp_bpf_prog.h"
 
-#define STAT_NAME_LEN    32
-
 /* Physical NIC stats from ethtool -S (*_phy counters) */
 #define N_PHY_STATS      17
 struct gtp_if_phy_stats {
