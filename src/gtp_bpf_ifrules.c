@@ -727,7 +727,7 @@ gtp_bpf_ifrules_metrics(const struct gtp_interface *iface,
 	if (err)
 		return err;
 	memset(out, 0, sizeof(*out));
-	for (i = 0; i < (int)nr_cpus; i++) {
+	for (i = 0; i < nr_cpus; i++) {
 		out->pkt_in   += m[i].pkt_in;
 		out->bytes_in += m[i].bytes_in;
 		out->pkt_fwd  += m[i].pkt_fwd;

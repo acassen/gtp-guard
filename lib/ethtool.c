@@ -183,7 +183,7 @@ gstrings_find(const struct ethtool_gstrings *gs, const char *name)
 {
 	int j;
 
-	for (j = 0; j < (int)gs->len; j++) {
+	for (j = 0; j < gs->len; j++) {
 		const char *s = (char *)gs->data + j * ETH_GSTRING_LEN;
 		if (!strncmp(name, s, ETH_GSTRING_LEN))
 			return j;
@@ -270,7 +270,7 @@ ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 	for (i = 0; i < n_phy; i++)
 		c->phy_idx[i] = gstrings_find(gstrings, phy_names[i]);
 
-	for (q = 0; q < (int)nr_queues; q++) {
+	for (q = 0; q < nr_queues; q++) {
 		for (i = 0; i < n_rx; i++) {
 			snprintf(name, ETH_GSTRING_LEN, rx_fmt[i], q);
 			c->q_idx[q * n_per_queue + i] = gstrings_find(gstrings, name);
