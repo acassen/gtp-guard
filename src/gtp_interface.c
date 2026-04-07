@@ -20,16 +20,18 @@
  */
 
 #include <net/if.h>
+#include <stdlib.h>
 
 #include "gtp_data.h"
 #include "gtp_interface.h"
 #include "gtp_netlink.h"
 #include "gtp_bpf_rt.h"
 #include "addr.h"
+#include "ethtool.h"
 #include "memory.h"
-#include "utils.h"
 #include "bitops.h"
 #include "logger.h"
+#include "utils.h"
 
 
 /* Extern data */
@@ -308,6 +310,20 @@ gtp_interface_start(struct gtp_interface *iface)
 				       , iface->ifname);
 	}
 
+	/* allocate per-queue stats once; queue count is a hardware property
+	 * that does not change between stop/restart cycles */
+	if (!iface->queue_stats) {
+		uint32_t nr_rx = 0, nr_tx = 0, nr;
+
+		ethtool_get_nr_queues(iface->ifname, &nr_rx, &nr_tx);
+		nr = max(nr_rx, nr_tx);
+		if (nr) {
+			iface->queue_stats = calloc(nr, sizeof(*iface->queue_stats));
+			iface->nr_rx_queues = nr_rx;
+			iface->nr_tx_queues = nr_tx;
+		}
+	}
+
 	__set_bit(GTP_INTERFACE_FL_RUNNING_BIT, &iface->flags);
 	_trigger_on_change(iface, GTP_INTERFACE_EV_PRG_START);
 
@@ -413,6 +429,7 @@ gtp_interface_destroy(struct gtp_interface *iface)
 	if (iface->bpf_prog)
 		list_del(&iface->bpf_prog_list);
 	FREE_PTR(iface->link_metrics);
+	free(iface->queue_stats);
 	free(iface->ev);
 	list_del(&iface->next);
 	FREE(iface);
