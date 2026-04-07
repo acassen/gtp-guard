@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include "vty.h"
 
+#define ETHTOOL_POLL_TICKS 15
+
 struct gtp_percpu_metrics {
 	uint32_t pfcp_sessions;		/* PFCP sessions on this CPU */
 	float    load;			/* [0.0, 1.0] */

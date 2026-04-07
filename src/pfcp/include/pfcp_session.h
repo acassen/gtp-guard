@@ -22,7 +22,6 @@
 
 #include "gtp_apn.h"
 #include "gtp_conn.h"
-#include "pfcp.h"
 #include "pfcp_msg.h"
 #include "pfcp_metrics.h"
 #include "gtp_bpf_capture.h"

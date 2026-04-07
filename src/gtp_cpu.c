@@ -38,6 +38,7 @@
 static struct cpu_load *cpu_load;
 static struct gauge_history *cpu_history;
 static struct gtp_percpu_metrics *percpu_metrics;
+static int ethtool_tick;
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -262,7 +263,11 @@ gtp_cpu_poll(struct thread *t)
 	if (percpu_metrics)
 		memset(percpu_metrics, 0, cpu_load->nr_cpus * sizeof(*percpu_metrics));
 
-	gtp_interface_foreach(gtp_interface_collect, &now_ns);
+	/* collect ethtool stats at 1 Hz; poll fires at TIMER_HZ/5 (200 ms) */
+	if (++ethtool_tick >= ETHTOOL_POLL_TICKS) {
+		ethtool_tick = 0;
+		gtp_interface_foreach(gtp_interface_collect, &now_ns);
+	}
 	gtp_interface_foreach(gtp_percpu_collect, NULL);
 
 	for (i = 0; i < cpu_load->nr_cpus; i++) {
