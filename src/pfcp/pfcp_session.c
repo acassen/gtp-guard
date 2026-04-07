@@ -21,6 +21,8 @@
 
 #include <inttypes.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "pfcp_session.h"
 #include "pfcp_router.h"
 #include "pfcp_bpf.h"
@@ -36,6 +38,8 @@ extern struct thread_master *master;
 /* Local data */
 static struct hlist_head *pfcp_session_tab;
 static int pfcp_sessions_count;
+static int *pfcp_sessions_per_cpu;
+static int pfcp_sessions_nr_cpus;
 
 /* Local func */
 static void pfcp_session_expire(struct thread *t);
@@ -150,6 +154,8 @@ pfcp_session_add(struct gtp_conn *c, struct pfcp_session *s)
 	list_add_tail(&s->next, &c->pfcp_sessions);
 	__sync_add_and_fetch(&c->refcnt, 1);
 	__sync_add_and_fetch(&pfcp_sessions_count, 1);
+	if (pfcp_sessions_per_cpu && s->cpu < pfcp_sessions_nr_cpus)
+		__sync_add_and_fetch(&pfcp_sessions_per_cpu[s->cpu], 1);
 	return 0;
 }
 
@@ -267,6 +273,8 @@ pfcp_session_release(struct pfcp_session *s)
 {
 	__sync_sub_and_fetch(&s->apn->session_count, 1);
 	__sync_sub_and_fetch(&pfcp_sessions_count, 1);
+	if (pfcp_sessions_per_cpu && s->cpu < pfcp_sessions_nr_cpus)
+		__sync_sub_and_fetch(&pfcp_sessions_per_cpu[s->cpu], 1);
 	gtp_apn_cdr_commit(s->apn, s->cdr);
 	pfcp_session_delete(s);
 	list_head_del(&s->next);
@@ -347,6 +355,9 @@ pfcp_sessions_free(struct gtp_conn *c)
 int
 pfcp_sessions_init(void)
 {
+	pfcp_sessions_nr_cpus = sysconf(_SC_NPROCESSORS_CONF);
+	if (pfcp_sessions_nr_cpus > 0)
+		pfcp_sessions_per_cpu = calloc(pfcp_sessions_nr_cpus, sizeof(int));
 	pfcp_session_tab = calloc(PFCP_SESSION_HASHTAB_SIZE, sizeof(struct hlist_head));
 	return 0;
 }
@@ -365,5 +376,15 @@ pfcp_sessions_destroy(void)
 	}
 
 	free(pfcp_session_tab);
+	free(pfcp_sessions_per_cpu);
+	pfcp_sessions_per_cpu = NULL;
 	return 0;
+}
+
+int
+pfcp_sessions_cpu_count(int cpu)
+{
+	if (!pfcp_sessions_per_cpu || cpu < 0 || cpu >= pfcp_sessions_nr_cpus)
+		return 0;
+	return pfcp_sessions_per_cpu[cpu];
 }

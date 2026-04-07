@@ -32,6 +32,7 @@
 #include "gtp_interface_rxq.h"
 #include "gtp_bpf_ifrules.h"
 #include "gtp_cpu.h"
+#include "pfcp_session.h"
 
 /* Local data */
 static struct cpu_load *cpu_load;
@@ -272,6 +273,7 @@ gtp_cpu_poll(struct thread *t)
 		gauge_history_push(&cpu_history[i], load);
 		if (percpu_metrics) {
 			percpu_metrics[i].load = load;
+			percpu_metrics[i].pfcp_sessions = pfcp_sessions_cpu_count(i);
 			percpu_metrics[i].sys_rx_pkts = percpu_metrics[i].rx_packets -
 						        percpu_metrics[i].bpf_pkt_in;
 		}

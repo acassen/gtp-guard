@@ -235,6 +235,7 @@ struct pfcp_session {
 
 /* Prototypes */
 int pfcp_sessions_count_read(void);
+int pfcp_sessions_cpu_count(int cpu);
 union addr *pfcp_session_get_addr_by_interface(struct pfcp_router *r,
 					       uint8_t interface);
 struct pfcp_session *pfcp_session_get(uint64_t id);
