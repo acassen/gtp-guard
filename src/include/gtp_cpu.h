@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include "vty.h"
 
-#define ETHTOOL_POLL_TICKS 15
+#define ETHTOOL_POLL_TICKS 15		/* 3seconds */
 
 struct gtp_percpu_metrics {
 	uint32_t pfcp_sessions;		/* PFCP sessions on this CPU */
@@ -69,3 +69,4 @@ int gtp_cpu_destroy(void);
 int gtp_cpu_show(struct vty *vty);
 int gtp_cpu_matrix_show(struct vty *vty);
 const struct gtp_percpu_metrics *gtp_percpu_metrics_get(int cpu);
+void gtp_cpu_register_pfcp_count(int (*fn)(int cpu));

@@ -178,6 +178,19 @@ end:
 	return *rx > 0 && *tx > 0 ? 0 : -1;
 }
 
+static int
+gstrings_find(const struct ethtool_gstrings *gs, const char *name)
+{
+	int j;
+
+	for (j = 0; j < (int)gs->len; j++) {
+		const char *s = (char *)gs->data + j * ETH_GSTRING_LEN;
+		if (!strncmp(name, s, ETH_GSTRING_LEN))
+			return j;
+	}
+	return -1;
+}
+
 /*
  * Build a per-interface ethtool stats cache.
  *
@@ -203,7 +216,7 @@ ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 	struct gtp_if_ethtool_cache *c;
 	uint32_t nstats, n_per_queue;
 	char name[ETH_GSTRING_LEN];
-	int fd, i, j, q, ret = -1;
+	int fd = -1, i, q, ret = -1;
 
 	n_per_queue = n_rx + n_tx;
 
@@ -214,83 +227,57 @@ ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 	fd = ethtool_open();
 	if (fd < 0) {
 		ret = -errno;
-		goto err_free_c;
+		goto err;
 	}
 
 	if (ethtool_send(fd, ifname, &drvinfo) < 0) {
 		ret = -errno;
-		goto err_close;
+		goto err;
 	}
 	nstats = drvinfo.n_stats;
 	if (!nstats) {
 		ret = -ENODATA;
-		goto err_close;
+		goto err;
 	}
 
 	gstrings = calloc(1, sizeof(*gstrings) + nstats * ETH_GSTRING_LEN);
 	if (!gstrings)
-		goto err_close;
+		goto err;
 	gstrings->cmd = ETHTOOL_GSTRINGS;
 	gstrings->string_set = ETH_SS_STATS;
 	gstrings->len = nstats;
 	if (ethtool_send(fd, ifname, gstrings) < 0) {
 		ret = -errno;
-		goto err_free_gs;
+		goto err;
 	}
 
 	c->stats = calloc(1, sizeof(*c->stats) + nstats * sizeof(uint64_t));
 	if (!c->stats)
-		goto err_free_gs;
+		goto err;
 	c->stats->cmd = ETHTOOL_GSTATS;
 	c->stats->n_stats = nstats;
 
 	c->phy_idx = malloc(n_phy * sizeof(int));
 	if (!c->phy_idx)
-		goto err_free_stats;
+		goto err;
 
 	if (nr_queues && n_per_queue) {
 		c->q_idx = malloc(nr_queues * n_per_queue * sizeof(int));
 		if (!c->q_idx)
-			goto err_free_phy;
+			goto err;
 	}
 
-	/* resolve phy stat indices */
-	for (i = 0; i < n_phy; i++) {
-		c->phy_idx[i] = -1;
-		for (j = 0; j < (int)nstats; j++) {
-			const char *s = (char *)gstrings->data + j * ETH_GSTRING_LEN;
-			if (!strncmp(phy_names[i], s, ETH_GSTRING_LEN)) {
-				c->phy_idx[i] = j;
-				break;
-			}
-		}
-	}
+	for (i = 0; i < n_phy; i++)
+		c->phy_idx[i] = gstrings_find(gstrings, phy_names[i]);
 
-	/* resolve per-queue stat indices */
 	for (q = 0; q < (int)nr_queues; q++) {
 		for (i = 0; i < n_rx; i++) {
-			int pos = q * n_per_queue + i;
-			c->q_idx[pos] = -1;
 			snprintf(name, ETH_GSTRING_LEN, rx_fmt[i], q);
-			for (j = 0; j < (int)nstats; j++) {
-				const char *s = (char *)gstrings->data + j * ETH_GSTRING_LEN;
-				if (!strncmp(name, s, ETH_GSTRING_LEN)) {
-					c->q_idx[pos] = j;
-					break;
-				}
-			}
+			c->q_idx[q * n_per_queue + i] = gstrings_find(gstrings, name);
 		}
 		for (i = 0; i < n_tx; i++) {
-			int pos = q * n_per_queue + n_rx + i;
-			c->q_idx[pos] = -1;
 			snprintf(name, ETH_GSTRING_LEN, tx_fmt[i], q);
-			for (j = 0; j < (int)nstats; j++) {
-				const char *s = (char *)gstrings->data + j * ETH_GSTRING_LEN;
-				if (!strncmp(name, s, ETH_GSTRING_LEN)) {
-					c->q_idx[pos] = j;
-					break;
-				}
-			}
+			c->q_idx[q * n_per_queue + n_rx + i] = gstrings_find(gstrings, name);
 		}
 	}
 
@@ -303,15 +290,13 @@ ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 	*out = c;
 	return 0;
 
-err_free_phy:
+err:
+	free(c->q_idx);
 	free(c->phy_idx);
-err_free_stats:
 	free(c->stats);
-err_free_gs:
 	free(gstrings);
-err_close:
-	close(fd);
-err_free_c:
+	if (fd >= 0)
+		close(fd);
 	free(c);
 	return ret;
 }

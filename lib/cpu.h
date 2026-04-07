@@ -19,10 +19,10 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#ifndef _CPU_H
-#define _CPU_H
+#pragma once
 
 #include <stdint.h>
+#include <sched.h>
 
 #define CPU_NUMA_MAX	8
 
@@ -40,6 +40,12 @@ struct cpu_load {
 	uint64_t	prev_tsc;	/* TSC mode: TSC at last update */
 };
 
+/* Some macro */
+#define cpuset_for_each(cpu, set, max)				\
+	for ((cpu) = 0; (cpu) < (max); (cpu)++)			\
+		if (!CPU_ISSET((cpu), &(set))) continue; else
+
+
 /* Prototypes */
 int cpu_load_init(struct cpu_load **ctx);
 int cpu_load_init_tsc(struct cpu_load **ctx);
@@ -49,5 +55,4 @@ int cpu_load_nr(struct cpu_load *ctx);
 void cpu_load_destroy(struct cpu_load *ctx);
 void cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
 			   void *arg);
-
-#endif
+void cpulist_to_set(const char *list, cpu_set_t *set);

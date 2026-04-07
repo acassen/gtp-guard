@@ -684,65 +684,6 @@ gtp_bpf_ifrules_set_auto_input_rule(struct gtp_interface *iface, bool set)
  *	BPF ifrule metrics
  */
 
-static int
-_ifrules_walk_metrics(struct gtp_bpf_ifrules *bir, int cpu,
-		      struct gtp_bpf_ifrule_metrics *out)
-{
-	unsigned int nr_cpus = bpf_num_possible_cpus();
-	struct if_rule aar[nr_cpus];
-	uint8_t key_stor[bir->key_size];
-	void *key = NULL;
-	int i, err;
-
-	memset(out, 0, sizeof(*out));
-	while (!bpf_map__get_next_key(bir->if_rule, key, &key_stor, bir->key_size)) {
-		key = key_stor;
-		err = bpf_map__lookup_elem(bir->if_rule, key, bir->key_size,
-					   aar, sizeof(aar), 0);
-		if (err)
-			continue;
-
-		/* All CPU */
-		if (cpu < 0) {
-			for (i = 0; i < nr_cpus; i++) {
-				out->pkt_in   += aar[i].pkt_in;
-				out->bytes_in += aar[i].bytes_in;
-				out->pkt_fwd  += aar[i].pkt_fwd;
-			}
-			continue;
-		}
-
-		out->pkt_in   += aar[cpu].pkt_in;
-		out->bytes_in += aar[cpu].bytes_in;
-		out->pkt_fwd  += aar[cpu].pkt_fwd;
-	}
-	return 0;
-}
-
-int
-gtp_bpf_ifrules_metrics(const struct gtp_interface *iface,
-			struct gtp_bpf_ifrule_metrics *out)
-{
-	struct gtp_bpf_ifrules *bir = iface->bpf_ifrules;
-
-	if (!bir || !bir->if_rule)
-		return -ENODEV;
-	return _ifrules_walk_metrics(bir, -1, out);
-}
-
-int
-gtp_bpf_ifrules_cpu_metrics(const struct gtp_interface *iface, int cpu,
-			    struct gtp_bpf_ifrule_metrics *out)
-{
-	struct gtp_bpf_ifrules *bir = iface->bpf_ifrules;
-
-	if (!bir || !bir->if_rule || cpu < 0 ||
-	    cpu >= bpf_num_possible_cpus())
-		return -EINVAL;
-	return _ifrules_walk_metrics(bir, cpu, out);
-}
-
-
 int
 gtp_bpf_ifrules_all_cpu_metrics(const struct gtp_interface *iface,
 				struct gtp_bpf_ifrule_metrics *out, int nr_out)
@@ -757,7 +698,7 @@ gtp_bpf_ifrules_all_cpu_metrics(const struct gtp_interface *iface,
 	if (!bir || !bir->if_rule)
 		return -ENODEV;
 
-	n = nr_out < nr_cpus ? nr_out : nr_cpus;
+	n = min(nr_out, nr_cpus);
 	memset(out, 0, nr_out * sizeof(*out));
 	while (!bpf_map__get_next_key(bir->if_rule, key, &key_stor, bir->key_size)) {
 		key = key_stor;
@@ -771,6 +712,43 @@ gtp_bpf_ifrules_all_cpu_metrics(const struct gtp_interface *iface,
 			out[i].pkt_fwd  += aar[i].pkt_fwd;
 		}
 	}
+	return 0;
+}
+
+int
+gtp_bpf_ifrules_metrics(const struct gtp_interface *iface,
+			struct gtp_bpf_ifrule_metrics *out)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct gtp_bpf_ifrule_metrics m[nr_cpus];
+	int i, err;
+
+	err = gtp_bpf_ifrules_all_cpu_metrics(iface, m, nr_cpus);
+	if (err)
+		return err;
+	memset(out, 0, sizeof(*out));
+	for (i = 0; i < (int)nr_cpus; i++) {
+		out->pkt_in   += m[i].pkt_in;
+		out->bytes_in += m[i].bytes_in;
+		out->pkt_fwd  += m[i].pkt_fwd;
+	}
+	return 0;
+}
+
+int
+gtp_bpf_ifrules_cpu_metrics(const struct gtp_interface *iface, int cpu,
+			    struct gtp_bpf_ifrule_metrics *out)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct gtp_bpf_ifrule_metrics m[nr_cpus];
+	int err;
+
+	if (cpu < 0 || cpu >= (int)nr_cpus)
+		return -EINVAL;
+	err = gtp_bpf_ifrules_all_cpu_metrics(iface, m, nr_cpus);
+	if (err)
+		return err;
+	*out = m[cpu];
 	return 0;
 }
 

@@ -328,3 +328,28 @@ cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
 		fn(i, cpulist, arg);
 	}
 }
+
+void
+cpulist_to_set(const char *list, cpu_set_t *set)
+{
+	const char *p = list;
+	int a, b;
+
+	CPU_ZERO(set);
+	while (*p >= '0' && *p <= '9') {
+		a = 0;
+		while (*p >= '0' && *p <= '9')
+			a = a * 10 + (*p++ - '0');
+		b = a;
+		if (*p == '-') {
+			p++;
+			b = 0;
+			while (*p >= '0' && *p <= '9')
+				b = b * 10 + (*p++ - '0');
+		}
+		for (; a <= b; a++)
+			CPU_SET(a, set);
+		if (*p == ',')
+			p++;
+	}
+}

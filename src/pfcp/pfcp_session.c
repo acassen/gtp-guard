@@ -27,6 +27,7 @@
 #include "pfcp_router.h"
 #include "pfcp_bpf.h"
 #include "gtp_conn.h"
+#include "gtp_cpu.h"
 #include "utils.h"
 #include "bitops.h"
 #include "logger.h"
@@ -353,12 +354,21 @@ pfcp_sessions_free(struct gtp_conn *c)
  *	PFCP Sessions.
  */
 int
+pfcp_sessions_cpu_count(int cpu)
+{
+	if (!pfcp_sessions_per_cpu || cpu < 0 || cpu >= pfcp_sessions_nr_cpus)
+		return 0;
+	return pfcp_sessions_per_cpu[cpu];
+}
+
+int
 pfcp_sessions_init(void)
 {
 	pfcp_sessions_nr_cpus = sysconf(_SC_NPROCESSORS_CONF);
 	if (pfcp_sessions_nr_cpus > 0)
 		pfcp_sessions_per_cpu = calloc(pfcp_sessions_nr_cpus, sizeof(int));
 	pfcp_session_tab = calloc(PFCP_SESSION_HASHTAB_SIZE, sizeof(struct hlist_head));
+	gtp_cpu_register_pfcp_count(pfcp_sessions_cpu_count);
 	return 0;
 }
 
@@ -379,12 +389,4 @@ pfcp_sessions_destroy(void)
 	free(pfcp_sessions_per_cpu);
 	pfcp_sessions_per_cpu = NULL;
 	return 0;
-}
-
-int
-pfcp_sessions_cpu_count(int cpu)
-{
-	if (!pfcp_sessions_per_cpu || cpu < 0 || cpu >= pfcp_sessions_nr_cpus)
-		return 0;
-	return pfcp_sessions_per_cpu[cpu];
 }

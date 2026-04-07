@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "logger.h"
+#include "utils.h"
 #include "thread.h"
 #include "vty.h"
 #include "vty_gauge.h"
@@ -32,9 +33,9 @@
 #include "gtp_interface_rxq.h"
 #include "gtp_bpf_ifrules.h"
 #include "gtp_cpu.h"
-#include "pfcp_session.h"
 
 /* Local data */
+static int (*pfcp_count_fn)(int cpu);
 static struct cpu_load *cpu_load;
 static struct gauge_history *cpu_history;
 static struct gtp_percpu_metrics *percpu_metrics;
@@ -187,8 +188,7 @@ gtp_percpu_collect(struct gtp_interface *iface, void *arg)
 	if (!iface->queue_stats)
 		return 0;
 
-	nr = iface->nr_rx_queues > iface->nr_tx_queues ?
-	     iface->nr_rx_queues : iface->nr_tx_queues;
+	nr = max(iface->nr_rx_queues, iface->nr_tx_queues);
 
 	memset(cpu_per_q, -1, sizeof(cpu_per_q));
 	gtp_interface_rxq_cpu(iface, cpu_per_q, iface->nr_rx_queues);
@@ -263,7 +263,7 @@ gtp_cpu_poll(struct thread *t)
 	if (percpu_metrics)
 		memset(percpu_metrics, 0, cpu_load->nr_cpus * sizeof(*percpu_metrics));
 
-	/* collect ethtool stats at 1 Hz; poll fires at TIMER_HZ/5 (200 ms) */
+	/* collect ethtool stats every 3s */
 	if (++ethtool_tick >= ETHTOOL_POLL_TICKS) {
 		ethtool_tick = 0;
 		gtp_interface_foreach(gtp_interface_collect, &now_ns);
@@ -277,7 +277,7 @@ gtp_cpu_poll(struct thread *t)
 		gauge_history_push(&cpu_history[i], load);
 		if (percpu_metrics) {
 			percpu_metrics[i].load = load;
-			percpu_metrics[i].pfcp_sessions = pfcp_sessions_cpu_count(i);
+			percpu_metrics[i].pfcp_sessions = pfcp_count_fn ? pfcp_count_fn(i) : 0;
 			percpu_metrics[i].sys_rx_pkts = percpu_metrics[i].rx_packets -
 						        percpu_metrics[i].bpf_pkt_in;
 		}
@@ -290,63 +290,37 @@ gtp_cpu_poll(struct thread *t)
 /*
  *	VTY show
  */
-
-/* Walk a cpulist string ("0-3,8,16-19") and call vty_gauge for each CPU. */
 static void
 gtp_cpu_list_gauge(struct vty *vty, const char *list)
 {
 	const struct gauge_opts defaults = { .style = GAUGE_ASCII };
 	struct gauge_opts *opts = vty->priv ? : (void *)&defaults;
-	const char *p = list;
 	char label[12];
-	int a, b;
+	cpu_set_t set;
+	int cpu;
 
-	while (*p >= '0' && *p <= '9') {
-		a = 0;
-		while (*p >= '0' && *p <= '9')
-			a = a * 10 + (*p++ - '0');
-		b = a;
-		if (*p == '-') {
-			p++;
-			b = 0;
-			while (*p >= '0' && *p <= '9')
-				b = b * 10 + (*p++ - '0');
-		}
-		for (; a <= b; a++) {
-			snprintf(label, sizeof(label), "  cpu%-3d", a);
-			opts->h = &cpu_history[a];
-			vty_gauge(vty, label, cpu_load_get(cpu_load, a), opts);
-		}
-		if (*p == ',')
-			p++;
+	cpulist_to_set(list, &set);
+	cpuset_for_each(cpu, set, cpu_load->nr_cpus) {
+		snprintf(label, sizeof(label), "  cpu%-3d", cpu);
+		opts->h = &cpu_history[cpu];
+		vty_gauge(vty, label, cpu_load_get(cpu_load, cpu), opts);
 	}
 }
 
-/* Parse cpulist into matrix_entry[], return count filled. */
 static int
 gtp_cpu_list_collect(const char *list, struct matrix_entry *e, int max)
 {
-	const char *p = list;
-	int a, b, n = 0;
+	cpu_set_t set;
+	int cpu, n = 0;
 
-	while (*p >= '0' && *p <= '9' && n < max) {
-		a = 0;
-		while (*p >= '0' && *p <= '9')
-			a = a * 10 + (*p++ - '0');
-		b = a;
-		if (*p == '-') {
-			p++;
-			b = 0;
-			while (*p >= '0' && *p <= '9')
-				b = b * 10 + (*p++ - '0');
-		}
-		for (; a <= b && n < max; a++, n++) {
-			snprintf(e[n].label, sizeof(e[n].label), "cpu%-3d", a);
-			e[n].render = vty_matrix_gauge_render;
-			e[n].value = cpu_load_get(cpu_load, a);
-		}
-		if (*p == ',')
-			p++;
+	cpulist_to_set(list, &set);
+	cpuset_for_each(cpu, set, cpu_load->nr_cpus) {
+		if (n >= max)
+			break;
+		snprintf(e[n].label, sizeof(e[n].label), "cpu%-3d", cpu);
+		e[n].render = vty_matrix_gauge_render;
+		e[n].value  = cpu_load_get(cpu_load, cpu);
+		n++;
 	}
 	return n;
 }
@@ -397,9 +371,16 @@ gtp_cpu_matrix_show(struct vty *vty)
 	return 0;
 }
 
+
 /*
  *	CPU monitoring init
  */
+void
+gtp_cpu_register_pfcp_count(int (*fn)(int cpu))
+{
+	pfcp_count_fn = fn;
+}
+
 int
 gtp_cpu_init(void)
 {
