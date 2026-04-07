@@ -38,6 +38,7 @@
 
 #include "utils.h"
 #include "logger.h"
+#include "ethtool.h"
 
 #define MAX_DEV_QUEUE_PATH_LEN 64
 
@@ -248,4 +249,162 @@ end:
 	free(stats);
 	close(fd);
 	return ret;
+}
+
+
+/*
+ * Build a per-interface ethtool stats cache.
+ *
+ * Resolves stat names to their integer index in the GSTATS array once.
+ * Subsequent polls only need one ETHTOOL_GSTATS ioctl with no string
+ * searching or memory allocation.
+ *
+ * phy_names: array of n_phy stat name strings
+ * rx_fmt / tx_fmt: snprintf format strings for per-queue rx/tx stats
+ *   (queue index is substituted with %d)
+ * nr_queues: max(nr_rx_queues, nr_tx_queues)
+ */
+int
+ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
+			  const char *ifname,
+			  const char * const *phy_names, int n_phy,
+			  const char (*rx_fmt)[ETH_GSTRING_LEN], int n_rx,
+			  const char (*tx_fmt)[ETH_GSTRING_LEN], int n_tx,
+			  uint32_t nr_queues)
+{
+	struct ethtool_drvinfo drvinfo = { .cmd = ETHTOOL_GDRVINFO };
+	struct ethtool_gstrings *gstrings = NULL;
+	struct gtp_if_ethtool_cache *c;
+	uint32_t nstats, n_per_queue;
+	char name[ETH_GSTRING_LEN];
+	int fd, i, j, q, ret = -1;
+
+	n_per_queue = n_rx + n_tx;
+
+	c = calloc(1, sizeof(*c));
+	if (!c)
+		return -ENOMEM;
+
+	fd = ethtool_open();
+	if (fd < 0) {
+		ret = -errno;
+		goto err_free_c;
+	}
+
+	if (ethtool_send(fd, ifname, &drvinfo) < 0) {
+		ret = -errno;
+		goto err_close;
+	}
+	nstats = drvinfo.n_stats;
+	if (!nstats) {
+		ret = -ENODATA;
+		goto err_close;
+	}
+
+	gstrings = calloc(1, sizeof(*gstrings) + nstats * ETH_GSTRING_LEN);
+	if (!gstrings)
+		goto err_close;
+	gstrings->cmd = ETHTOOL_GSTRINGS;
+	gstrings->string_set = ETH_SS_STATS;
+	gstrings->len = nstats;
+	if (ethtool_send(fd, ifname, gstrings) < 0) {
+		ret = -errno;
+		goto err_free_gs;
+	}
+
+	c->stats = calloc(1, sizeof(*c->stats) + nstats * sizeof(uint64_t));
+	if (!c->stats)
+		goto err_free_gs;
+	c->stats->cmd = ETHTOOL_GSTATS;
+	c->stats->n_stats = nstats;
+
+	c->phy_idx = malloc(n_phy * sizeof(int));
+	if (!c->phy_idx)
+		goto err_free_stats;
+
+	if (nr_queues && n_per_queue) {
+		c->q_idx = malloc(nr_queues * n_per_queue * sizeof(int));
+		if (!c->q_idx)
+			goto err_free_phy;
+	}
+
+	/* resolve phy stat indices */
+	for (i = 0; i < n_phy; i++) {
+		c->phy_idx[i] = -1;
+		for (j = 0; j < (int)nstats; j++) {
+			const char *s = (char *)gstrings->data + j * ETH_GSTRING_LEN;
+			if (!strncmp(phy_names[i], s, ETH_GSTRING_LEN)) {
+				c->phy_idx[i] = j;
+				break;
+			}
+		}
+	}
+
+	/* resolve per-queue stat indices */
+	for (q = 0; q < (int)nr_queues; q++) {
+		for (i = 0; i < n_rx; i++) {
+			int pos = q * n_per_queue + i;
+			c->q_idx[pos] = -1;
+			snprintf(name, ETH_GSTRING_LEN, rx_fmt[i], q);
+			for (j = 0; j < (int)nstats; j++) {
+				const char *s = (char *)gstrings->data + j * ETH_GSTRING_LEN;
+				if (!strncmp(name, s, ETH_GSTRING_LEN)) {
+					c->q_idx[pos] = j;
+					break;
+				}
+			}
+		}
+		for (i = 0; i < n_tx; i++) {
+			int pos = q * n_per_queue + n_rx + i;
+			c->q_idx[pos] = -1;
+			snprintf(name, ETH_GSTRING_LEN, tx_fmt[i], q);
+			for (j = 0; j < (int)nstats; j++) {
+				const char *s = (char *)gstrings->data + j * ETH_GSTRING_LEN;
+				if (!strncmp(name, s, ETH_GSTRING_LEN)) {
+					c->q_idx[pos] = j;
+					break;
+				}
+			}
+		}
+	}
+
+	c->fd = fd;
+	c->nstats = nstats;
+	c->n_phy = n_phy;
+	c->n_per_queue = n_per_queue;
+	c->nr_queues = nr_queues;
+	free(gstrings);
+	*out = c;
+	return 0;
+
+err_free_phy:
+	free(c->phy_idx);
+err_free_stats:
+	free(c->stats);
+err_free_gs:
+	free(gstrings);
+err_close:
+	close(fd);
+err_free_c:
+	free(c);
+	return ret;
+}
+
+/* Refresh stats: one ETHTOOL_GSTATS ioctl into the persistent buffer. */
+int
+ethtool_gstats_fetch(struct gtp_if_ethtool_cache *c, const char *ifname)
+{
+	return ethtool_send(c->fd, ifname, c->stats);
+}
+
+void
+ethtool_gstats_cache_destroy(struct gtp_if_ethtool_cache *c)
+{
+	if (!c)
+		return;
+	close(c->fd);
+	free(c->stats);
+	free(c->phy_idx);
+	free(c->q_idx);
+	free(c);
 }

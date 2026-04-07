@@ -24,11 +24,43 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <linux/ethtool.h>
+
+/*
+ * Per-interface ethtool stats cache.
+ * Built once at first collect; thereafter a single ETHTOOL_GSTATS ioctl
+ * suffices to refresh all values via pre-resolved stat indices.
+ */
+struct gtp_if_ethtool_cache {
+	int			fd;		/* persistent ethtool socket */
+	uint32_t		nstats;		/* total driver stat count */
+	struct ethtool_stats	*stats;		/* persistent GSTATS buffer */
+	int			*phy_idx;	/* [n_phy]                    */
+	int			*q_idx;		/* [nr_queues * n_per_queue]  */
+	uint32_t		n_phy;
+	uint32_t		n_per_queue;	/* n_rx + n_tx per queue      */
+	uint32_t		nr_queues;
+};
+
+/* Return the stat value at pre-resolved index idx, or 0 if not found. */
+static inline uint64_t
+ethtool_gstats_val(const struct gtp_if_ethtool_cache *c, int idx)
+{
+	return (idx >= 0) ? c->stats->data[idx] : 0;
+}
 
 /* Prototypes */
 int sysfs_set_iface_forwarding(const char *ifname, bool ipv4, bool ipv6);
 int ethtool_get_nr_queues(const char *ifname, uint32_t *rx, uint32_t *tx);
 int ethtool_gstats_get(const char *ifname, const char * const *names,
 		       uint64_t *out, int n);
+int ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
+			      const char *ifname,
+			      const char * const *phy_names, int n_phy,
+			      const char (*rx_fmt)[ETH_GSTRING_LEN], int n_rx,
+			      const char (*tx_fmt)[ETH_GSTRING_LEN], int n_tx,
+			      uint32_t nr_queues);
+int  ethtool_gstats_fetch(struct gtp_if_ethtool_cache *c, const char *ifname);
+void ethtool_gstats_cache_destroy(struct gtp_if_ethtool_cache *c);
 
 #endif

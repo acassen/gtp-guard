@@ -430,6 +430,7 @@ gtp_interface_destroy(struct gtp_interface *iface)
 		list_del(&iface->bpf_prog_list);
 	FREE_PTR(iface->link_metrics);
 	free(iface->queue_stats);
+	ethtool_gstats_cache_destroy(iface->ethtool_cache);
 	free(iface->ev);
 	list_del(&iface->next);
 	FREE(iface);

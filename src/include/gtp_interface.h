@@ -28,6 +28,7 @@
 #include <netinet/if_ether.h>
 #include "addr.h"
 #include "gtp_bpf_prog.h"
+#include "ethtool.h"
 
 /* Physical NIC stats from ethtool -S (*_phy counters) */
 #define N_PHY_STATS      17
@@ -160,6 +161,7 @@ struct gtp_interface {
 	uint32_t			nr_rx_queues;
 	uint32_t			nr_tx_queues;
 	struct gtp_if_queue_stats	*queue_stats;
+	struct gtp_if_ethtool_cache	*ethtool_cache;
 
 	/* tunnel info */
 	enum gtp_interface_tunnel_mode	tunnel_mode;

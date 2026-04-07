@@ -80,95 +80,94 @@ static const char tx_queue_stat_fmt[N_QUEUE_TX_STATS][STAT_NAME_LEN] = {
 	"tx%d_xdp_cqes",
 };
 
-static void
-gtp_interface_collect_phy(struct gtp_interface *iface)
-{
-	uint64_t v[N_PHY_STATS];
-	struct gtp_if_phy_stats *s = &iface->phy_stats;
-
-	if (ethtool_gstats_get(iface->ifname, phy_stat_names, v, N_PHY_STATS) < 0)
-		return;
-
-	s->tx_packets    = v[0];  s->rx_packets    = v[1];
-	s->tx_bytes      = v[2];  s->rx_bytes      = v[3];
-	s->rx_discards   = v[4];  s->tx_discards   = v[5];
-	s->tx_errors     = v[6];
-	s->rx_64         = v[7];  s->rx_65_127     = v[8];
-	s->rx_128_255    = v[9];  s->rx_256_511    = v[10];
-	s->rx_512_1023   = v[11]; s->rx_1024_1518  = v[12];
-	s->rx_1519_2047  = v[13]; s->rx_2048_4095  = v[14];
-	s->rx_4096_8191  = v[15]; s->rx_8192_10239 = v[16];
-}
+/* index helpers: phy field i, queue q field i */
+#define PHY_VAL(c, i)    ethtool_gstats_val(c, (c)->phy_idx[i])
+#define Q_IDX(c, q, i)   ((c)->q_idx[(q) * (c)->n_per_queue + (i)])
+#define Q_VAL(c, q, i)   ethtool_gstats_val(c, Q_IDX(c, q, i))
 
 static void
-gtp_interface_collect_queue(struct gtp_interface *iface, int q)
+gtp_interface_collect_ethtool(struct gtp_interface *iface, uint64_t now_ns)
 {
-	char gen[N_QUEUE_STATS][STAT_NAME_LEN];
-	const char *ptrs[N_QUEUE_STATS];
-	uint64_t v[N_QUEUE_STATS];
-	struct gtp_if_queue_stats *s = &iface->queue_stats[q];
-	int i;
+	struct gtp_if_ethtool_cache *c = iface->ethtool_cache;
+	struct gtp_if_phy_stats *ps = &iface->phy_stats;
+	uint32_t q, nr;
 
-	for (i = 0; i < N_QUEUE_RX_STATS; i++) {
-		snprintf(gen[i], STAT_NAME_LEN, rx_queue_stat_fmt[i], q);
-		ptrs[i] = gen[i];
-	}
-	for (i = 0; i < N_QUEUE_TX_STATS; i++) {
-		snprintf(gen[N_QUEUE_RX_STATS + i], STAT_NAME_LEN,
-			 tx_queue_stat_fmt[i], q);
-		ptrs[N_QUEUE_RX_STATS + i] = gen[N_QUEUE_RX_STATS + i];
+	/* lazy cache init on first call after interface is up */
+	if (!c) {
+		uint32_t nr_q = max(iface->nr_rx_queues, iface->nr_tx_queues);
+		if (ethtool_gstats_cache_init(&iface->ethtool_cache, iface->ifname,
+					      phy_stat_names, N_PHY_STATS,
+					      rx_queue_stat_fmt, N_QUEUE_RX_STATS,
+					      tx_queue_stat_fmt, N_QUEUE_TX_STATS,
+					      nr_q) < 0)
+			return;
+		c = iface->ethtool_cache;
 	}
 
-	if (ethtool_gstats_get(iface->ifname, ptrs, v, N_QUEUE_STATS) < 0)
+	if (ethtool_gstats_fetch(c, iface->ifname) < 0)
 		return;
 
-	s->rx_packets      = v[0];  s->rx_bytes        = v[1];
-	s->rx_xdp_drop     = v[2];  s->rx_xdp_redirect = v[3];
-	s->rx_xdp_tx_xmit  = v[4];  s->rx_xdp_tx_mpwqe = v[5];
-	s->rx_xdp_tx_inlnw = v[6];  s->rx_xdp_tx_nops  = v[7];
-	s->rx_xdp_tx_full  = v[8];  s->rx_xdp_tx_err   = v[9];
-	s->rx_xdp_tx_cqes  = v[10];
-	s->tx_packets      = v[11]; s->tx_bytes        = v[12];
-	s->tx_stopped      = v[13]; s->tx_dropped      = v[14];
-	s->tx_xmit_more    = v[15];
-	s->tx_xdp_xmit     = v[16]; s->tx_xdp_mpwqe    = v[17];
-	s->tx_xdp_inlnw    = v[18]; s->tx_xdp_nops     = v[19];
-	s->tx_xdp_full     = v[20]; s->tx_xdp_err      = v[21];
-	s->tx_xdp_cqes     = v[22];
+	/* fill phy_stats */
+	ps->tx_packets   = PHY_VAL(c, 0);  ps->rx_packets   = PHY_VAL(c, 1);
+	ps->tx_bytes     = PHY_VAL(c, 2);  ps->rx_bytes     = PHY_VAL(c, 3);
+	ps->rx_discards  = PHY_VAL(c, 4);  ps->tx_discards  = PHY_VAL(c, 5);
+	ps->tx_errors    = PHY_VAL(c, 6);
+	ps->rx_64        = PHY_VAL(c, 7);  ps->rx_65_127    = PHY_VAL(c, 8);
+	ps->rx_128_255   = PHY_VAL(c, 9);  ps->rx_256_511   = PHY_VAL(c, 10);
+	ps->rx_512_1023  = PHY_VAL(c, 11); ps->rx_1024_1518 = PHY_VAL(c, 12);
+	ps->rx_1519_2047 = PHY_VAL(c, 13); ps->rx_2048_4095 = PHY_VAL(c, 14);
+	ps->rx_4096_8191 = PHY_VAL(c, 15); ps->rx_8192_10239 = PHY_VAL(c, 16);
+
+	/* fill per-queue stats */
+	if (iface->queue_stats) {
+		nr = max(iface->nr_rx_queues, iface->nr_tx_queues);
+		for (q = 0; q < nr; q++) {
+			struct gtp_if_queue_stats *s = &iface->queue_stats[q];
+			s->rx_packets      = Q_VAL(c, q, 0);
+			s->rx_bytes        = Q_VAL(c, q, 1);
+			s->rx_xdp_drop     = Q_VAL(c, q, 2);
+			s->rx_xdp_redirect = Q_VAL(c, q, 3);
+			s->rx_xdp_tx_xmit  = Q_VAL(c, q, 4);
+			s->rx_xdp_tx_mpwqe = Q_VAL(c, q, 5);
+			s->rx_xdp_tx_inlnw = Q_VAL(c, q, 6);
+			s->rx_xdp_tx_nops  = Q_VAL(c, q, 7);
+			s->rx_xdp_tx_full  = Q_VAL(c, q, 8);
+			s->rx_xdp_tx_err   = Q_VAL(c, q, 9);
+			s->rx_xdp_tx_cqes  = Q_VAL(c, q, 10);
+			s->tx_packets      = Q_VAL(c, q, 11);
+			s->tx_bytes        = Q_VAL(c, q, 12);
+			s->tx_stopped      = Q_VAL(c, q, 13);
+			s->tx_dropped      = Q_VAL(c, q, 14);
+			s->tx_xmit_more    = Q_VAL(c, q, 15);
+			s->tx_xdp_xmit     = Q_VAL(c, q, 16);
+			s->tx_xdp_mpwqe    = Q_VAL(c, q, 17);
+			s->tx_xdp_inlnw    = Q_VAL(c, q, 18);
+			s->tx_xdp_nops     = Q_VAL(c, q, 19);
+			s->tx_xdp_full     = Q_VAL(c, q, 20);
+			s->tx_xdp_err      = Q_VAL(c, q, 21);
+			s->tx_xdp_cqes     = Q_VAL(c, q, 22);
+		}
+	}
+
+	/* bandwidth from PHY byte counters */
+	if (iface->prev_ts_ns) {
+		uint64_t elapsed = now_ns - iface->prev_ts_ns;
+		if (elapsed) {
+			iface->rx_bw_bps = (ps->rx_bytes - iface->prev_rx_bytes)
+					   * 1000000000ULL / elapsed;
+			iface->tx_bw_bps = (ps->tx_bytes - iface->prev_tx_bytes)
+					   * 1000000000ULL / elapsed;
+		}
+	}
+	iface->prev_rx_bytes = ps->rx_bytes;
+	iface->prev_tx_bytes = ps->tx_bytes;
+	iface->prev_ts_ns = now_ns;
 }
 
 static int
 gtp_interface_collect(struct gtp_interface *iface, void *arg)
 {
-	uint64_t now_ns = *(uint64_t *)arg;
-	uint64_t elapsed;
-	uint32_t q, nr;
-
-	gtp_interface_collect_phy(iface);
-
-	if (iface->queue_stats) {
-		nr = iface->nr_rx_queues > iface->nr_tx_queues ?
-		     iface->nr_rx_queues : iface->nr_tx_queues;
-		for (q = 0; q < nr; q++)
-			gtp_interface_collect_queue(iface, q);
-	}
-
-	/* bandwidth from PHY byte counters */
-	if (iface->prev_ts_ns) {
-		elapsed = now_ns - iface->prev_ts_ns;
-		if (elapsed) {
-			iface->rx_bw_bps = (iface->phy_stats.rx_bytes -
-					    iface->prev_rx_bytes)
-					   * 1000000000ULL / elapsed;
-			iface->tx_bw_bps = (iface->phy_stats.tx_bytes -
-					    iface->prev_tx_bytes)
-					   * 1000000000ULL / elapsed;
-		}
-	}
-	iface->prev_rx_bytes = iface->phy_stats.rx_bytes;
-	iface->prev_tx_bytes = iface->phy_stats.tx_bytes;
-	iface->prev_ts_ns = now_ns;
-
+	gtp_interface_collect_ethtool(iface, *(uint64_t *)arg);
 	return 0;
 }
 
