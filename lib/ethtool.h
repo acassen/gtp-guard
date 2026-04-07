@@ -52,8 +52,6 @@ ethtool_gstats_val(const struct gtp_if_ethtool_cache *c, int idx)
 /* Prototypes */
 int sysfs_set_iface_forwarding(const char *ifname, bool ipv4, bool ipv6);
 int ethtool_get_nr_queues(const char *ifname, uint32_t *rx, uint32_t *tx);
-int ethtool_gstats_get(const char *ifname, const char * const *names,
-		       uint64_t *out, int n);
 int ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 			      const char *ifname,
 			      const char * const *phy_names, int n_phy,
