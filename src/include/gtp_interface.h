@@ -29,7 +29,10 @@
 #include "addr.h"
 #include "gtp_bpf_prog.h"
 
+#define STAT_NAME_LEN    32
+
 /* Physical NIC stats from ethtool -S (*_phy counters) */
+#define N_PHY_STATS      17
 struct gtp_if_phy_stats {
 	uint64_t	tx_packets;
 	uint64_t	rx_packets;
@@ -52,6 +55,9 @@ struct gtp_if_phy_stats {
 };
 
 /* Per-queue stats from ethtool -S (rx{N}_* / tx{N}_* counters) */
+#define N_QUEUE_RX_STATS 11
+#define N_QUEUE_TX_STATS 12
+#define N_QUEUE_STATS    (N_QUEUE_RX_STATS + N_QUEUE_TX_STATS)
 struct gtp_if_queue_stats {
 	/* RX */
 	uint64_t	rx_packets;
