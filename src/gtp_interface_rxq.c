@@ -537,6 +537,47 @@ rxq_diag_cpu_uniqueness(struct vty *vty, struct list_head *l)
 	return ok;
 }
 
+/*
+ * Fill cpu_per_queue[q] with the primary CPU for each rx queue of iface.
+ * Uses the physical parent interface when iface is a VLAN/sub-interface.
+ * Entries for queues where affinity cannot be resolved are left as -1.
+ * Returns the number of rx queues found, or negative on error.
+ */
+int
+gtp_interface_rxq_cpu(const struct gtp_interface *iface,
+		      int *cpu_per_queue, int max_q)
+{
+	const char *ifname = iface->link_iface ? iface->link_iface->ifname :
+						 iface->ifname;
+	int irqs[RXQUEUE_MAX];
+	char cpulist[64];
+	int q, n, cpu;
+
+	if (max_q > RXQUEUE_MAX)
+		max_q = RXQUEUE_MAX;
+
+	memset(cpu_per_queue, -1, max_q * sizeof(*cpu_per_queue));
+	memset(irqs, -1, sizeof(irqs));
+
+	n = rxq_iface_get_irqs(ifname, irqs, max_q);
+	if (n <= 0)
+		return n;
+
+	for (q = 0; q < n; q++) {
+		if (irqs[q] < 0)
+			continue;
+		cpulist[0] = '\0';
+		if (rxq_irq_get_affinity(irqs[q], cpulist, sizeof(cpulist)) < 0)
+			continue;
+		cpu = rxq_cpulist_first_cpu(cpulist);
+		if (cpu >= 0)
+			cpu_per_queue[q] = cpu;
+	}
+
+	return n;
+}
+
+
 int
 gtp_interface_rxq_show(struct vty *vty)
 {

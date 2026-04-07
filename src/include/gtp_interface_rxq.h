@@ -20,5 +20,10 @@
  */
 #pragma once
 
+#include "vty.h"
+#include "gtp_interface.h"
+
 /* Prototypes */
 int gtp_interface_rxq_show(struct vty *vty);
+int gtp_interface_rxq_cpu(const struct gtp_interface *iface,
+			  int *cpu_per_queue, int max_q);
