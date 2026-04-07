@@ -29,10 +29,14 @@
 #include "cpu.h"
 #include "ethtool.h"
 #include "gtp_interface.h"
+#include "gtp_interface_rxq.h"
+#include "gtp_bpf_ifrules.h"
+#include "gtp_cpu.h"
 
 /* Local data */
 static struct cpu_load *cpu_load;
 static struct gauge_history *cpu_history;
+static struct gtp_percpu_metrics *percpu_metrics;
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -169,6 +173,77 @@ gtp_interface_collect(struct gtp_interface *iface, void *arg)
 
 
 /*
+ *	Per-CPU workload aggregation
+ */
+static int
+gtp_percpu_collect(struct gtp_interface *iface, void *arg)
+{
+	struct gtp_bpf_ifrule_metrics bpf_m[cpu_load->nr_cpus];
+	int cpu_per_q[iface->nr_rx_queues ? : 1];
+	uint32_t q, nr;
+	int cpu;
+
+	if (!iface->queue_stats)
+		return 0;
+
+	nr = iface->nr_rx_queues > iface->nr_tx_queues ?
+	     iface->nr_rx_queues : iface->nr_tx_queues;
+
+	memset(cpu_per_q, -1, sizeof(cpu_per_q));
+	gtp_interface_rxq_cpu(iface, cpu_per_q, iface->nr_rx_queues);
+
+	for (q = 0; q < nr; q++) {
+		struct gtp_if_queue_stats *s = &iface->queue_stats[q];
+
+		cpu = (q < iface->nr_rx_queues) ? cpu_per_q[q] : -1;
+		if (cpu < 0 || cpu >= cpu_load->nr_cpus)
+			continue;
+		percpu_metrics[cpu].rx_packets      += s->rx_packets;
+		percpu_metrics[cpu].rx_bytes        += s->rx_bytes;
+		percpu_metrics[cpu].rx_xdp_drop     += s->rx_xdp_drop;
+		percpu_metrics[cpu].rx_xdp_redirect += s->rx_xdp_redirect;
+		percpu_metrics[cpu].rx_xdp_tx_xmit  += s->rx_xdp_tx_xmit;
+		percpu_metrics[cpu].rx_xdp_tx_mpwqe += s->rx_xdp_tx_mpwqe;
+		percpu_metrics[cpu].rx_xdp_tx_inlnw += s->rx_xdp_tx_inlnw;
+		percpu_metrics[cpu].rx_xdp_tx_nops  += s->rx_xdp_tx_nops;
+		percpu_metrics[cpu].rx_xdp_tx_full  += s->rx_xdp_tx_full;
+		percpu_metrics[cpu].rx_xdp_tx_err   += s->rx_xdp_tx_err;
+		percpu_metrics[cpu].rx_xdp_tx_cqes  += s->rx_xdp_tx_cqes;
+		percpu_metrics[cpu].tx_packets      += s->tx_packets;
+		percpu_metrics[cpu].tx_bytes        += s->tx_bytes;
+		percpu_metrics[cpu].tx_stopped      += s->tx_stopped;
+		percpu_metrics[cpu].tx_dropped      += s->tx_dropped;
+		percpu_metrics[cpu].tx_xmit_more    += s->tx_xmit_more;
+		percpu_metrics[cpu].tx_xdp_xmit     += s->tx_xdp_xmit;
+		percpu_metrics[cpu].tx_xdp_mpwqe    += s->tx_xdp_mpwqe;
+		percpu_metrics[cpu].tx_xdp_inlnw    += s->tx_xdp_inlnw;
+		percpu_metrics[cpu].tx_xdp_nops     += s->tx_xdp_nops;
+		percpu_metrics[cpu].tx_xdp_full     += s->tx_xdp_full;
+		percpu_metrics[cpu].tx_xdp_err      += s->tx_xdp_err;
+		percpu_metrics[cpu].tx_xdp_cqes     += s->tx_xdp_cqes;
+	}
+
+	if (!gtp_bpf_ifrules_all_cpu_metrics(iface, bpf_m, cpu_load->nr_cpus)) {
+		for (cpu = 0; cpu < cpu_load->nr_cpus; cpu++) {
+			percpu_metrics[cpu].bpf_pkt_in   += bpf_m[cpu].pkt_in;
+			percpu_metrics[cpu].bpf_bytes_in += bpf_m[cpu].bytes_in;
+			percpu_metrics[cpu].bpf_pkt_fwd  += bpf_m[cpu].pkt_fwd;
+		}
+	}
+
+	return 0;
+}
+
+const struct gtp_percpu_metrics *
+gtp_percpu_metrics_get(int cpu)
+{
+	if (!percpu_metrics || cpu < 0 || cpu >= cpu_load->nr_cpus)
+		return NULL;
+	return &percpu_metrics[cpu];
+}
+
+
+/*
  *	Polling thread
  */
 static void
@@ -184,14 +259,23 @@ gtp_cpu_poll(struct thread *t)
 
 	cpu_load_update(cpu_load);
 
+	if (percpu_metrics)
+		memset(percpu_metrics, 0, cpu_load->nr_cpus * sizeof(*percpu_metrics));
+
+	gtp_interface_foreach(gtp_interface_collect, &now_ns);
+	gtp_interface_foreach(gtp_percpu_collect, NULL);
+
 	for (i = 0; i < cpu_load->nr_cpus; i++) {
 		load = cpu_load_get(cpu_load, i);
 		if (load < 0.0f)
 			continue;	/* offline CPU */
 		gauge_history_push(&cpu_history[i], load);
+		if (percpu_metrics) {
+			percpu_metrics[i].load = load;
+			percpu_metrics[i].sys_rx_pkts = percpu_metrics[i].rx_packets -
+						        percpu_metrics[i].bpf_pkt_in;
+		}
 	}
-
-	gtp_interface_foreach(gtp_interface_collect, &now_ns);
 
 	thread_add_timer(master, gtp_cpu_poll, NULL, TIMER_HZ / 5);
 }
@@ -325,6 +409,13 @@ gtp_cpu_init(void)
 		return -1;
 	}
 
+	percpu_metrics = calloc(cpu_load->nr_cpus, sizeof(*percpu_metrics));
+	if (!percpu_metrics) {
+		free(cpu_history);
+		cpu_load_destroy(cpu_load);
+		return -1;
+	}
+
 	thread_add_event(master, gtp_cpu_poll, NULL, 0);
 	return 0;
 }
@@ -335,5 +426,7 @@ gtp_cpu_destroy(void)
 	cpu_load_destroy(cpu_load);
 	free(cpu_history);
 	cpu_history = NULL;
+	free(percpu_metrics);
+	percpu_metrics = NULL;
 	return 0;
 }

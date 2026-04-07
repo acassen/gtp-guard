@@ -743,6 +743,38 @@ gtp_bpf_ifrules_cpu_metrics(const struct gtp_interface *iface, int cpu,
 }
 
 
+int
+gtp_bpf_ifrules_all_cpu_metrics(const struct gtp_interface *iface,
+				struct gtp_bpf_ifrule_metrics *out, int nr_out)
+{
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct gtp_bpf_ifrules *bir = iface->bpf_ifrules;
+	struct if_rule aar[nr_cpus];
+	uint8_t key_stor[bir->key_size];
+	void *key = NULL;
+	int i, n, err;
+
+	if (!bir || !bir->if_rule)
+		return -ENODEV;
+
+	n = nr_out < nr_cpus ? nr_out : nr_cpus;
+	memset(out, 0, nr_out * sizeof(*out));
+	while (!bpf_map__get_next_key(bir->if_rule, key, &key_stor, bir->key_size)) {
+		key = key_stor;
+		err = bpf_map__lookup_elem(bir->if_rule, key, bir->key_size,
+					   aar, sizeof(aar), 0);
+		if (err)
+			continue;
+		for (i = 0; i < n; i++) {
+			out[i].pkt_in   += aar[i].pkt_in;
+			out[i].bytes_in += aar[i].bytes_in;
+			out[i].pkt_fwd  += aar[i].pkt_fwd;
+		}
+	}
+	return 0;
+}
+
+
 /*
  *	vty dump
  */
