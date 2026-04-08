@@ -32,7 +32,6 @@
 #include "gtp_interface.h"
 #include "gtp_interface_ethtool.h"
 #include "gtp_interface_rxq.h"
-#include "gtp_bpf_ifrules.h"
 #include "gtp_cpu.h"
 
 /* Local data */
@@ -41,6 +40,7 @@ static struct cpu_load *cpu_load;
 static struct gauge_history *cpu_history;
 static struct gtp_percpu_metrics *percpu_metrics;
 static int ethtool_tick;
+static uint64_t percpu_prev_ts_ns;
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -50,10 +50,20 @@ extern struct thread_master *master;
 /*
  *	Per-CPU workload aggregation
  */
+static void
+gtp_percpu_reset_accum(void)
+{
+	int i;
+
+	for (i = 0; i < cpu_load->nr_cpus; i++) {
+		struct gtp_percpu_metrics *m = &percpu_metrics[i];
+		memset(&m->q_stats, 0, sizeof(m->q_stats));
+	}
+}
+
 static int
 gtp_percpu_collect(struct gtp_interface *iface, void *arg)
 {
-	struct gtp_bpf_ifrule_metrics bpf_m[cpu_load->nr_cpus];
 	int cpu_per_q[iface->nr_rx_queues ? : 1];
 	uint32_t q, nr;
 	int cpu;
@@ -75,14 +85,6 @@ gtp_percpu_collect(struct gtp_interface *iface, void *arg)
 		ethtool_q_stats_add(&percpu_metrics[cpu].q_stats, s);
 	}
 
-	if (!gtp_bpf_ifrules_all_cpu_metrics(iface, bpf_m, cpu_load->nr_cpus)) {
-		for (cpu = 0; cpu < cpu_load->nr_cpus; cpu++) {
-			percpu_metrics[cpu].bpf_pkt_in   += bpf_m[cpu].pkt_in;
-			percpu_metrics[cpu].bpf_bytes_in += bpf_m[cpu].bytes_in;
-			percpu_metrics[cpu].bpf_pkt_fwd  += bpf_m[cpu].pkt_fwd;
-		}
-	}
-
 	return 0;
 }
 
@@ -92,6 +94,34 @@ gtp_percpu_metrics_get(int cpu)
 	if (!percpu_metrics || cpu < 0 || cpu >= cpu_load->nr_cpus)
 		return NULL;
 	return &percpu_metrics[cpu];
+}
+
+
+static void
+gtp_percpu_rates_update(uint64_t now_ns)
+{
+	uint64_t elapsed = now_ns - percpu_prev_ts_ns;
+	int i;
+
+	for (i = 0; i < cpu_load->nr_cpus; i++) {
+		struct gtp_percpu_metrics *m = &percpu_metrics[i];
+
+		if (elapsed && percpu_prev_ts_ns) {
+			m->rx_bw_bps = (m->q_stats.rx_bytes - m->prev_rx_bytes)
+				       * 1000000000ULL / elapsed;
+			m->tx_bw_bps = (m->q_stats.tx_bytes - m->prev_tx_bytes)
+				       * 1000000000ULL / elapsed;
+			m->rx_pps = (m->q_stats.rx_packets - m->prev_rx_packets)
+				    * 1000000000ULL / elapsed;
+			m->tx_pps = (m->q_stats.tx_packets - m->prev_tx_packets)
+				    * 1000000000ULL / elapsed;
+		}
+		m->prev_rx_bytes = m->q_stats.rx_bytes;
+		m->prev_tx_bytes = m->q_stats.tx_bytes;
+		m->prev_rx_packets = m->q_stats.rx_packets;
+		m->prev_tx_packets = m->q_stats.tx_packets;
+	}
+	percpu_prev_ts_ns = now_ns;
 }
 
 
@@ -110,15 +140,16 @@ gtp_cpu_poll(struct thread *t)
 	now_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 	cpu_load_update(cpu_load);
-
-	if (percpu_metrics)
-		memset(percpu_metrics, 0, cpu_load->nr_cpus * sizeof(*percpu_metrics));
+	gtp_percpu_reset_accum();
 
 	/* collect ethtool stats every 3s */
 	if (++ethtool_tick >= ETHTOOL_POLL_TICKS) {
 		ethtool_tick = 0;
 		gtp_interface_foreach(gtp_interface_collect, &now_ns);
 		gtp_interface_foreach(gtp_percpu_collect, NULL);
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		now_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+		gtp_percpu_rates_update(now_ns);
 	}
 
 	for (i = 0; i < cpu_load->nr_cpus; i++) {
@@ -126,12 +157,8 @@ gtp_cpu_poll(struct thread *t)
 		if (load < 0.0f)
 			continue;	/* offline CPU */
 		gauge_history_push(&cpu_history[i], load);
-		if (percpu_metrics) {
-			percpu_metrics[i].load = load;
-			percpu_metrics[i].pfcp_sessions = pfcp_count_fn ? pfcp_count_fn(i) : 0;
-			percpu_metrics[i].sys_rx_pkts = percpu_metrics[i].q_stats.rx_packets -
-						        percpu_metrics[i].bpf_pkt_in;
-		}
+		percpu_metrics[i].load = load;
+		percpu_metrics[i].pfcp_sessions = pfcp_count_fn ? pfcp_count_fn(i) : 0;
 	}
 
 	thread_add_timer(master, gtp_cpu_poll, NULL, TIMER_HZ / 5);

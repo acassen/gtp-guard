@@ -30,16 +30,23 @@ struct gtp_percpu_metrics {
 	uint32_t		pfcp_sessions;		/* PFCP sessions on this CPU */
 	float			load;			/* [0.0, 1.0] */
 
-	/* ethtool queue metrics aggregated by CPU (via IRQ affinity) */
+	/*
+	 * Accumulation fields: zeroed before each ethtool tick.
+	 */
 	struct ethtool_q_stats	q_stats;
 
-	/* BPF XDP counters (if_rule map, summed across all matching rules) */
-	uint64_t		bpf_pkt_in;
-	uint64_t		bpf_bytes_in;
-	uint64_t		bpf_pkt_fwd;
-
-	/* traffic that bypassed XDP to the kernel network stack */
-	uint64_t		sys_rx_pkts;
+	/*
+	 * Persistent fields: survive across ticks.
+	 * Rate estimates derived from q_stats deltas.
+	 */
+	uint64_t		rx_bw_bps;
+	uint64_t		tx_bw_bps;
+	uint64_t		rx_pps;
+	uint64_t		tx_pps;
+	uint64_t		prev_rx_bytes;
+	uint64_t		prev_tx_bytes;
+	uint64_t		prev_rx_packets;
+	uint64_t		prev_tx_packets;
 };
 
 /* Prototypes */
