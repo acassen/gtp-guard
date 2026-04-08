@@ -29,6 +29,7 @@
 #include "gtp_data.h"
 #include "gtp_interface.h"
 #include "ethtool.h"
+#include "cpu.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -43,73 +44,6 @@ struct rxq_numa {
 	int nr;
 };
 
-
-/* Count CPUs encoded in a cpulist string (e.g. "0-3,8,16-19"). */
-static int
-rxq_cpulist_count(const char *list)
-{
-	const char *p = list;
-	int a, b, n = 0;
-
-	while (*p >= '0' && *p <= '9') {
-		a = 0;
-		while (*p >= '0' && *p <= '9')
-			a = a * 10 + (*p++ - '0');
-		b = a;
-		if (*p == '-') {
-			p++;
-			b = 0;
-			while (*p >= '0' && *p <= '9')
-				b = b * 10 + (*p++ - '0');
-		}
-		n += b - a + 1;
-		if (*p == ',')
-			p++;
-	}
-	return n;
-}
-
-/* Return the first CPU in a cpulist string, or -1. */
-static int
-rxq_cpulist_first_cpu(const char *list)
-{
-	const char *p = list;
-	int a = 0;
-
-	while (*p == ' ')
-		p++;
-	if (*p < '0' || *p > '9')
-		return -1;
-	while (*p >= '0' && *p <= '9')
-		a = a * 10 + (*p++ - '0');
-	return a;
-}
-
-/* Return true if target CPU is present in a cpulist string. */
-static bool
-rxq_cpulist_contains(const char *list, int target)
-{
-	const char *p = list;
-	int a, b;
-
-	while (*p >= '0' && *p <= '9') {
-		a = 0;
-		while (*p >= '0' && *p <= '9')
-			a = a * 10 + (*p++ - '0');
-		b = a;
-		if (*p == '-') {
-			p++;
-			b = 0;
-			while (*p >= '0' && *p <= '9')
-				b = b * 10 + (*p++ - '0');
-		}
-		if (target >= a && target <= b)
-			return true;
-		if (*p == ',')
-			p++;
-	}
-	return false;
-}
 
 /* Read /proc/irq/{irq}/effective_affinity_list, fall back to smp_affinity_list. */
 static int
@@ -133,6 +67,17 @@ rxq_irq_get_affinity(int irq, char *buf, size_t size)
 	fclose(f);
 	buf[strcspn(buf, "\n")] = '\0';
 	return 0;
+}
+
+/* Return the first CPU pinned to irq, or -1. */
+static int
+rxq_irq_get_cpu(int irq)
+{
+	char cpulist[64];
+
+	if (rxq_irq_get_affinity(irq, cpulist, sizeof(cpulist)) < 0)
+		return -1;
+	return cpulist_first_cpu(cpulist);
 }
 
 /* Resolve PCI BDF for ifname via /sys/class/net/{ifname}/device symlink. */
@@ -273,23 +218,21 @@ static int
 rxq_iface_numa_from_irq(const char *ifname, const struct rxq_numa *numa)
 {
 	int irqs[RXQUEUE_MAX];
-	char cpulist[64];
-	int i, cpu, n;
+	int i, cpu, n, nr;
 
 	memset(irqs, -1, sizeof(irqs));
-	if (rxq_iface_get_irqs(ifname, irqs, RXQUEUE_MAX) <= 0)
+	nr = rxq_iface_get_irqs(ifname, irqs, RXQUEUE_MAX);
+	if (nr <= 0)
 		return -1;
 
-	for (i = 0; i < RXQUEUE_MAX; i++) {
+	for (i = 0; i < nr; i++) {
 		if (irqs[i] < 0)
 			continue;
-		if (rxq_irq_get_affinity(irqs[i], cpulist, sizeof(cpulist)) < 0)
-			continue;
-		cpu = rxq_cpulist_first_cpu(cpulist);
+		cpu = rxq_irq_get_cpu(irqs[i]);
 		if (cpu < 0)
 			continue;
 		for (n = 0; n < numa->nr; n++) {
-			if (rxq_cpulist_contains(numa->cpulist[n], cpu))
+			if (cpulist_contains(numa->cpulist[n], cpu))
 				return n;
 		}
 	}
@@ -305,28 +248,26 @@ rxq_iface_numa(const struct gtp_interface *iface, const struct rxq_numa *numa)
 	return rxq_iface_numa_from_irq(pif, numa);
 }
 
+/* Callback for cpu_foreach_numa_node() to populate rxq_numa. */
+static void
+rxq_numa_add_node(int node, const char *cpulist, void *arg)
+{
+	struct rxq_numa *numa = arg;
+
+	if (node >= RXQUEUE_NUMA_MAX)
+		return;
+	strncpy(numa->cpulist[node], cpulist, sizeof(numa->cpulist[node]) - 1);
+	numa->cpulist[node][sizeof(numa->cpulist[node]) - 1] = '\0';
+	numa->cpu_count[node] = cpulist_count(cpulist);
+	numa->nr = node + 1;
+}
+
 /* Load NUMA node cpulists from sysfs. */
 static void
 rxq_numa_load(struct rxq_numa *numa)
 {
-	char path[64];
-	FILE *f;
-	int i;
-
 	numa->nr = 0;
-	for (i = 0; i < RXQUEUE_NUMA_MAX; i++) {
-		snprintf(path, sizeof(path),
-			 "/sys/devices/system/node/node%d/cpulist", i);
-		f = fopen(path, "r");
-		if (!f)
-			break;
-		numa->cpulist[i][0] = '\0';
-		if (fgets(numa->cpulist[i], sizeof(numa->cpulist[i]), f))
-			numa->cpulist[i][strcspn(numa->cpulist[i], "\n")] = '\0';
-		fclose(f);
-		numa->cpu_count[i] = rxq_cpulist_count(numa->cpulist[i]);
-		numa->nr++;
-	}
+	cpu_foreach_numa_node(rxq_numa_add_node, numa);
 }
 
 /* Display RX queue details for one interface. */
@@ -346,16 +287,16 @@ rxq_show_iface_queues(struct vty *vty, struct gtp_interface *iface)
 
 	vty_out(vty, "   %s  rx_queues:%u%s", iface->ifname, nr_rx, VTY_NEWLINE);
 	for (q = 0; q < (int)nr_rx; q++) {
-		cpulist[0] = '\0';
-		if (irqs[q] >= 0)
-			rxq_irq_get_affinity(irqs[q], cpulist, sizeof(cpulist));
-		if (irqs[q] >= 0)
-			vty_out(vty, "     rx-%-2d  irq:%-5d  cpu:%s%s",
-				q, irqs[q], cpulist[0] ? cpulist : "?",
-				VTY_NEWLINE);
-		else
+		if (irqs[q] < 0) {
 			vty_out(vty, "     rx-%-2d  irq:n/a    cpu:n/a%s",
 				q, VTY_NEWLINE);
+			continue;
+		}
+		cpulist[0] = '\0';
+		rxq_irq_get_affinity(irqs[q], cpulist, sizeof(cpulist));
+		vty_out(vty, "     rx-%-2d  irq:%-5d  cpu:%s%s",
+			q, irqs[q], cpulist[0] ? cpulist : "?",
+			VTY_NEWLINE);
 	}
 }
 
@@ -441,7 +382,7 @@ rxq_diag_iface(struct vty *vty, struct gtp_interface *iface, struct rxq_numa *nu
 		if (rxq_irq_get_affinity(irqs[q], cpulist, sizeof(cpulist)) < 0)
 			continue;
 
-		if (rxq_cpulist_count(cpulist) != 1) {
+		if (cpulist_count(cpulist) != 1) {
 			vty_out(vty, "  [WARN] %s: rx-%d irq:%d not pinned to "
 				     "single CPU (affinity: %s)%s"
 				   , iface->ifname, q, irqs[q], cpulist, VTY_NEWLINE);
@@ -449,12 +390,12 @@ rxq_diag_iface(struct vty *vty, struct gtp_interface *iface, struct rxq_numa *nu
 			continue;
 		}
 
-		cpu = rxq_cpulist_first_cpu(cpulist);
+		cpu = cpulist_first_cpu(cpulist);
 		if (cpu < 0)
 			continue;
 
 		if (iface_numa >= 0 && iface_numa < numa->nr &&
-		    !rxq_cpulist_contains(numa->cpulist[iface_numa], cpu)) {
+		    !cpulist_contains(numa->cpulist[iface_numa], cpu)) {
 			vty_out(vty, "  [WARN] %s: rx-%d irq:%d bound to cpu %d "
 				     "(not on NUMA node %d)%s"
 				   , iface->ifname, q, irqs[q]
@@ -505,9 +446,9 @@ rxq_diag_cpu_uniqueness(struct vty *vty, struct list_head *l)
 			cpulist[0] = '\0';
 			if (rxq_irq_get_affinity(irqs[q], cpulist, sizeof(cpulist)) < 0)
 				continue;
-			if (rxq_cpulist_count(cpulist) != 1)
+			if (cpulist_count(cpulist) != 1)
 				continue;
-			cpu = rxq_cpulist_first_cpu(cpulist);
+			cpu = cpulist_first_cpu(cpulist);
 			if (cpu < 0)
 				continue;
 			assign_cpu[nassigns] = cpu;
@@ -550,7 +491,6 @@ gtp_interface_rxq_cpu(const struct gtp_interface *iface,
 	const char *ifname = iface->link_iface ? iface->link_iface->ifname :
 						 iface->ifname;
 	int irqs[RXQUEUE_MAX];
-	char cpulist[64];
 	int q, n, cpu;
 
 	if (max_q > RXQUEUE_MAX)
@@ -566,10 +506,7 @@ gtp_interface_rxq_cpu(const struct gtp_interface *iface,
 	for (q = 0; q < n; q++) {
 		if (irqs[q] < 0)
 			continue;
-		cpulist[0] = '\0';
-		if (rxq_irq_get_affinity(irqs[q], cpulist, sizeof(cpulist)) < 0)
-			continue;
-		cpu = rxq_cpulist_first_cpu(cpulist);
+		cpu = rxq_irq_get_cpu(irqs[q]);
 		if (cpu >= 0)
 			cpu_per_queue[q] = cpu;
 	}

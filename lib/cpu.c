@@ -19,6 +19,7 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
@@ -79,6 +80,23 @@ tsc_freq_calibrate(void)
 }
 
 
+static struct cpu_load *
+cpu_load_alloc(int nr)
+{
+	struct cpu_load *ctx;
+
+	ctx = calloc(1, sizeof(*ctx));
+	if (!ctx)
+		return NULL;
+	ctx->cpus = calloc(nr, sizeof(*ctx->cpus));
+	if (!ctx->cpus) {
+		free(ctx);
+		return NULL;
+	}
+	ctx->nr_cpus = nr;
+	return ctx;
+}
+
 /*
  *	Per-CPU load tracking via hardware reference cycle counter.
  *
@@ -111,17 +129,10 @@ cpu_load_init(struct cpu_load **pctx)
 	if (nr <= 0)
 		return -1;
 
-	ctx = calloc(1, sizeof(*ctx));
+	ctx = cpu_load_alloc(nr);
 	if (!ctx)
 		return -1;
 
-	ctx->cpus = calloc(nr, sizeof(*ctx->cpus));
-	if (!ctx->cpus) {
-		free(ctx);
-		return -1;
-	}
-
-	ctx->nr_cpus = nr;
 	ctx->base_freq_hz = tsc_freq_calibrate();
 	if (!ctx->base_freq_hz) {
 		log_message(LOG_ERR, "%s(): TSC frequency calibration failed"
@@ -184,17 +195,9 @@ cpu_load_init_tsc(struct cpu_load **pctx)
 	if (nr <= 0)
 		return -1;
 
-	ctx = calloc(1, sizeof(*ctx));
+	ctx = cpu_load_alloc(nr);
 	if (!ctx)
 		return -1;
-
-	ctx->cpus = calloc(nr, sizeof(*ctx->cpus));
-	if (!ctx->cpus) {
-		free(ctx);
-		return -1;
-	}
-
-	ctx->nr_cpus = nr;
 
 	for (i = 0; i < nr; i++) {
 		ctx->cpus[i].fd = (int)perf_event_open(&attr, -1, i, -1, 0);
@@ -330,7 +333,7 @@ cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
 	}
 }
 
-static int
+int
 cpulist_foreach_range(const char *cpulist,
 		      void (*fn)(int lo, int hi, void *arg), void *arg)
 {
@@ -358,6 +361,18 @@ cpulist_foreach_range(const char *cpulist,
 	return 0;
 }
 
+int
+cpulist_first_cpu(const char *cpulist)
+{
+	const char *p = cpulist;
+
+	while (*p == ' ')
+		p++;
+	if (*p < '0' || *p > '9')
+		return -1;
+	return atoi(p);
+}
+
 static void
 cpuset_add_range(int lo, int hi, void *arg)
 {
@@ -373,6 +388,24 @@ cpulist_to_set(const char *cpulist, cpu_set_t *set)
 {
 	CPU_ZERO(set);
 	cpulist_foreach_range(cpulist, cpuset_add_range, set);
+}
+
+int
+cpulist_count(const char *cpulist)
+{
+	cpu_set_t set;
+
+	cpulist_to_set(cpulist, &set);
+	return CPU_COUNT(&set);
+}
+
+bool
+cpulist_contains(const char *cpulist, int target)
+{
+	cpu_set_t set;
+
+	cpulist_to_set(cpulist, &set);
+	return CPU_ISSET(target, &set);
 }
 
 static void
@@ -393,16 +426,18 @@ cpu_nr_possible(void)
 
 	fd = open("/sys/devices/system/cpu/possible", O_RDONLY | O_CLOEXEC);
 	if (fd < 0)
-		return (int)sysconf(_SC_NPROCESSORS_CONF);
+		goto err;
 
 	n = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
 	if (n <= 0)
-		return (int)sysconf(_SC_NPROCESSORS_CONF);
+		goto err;
 	buf[n] = '\0';
 
 	if (cpulist_foreach_range(buf, track_max, &max) < 0 || max < 0)
-		return (int)sysconf(_SC_NPROCESSORS_CONF);
+		goto err;
 
 	return max + 1;
+err:
+	return (int)sysconf(_SC_NPROCESSORS_CONF);
 }

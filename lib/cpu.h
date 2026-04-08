@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <sched.h>
 
@@ -55,5 +56,10 @@ int cpu_load_nr(struct cpu_load *ctx);
 void cpu_load_destroy(struct cpu_load *ctx);
 void cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
 			   void *arg);
+int cpulist_foreach_range(const char *cpulist,
+			  void (*fn)(int lo, int hi, void *arg), void *arg);
+int cpulist_first_cpu(const char *cpulist);
 void cpulist_to_set(const char *list, cpu_set_t *set);
+int cpulist_count(const char *cpulist);
+bool cpulist_contains(const char *cpulist, int target);
 int cpu_nr_possible(void);
