@@ -56,3 +56,4 @@ void cpu_load_destroy(struct cpu_load *ctx);
 void cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
 			   void *arg);
 void cpulist_to_set(const char *list, cpu_set_t *set);
+int cpu_nr_possible(void);

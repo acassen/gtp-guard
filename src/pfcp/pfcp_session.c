@@ -32,6 +32,7 @@
 #include "bitops.h"
 #include "logger.h"
 #include "jhash.h"
+#include "cpu.h"
 
 /* Extern data */
 extern struct thread_master *master;
@@ -364,7 +365,7 @@ pfcp_sessions_cpu_count(int cpu)
 int
 pfcp_sessions_init(void)
 {
-	pfcp_sessions_nr_cpus = sysconf(_SC_NPROCESSORS_CONF);
+	pfcp_sessions_nr_cpus = cpu_nr_possible();
 	if (pfcp_sessions_nr_cpus > 0)
 		pfcp_sessions_per_cpu = calloc(pfcp_sessions_nr_cpus, sizeof(int));
 	pfcp_session_tab = calloc(PFCP_SESSION_HASHTAB_SIZE, sizeof(struct hlist_head));

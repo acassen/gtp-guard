@@ -19,12 +19,12 @@
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
-#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
@@ -107,7 +107,7 @@ cpu_load_init(struct cpu_load **pctx)
 	struct cpu_load *ctx;
 	int i, nr;
 
-	nr = (int)sysconf(_SC_NPROCESSORS_CONF);
+	nr = cpu_nr_possible();
 	if (nr <= 0)
 		return -1;
 
@@ -180,7 +180,7 @@ cpu_load_init_tsc(struct cpu_load **pctx)
 	uint64_t cycles;
 	int i, nr;
 
-	nr = (int)sysconf(_SC_NPROCESSORS_CONF);
+	nr = cpu_nr_possible();
 	if (nr <= 0)
 		return -1;
 
@@ -302,6 +302,7 @@ cpu_load_destroy(struct cpu_load *ctx)
 	free(ctx);
 }
 
+
 /*
  *	Helpers
  */
@@ -310,46 +311,98 @@ cpu_foreach_numa_node(void (*fn)(int node, const char *cpulist, void *arg),
 		      void *arg)
 {
 	char path[64], cpulist[256];
-	FILE *f;
-	int i;
+	ssize_t n;
+	int fd, i;
 
 	for (i = 0; i < CPU_NUMA_MAX; i++) {
 		snprintf(path, sizeof(path),
 			 "/sys/devices/system/node/node%d/cpulist", i);
-		f = fopen(path, "r");
-		if (!f)
+		fd = open(path, O_RDONLY | O_CLOEXEC);
+		if (fd < 0)
 			break;
-		if (!fgets(cpulist, sizeof(cpulist), f)) {
-			fclose(f);
+		n = read(fd, cpulist, sizeof(cpulist) - 1);
+		close(fd);
+		if (n <= 0)
 			continue;
-		}
-		fclose(f);
+		cpulist[n] = '\0';
 		cpulist[strcspn(cpulist, "\n")] = '\0';
 		fn(i, cpulist, arg);
 	}
 }
 
-void
-cpulist_to_set(const char *list, cpu_set_t *set)
+static int
+cpulist_foreach_range(const char *cpulist,
+		      void (*fn)(int lo, int hi, void *arg), void *arg)
 {
-	const char *p = list;
-	int a, b;
+	const char *p = cpulist;
+	int lo, hi;
 
-	CPU_ZERO(set);
 	while (*p >= '0' && *p <= '9') {
-		a = 0;
+		lo = 0;
 		while (*p >= '0' && *p <= '9')
-			a = a * 10 + (*p++ - '0');
-		b = a;
+			lo = lo * 10 + (*p++ - '0');
+		hi = lo;
 		if (*p == '-') {
 			p++;
-			b = 0;
+			hi = 0;
 			while (*p >= '0' && *p <= '9')
-				b = b * 10 + (*p++ - '0');
+				hi = hi * 10 + (*p++ - '0');
 		}
-		for (; a <= b; a++)
-			CPU_SET(a, set);
+		if (lo > hi)
+			return -1;
+		fn(lo, hi, arg);
 		if (*p == ',')
 			p++;
 	}
+
+	return 0;
+}
+
+static void
+cpuset_add_range(int lo, int hi, void *arg)
+{
+	cpu_set_t *set = arg;
+	int i;
+
+	for (i = lo; i <= hi; i++)
+		CPU_SET(i, set);
+}
+
+void
+cpulist_to_set(const char *cpulist, cpu_set_t *set)
+{
+	CPU_ZERO(set);
+	cpulist_foreach_range(cpulist, cpuset_add_range, set);
+}
+
+static void
+track_max(int lo __attribute__((unused)), int hi, void *arg)
+{
+	int *max = arg;
+
+	if (hi > *max)
+		*max = hi;
+}
+
+int
+cpu_nr_possible(void)
+{
+	char buf[128];
+	int fd, max = -1;
+	ssize_t n;
+
+	fd = open("/sys/devices/system/cpu/possible", O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return (int)sysconf(_SC_NPROCESSORS_CONF);
+
+	n = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (n <= 0)
+		return (int)sysconf(_SC_NPROCESSORS_CONF);
+	buf[n] = '\0';
+
+	if (cpulist_foreach_range(buf, track_max, &max) < 0 || max < 0)
+		return (int)sysconf(_SC_NPROCESSORS_CONF);
+
+	return max + 1;
 }

@@ -743,7 +743,7 @@ gtp_bpf_ifrules_cpu_metrics(const struct gtp_interface *iface, int cpu,
 	struct gtp_bpf_ifrule_metrics m[nr_cpus];
 	int err;
 
-	if (cpu < 0 || cpu >= (int)nr_cpus)
+	if (cpu < 0 || cpu >= nr_cpus)
 		return -EINVAL;
 	err = gtp_bpf_ifrules_all_cpu_metrics(iface, m, nr_cpus);
 	if (err)
