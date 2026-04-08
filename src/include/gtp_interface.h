@@ -30,61 +30,6 @@
 #include "gtp_bpf_prog.h"
 #include "ethtool.h"
 
-/* Physical NIC stats from ethtool -S (*_phy counters) */
-#define N_PHY_STATS      17
-struct gtp_if_phy_stats {
-	uint64_t	tx_packets;
-	uint64_t	rx_packets;
-	uint64_t	tx_bytes;
-	uint64_t	rx_bytes;
-	uint64_t	rx_discards;
-	uint64_t	tx_discards;
-	uint64_t	tx_errors;
-	/* rx frame-size histogram */
-	uint64_t	rx_64;
-	uint64_t	rx_65_127;
-	uint64_t	rx_128_255;
-	uint64_t	rx_256_511;
-	uint64_t	rx_512_1023;
-	uint64_t	rx_1024_1518;
-	uint64_t	rx_1519_2047;
-	uint64_t	rx_2048_4095;
-	uint64_t	rx_4096_8191;
-	uint64_t	rx_8192_10239;
-};
-
-/* Per-queue stats from ethtool -S (rx{N}_* / tx{N}_* counters) */
-#define N_QUEUE_RX_STATS 11
-#define N_QUEUE_TX_STATS 12
-#define N_QUEUE_STATS    (N_QUEUE_RX_STATS + N_QUEUE_TX_STATS)
-struct gtp_if_queue_stats {
-	/* RX */
-	uint64_t	rx_packets;
-	uint64_t	rx_bytes;
-	uint64_t	rx_xdp_drop;
-	uint64_t	rx_xdp_redirect;
-	uint64_t	rx_xdp_tx_xmit;
-	uint64_t	rx_xdp_tx_mpwqe;
-	uint64_t	rx_xdp_tx_inlnw;
-	uint64_t	rx_xdp_tx_nops;
-	uint64_t	rx_xdp_tx_full;
-	uint64_t	rx_xdp_tx_err;
-	uint64_t	rx_xdp_tx_cqes;
-	/* TX */
-	uint64_t	tx_packets;
-	uint64_t	tx_bytes;
-	uint64_t	tx_stopped;
-	uint64_t	tx_dropped;
-	uint64_t	tx_xmit_more;
-	uint64_t	tx_xdp_xmit;
-	uint64_t	tx_xdp_mpwqe;
-	uint64_t	tx_xdp_inlnw;
-	uint64_t	tx_xdp_nops;
-	uint64_t	tx_xdp_full;
-	uint64_t	tx_xdp_err;
-	uint64_t	tx_xdp_cqes;
-};
-
 /* Interface events */
 enum gtp_interface_event {
 	GTP_INTERFACE_EV_PRG_START,
@@ -150,7 +95,7 @@ struct gtp_interface {
 	struct rtnl_link_stats64	*link_metrics;
 
 	/* ethtool phy stats + bandwidth estimates */
-	struct gtp_if_phy_stats		phy_stats;
+	struct ethtool_phy_stats	phy_stats;
 	uint64_t			rx_bw_bps;
 	uint64_t			tx_bw_bps;
 	uint64_t			prev_rx_bytes;
@@ -160,8 +105,8 @@ struct gtp_interface {
 	/* per-queue ethtool stats; array of max(nr_rx_queues, nr_tx_queues) */
 	uint32_t			nr_rx_queues;
 	uint32_t			nr_tx_queues;
-	struct gtp_if_queue_stats	*queue_stats;
-	struct gtp_if_ethtool_cache	*ethtool_cache;
+	struct ethtool_q_stats		*queue_stats;
+	struct ethtool_cache		*ethtool_cache;
 
 	/* tunnel info */
 	enum gtp_interface_tunnel_mode	tunnel_mode;

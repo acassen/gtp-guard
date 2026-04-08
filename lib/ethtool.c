@@ -40,7 +40,39 @@
 #include "logger.h"
 #include "ethtool.h"
 
-#define MAX_DEV_QUEUE_PATH_LEN 64
+#define MAX_DEV_QUEUE_PATH_LEN	64
+#define STAT_NAME_LEN		32
+
+/* same order as ethtool_phy_stats fields */
+static const char * const phy_stat_names[N_PHY_STATS] = {
+	"tx_packets_phy", "rx_packets_phy",
+	"tx_bytes_phy", "rx_bytes_phy",
+	"rx_discards_phy", "tx_discards_phy",
+	"tx_errors_phy",
+	"rx_64_bytes_phy", "rx_65_to_127_bytes_phy",
+	"rx_128_to_255_bytes_phy", "rx_256_to_511_bytes_phy",
+	"rx_512_to_1023_bytes_phy", "rx_1024_to_1518_bytes_phy",
+	"rx_1519_to_2047_bytes_phy", "rx_2048_to_4095_bytes_phy",
+	"rx_4096_to_8191_bytes_phy", "rx_8192_to_10239_bytes_phy",
+};
+
+/* format strings for per-queue names; queue index substituted with %d */
+static const char rxq_stat_fmt[N_QUEUE_RX_STATS][STAT_NAME_LEN] = {
+	"rx%d_packets", "rx%d_bytes",
+	"rx%d_xdp_drop", "rx%d_xdp_redirect",
+	"rx%d_xdp_tx_xmit", "rx%d_xdp_tx_mpwqe",
+	"rx%d_xdp_tx_inlnw", "rx%d_xdp_tx_nops",
+	"rx%d_xdp_tx_full", "rx%d_xdp_tx_err",
+	"rx%d_xdp_tx_cqes",
+};
+
+static const char txq_stat_fmt[N_QUEUE_TX_STATS][STAT_NAME_LEN] = {
+	"tx%d_packets", "tx%d_bytes",
+	"tx%d_stopped", "tx%d_dropped", "tx%d_xmit_more",
+	"tx%d_xdp_xmit", "tx%d_xdp_mpwqe", "tx%d_xdp_inlnw",
+	"tx%d_xdp_nops", "tx%d_xdp_full", "tx%d_xdp_err",
+	"tx%d_xdp_cqes",
+};
 
 
 /*
@@ -197,28 +229,19 @@ gstrings_find(const struct ethtool_gstrings *gs, const char *name)
  * Resolves stat names to their integer index in the GSTATS array once.
  * Subsequent polls only need one ETHTOOL_GSTATS ioctl with no string
  * searching or memory allocation.
- *
- * phy_names: array of n_phy stat name strings
- * rx_fmt / tx_fmt: snprintf format strings for per-queue rx/tx stats
- *   (queue index is substituted with %d)
- * nr_queues: max(nr_rx_queues, nr_tx_queues)
  */
 int
-ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
-			  const char *ifname,
-			  const char * const *phy_names, int n_phy,
-			  const char (*rx_fmt)[ETH_GSTRING_LEN], int n_rx,
-			  const char (*tx_fmt)[ETH_GSTRING_LEN], int n_tx,
+ethtool_gstats_cache_init(struct ethtool_cache **out, const char *ifname,
 			  uint32_t nr_queues)
 {
 	struct ethtool_drvinfo drvinfo = { .cmd = ETHTOOL_GDRVINFO };
 	struct ethtool_gstrings *gstrings = NULL;
-	struct gtp_if_ethtool_cache *c;
+	struct ethtool_cache *c;
 	uint32_t nstats, n_per_queue;
 	char name[ETH_GSTRING_LEN];
 	int fd = -1, i, q, ret = -1;
 
-	n_per_queue = n_rx + n_tx;
+	n_per_queue = N_QUEUE_RX_STATS + N_QUEUE_TX_STATS;
 
 	c = calloc(1, sizeof(*c));
 	if (!c)
@@ -257,7 +280,7 @@ ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 	c->stats->cmd = ETHTOOL_GSTATS;
 	c->stats->n_stats = nstats;
 
-	c->phy_idx = malloc(n_phy * sizeof(int));
+	c->phy_idx = malloc(N_PHY_STATS * sizeof(int));
 	if (!c->phy_idx)
 		goto err;
 
@@ -267,23 +290,23 @@ ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
 			goto err;
 	}
 
-	for (i = 0; i < n_phy; i++)
-		c->phy_idx[i] = gstrings_find(gstrings, phy_names[i]);
+	for (i = 0; i < N_PHY_STATS; i++)
+		c->phy_idx[i] = gstrings_find(gstrings, phy_stat_names[i]);
 
 	for (q = 0; q < nr_queues; q++) {
-		for (i = 0; i < n_rx; i++) {
-			snprintf(name, ETH_GSTRING_LEN, rx_fmt[i], q);
+		for (i = 0; i < N_QUEUE_RX_STATS; i++) {
+			snprintf(name, ETH_GSTRING_LEN, rxq_stat_fmt[i], q);
 			c->q_idx[q * n_per_queue + i] = gstrings_find(gstrings, name);
 		}
-		for (i = 0; i < n_tx; i++) {
-			snprintf(name, ETH_GSTRING_LEN, tx_fmt[i], q);
-			c->q_idx[q * n_per_queue + n_rx + i] = gstrings_find(gstrings, name);
+		for (i = 0; i < N_QUEUE_TX_STATS; i++) {
+			snprintf(name, ETH_GSTRING_LEN, txq_stat_fmt[i], q);
+			c->q_idx[q * n_per_queue + N_QUEUE_RX_STATS + i] = gstrings_find(gstrings, name);
 		}
 	}
 
 	c->fd = fd;
 	c->nstats = nstats;
-	c->n_phy = n_phy;
+	c->n_phy = N_PHY_STATS;
 	c->n_per_queue = n_per_queue;
 	c->nr_queues = nr_queues;
 	free(gstrings);
@@ -303,13 +326,13 @@ err:
 
 /* Refresh stats: one ETHTOOL_GSTATS ioctl into the persistent buffer. */
 int
-ethtool_gstats_fetch(struct gtp_if_ethtool_cache *c, const char *ifname)
+ethtool_gstats_fetch(struct ethtool_cache *c, const char *ifname)
 {
 	return ethtool_send(c->fd, ifname, c->stats);
 }
 
 void
-ethtool_gstats_cache_destroy(struct gtp_if_ethtool_cache *c)
+ethtool_gstats_cache_destroy(struct ethtool_cache *c)
 {
 	if (!c)
 		return;

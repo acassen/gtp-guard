@@ -31,6 +31,7 @@ src += files(
   'gtp_disk.c',
   'gtp_dpd.c',
   'gtp_interface.c',
+  'gtp_interface_ethtool.c',
   'gtp_interface_metrics.c',
   'gtp_interface_rxq.c',
   'gtp_interface_vty.c',

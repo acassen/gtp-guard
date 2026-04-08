@@ -30,6 +30,7 @@
 #include "cpu.h"
 #include "ethtool.h"
 #include "gtp_interface.h"
+#include "gtp_interface_ethtool.h"
 #include "gtp_interface_rxq.h"
 #include "gtp_bpf_ifrules.h"
 #include "gtp_cpu.h"
@@ -44,134 +45,6 @@ static int ethtool_tick;
 /* Extern data */
 extern struct data *daemon_data;
 extern struct thread_master *master;
-
-
-/*
- *	Interface stats collection
- */
-#define STAT_NAME_LEN    32
-
-/* same order as gtp_if_phy_stats fields */
-static const char * const phy_stat_names[N_PHY_STATS] = {
-	"tx_packets_phy", "rx_packets_phy",
-	"tx_bytes_phy", "rx_bytes_phy",
-	"rx_discards_phy", "tx_discards_phy",
-	"tx_errors_phy",
-	"rx_64_bytes_phy", "rx_65_to_127_bytes_phy",
-	"rx_128_to_255_bytes_phy", "rx_256_to_511_bytes_phy",
-	"rx_512_to_1023_bytes_phy", "rx_1024_to_1518_bytes_phy",
-	"rx_1519_to_2047_bytes_phy", "rx_2048_to_4095_bytes_phy",
-	"rx_4096_to_8191_bytes_phy", "rx_8192_to_10239_bytes_phy",
-};
-
-/* format strings for per-queue names; queue index substituted with %d */
-static const char rx_queue_stat_fmt[N_QUEUE_RX_STATS][STAT_NAME_LEN] = {
-	"rx%d_packets", "rx%d_bytes",
-	"rx%d_xdp_drop", "rx%d_xdp_redirect",
-	"rx%d_xdp_tx_xmit", "rx%d_xdp_tx_mpwqe",
-	"rx%d_xdp_tx_inlnw", "rx%d_xdp_tx_nops",
-	"rx%d_xdp_tx_full", "rx%d_xdp_tx_err",
-	"rx%d_xdp_tx_cqes",
-};
-
-static const char tx_queue_stat_fmt[N_QUEUE_TX_STATS][STAT_NAME_LEN] = {
-	"tx%d_packets", "tx%d_bytes",
-	"tx%d_stopped", "tx%d_dropped", "tx%d_xmit_more",
-	"tx%d_xdp_xmit", "tx%d_xdp_mpwqe", "tx%d_xdp_inlnw",
-	"tx%d_xdp_nops", "tx%d_xdp_full", "tx%d_xdp_err",
-	"tx%d_xdp_cqes",
-};
-
-/* index helpers: phy field i, queue q field i */
-#define PHY_VAL(c, i)    ethtool_gstats_val(c, (c)->phy_idx[i])
-#define Q_IDX(c, q, i)   ((c)->q_idx[(q) * (c)->n_per_queue + (i)])
-#define Q_VAL(c, q, i)   ethtool_gstats_val(c, Q_IDX(c, q, i))
-
-static void
-gtp_interface_collect_ethtool(struct gtp_interface *iface, uint64_t now_ns)
-{
-	struct gtp_if_ethtool_cache *c = iface->ethtool_cache;
-	struct gtp_if_phy_stats *ps = &iface->phy_stats;
-	uint32_t q, nr;
-
-	/* lazy cache init on first call after interface is up */
-	if (!c) {
-		uint32_t nr_q = max(iface->nr_rx_queues, iface->nr_tx_queues);
-		if (ethtool_gstats_cache_init(&iface->ethtool_cache, iface->ifname,
-					      phy_stat_names, N_PHY_STATS,
-					      rx_queue_stat_fmt, N_QUEUE_RX_STATS,
-					      tx_queue_stat_fmt, N_QUEUE_TX_STATS,
-					      nr_q) < 0)
-			return;
-		c = iface->ethtool_cache;
-	}
-
-	if (ethtool_gstats_fetch(c, iface->ifname) < 0)
-		return;
-
-	/* fill phy_stats */
-	ps->tx_packets   = PHY_VAL(c, 0);  ps->rx_packets   = PHY_VAL(c, 1);
-	ps->tx_bytes     = PHY_VAL(c, 2);  ps->rx_bytes     = PHY_VAL(c, 3);
-	ps->rx_discards  = PHY_VAL(c, 4);  ps->tx_discards  = PHY_VAL(c, 5);
-	ps->tx_errors    = PHY_VAL(c, 6);
-	ps->rx_64        = PHY_VAL(c, 7);  ps->rx_65_127    = PHY_VAL(c, 8);
-	ps->rx_128_255   = PHY_VAL(c, 9);  ps->rx_256_511   = PHY_VAL(c, 10);
-	ps->rx_512_1023  = PHY_VAL(c, 11); ps->rx_1024_1518 = PHY_VAL(c, 12);
-	ps->rx_1519_2047 = PHY_VAL(c, 13); ps->rx_2048_4095 = PHY_VAL(c, 14);
-	ps->rx_4096_8191 = PHY_VAL(c, 15); ps->rx_8192_10239 = PHY_VAL(c, 16);
-
-	/* fill per-queue stats */
-	if (iface->queue_stats) {
-		nr = max(iface->nr_rx_queues, iface->nr_tx_queues);
-		for (q = 0; q < nr; q++) {
-			struct gtp_if_queue_stats *s = &iface->queue_stats[q];
-			s->rx_packets      = Q_VAL(c, q, 0);
-			s->rx_bytes        = Q_VAL(c, q, 1);
-			s->rx_xdp_drop     = Q_VAL(c, q, 2);
-			s->rx_xdp_redirect = Q_VAL(c, q, 3);
-			s->rx_xdp_tx_xmit  = Q_VAL(c, q, 4);
-			s->rx_xdp_tx_mpwqe = Q_VAL(c, q, 5);
-			s->rx_xdp_tx_inlnw = Q_VAL(c, q, 6);
-			s->rx_xdp_tx_nops  = Q_VAL(c, q, 7);
-			s->rx_xdp_tx_full  = Q_VAL(c, q, 8);
-			s->rx_xdp_tx_err   = Q_VAL(c, q, 9);
-			s->rx_xdp_tx_cqes  = Q_VAL(c, q, 10);
-			s->tx_packets      = Q_VAL(c, q, 11);
-			s->tx_bytes        = Q_VAL(c, q, 12);
-			s->tx_stopped      = Q_VAL(c, q, 13);
-			s->tx_dropped      = Q_VAL(c, q, 14);
-			s->tx_xmit_more    = Q_VAL(c, q, 15);
-			s->tx_xdp_xmit     = Q_VAL(c, q, 16);
-			s->tx_xdp_mpwqe    = Q_VAL(c, q, 17);
-			s->tx_xdp_inlnw    = Q_VAL(c, q, 18);
-			s->tx_xdp_nops     = Q_VAL(c, q, 19);
-			s->tx_xdp_full     = Q_VAL(c, q, 20);
-			s->tx_xdp_err      = Q_VAL(c, q, 21);
-			s->tx_xdp_cqes     = Q_VAL(c, q, 22);
-		}
-	}
-
-	/* bandwidth from PHY byte counters */
-	if (iface->prev_ts_ns) {
-		uint64_t elapsed = now_ns - iface->prev_ts_ns;
-		if (elapsed) {
-			iface->rx_bw_bps = (ps->rx_bytes - iface->prev_rx_bytes)
-					   * 1000000000ULL / elapsed;
-			iface->tx_bw_bps = (ps->tx_bytes - iface->prev_tx_bytes)
-					   * 1000000000ULL / elapsed;
-		}
-	}
-	iface->prev_rx_bytes = ps->rx_bytes;
-	iface->prev_tx_bytes = ps->tx_bytes;
-	iface->prev_ts_ns = now_ns;
-}
-
-static int
-gtp_interface_collect(struct gtp_interface *iface, void *arg)
-{
-	gtp_interface_collect_ethtool(iface, *(uint64_t *)arg);
-	return 0;
-}
 
 
 /*
@@ -194,34 +67,12 @@ gtp_percpu_collect(struct gtp_interface *iface, void *arg)
 	gtp_interface_rxq_cpu(iface, cpu_per_q, iface->nr_rx_queues);
 
 	for (q = 0; q < nr; q++) {
-		struct gtp_if_queue_stats *s = &iface->queue_stats[q];
+		struct ethtool_q_stats *s = &iface->queue_stats[q];
 
 		cpu = (q < iface->nr_rx_queues) ? cpu_per_q[q] : -1;
 		if (cpu < 0 || cpu >= cpu_load->nr_cpus)
 			continue;
-		percpu_metrics[cpu].rx_packets      += s->rx_packets;
-		percpu_metrics[cpu].rx_bytes        += s->rx_bytes;
-		percpu_metrics[cpu].rx_xdp_drop     += s->rx_xdp_drop;
-		percpu_metrics[cpu].rx_xdp_redirect += s->rx_xdp_redirect;
-		percpu_metrics[cpu].rx_xdp_tx_xmit  += s->rx_xdp_tx_xmit;
-		percpu_metrics[cpu].rx_xdp_tx_mpwqe += s->rx_xdp_tx_mpwqe;
-		percpu_metrics[cpu].rx_xdp_tx_inlnw += s->rx_xdp_tx_inlnw;
-		percpu_metrics[cpu].rx_xdp_tx_nops  += s->rx_xdp_tx_nops;
-		percpu_metrics[cpu].rx_xdp_tx_full  += s->rx_xdp_tx_full;
-		percpu_metrics[cpu].rx_xdp_tx_err   += s->rx_xdp_tx_err;
-		percpu_metrics[cpu].rx_xdp_tx_cqes  += s->rx_xdp_tx_cqes;
-		percpu_metrics[cpu].tx_packets      += s->tx_packets;
-		percpu_metrics[cpu].tx_bytes        += s->tx_bytes;
-		percpu_metrics[cpu].tx_stopped      += s->tx_stopped;
-		percpu_metrics[cpu].tx_dropped      += s->tx_dropped;
-		percpu_metrics[cpu].tx_xmit_more    += s->tx_xmit_more;
-		percpu_metrics[cpu].tx_xdp_xmit     += s->tx_xdp_xmit;
-		percpu_metrics[cpu].tx_xdp_mpwqe    += s->tx_xdp_mpwqe;
-		percpu_metrics[cpu].tx_xdp_inlnw    += s->tx_xdp_inlnw;
-		percpu_metrics[cpu].tx_xdp_nops     += s->tx_xdp_nops;
-		percpu_metrics[cpu].tx_xdp_full     += s->tx_xdp_full;
-		percpu_metrics[cpu].tx_xdp_err      += s->tx_xdp_err;
-		percpu_metrics[cpu].tx_xdp_cqes     += s->tx_xdp_cqes;
+		ethtool_q_stats_add(&percpu_metrics[cpu].q_stats, s);
 	}
 
 	if (!gtp_bpf_ifrules_all_cpu_metrics(iface, bpf_m, cpu_load->nr_cpus)) {
@@ -267,8 +118,8 @@ gtp_cpu_poll(struct thread *t)
 	if (++ethtool_tick >= ETHTOOL_POLL_TICKS) {
 		ethtool_tick = 0;
 		gtp_interface_foreach(gtp_interface_collect, &now_ns);
+		gtp_interface_foreach(gtp_percpu_collect, NULL);
 	}
-	gtp_interface_foreach(gtp_percpu_collect, NULL);
 
 	for (i = 0; i < cpu_load->nr_cpus; i++) {
 		load = cpu_load_get(cpu_load, i);
@@ -278,7 +129,7 @@ gtp_cpu_poll(struct thread *t)
 		if (percpu_metrics) {
 			percpu_metrics[i].load = load;
 			percpu_metrics[i].pfcp_sessions = pfcp_count_fn ? pfcp_count_fn(i) : 0;
-			percpu_metrics[i].sys_rx_pkts = percpu_metrics[i].rx_packets -
+			percpu_metrics[i].sys_rx_pkts = percpu_metrics[i].q_stats.rx_packets -
 						        percpu_metrics[i].bpf_pkt_in;
 		}
 	}

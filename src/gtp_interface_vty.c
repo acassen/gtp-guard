@@ -59,7 +59,7 @@ bw_format(uint64_t bps, char *buf, size_t len)
 static int
 gtp_interface_stats_show_summary(struct gtp_interface *iface, void *arg)
 {
-	const struct gtp_if_phy_stats *s = &iface->phy_stats;
+	const struct ethtool_phy_stats *s = &iface->phy_stats;
 	struct vty *vty = arg;
 	char rxbw[20], txbw[20];
 
@@ -78,7 +78,7 @@ gtp_interface_stats_show_summary(struct gtp_interface *iface, void *arg)
 static void
 gtp_interface_stats_show_detail(struct vty *vty, struct gtp_interface *iface)
 {
-	const struct gtp_if_phy_stats *p = &iface->phy_stats;
+	const struct ethtool_phy_stats *p = &iface->phy_stats;
 	char rxbw[20], txbw[20];
 	uint32_t q, nr;
 	int *cpu_per_q;
@@ -136,7 +136,7 @@ gtp_interface_stats_show_detail(struct vty *vty, struct gtp_interface *iface)
 		"q", "cpu", "rx_packets", "rx_bytes", "rx_xdp_drop",
 		"tx_packets", "tx_bytes", VTY_NEWLINE);
 	for (q = 0; q < nr; q++) {
-		const struct gtp_if_queue_stats *qs = &iface->queue_stats[q];
+		const struct ethtool_q_stats *qs = &iface->queue_stats[q];
 		vty_out(vty, "    %3u  %4d  %14llu  %14llu  %12llu  %14llu  %14llu%s",
 			q, cpu_per_q[q],
 			(unsigned long long)qs->rx_packets,

@@ -18,20 +18,78 @@
  *
  * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
-
-#ifndef _ETHTOOL_H
-#define _ETHTOOL_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <linux/ethtool.h>
+
+
+/*
+ * PHY & QUEUE stats we care about.
+ */
+/* Physical NIC stats from ethtool -S (*_phy counters) */
+#define N_PHY_STATS      17
+struct ethtool_phy_stats {
+	uint64_t	tx_packets;
+	uint64_t	rx_packets;
+	uint64_t	tx_bytes;
+	uint64_t	rx_bytes;
+	uint64_t	rx_discards;
+	uint64_t	tx_discards;
+	uint64_t	tx_errors;
+	/* rx frame-size histogram */
+	uint64_t	rx_64;
+	uint64_t	rx_65_127;
+	uint64_t	rx_128_255;
+	uint64_t	rx_256_511;
+	uint64_t	rx_512_1023;
+	uint64_t	rx_1024_1518;
+	uint64_t	rx_1519_2047;
+	uint64_t	rx_2048_4095;
+	uint64_t	rx_4096_8191;
+	uint64_t	rx_8192_10239;
+};
+
+/* Per-queue stats from ethtool -S (rx{N}_* / tx{N}_* counters) */
+#define N_QUEUE_RX_STATS 11
+#define N_QUEUE_TX_STATS 12
+#define N_QUEUE_STATS    (N_QUEUE_RX_STATS + N_QUEUE_TX_STATS)
+struct ethtool_q_stats {
+	/* RX */
+	uint64_t	rx_packets;
+	uint64_t	rx_bytes;
+	uint64_t	rx_xdp_drop;
+	uint64_t	rx_xdp_redirect;
+	uint64_t	rx_xdp_tx_xmit;
+	uint64_t	rx_xdp_tx_mpwqe;
+	uint64_t	rx_xdp_tx_inlnw;
+	uint64_t	rx_xdp_tx_nops;
+	uint64_t	rx_xdp_tx_full;
+	uint64_t	rx_xdp_tx_err;
+	uint64_t	rx_xdp_tx_cqes;
+	/* TX */
+	uint64_t	tx_packets;
+	uint64_t	tx_bytes;
+	uint64_t	tx_stopped;
+	uint64_t	tx_dropped;
+	uint64_t	tx_xmit_more;
+	uint64_t	tx_xdp_xmit;
+	uint64_t	tx_xdp_mpwqe;
+	uint64_t	tx_xdp_inlnw;
+	uint64_t	tx_xdp_nops;
+	uint64_t	tx_xdp_full;
+	uint64_t	tx_xdp_err;
+	uint64_t	tx_xdp_cqes;
+};
+
 
 /*
  * Per-interface ethtool stats cache.
  * Built once at first collect; thereafter a single ETHTOOL_GSTATS ioctl
  * suffices to refresh all values via pre-resolved stat indices.
  */
-struct gtp_if_ethtool_cache {
+struct ethtool_cache {
 	int			fd;		/* persistent ethtool socket */
 	uint32_t		nstats;		/* total driver stat count */
 	struct ethtool_stats	*stats;		/* persistent GSTATS buffer */
@@ -44,21 +102,28 @@ struct gtp_if_ethtool_cache {
 
 /* Return the stat value at pre-resolved index idx, or 0 if not found. */
 static inline uint64_t
-ethtool_gstats_val(const struct gtp_if_ethtool_cache *c, int idx)
+ethtool_gstats_val(const struct ethtool_cache *c, int idx)
 {
 	return (idx >= 0) ? c->stats->data[idx] : 0;
+}
+
+/* Accumulate all uint64_t fields from src into dst */
+static inline void
+ethtool_q_stats_add(struct ethtool_q_stats *dst, const struct ethtool_q_stats *src)
+{
+	const uint64_t *s = (const uint64_t *)src;
+	uint64_t *d = (uint64_t *)dst;
+	int i;
+
+	for (i = 0; i < sizeof(*dst) / sizeof(uint64_t); i++)
+		d[i] += s[i];
 }
 
 /* Prototypes */
 int sysfs_set_iface_forwarding(const char *ifname, bool ipv4, bool ipv6);
 int ethtool_get_nr_queues(const char *ifname, uint32_t *rx, uint32_t *tx);
-int ethtool_gstats_cache_init(struct gtp_if_ethtool_cache **out,
+int ethtool_gstats_cache_init(struct ethtool_cache **out,
 			      const char *ifname,
-			      const char * const *phy_names, int n_phy,
-			      const char (*rx_fmt)[ETH_GSTRING_LEN], int n_rx,
-			      const char (*tx_fmt)[ETH_GSTRING_LEN], int n_tx,
 			      uint32_t nr_queues);
-int  ethtool_gstats_fetch(struct gtp_if_ethtool_cache *c, const char *ifname);
-void ethtool_gstats_cache_destroy(struct gtp_if_ethtool_cache *c);
-
-#endif
+int  ethtool_gstats_fetch(struct ethtool_cache *c, const char *ifname);
+void ethtool_gstats_cache_destroy(struct ethtool_cache *c);

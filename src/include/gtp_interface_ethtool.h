@@ -20,32 +20,7 @@
  */
 #pragma once
 
-#include <stdint.h>
-#include "ethtool.h"
-#include "vty.h"
-
-#define ETHTOOL_POLL_TICKS 15		/* 3seconds */
-
-struct gtp_percpu_metrics {
-	uint32_t		pfcp_sessions;		/* PFCP sessions on this CPU */
-	float			load;			/* [0.0, 1.0] */
-
-	/* ethtool queue metrics aggregated by CPU (via IRQ affinity) */
-	struct ethtool_q_stats	q_stats;
-
-	/* BPF XDP counters (if_rule map, summed across all matching rules) */
-	uint64_t		bpf_pkt_in;
-	uint64_t		bpf_bytes_in;
-	uint64_t		bpf_pkt_fwd;
-
-	/* traffic that bypassed XDP to the kernel network stack */
-	uint64_t		sys_rx_pkts;
-};
+#include "gtp_interface.h"
 
 /* Prototypes */
-int gtp_cpu_init(void);
-int gtp_cpu_destroy(void);
-int gtp_cpu_show(struct vty *vty);
-int gtp_cpu_matrix_show(struct vty *vty);
-const struct gtp_percpu_metrics *gtp_percpu_metrics_get(int cpu);
-void gtp_cpu_register_pfcp_count(int (*fn)(int cpu));
+int gtp_interface_collect(struct gtp_interface *, void *);
