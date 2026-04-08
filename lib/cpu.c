@@ -74,8 +74,7 @@ tsc_freq_calibrate(void)
 	tsc1 = rdtsc();
 	clock_gettime(CLOCK_MONOTONIC, &t1);
 
-	elapsed_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ULL
-		     + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+	elapsed_ns = timespec_to_ns(&t1) - timespec_to_ns(&t0);
 	return (tsc1 - tsc0) * 1000000000ULL / elapsed_ns;
 }
 

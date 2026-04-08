@@ -47,6 +47,12 @@ struct cpu_load {
 		if (!CPU_ISSET((cpu), &(set))) continue; else
 
 
+static inline uint64_t
+timespec_to_ns(const struct timespec *ts)
+{
+	return (uint64_t)ts->tv_sec * 1000000000ULL + ts->tv_nsec;
+}
+
 /* Prototypes */
 int cpu_load_init(struct cpu_load **ctx);
 int cpu_load_init_tsc(struct cpu_load **ctx);

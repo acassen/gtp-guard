@@ -107,19 +107,16 @@ gtp_percpu_rates_update(uint64_t now_ns)
 		struct gtp_percpu_metrics *m = &percpu_metrics[i];
 
 		if (elapsed && percpu_prev_ts_ns) {
-			m->rx_bw_bps = (m->q_stats.rx_bytes - m->prev_rx_bytes)
+			m->rx_bw_bps = (m->q_stats.rx_bytes - m->prev_q_stats.rx_bytes)
 				       * 1000000000ULL / elapsed;
-			m->tx_bw_bps = (m->q_stats.tx_bytes - m->prev_tx_bytes)
+			m->tx_bw_bps = (m->q_stats.tx_bytes - m->prev_q_stats.tx_bytes)
 				       * 1000000000ULL / elapsed;
-			m->rx_pps = (m->q_stats.rx_packets - m->prev_rx_packets)
+			m->rx_pps = (m->q_stats.rx_packets - m->prev_q_stats.rx_packets)
 				    * 1000000000ULL / elapsed;
-			m->tx_pps = (m->q_stats.tx_packets - m->prev_tx_packets)
+			m->tx_pps = (m->q_stats.tx_packets - m->prev_q_stats.tx_packets)
 				    * 1000000000ULL / elapsed;
 		}
-		m->prev_rx_bytes = m->q_stats.rx_bytes;
-		m->prev_tx_bytes = m->q_stats.tx_bytes;
-		m->prev_rx_packets = m->q_stats.rx_packets;
-		m->prev_tx_packets = m->q_stats.tx_packets;
+		m->prev_q_stats = m->q_stats;
 	}
 	percpu_prev_ts_ns = now_ns;
 }
@@ -137,7 +134,7 @@ gtp_cpu_poll(struct thread *t)
 	int i;
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	now_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	now_ns = timespec_to_ns(&ts);
 
 	cpu_load_update(cpu_load);
 	gtp_percpu_reset_accum();
@@ -148,7 +145,7 @@ gtp_cpu_poll(struct thread *t)
 		gtp_interface_foreach(gtp_interface_collect, &now_ns);
 		gtp_interface_foreach(gtp_percpu_collect, NULL);
 		clock_gettime(CLOCK_MONOTONIC, &ts);
-		now_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+		now_ns = timespec_to_ns(&ts);
 		gtp_percpu_rates_update(now_ns);
 	}
 
