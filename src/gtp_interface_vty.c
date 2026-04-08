@@ -56,22 +56,35 @@ bw_format(uint64_t bps, char *buf, size_t len)
 		snprintf(buf, len, "%llubps", (unsigned long long)bps);
 }
 
+static void
+pps_format(uint64_t pps, char *buf, size_t len)
+{
+	if (pps >= 1000000ULL)
+		snprintf(buf, len, "%.2fMpps", (double)pps / 1e6);
+	else if (pps >= 1000ULL)
+		snprintf(buf, len, "%.2fKpps", (double)pps / 1e3);
+	else
+		snprintf(buf, len, "%llupps", (unsigned long long)pps);
+}
+
 static int
 gtp_interface_stats_show_summary(struct gtp_interface *iface, void *arg)
 {
 	const struct ethtool_phy_stats *s = &iface->phy_stats;
 	struct vty *vty = arg;
-	char rxbw[20], txbw[20];
+	char rxbw[20], txbw[20], rxpps[20], txpps[20];
 
 	bw_format(iface->rx_bw_bps, rxbw, sizeof(rxbw));
 	bw_format(iface->tx_bw_bps, txbw, sizeof(txbw));
-	vty_out(vty, "%-16s  %14llu  %14llu  %14llu  %14llu  %14s  %14s%s",
+	pps_format(iface->rx_pps, rxpps, sizeof(rxpps));
+	pps_format(iface->tx_pps, txpps, sizeof(txpps));
+	vty_out(vty, "%-16s  %14llu  %14llu  %14llu  %14llu  %14s  %14s  %14s  %14s%s",
 		iface->ifname,
 		(unsigned long long)s->rx_packets,
 		(unsigned long long)s->tx_packets,
 		(unsigned long long)s->rx_bytes,
 		(unsigned long long)s->tx_bytes,
-		rxbw, txbw, VTY_NEWLINE);
+		rxbw, txbw, rxpps, txpps, VTY_NEWLINE);
 	return 0;
 }
 
@@ -79,12 +92,14 @@ static void
 gtp_interface_stats_show_detail(struct vty *vty, struct gtp_interface *iface)
 {
 	const struct ethtool_phy_stats *p = &iface->phy_stats;
-	char rxbw[20], txbw[20];
+	char rxbw[20], txbw[20], rxpps[20], txpps[20];
 	uint32_t q, nr;
 	int *cpu_per_q;
 
 	bw_format(iface->rx_bw_bps, rxbw, sizeof(rxbw));
 	bw_format(iface->tx_bw_bps, txbw, sizeof(txbw));
+	pps_format(iface->rx_pps, rxpps, sizeof(rxpps));
+	pps_format(iface->tx_pps, txpps, sizeof(txpps));
 
 	vty_out(vty, "Interface %s%s", iface->ifname, VTY_NEWLINE);
 	vty_out(vty, "  PHY counters:%s", VTY_NEWLINE);
@@ -114,7 +129,8 @@ gtp_interface_stats_show_detail(struct vty *vty, struct gtp_interface *iface)
 		"[4096-8191]", (unsigned long long)p->rx_4096_8191, VTY_NEWLINE);
 	vty_out(vty, "    %-10s %llu%s",
 		"[8192-10239]", (unsigned long long)p->rx_8192_10239, VTY_NEWLINE);
-	vty_out(vty, "  Bandwidth: rx:%s  tx:%s%s", rxbw, txbw, VTY_NEWLINE);
+	vty_out(vty, "  Bandwidth: rx:%s  tx:%s  |  PPS: rx:%s  tx:%s%s",
+		rxbw, txbw, rxpps, txpps, VTY_NEWLINE);
 
 	if (!iface->queue_stats || !(iface->nr_rx_queues | iface->nr_tx_queues)) {
 		vty_out(vty, "%s", VTY_NEWLINE);
@@ -670,11 +686,13 @@ DEFUN(show_interface_stats_all,
       "Interface\n"
       "Display cumulative interface statistics\n")
 {
-	vty_out(vty, "%-16s  %14s  %14s  %14s  %14s  %14s  %14s%s",
+	vty_out(vty, "%-16s  %14s  %14s  %14s  %14s  %14s  %14s  %14s  %14s%s",
 		"Interface", "rx-packets", "tx-packets",
-		"rx-bytes", "tx-bytes", "rx-bw", "tx-bw", VTY_NEWLINE);
-	vty_out(vty, "%-16s  %14s  %14s  %14s  %14s  %14s  %14s%s",
+		"rx-bytes", "tx-bytes", "rx-bw", "tx-bw",
+		"rx-pps", "tx-pps", VTY_NEWLINE);
+	vty_out(vty, "%-16s  %14s  %14s  %14s  %14s  %14s  %14s  %14s  %14s%s",
 		"----------------", "--------------", "--------------",
+		"--------------", "--------------",
 		"--------------", "--------------",
 		"--------------", "--------------", VTY_NEWLINE);
 	gtp_interface_foreach(gtp_interface_stats_show_summary, vty);

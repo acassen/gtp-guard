@@ -64,7 +64,7 @@ gtp_interface_collect_ethtool(struct gtp_interface *iface, uint64_t now_ns)
 		}
 	}
 
-	/* bandwidth from PHY byte counters */
+	/* rate estimates from PHY counters */
 	if (iface->prev_ts_ns) {
 		uint64_t elapsed = now_ns - iface->prev_ts_ns;
 		if (elapsed) {
@@ -72,10 +72,16 @@ gtp_interface_collect_ethtool(struct gtp_interface *iface, uint64_t now_ns)
 					   * 1000000000ULL / elapsed;
 			iface->tx_bw_bps = (ps->tx_bytes - iface->prev_tx_bytes)
 					   * 1000000000ULL / elapsed;
+			iface->rx_pps = (ps->rx_packets - iface->prev_rx_packets)
+					* 1000000000ULL / elapsed;
+			iface->tx_pps = (ps->tx_packets - iface->prev_tx_packets)
+					* 1000000000ULL / elapsed;
 		}
 	}
 	iface->prev_rx_bytes = ps->rx_bytes;
 	iface->prev_tx_bytes = ps->tx_bytes;
+	iface->prev_rx_packets = ps->rx_packets;
+	iface->prev_tx_packets = ps->tx_packets;
 	iface->prev_ts_ns = now_ns;
 	return 0;
 }

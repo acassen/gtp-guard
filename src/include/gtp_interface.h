@@ -94,12 +94,16 @@ struct gtp_interface {
 	/* metrics */
 	struct rtnl_link_stats64	*link_metrics;
 
-	/* ethtool phy stats + bandwidth estimates */
+	/* ethtool phy stats + rate estimates */
 	struct ethtool_phy_stats	phy_stats;
 	uint64_t			rx_bw_bps;
 	uint64_t			tx_bw_bps;
+	uint64_t			rx_pps;
+	uint64_t			tx_pps;
 	uint64_t			prev_rx_bytes;
 	uint64_t			prev_tx_bytes;
+	uint64_t			prev_rx_packets;
+	uint64_t			prev_tx_packets;
 	uint64_t			prev_ts_ns;
 
 	/* per-queue ethtool stats; array of max(nr_rx_queues, nr_tx_queues) */
