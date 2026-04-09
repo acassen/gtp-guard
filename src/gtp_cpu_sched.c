@@ -72,6 +72,7 @@ static const char *algo_names[] = {
 	[GTP_CPU_SCHED_LPPS]	= "lpps",
 	[GTP_CPU_SCHED_LS]	= "ls",
 	[GTP_CPU_SCHED_EWMA]	= "ewma",
+	[GTP_CPU_SCHED_WSC]	= "wsc",
 };
 
 #define NR_ALGOS	(sizeof(algo_names) / sizeof(algo_names[0]))
@@ -91,6 +92,34 @@ gtp_cpu_sched_algo_parse(const char *str)
 
 	for (i = 0; i < (int) NR_ALGOS; i++) {
 		if (!strcmp(str, algo_names[i]))
+			return i;
+	}
+	return -1;
+}
+
+
+static const char *metric_names[] = {
+	[GTP_CPU_SCHED_M_LOAD]		= "load",
+	[GTP_CPU_SCHED_M_SESSIONS]	= "sessions",
+	[GTP_CPU_SCHED_M_BW]		= "bw",
+	[GTP_CPU_SCHED_M_PPS]		= "pps",
+};
+
+const char *
+gtp_cpu_sched_metric_str(int metric)
+{
+	if (metric < 0 || metric >= GTP_CPU_SCHED_NR_METRICS)
+		return "unknown";
+	return metric_names[metric];
+}
+
+int
+gtp_cpu_sched_metric_parse(const char *str)
+{
+	int i;
+
+	for (i = 0; i < GTP_CPU_SCHED_NR_METRICS; i++) {
+		if (!strcmp(str, metric_names[i]))
 			return i;
 	}
 	return -1;
@@ -392,6 +421,63 @@ cpu_sched_ewma(struct gtp_cpu_sched_group *grp)
 }
 
 
+/* wsc: weighted-score composite — normalized EWMA metrics */
+static int
+cpu_sched_wsc(struct gtp_cpu_sched_group *grp)
+{
+	const struct gtp_percpu_metrics *m;
+	double raw[GTP_CPU_SCHED_NR_METRICS];
+	double max_v[GTP_CPU_SCHED_NR_METRICS] = {};
+	int cpus[CPU_SETSIZE], nr = 0;
+	double best_score = 1e18, pps;
+	int best = -1, cpu, i;
+
+	/* first round: collect raw EWMA values and track max per metric */
+	cpuset_for_each(cpu, grp->cpumask, nr_cpus_possible) {
+		m = gtp_percpu_metrics_get(cpu);
+		if (!m)
+			continue;
+
+		cpus[nr++] = cpu;
+
+		if (m->load_ewma > max_v[GTP_CPU_SCHED_M_LOAD])
+			max_v[GTP_CPU_SCHED_M_LOAD] = m->load_ewma;
+		if (m->pfcp_sessions > max_v[GTP_CPU_SCHED_M_SESSIONS])
+			max_v[GTP_CPU_SCHED_M_SESSIONS] = m->pfcp_sessions;
+		if (m->total_bw_bps_ewma > max_v[GTP_CPU_SCHED_M_BW])
+			max_v[GTP_CPU_SCHED_M_BW] = m->total_bw_bps_ewma;
+		pps = m->rx_pps_ewma + m->tx_pps_ewma;
+		if (pps > max_v[GTP_CPU_SCHED_M_PPS])
+			max_v[GTP_CPU_SCHED_M_PPS] = pps;
+	}
+
+	/* second round: compute composite score and elect lowest */
+	for (i = 0; i < nr; i++) {
+		m = gtp_percpu_metrics_get(cpus[i]);
+
+		raw[GTP_CPU_SCHED_M_LOAD] = m->load_ewma;
+		raw[GTP_CPU_SCHED_M_SESSIONS] = m->pfcp_sessions;
+		raw[GTP_CPU_SCHED_M_BW] = m->total_bw_bps_ewma;
+		raw[GTP_CPU_SCHED_M_PPS] = m->rx_pps_ewma + m->tx_pps_ewma;
+
+		double score = 0;
+		int k;
+		for (k = 0; k < GTP_CPU_SCHED_NR_METRICS; k++) {
+			if (grp->metric_weights[k] <= 0.0f || max_v[k] <= 0.0)
+				continue;
+			score += grp->metric_weights[k] * (raw[k] / max_v[k]);
+		}
+
+		if (score < best_score) {
+			best_score = score;
+			best = cpus[i];
+		}
+	}
+
+	return best >= 0 ? best : 0;
+}
+
+
 /*
  *	Dispatch table and election
  */
@@ -409,6 +495,7 @@ static cpu_sched_fn cpu_sched_tab[] = {
 	[GTP_CPU_SCHED_LPPS]	= cpu_sched_lpps,
 	[GTP_CPU_SCHED_LS]	= cpu_sched_ls,
 	[GTP_CPU_SCHED_EWMA]	= cpu_sched_ewma,
+	[GTP_CPU_SCHED_WSC]	= cpu_sched_wsc,
 };
 
 int
@@ -484,6 +571,11 @@ gtp_cpu_sched_alloc(const char *name)
 	grp->wrr_cw = GTP_CPU_SCHED_DEFAULT_WEIGHT;
 	grp->window = GTP_CPU_SCHED_DEFAULT_WINDOW;
 	grp->ewma_alpha = GTP_CPU_SCHED_DEFAULT_EWMA_ALPHA;
+
+	/* WSC: equal weights by default */
+	for (i = 0; i < GTP_CPU_SCHED_NR_METRICS; i++)
+		grp->metric_weights[i] = 1.0f;
+
 	list_add_tail(&grp->next, &cpu_sched_list);
 	return grp;
 }

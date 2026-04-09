@@ -108,7 +108,7 @@ DEFUN(cpu_sched_algorithm,
       cpu_sched_algorithm_cmd,
       "algorithm STRING",
       "Set scheduling algorithm\n"
-      "Algorithm (rr|wrr|lc|wlc|sed|nq|ll|lbw|lpps)")
+      "Algorithm (rr|wrr|lc|wlc|sed|nq|ll|lbw|lpps|ls|ewma|wsc)")
 {
 	struct gtp_cpu_sched_group *grp = vty->index;
 	int algo;
@@ -249,6 +249,64 @@ DEFUN(no_cpu_sched_ewma_alpha,
 }
 
 
+DEFUN(cpu_sched_metric_weight,
+      cpu_sched_metric_weight_cmd,
+      "metric-weight STRING STRING",
+      "Set WSC metric weight\n"
+      "Metric name (load|sessions|bw|pps)\n"
+      "Weight value (0.0-100.0)")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	float w;
+	int m;
+
+	if (argc < 2) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	m = gtp_cpu_sched_metric_parse(argv[0]);
+	if (m < 0) {
+		vty_out(vty, "%% Unknown metric '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	w = strtof(argv[1], NULL);
+	if (w < 0.0f || w > 100.0f) {
+		vty_out(vty, "%% weight must be in [0.0, 100.0]%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	grp->metric_weights[m] = w;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_cpu_sched_metric_weight,
+      no_cpu_sched_metric_weight_cmd,
+      "no metric-weight STRING",
+      "Reset WSC metric weight to default\n"
+      "Metric weight keyword\n"
+      "Metric name (load|sessions|bw|pps)")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	int m;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	m = gtp_cpu_sched_metric_parse(argv[0]);
+	if (m < 0) {
+		vty_out(vty, "%% Unknown metric '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	grp->metric_weights[m] = 1.0f;
+	return CMD_SUCCESS;
+}
+
+
 /*
  *	Show commands
  */
@@ -372,20 +430,23 @@ show_cpu_sched_group(struct gtp_cpu_sched_group *grp, void *arg)
 		   , grp->name
 		   , gtp_cpu_sched_algo_str(grp->algo)
 		   , VTY_NEWLINE);
-	vty_out(vty, "  CPU   Weight   Sessions   Load    BW(Mbps)     PPS%s"
+	vty_out(vty, "  CPU   Weight   Sessions   Load   Load~    BW(Mbps)  BW~(Mbps)     PPS     PPS~%s"
 		   , VTY_NEWLINE);
 
 	cpuset_for_each(cpu, grp->cpumask, CPU_SETSIZE) {
 		m = gtp_percpu_metrics_get(cpu);
 		if (!m)
 			continue;
-		vty_out(vty, "  %3d   %5d   %8u   %.2f   %8.1f  %7" PRIu64 "%s"
+		vty_out(vty, "  %3d   %5d   %8u   %.2f   %.2f   %8.1f  %8.1f  %7" PRIu64 "  %7.0f%s"
 			   , cpu
 			   , grp->weights ? grp->weights[cpu] : GTP_CPU_SCHED_DEFAULT_WEIGHT
 			   , m->pfcp_sessions
 			   , m->load
+			   , m->load_ewma
 			   , (double)m->total_bw_bps / 125000.0
+			   , m->total_bw_bps_ewma / 125000.0
 			   , m->rx_pps + m->tx_pps
+			   , m->rx_pps_ewma + m->tx_pps_ewma
 			   , VTY_NEWLINE);
 	}
 	vty_out(vty, "%s", VTY_NEWLINE);
@@ -529,6 +590,13 @@ cpu_sched_config_write_group(struct gtp_cpu_sched_group *grp, void *arg)
 	if (grp->ewma_alpha != GTP_CPU_SCHED_DEFAULT_EWMA_ALPHA)
 		vty_out(vty, " ewma-alpha %.2f%s", grp->ewma_alpha, VTY_NEWLINE);
 
+	for (int i = 0; i < GTP_CPU_SCHED_NR_METRICS; i++) {
+		if (grp->metric_weights[i] != 1.0f)
+			vty_out(vty, " metric-weight %s %.2f%s"
+				   , gtp_cpu_sched_metric_str(i)
+				   , grp->metric_weights[i], VTY_NEWLINE);
+	}
+
 	cpuset_for_each(cpu, grp->cpumask, CPU_SETSIZE) {
 		if (grp->weights[cpu] == GTP_CPU_SCHED_DEFAULT_WEIGHT)
 			continue;
@@ -567,6 +635,8 @@ cmd_ext_cpu_sched_install(void)
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_window_cmd);
 	install_element(CPU_SCHED_NODE, &cpu_sched_ewma_alpha_cmd);
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_ewma_alpha_cmd);
+	install_element(CPU_SCHED_NODE, &cpu_sched_metric_weight_cmd);
+	install_element(CPU_SCHED_NODE, &no_cpu_sched_metric_weight_cmd);
 
 	/* Show commands */
 	install_element(VIEW_NODE, &show_system_cpu_cmd);

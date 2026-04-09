@@ -40,6 +40,16 @@ enum gtp_cpu_sched_algo {
 	GTP_CPU_SCHED_LPPS,
 	GTP_CPU_SCHED_LS,
 	GTP_CPU_SCHED_EWMA,
+	GTP_CPU_SCHED_WSC,
+};
+
+/* WSC metric indices */
+enum gtp_cpu_sched_metric {
+	GTP_CPU_SCHED_M_LOAD,
+	GTP_CPU_SCHED_M_SESSIONS,
+	GTP_CPU_SCHED_M_BW,
+	GTP_CPU_SCHED_M_PPS,
+	GTP_CPU_SCHED_NR_METRICS,
 };
 
 struct gtp_cpu_sched_group {
@@ -53,6 +63,7 @@ struct gtp_cpu_sched_group {
 	int			wrr_gcd;
 	int			window;		/* ls: history samples for slope */
 	float			ewma_alpha;	/* ewma: smoothing factor */
+	float			metric_weights[GTP_CPU_SCHED_NR_METRICS]; /* wsc */
 
 	unsigned long		debug;
 
@@ -71,3 +82,5 @@ void gtp_cpu_sched_destroy(void);
 void gtp_cpu_sched_wrr_update_gcd(struct gtp_cpu_sched_group *grp);
 const char *gtp_cpu_sched_algo_str(int algo);
 int gtp_cpu_sched_algo_parse(const char *str);
+const char *gtp_cpu_sched_metric_str(int metric);
+int gtp_cpu_sched_metric_parse(const char *str);
