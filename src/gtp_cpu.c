@@ -111,10 +111,13 @@ gtp_percpu_rates_update(uint64_t now_ns)
 				       * 1000000000ULL / elapsed;
 			m->tx_bw_bps = (m->q_stats.tx_bytes - m->prev_q_stats.tx_bytes)
 				       * 1000000000ULL / elapsed;
+			m->total_bw_bps = m->rx_bw_bps + m->tx_bw_bps;
 			m->rx_pps = (m->q_stats.rx_packets - m->prev_q_stats.rx_packets)
 				    * 1000000000ULL / elapsed;
 			m->tx_pps = (m->q_stats.tx_packets - m->prev_q_stats.tx_packets)
 				    * 1000000000ULL / elapsed;
+			m->rx_buff_alloc_err_rate = (m->q_stats.rx_buff_alloc_err - m->prev_q_stats.rx_buff_alloc_err)
+						    * 1000000000ULL / elapsed;
 		}
 		m->prev_q_stats = m->q_stats;
 	}

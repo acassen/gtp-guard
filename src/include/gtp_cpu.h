@@ -41,8 +41,10 @@ struct gtp_percpu_metrics {
 	 */
 	uint64_t		rx_bw_bps;
 	uint64_t		tx_bw_bps;
+	uint64_t		total_bw_bps;
 	uint64_t		rx_pps;
 	uint64_t		tx_pps;
+	uint64_t		rx_buff_alloc_err_rate;
 	struct ethtool_q_stats	prev_q_stats;
 };
 

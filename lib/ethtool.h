@@ -29,7 +29,7 @@
  * PHY & QUEUE stats we care about.
  */
 /* Physical NIC stats from ethtool -S (*_phy counters) */
-#define N_PHY_STATS      17
+#define N_PHY_STATS      18
 struct ethtool_phy_stats {
 	uint64_t	tx_packets;
 	uint64_t	rx_packets;
@@ -38,6 +38,7 @@ struct ethtool_phy_stats {
 	uint64_t	rx_discards;
 	uint64_t	tx_discards;
 	uint64_t	tx_errors;
+	uint64_t	rx_out_of_buffer;
 	/* rx frame-size histogram */
 	uint64_t	rx_64;
 	uint64_t	rx_65_127;
@@ -52,7 +53,7 @@ struct ethtool_phy_stats {
 };
 
 /* Per-queue stats from ethtool -S (rx{N}_* / tx{N}_* counters) */
-#define N_QUEUE_RX_STATS 11
+#define N_QUEUE_RX_STATS 12
 #define N_QUEUE_TX_STATS 12
 #define N_QUEUE_STATS    (N_QUEUE_RX_STATS + N_QUEUE_TX_STATS)
 struct ethtool_q_stats {
@@ -68,6 +69,7 @@ struct ethtool_q_stats {
 	uint64_t	rx_xdp_tx_full;
 	uint64_t	rx_xdp_tx_err;
 	uint64_t	rx_xdp_tx_cqes;
+	uint64_t	rx_buff_alloc_err;
 	/* TX */
 	uint64_t	tx_packets;
 	uint64_t	tx_bytes;

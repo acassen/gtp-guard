@@ -49,6 +49,7 @@ static const char * const phy_stat_names[N_PHY_STATS] = {
 	"tx_bytes_phy", "rx_bytes_phy",
 	"rx_discards_phy", "tx_discards_phy",
 	"tx_errors_phy",
+	"rx_out_of_buffer",
 	"rx_64_bytes_phy", "rx_65_to_127_bytes_phy",
 	"rx_128_to_255_bytes_phy", "rx_256_to_511_bytes_phy",
 	"rx_512_to_1023_bytes_phy", "rx_1024_to_1518_bytes_phy",
@@ -64,6 +65,7 @@ static const char rxq_stat_fmt[N_QUEUE_RX_STATS][STAT_NAME_LEN] = {
 	"rx%d_xdp_tx_inlnw", "rx%d_xdp_tx_nops",
 	"rx%d_xdp_tx_full", "rx%d_xdp_tx_err",
 	"rx%d_xdp_tx_cqes",
+	"rx%d_buff_alloc_err",
 };
 
 static const char txq_stat_fmt[N_QUEUE_TX_STATS][STAT_NAME_LEN] = {
