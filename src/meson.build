@@ -67,6 +67,8 @@ src += files(
   'gtp_vty_monitor.c',
   'gtp_vty_shell.c',
   'gtp_cpu.c',
+  'gtp_cpu_sched.c',
+  'gtp_cpu_vty.c',
   'main.c',
 )
 

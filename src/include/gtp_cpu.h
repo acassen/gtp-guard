@@ -53,5 +53,5 @@ int gtp_cpu_init(void);
 int gtp_cpu_destroy(void);
 int gtp_cpu_show(struct vty *vty);
 int gtp_cpu_matrix_show(struct vty *vty);
-const struct gtp_percpu_metrics *gtp_percpu_metrics_get(int cpu);
+struct gtp_percpu_metrics *gtp_percpu_metrics_get(int cpu);
 void gtp_cpu_register_pfcp_count(int (*fn)(int cpu));

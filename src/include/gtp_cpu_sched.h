@@ -53,6 +53,9 @@ struct gtp_cpu_sched_group {
 	struct list_head	next;
 };
 
+/* Iteration */
+void gtp_cpu_sched_foreach(int (*fn)(struct gtp_cpu_sched_group *, void *), void *arg);
+
 /* Prototypes */
 int gtp_cpu_sched_elect(struct gtp_cpu_sched_group *grp);
 struct gtp_cpu_sched_group *gtp_cpu_sched_get(const char *name);

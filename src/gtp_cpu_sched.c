@@ -442,6 +442,17 @@ gtp_cpu_sched_group_destroy(struct gtp_cpu_sched_group *grp)
 }
 
 void
+gtp_cpu_sched_foreach(int (*fn)(struct gtp_cpu_sched_group *, void *), void *arg)
+{
+	struct gtp_cpu_sched_group *grp;
+
+	list_for_each_entry(grp, &cpu_sched_list, next) {
+		if (fn(grp, arg))
+			break;
+	}
+}
+
+void
 gtp_cpu_sched_destroy(void)
 {
 	struct gtp_cpu_sched_group *grp, *tmp;

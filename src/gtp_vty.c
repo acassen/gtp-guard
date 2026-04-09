@@ -28,12 +28,10 @@
 #include "gtp_request.h"
 #include "gtp_cmd.h"
 #include "gtp_utils.h"
-#include "gtp_cpu.h"
 #include "command.h"
 #include "bitops.h"
 #include "memory.h"
 #include "inet_utils.h"
-#include "vty_gauge.h"
 
 
 /* Extern data */
@@ -354,31 +352,6 @@ vty_request_worker(struct inet_worker *w, void *arg)
 }
 
 /* Show */
-DEFUN(show_system_cpu,
-      show_system_cpu_cmd,
-      "show system cpu",
-      SHOW_STR
-      "System information\n"
-      "Per-core CPU utilization\n")
-{
-	struct gauge_opts *go = gauge_opts_alloc(GAUGE_BRAILLE_GRAPH);
-	int ret = CMD_SUCCESS;
-
-	if (!go) {
-		vty_out(vty, "%% out of memory%s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	vty->priv = go;
-	if (gtp_cpu_show(vty) < 0) {
-		ret = CMD_WARNING;
-	}
-
-	vty->priv = NULL;
-	free(go);
-	return ret;
-}
-
 DEFUN(show_workers_request_channel,
       show_workers_request_channel_cmd,
       "show workers request-channel",
@@ -447,11 +420,9 @@ cmd_ext_pdn_install(void)
 	install_element(PDN_NODE, &metrics_channel_cmd);
 
 	/* Install show commands */
-	install_element(VIEW_NODE, &show_system_cpu_cmd);
 	install_element(VIEW_NODE, &show_workers_request_channel_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(VIEW_NODE, &gtp_send_echo_request_extended_cmd);
-	install_element(ENABLE_NODE, &show_system_cpu_cmd);
 	install_element(ENABLE_NODE, &show_workers_request_channel_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_standard_cmd);
 	install_element(ENABLE_NODE, &gtp_send_echo_request_extended_cmd);

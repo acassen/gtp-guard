@@ -24,9 +24,7 @@
 #include "logger.h"
 #include "utils.h"
 #include "thread.h"
-#include "vty.h"
 #include "vty_gauge.h"
-#include "vty_matrix.h"
 #include "cpu.h"
 #include "ethtool.h"
 #include "gtp_interface.h"
@@ -36,8 +34,8 @@
 
 /* Local data */
 static int (*pfcp_count_fn)(int cpu);
-static struct cpu_load *cpu_load;
-static struct gauge_history *cpu_history;
+struct cpu_load *cpu_load;
+struct gauge_history *cpu_history;
 static struct gtp_percpu_metrics *percpu_metrics;
 static int ethtool_tick;
 static uint64_t percpu_prev_ts_ns;
@@ -88,7 +86,7 @@ gtp_percpu_collect(struct gtp_interface *iface, void *arg)
 	return 0;
 }
 
-const struct gtp_percpu_metrics *
+struct gtp_percpu_metrics *
 gtp_percpu_metrics_get(int cpu)
 {
 	if (!percpu_metrics || cpu < 0 || cpu >= cpu_load->nr_cpus)
@@ -147,6 +145,8 @@ gtp_cpu_poll(struct thread *t)
 		ethtool_tick = 0;
 		gtp_interface_foreach(gtp_interface_collect, &now_ns);
 		gtp_interface_foreach(gtp_percpu_collect, NULL);
+
+		/* Avoid syscall latency */
 		clock_gettime(CLOCK_MONOTONIC, &ts);
 		now_ns = timespec_to_ns(&ts);
 		gtp_percpu_rates_update(now_ns);
@@ -162,91 +162,6 @@ gtp_cpu_poll(struct thread *t)
 	}
 
 	thread_add_timer(master, gtp_cpu_poll, NULL, TIMER_HZ / 5);
-}
-
-
-/*
- *	VTY show
- */
-static void
-gtp_cpu_list_gauge(struct vty *vty, const char *list)
-{
-	const struct gauge_opts defaults = { .style = GAUGE_ASCII };
-	struct gauge_opts *opts = vty->priv ? : (void *)&defaults;
-	char label[12];
-	cpu_set_t set;
-	int cpu;
-
-	cpulist_to_set(list, &set);
-	cpuset_for_each(cpu, set, cpu_load->nr_cpus) {
-		snprintf(label, sizeof(label), "  cpu%-3d", cpu);
-		opts->h = &cpu_history[cpu];
-		vty_gauge(vty, label, cpu_load_get(cpu_load, cpu), opts);
-	}
-}
-
-static int
-gtp_cpu_list_collect(const char *list, struct matrix_entry *e, int max)
-{
-	cpu_set_t set;
-	int cpu, n = 0;
-
-	cpulist_to_set(list, &set);
-	cpuset_for_each(cpu, set, cpu_load->nr_cpus) {
-		if (n >= max)
-			break;
-		snprintf(e[n].label, sizeof(e[n].label), "cpu%-3d", cpu);
-		e[n].render = vty_matrix_gauge_render;
-		e[n].value  = cpu_load_get(cpu_load, cpu);
-		n++;
-	}
-	return n;
-}
-
-static void
-gtp_cpu_gauge_cb(int node, const char *cpulist, void *arg)
-{
-	struct vty *vty = arg;
-
-	vty_out(vty, " NUMA node %d  [cpus: %s]%s", node, cpulist, VTY_NEWLINE);
-	gtp_cpu_list_gauge(vty, cpulist);
-	vty_out(vty, "%s", VTY_NEWLINE);
-}
-
-static void
-gtp_cpu_matrix_cb(int node, const char *cpulist, void *arg)
-{
-	struct matrix_entry entries[cpu_load->nr_cpus];
-	struct matrix_opts *mopts = ((struct vty *)arg)->priv;
-	struct vty *vty = arg;
-	int n;
-
-	vty_out(vty, " NUMA node %d  [cpus: %s]%s", node, cpulist, VTY_NEWLINE);
-	n = gtp_cpu_list_collect(cpulist, entries, cpu_load->nr_cpus);
-	vty_matrix(vty, NULL, entries, n, mopts);
-	vty_out(vty, "%s", VTY_NEWLINE);
-}
-
-int
-gtp_cpu_show(struct vty *vty)
-{
-	if (!cpu_load) {
-		vty_out(vty, "%% CPU monitoring not available%s", VTY_NEWLINE);
-		return -1;
-	}
-	cpu_foreach_numa_node(gtp_cpu_gauge_cb, vty);
-	return 0;
-}
-
-int
-gtp_cpu_matrix_show(struct vty *vty)
-{
-	if (!cpu_load) {
-		vty_out(vty, "%% CPU monitoring not available%s", VTY_NEWLINE);
-		return -1;
-	}
-	cpu_foreach_numa_node(gtp_cpu_matrix_cb, vty);
-	return 0;
 }
 
 
