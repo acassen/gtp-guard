@@ -25,11 +25,14 @@
 #include "vty.h"
 #include "vty_gauge.h"
 
-#define ETHTOOL_POLL_TICKS 15		/* 3seconds */
+#define ETHTOOL_POLL_TICKS	15		/* 3seconds */
+#define EWMA_DEFAULT_ALPHA	0.2f
 
 struct gtp_percpu_metrics {
 	uint32_t		pfcp_sessions;		/* PFCP sessions on this CPU */
 	float			load;			/* [0.0, 1.0] */
+	float			load_ewma;		/* EWMA-smoothed load */
+	struct gauge_history	load_history;
 
 	/*
 	 * Accumulation fields: zeroed before each ethtool tick.
@@ -47,8 +50,6 @@ struct gtp_percpu_metrics {
 	uint64_t		tx_pps;
 	uint64_t		rx_buff_alloc_err_rate;
 	struct ethtool_q_stats	prev_q_stats;
-
-	struct gauge_history	load_history;
 };
 
 /* Prototypes */

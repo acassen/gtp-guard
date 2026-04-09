@@ -157,6 +157,8 @@ gtp_cpu_poll(struct thread *t)
 			continue;	/* offline CPU */
 		gauge_history_push(&percpu_metrics[i].load_history, load);
 		percpu_metrics[i].load = load;
+		percpu_metrics[i].load_ewma = EWMA_DEFAULT_ALPHA * load
+					    + (1.0f - EWMA_DEFAULT_ALPHA) * percpu_metrics[i].load_ewma;
 		percpu_metrics[i].pfcp_sessions = pfcp_count_fn ? pfcp_count_fn(i) : 0;
 	}
 
