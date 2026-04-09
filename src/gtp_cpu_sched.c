@@ -369,17 +369,17 @@ gtp_cpu_sched_elect(struct gtp_cpu_sched_group *grp)
 
 	cpu = cpu_sched_tab[grp->algo](grp);
 
-	if (grp->debug) {
-		m = gtp_percpu_metrics_get(cpu);
-		log_message(LOG_INFO, "cpu-sched: group=%s algo=%s elected=cpu%d"
-				      " (sessions=%u weight=%d)"
-				    , grp->name
-				    , gtp_cpu_sched_algo_str(grp->algo)
-				    , cpu
-				    , m ? m->pfcp_sessions : 0
-				    , grp->weights ? grp->weights[cpu] : 0);
-	}
+	if (!grp->debug)
+		return cpu;
 
+	m = gtp_percpu_metrics_get(cpu);
+	log_message(LOG_INFO, "cpu-sched: group=%s algo=%s elected=cpu%d"
+			      " (sessions=%u weight=%d)"
+			    , grp->name
+			    , gtp_cpu_sched_algo_str(grp->algo)
+			    , cpu
+			    , m ? m->pfcp_sessions : 0
+			    , grp->weights ? grp->weights[cpu] : 0);
 	return cpu;
 }
 

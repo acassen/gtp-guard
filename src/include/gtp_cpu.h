@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include "ethtool.h"
 #include "vty.h"
+#include "vty_gauge.h"
 
 #define ETHTOOL_POLL_TICKS 15		/* 3seconds */
 
@@ -46,6 +47,8 @@ struct gtp_percpu_metrics {
 	uint64_t		tx_pps;
 	uint64_t		rx_buff_alloc_err_rate;
 	struct ethtool_q_stats	prev_q_stats;
+
+	struct gauge_history	load_history;
 };
 
 /* Prototypes */

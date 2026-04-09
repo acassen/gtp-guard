@@ -30,7 +30,6 @@
 
 /* Extern data */
 extern struct cpu_load *cpu_load;
-extern struct gauge_history *cpu_history;
 
 
 /*
@@ -197,8 +196,11 @@ gtp_cpu_list_gauge(struct vty *vty, const char *list)
 
 	cpulist_to_set(list, &set);
 	cpuset_for_each(cpu, set, cpu_load->nr_cpus) {
+		struct gtp_percpu_metrics *m = gtp_percpu_metrics_get(cpu);
+		if (!m)
+			continue;
 		snprintf(label, sizeof(label), "  cpu%-3d", cpu);
-		opts->h = &cpu_history[cpu];
+		opts->h = &m->load_history;
 		vty_gauge(vty, label, cpu_load_get(cpu_load, cpu), opts);
 	}
 }

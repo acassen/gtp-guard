@@ -35,7 +35,6 @@
 /* Local data */
 static int (*pfcp_count_fn)(int cpu);
 struct cpu_load *cpu_load;
-struct gauge_history *cpu_history;
 static struct gtp_percpu_metrics *percpu_metrics;
 static int ethtool_tick;
 static uint64_t percpu_prev_ts_ns;
@@ -156,7 +155,7 @@ gtp_cpu_poll(struct thread *t)
 		load = cpu_load_get(cpu_load, i);
 		if (load < 0.0f)
 			continue;	/* offline CPU */
-		gauge_history_push(&cpu_history[i], load);
+		gauge_history_push(&percpu_metrics[i].load_history, load);
 		percpu_metrics[i].load = load;
 		percpu_metrics[i].pfcp_sessions = pfcp_count_fn ? pfcp_count_fn(i) : 0;
 	}
@@ -183,15 +182,8 @@ gtp_cpu_init(void)
 		return -1;
 	}
 
-	cpu_history = calloc(cpu_load->nr_cpus, sizeof(*cpu_history));
-	if (!cpu_history) {
-		cpu_load_destroy(cpu_load);
-		return -1;
-	}
-
 	percpu_metrics = calloc(cpu_load->nr_cpus, sizeof(*percpu_metrics));
 	if (!percpu_metrics) {
-		free(cpu_history);
 		cpu_load_destroy(cpu_load);
 		return -1;
 	}
@@ -204,8 +196,6 @@ int
 gtp_cpu_destroy(void)
 {
 	cpu_load_destroy(cpu_load);
-	free(cpu_history);
-	cpu_history = NULL;
 	free(percpu_metrics);
 	percpu_metrics = NULL;
 	return 0;
