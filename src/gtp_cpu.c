@@ -116,6 +116,18 @@ gtp_percpu_rates_update(uint64_t now_ns)
 			m->rx_buff_alloc_err_rate = (m->q_stats.rx_buff_alloc_err - m->prev_q_stats.rx_buff_alloc_err)
 						    * 1000000000ULL / elapsed;
 		}
+		/* EWMA smoothing on traffic rates */
+		m->rx_bw_bps_ewma = EWMA_DEFAULT_ALPHA * m->rx_bw_bps
+				   + (1.0 - EWMA_DEFAULT_ALPHA) * m->rx_bw_bps_ewma;
+		m->tx_bw_bps_ewma = EWMA_DEFAULT_ALPHA * m->tx_bw_bps
+				   + (1.0 - EWMA_DEFAULT_ALPHA) * m->tx_bw_bps_ewma;
+		m->total_bw_bps_ewma = EWMA_DEFAULT_ALPHA * m->total_bw_bps
+				     + (1.0 - EWMA_DEFAULT_ALPHA) * m->total_bw_bps_ewma;
+		m->rx_pps_ewma = EWMA_DEFAULT_ALPHA * m->rx_pps
+			       + (1.0 - EWMA_DEFAULT_ALPHA) * m->rx_pps_ewma;
+		m->tx_pps_ewma = EWMA_DEFAULT_ALPHA * m->tx_pps
+			       + (1.0 - EWMA_DEFAULT_ALPHA) * m->tx_pps_ewma;
+
 		m->prev_q_stats = m->q_stats;
 	}
 	percpu_prev_ts_ns = now_ns;

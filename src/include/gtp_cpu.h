@@ -49,6 +49,14 @@ struct gtp_percpu_metrics {
 	uint64_t		rx_pps;
 	uint64_t		tx_pps;
 	uint64_t		rx_buff_alloc_err_rate;
+
+	/* EWMA-smoothed traffic rates */
+	double			rx_bw_bps_ewma;
+	double			tx_bw_bps_ewma;
+	double			total_bw_bps_ewma;
+	double			rx_pps_ewma;
+	double			tx_pps_ewma;
+
 	struct ethtool_q_stats	prev_q_stats;
 };
 
