@@ -41,15 +41,32 @@ enum gtp_cpu_sched_algo {
 	GTP_CPU_SCHED_LS,
 	GTP_CPU_SCHED_EWMA,
 	GTP_CPU_SCHED_WSC,
+	GTP_CPU_SCHED_CBS,
 };
 
-/* WSC metric indices */
+/* Multi-metric indices (shared by WSC and CBS) */
 enum gtp_cpu_sched_metric {
 	GTP_CPU_SCHED_M_LOAD,
 	GTP_CPU_SCHED_M_SESSIONS,
 	GTP_CPU_SCHED_M_BW,
 	GTP_CPU_SCHED_M_PPS,
 	GTP_CPU_SCHED_NR_METRICS,
+};
+
+/* CBS constraint modes */
+enum gtp_cpu_sched_cbs_mode {
+	GTP_CPU_SCHED_CBS_INSTANT,
+	GTP_CPU_SCHED_CBS_EWMA,
+	GTP_CPU_SCHED_CBS_SLOPE,
+};
+
+#define GTP_CPU_SCHED_MAX_CONSTRAINTS	GTP_CPU_SCHED_NR_METRICS
+
+struct gtp_cpu_sched_constraint {
+	int		metric;		/* gtp_cpu_sched_metric */
+	int		mode;		/* gtp_cpu_sched_cbs_mode */
+	double		threshold;
+	int		active;
 };
 
 struct gtp_cpu_sched_group {
@@ -64,6 +81,11 @@ struct gtp_cpu_sched_group {
 	int			window;		/* ls: history samples for slope */
 	float			ewma_alpha;	/* ewma: smoothing factor */
 	float			metric_weights[GTP_CPU_SCHED_NR_METRICS]; /* wsc */
+
+	/* CBS: constraint-based scheduling */
+	struct gtp_cpu_sched_constraint	constraints[GTP_CPU_SCHED_MAX_CONSTRAINTS];
+	int			nr_constraints;
+	int			fallback_algo;
 
 	unsigned long		debug;
 
@@ -84,3 +106,5 @@ const char *gtp_cpu_sched_algo_str(int algo);
 int gtp_cpu_sched_algo_parse(const char *str);
 const char *gtp_cpu_sched_metric_str(int metric);
 int gtp_cpu_sched_metric_parse(const char *str);
+const char *gtp_cpu_sched_cbs_mode_str(int mode);
+int gtp_cpu_sched_cbs_mode_parse(const char *str);

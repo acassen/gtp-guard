@@ -32,6 +32,9 @@
 static LIST_HEAD(cpu_sched_list);
 static int nr_cpus_possible;
 
+typedef int (*cpu_sched_fn)(struct gtp_cpu_sched_group *grp);
+static cpu_sched_fn cpu_sched_tab[];
+
 
 /*
  *	Helpers
@@ -73,6 +76,7 @@ static const char *algo_names[] = {
 	[GTP_CPU_SCHED_LS]	= "ls",
 	[GTP_CPU_SCHED_EWMA]	= "ewma",
 	[GTP_CPU_SCHED_WSC]	= "wsc",
+	[GTP_CPU_SCHED_CBS]	= "cbs",
 };
 
 #define NR_ALGOS	(sizeof(algo_names) / sizeof(algo_names[0]))
@@ -120,6 +124,34 @@ gtp_cpu_sched_metric_parse(const char *str)
 
 	for (i = 0; i < GTP_CPU_SCHED_NR_METRICS; i++) {
 		if (!strcmp(str, metric_names[i]))
+			return i;
+	}
+	return -1;
+}
+
+static const char *cbs_mode_names[] = {
+	[GTP_CPU_SCHED_CBS_INSTANT]	= "instant",
+	[GTP_CPU_SCHED_CBS_EWMA]	= "ewma",
+	[GTP_CPU_SCHED_CBS_SLOPE]	= "slope",
+};
+
+#define NR_CBS_MODES	(sizeof(cbs_mode_names) / sizeof(cbs_mode_names[0]))
+
+const char *
+gtp_cpu_sched_cbs_mode_str(int mode)
+{
+	if (mode < 0 || mode >= (int) NR_CBS_MODES)
+		return "unknown";
+	return cbs_mode_names[mode];
+}
+
+int
+gtp_cpu_sched_cbs_mode_parse(const char *str)
+{
+	int i;
+
+	for (i = 0; i < (int) NR_CBS_MODES; i++) {
+		if (!strcmp(str, cbs_mode_names[i]))
 			return i;
 	}
 	return -1;
@@ -477,12 +509,92 @@ cpu_sched_wsc(struct gtp_cpu_sched_group *grp)
 	return best >= 0 ? best : 0;
 }
 
+/* cbs helper: read metric value according to constraint mode */
+static double
+cbs_metric_value(struct gtp_percpu_metrics *m,
+		 const struct gtp_cpu_sched_constraint *c,
+		 struct gtp_cpu_sched_group *grp)
+{
+	float oldest, newest;
+	int n;
+
+	switch (c->metric) {
+	case GTP_CPU_SCHED_M_LOAD:
+		if (c->mode == GTP_CPU_SCHED_CBS_EWMA)
+			return m->load_ewma;
+		if (c->mode == GTP_CPU_SCHED_CBS_SLOPE) {
+			n = min(grp->window, m->load_history.count);
+			if (n < 2)
+				return 0;
+			oldest = gauge_history_get(&m->load_history,
+						   m->load_history.count - n);
+			newest = gauge_history_get(&m->load_history,
+						   m->load_history.count - 1);
+			return (newest - oldest) / n;
+		}
+		return m->load;
+	case GTP_CPU_SCHED_M_SESSIONS:
+		return m->pfcp_sessions;
+	case GTP_CPU_SCHED_M_BW:
+		if (c->mode == GTP_CPU_SCHED_CBS_EWMA)
+			return m->total_bw_bps_ewma;
+		return m->total_bw_bps;
+	case GTP_CPU_SCHED_M_PPS:
+		if (c->mode == GTP_CPU_SCHED_CBS_EWMA)
+			return m->rx_pps_ewma + m->tx_pps_ewma;
+		return m->rx_pps + m->tx_pps;
+	}
+	return 0;
+}
+
+/* cbs: constraint-based scheduling */
+static int
+cpu_sched_cbs(struct gtp_cpu_sched_group *grp)
+{
+	struct gtp_percpu_metrics *m;
+	cpu_set_t saved, filtered;
+	int cpu, i, nr_survivors = 0;
+	bool pass;
+
+	CPU_ZERO(&filtered);
+	cpuset_for_each(cpu, grp->cpumask, nr_cpus_possible) {
+		m = gtp_percpu_metrics_get(cpu);
+		if (!m)
+			continue;
+
+		pass = true;
+		for (i = 0; i < grp->nr_constraints; i++) {
+			const struct gtp_cpu_sched_constraint *c = &grp->constraints[i];
+			if (!c->active)
+				continue;
+			if (cbs_metric_value(m, c, grp) > c->threshold) {
+				pass = false;
+				break;
+			}
+		}
+
+		if (pass) {
+			CPU_SET(cpu, &filtered);
+			nr_survivors++;
+		}
+	}
+
+	/* no survivors then fall back to full cpumask */
+	if (!nr_survivors)
+		filtered = grp->cpumask;
+
+	/* swap cpumask, delegate to fallback algo, restore */
+	saved = grp->cpumask;
+	grp->cpumask = filtered;
+	cpu = cpu_sched_tab[grp->fallback_algo](grp);
+	grp->cpumask = saved;
+	return cpu;
+}
+
 
 /*
  *	Dispatch table and election
  */
-typedef int (*cpu_sched_fn)(struct gtp_cpu_sched_group *grp);
-
 static cpu_sched_fn cpu_sched_tab[] = {
 	[GTP_CPU_SCHED_RR]	= cpu_sched_rr,
 	[GTP_CPU_SCHED_WRR]	= cpu_sched_wrr,
@@ -496,6 +608,7 @@ static cpu_sched_fn cpu_sched_tab[] = {
 	[GTP_CPU_SCHED_LS]	= cpu_sched_ls,
 	[GTP_CPU_SCHED_EWMA]	= cpu_sched_ewma,
 	[GTP_CPU_SCHED_WSC]	= cpu_sched_wsc,
+	[GTP_CPU_SCHED_CBS]	= cpu_sched_cbs,
 };
 
 int
@@ -575,6 +688,9 @@ gtp_cpu_sched_alloc(const char *name)
 	/* WSC: equal weights by default */
 	for (i = 0; i < GTP_CPU_SCHED_NR_METRICS; i++)
 		grp->metric_weights[i] = 1.0f;
+
+	/* CBS: default fallback to WLC */
+	grp->fallback_algo = GTP_CPU_SCHED_WLC;
 
 	list_add_tail(&grp->next, &cpu_sched_list);
 	return grp;

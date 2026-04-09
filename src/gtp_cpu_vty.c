@@ -108,7 +108,7 @@ DEFUN(cpu_sched_algorithm,
       cpu_sched_algorithm_cmd,
       "algorithm STRING",
       "Set scheduling algorithm\n"
-      "Algorithm (rr|wrr|lc|wlc|sed|nq|ll|lbw|lpps|ls|ewma|wsc)")
+      "Algorithm (rr|wrr|lc|wlc|sed|nq|ll|lbw|lpps|ls|ewma|wsc|cbs)")
 {
 	struct gtp_cpu_sched_group *grp = vty->index;
 	int algo;
@@ -303,6 +303,149 @@ DEFUN(no_cpu_sched_metric_weight,
 	}
 
 	grp->metric_weights[m] = 1.0f;
+	return CMD_SUCCESS;
+}
+
+DEFUN(cpu_sched_constraint,
+      cpu_sched_constraint_cmd,
+      "constraint STRING STRING STRING",
+      "Add CBS constraint (exclude CPU if metric > threshold)\n"
+      "Metric name (load|sessions|bw|pps)\n"
+      "Mode (instant|ewma|slope)\n"
+      "Threshold value")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	struct gtp_cpu_sched_constraint *c;
+	int metric, mode, i, slot = -1;
+
+	if (argc < 3) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	metric = gtp_cpu_sched_metric_parse(argv[0]);
+	if (metric < 0) {
+		vty_out(vty, "%% Unknown metric '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	mode = gtp_cpu_sched_cbs_mode_parse(argv[1]);
+	if (mode < 0) {
+		vty_out(vty, "%% Unknown mode '%s'%s", argv[1], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* slope only supported for load (has gauge_history) */
+	if (mode == GTP_CPU_SCHED_CBS_SLOPE && metric != GTP_CPU_SCHED_M_LOAD) {
+		vty_out(vty, "%% slope mode only supported for load metric%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* ewma not available for sessions */
+	if (mode == GTP_CPU_SCHED_CBS_EWMA && metric == GTP_CPU_SCHED_M_SESSIONS) {
+		vty_out(vty, "%% ewma mode not available for sessions metric%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* find existing constraint for this metric or a free slot */
+	for (i = 0; i < grp->nr_constraints; i++) {
+		if (grp->constraints[i].metric == metric) {
+			slot = i;
+			break;
+		}
+	}
+
+	if (slot < 0) {
+		if (grp->nr_constraints >= GTP_CPU_SCHED_MAX_CONSTRAINTS) {
+			vty_out(vty, "%% Maximum constraints reached%s", VTY_NEWLINE);
+			return CMD_WARNING;
+		}
+		slot = grp->nr_constraints++;
+	}
+
+	c = &grp->constraints[slot];
+	c->metric = metric;
+	c->mode = mode;
+	c->threshold = strtod(argv[2], NULL);
+	c->active = 1;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_cpu_sched_constraint,
+      no_cpu_sched_constraint_cmd,
+      "no constraint STRING",
+      "Remove CBS constraint\n"
+      "Constraint keyword\n"
+      "Metric name (load|sessions|bw|pps)")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	int metric, i;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	metric = gtp_cpu_sched_metric_parse(argv[0]);
+	if (metric < 0) {
+		vty_out(vty, "%% Unknown metric '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	for (i = 0; i < grp->nr_constraints; i++) {
+		if (grp->constraints[i].metric == metric) {
+			/* compact array */
+			grp->nr_constraints--;
+			for (; i < grp->nr_constraints; i++)
+				grp->constraints[i] = grp->constraints[i + 1];
+			return CMD_SUCCESS;
+		}
+	}
+
+	vty_out(vty, "%% No constraint on metric '%s'%s", argv[0], VTY_NEWLINE);
+	return CMD_WARNING;
+}
+
+DEFUN(cpu_sched_fallback,
+      cpu_sched_fallback_cmd,
+      "fallback-algorithm STRING",
+      "Set CBS fallback algorithm for surviving CPUs\n"
+      "Algorithm name")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	int algo;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	algo = gtp_cpu_sched_algo_parse(argv[0]);
+	if (algo < 0) {
+		vty_out(vty, "%% Unknown algorithm '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (algo == GTP_CPU_SCHED_CBS) {
+		vty_out(vty, "%% Cannot use cbs as its own fallback%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	grp->fallback_algo = algo;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_cpu_sched_fallback,
+      no_cpu_sched_fallback_cmd,
+      "no fallback-algorithm",
+      "Reset CBS fallback algorithm to default (wlc)\n"
+      "Fallback algorithm keyword")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+
+	grp->fallback_algo = GTP_CPU_SCHED_WLC;
 	return CMD_SUCCESS;
 }
 
@@ -597,6 +740,20 @@ cpu_sched_config_write_group(struct gtp_cpu_sched_group *grp, void *arg)
 				   , grp->metric_weights[i], VTY_NEWLINE);
 	}
 
+	for (int i = 0; i < grp->nr_constraints; i++) {
+		const struct gtp_cpu_sched_constraint *c = &grp->constraints[i];
+		if (!c->active)
+			continue;
+		vty_out(vty, " constraint %s %s %g%s"
+			   , gtp_cpu_sched_metric_str(c->metric)
+			   , gtp_cpu_sched_cbs_mode_str(c->mode)
+			   , c->threshold, VTY_NEWLINE);
+	}
+
+	if (grp->fallback_algo != GTP_CPU_SCHED_WLC)
+		vty_out(vty, " fallback-algorithm %s%s"
+			   , gtp_cpu_sched_algo_str(grp->fallback_algo), VTY_NEWLINE);
+
 	cpuset_for_each(cpu, grp->cpumask, CPU_SETSIZE) {
 		if (grp->weights[cpu] == GTP_CPU_SCHED_DEFAULT_WEIGHT)
 			continue;
@@ -637,6 +794,10 @@ cmd_ext_cpu_sched_install(void)
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_ewma_alpha_cmd);
 	install_element(CPU_SCHED_NODE, &cpu_sched_metric_weight_cmd);
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_metric_weight_cmd);
+	install_element(CPU_SCHED_NODE, &cpu_sched_constraint_cmd);
+	install_element(CPU_SCHED_NODE, &no_cpu_sched_constraint_cmd);
+	install_element(CPU_SCHED_NODE, &cpu_sched_fallback_cmd);
+	install_element(CPU_SCHED_NODE, &no_cpu_sched_fallback_cmd);
 
 	/* Show commands */
 	install_element(VIEW_NODE, &show_system_cpu_cmd);
