@@ -181,6 +181,73 @@ DEFUN(no_cpu_sched_weight,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cpu_sched_window,
+      cpu_sched_window_cmd,
+      "window <1-256>",
+      "Set history window for ls algorithm\n"
+      "Number of 200ms samples")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	int window;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	VTY_GET_INTEGER_RANGE("window", window, argv[0], 1, 256);
+	grp->window = window;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_cpu_sched_window,
+      no_cpu_sched_window_cmd,
+      "no window",
+      "Reset history window to default\n"
+      "Window keyword")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+
+	grp->window = GTP_CPU_SCHED_DEFAULT_WINDOW;
+	return CMD_SUCCESS;
+}
+
+DEFUN(cpu_sched_ewma_alpha,
+      cpu_sched_ewma_alpha_cmd,
+      "ewma-alpha STRING",
+      "Set EWMA smoothing factor\n"
+      "Alpha value (0.0-1.0)")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	float alpha;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	alpha = strtof(argv[0], NULL);
+	if (alpha <= 0.0f || alpha > 1.0f) {
+		vty_out(vty, "%% alpha must be in (0.0, 1.0]%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	grp->ewma_alpha = alpha;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_cpu_sched_ewma_alpha,
+      no_cpu_sched_ewma_alpha_cmd,
+      "no ewma-alpha",
+      "Reset EWMA smoothing factor to default\n"
+      "EWMA alpha keyword")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+
+	grp->ewma_alpha = GTP_CPU_SCHED_DEFAULT_EWMA_ALPHA;
+	return CMD_SUCCESS;
+}
+
 
 /*
  *	Show commands
@@ -457,6 +524,11 @@ cpu_sched_config_write_group(struct gtp_cpu_sched_group *grp, void *arg)
 	vty_out(vty, " algorithm %s%s"
 		   , gtp_cpu_sched_algo_str(grp->algo), VTY_NEWLINE);
 
+	if (grp->window != GTP_CPU_SCHED_DEFAULT_WINDOW)
+		vty_out(vty, " window %d%s", grp->window, VTY_NEWLINE);
+	if (grp->ewma_alpha != GTP_CPU_SCHED_DEFAULT_EWMA_ALPHA)
+		vty_out(vty, " ewma-alpha %.2f%s", grp->ewma_alpha, VTY_NEWLINE);
+
 	cpuset_for_each(cpu, grp->cpumask, CPU_SETSIZE) {
 		if (grp->weights[cpu] == GTP_CPU_SCHED_DEFAULT_WEIGHT)
 			continue;
@@ -491,6 +563,10 @@ cmd_ext_cpu_sched_install(void)
 	install_element(CPU_SCHED_NODE, &cpu_sched_algorithm_cmd);
 	install_element(CPU_SCHED_NODE, &cpu_sched_weight_cmd);
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_weight_cmd);
+	install_element(CPU_SCHED_NODE, &cpu_sched_window_cmd);
+	install_element(CPU_SCHED_NODE, &no_cpu_sched_window_cmd);
+	install_element(CPU_SCHED_NODE, &cpu_sched_ewma_alpha_cmd);
+	install_element(CPU_SCHED_NODE, &no_cpu_sched_ewma_alpha_cmd);
 
 	/* Show commands */
 	install_element(VIEW_NODE, &show_system_cpu_cmd);
