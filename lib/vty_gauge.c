@@ -137,8 +137,8 @@ gauge_history_push(struct gauge_history *h, float ratio)
 }
 
 /* Return the i oldest sample (0 = oldest). */
-static float
-history_get(const struct gauge_history *h, int i)
+float
+gauge_history_get(const struct gauge_history *h, int i)
 {
 	int idx = (h->head - h->count + i + GAUGE_HISTORY_MAX) % GAUGE_HISTORY_MAX;
 	return h->samples[idx];
@@ -351,7 +351,7 @@ gauge_block_graph(struct vty *vty, const char *label, float ratio,
 
 	/* oldest sample is at position (count - samples) */
 	for (i = h->count - samples; i < h->count; i++) {
-		s = history_get(h, i);
+		s = gauge_history_get(h, i);
 		lvl = (int)(s * 8.0f);
 		if (lvl > 7) lvl = 7;
 		if (lvl < 0) lvl = 0;
@@ -409,8 +409,8 @@ gauge_braille_graph(struct vty *vty, const char *label, float ratio,
 	for (cell = 0; cell < width - pad_cells; cell++) {
 		int li = base + cell * 2;
 		int ri = li + 1;
-		float ls = (li < h->count) ? history_get(h, li) : 0.0f;
-		float rs = (ri < h->count) ? history_get(h, ri) : 0.0f;
+		float ls = (li < h->count) ? gauge_history_get(h, li) : 0.0f;
+		float rs = (ri < h->count) ? gauge_history_get(h, ri) : 0.0f;
 		float col_ratio = (rs > ls) ? rs : ls;
 		uint8_t mask = 0;
 		char glyph[4];
