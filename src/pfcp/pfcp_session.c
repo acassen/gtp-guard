@@ -28,6 +28,7 @@
 #include "pfcp_bpf.h"
 #include "gtp_conn.h"
 #include "gtp_cpu.h"
+#include "gtp_cpu_sched.h"
 #include "utils.h"
 #include "bitops.h"
 #include "logger.h"
@@ -187,6 +188,7 @@ shoot_again:
 struct pfcp_session *
 pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *r)
 {
+	struct gtp_cpu_sched_group *grp;
 	struct pfcp_session *new;
 	uint64_t seid;
 
@@ -214,6 +216,10 @@ pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *
 		return NULL;
 	}
 	new->seid = seid;
+
+	/* APN override router sched if configured */
+	grp = apn->cpu_sched ? : r->cpu_sched;
+	new->cpu = gtp_cpu_sched_elect(grp);
 
 	/* CDR context */
 	if (apn->cdr_spool)

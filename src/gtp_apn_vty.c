@@ -24,6 +24,7 @@
 #include "gtp_resolv.h"
 #include "gtp_utils.h"
 #include "gtp_data.h"
+#include "gtp_cpu_sched.h"
 #include "command.h"
 #include "utils.h"
 #include "bitops.h"
@@ -1049,6 +1050,43 @@ DEFUN(no_apn_cdr_spool,
 }
 
 
+DEFUN(apn_cpu_sched,
+      apn_cpu_sched_cmd,
+      "cpu-sched STRING",
+      "Set CPU scheduling group\n"
+      "Group name\n")
+{
+	struct gtp_apn *apn = vty->index;
+	struct gtp_cpu_sched_group *grp;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	grp = gtp_cpu_sched_get(argv[0]);
+	if (!grp) {
+		vty_out(vty, "%% Unknown cpu-sched-group:'%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	apn->cpu_sched = grp;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_apn_cpu_sched,
+      no_apn_cpu_sched_cmd,
+      "no cpu-sched",
+      "Remove CPU scheduling group\n")
+{
+	struct gtp_apn *apn = vty->index;
+
+	apn->cpu_sched = NULL;
+	return CMD_SUCCESS;
+}
+
+
 /* Show */
 DEFUN(show_apn,
       show_apn_cmd,
@@ -1190,6 +1228,9 @@ apn_config_write(struct vty *vty)
 		if (__test_bit(GTP_APN_FL_SESSION_UNIQ_PTYPE, &apn->flags))
 			vty_out(vty, " gtp-session-uniq-pdn-type-per-imsi%s"
 				   , VTY_NEWLINE);
+		if (apn->cpu_sched)
+			vty_out(vty, " cpu-sched %s%s"
+				   , apn->cpu_sched->name, VTY_NEWLINE);
 		gtp_apn_hplmn_vty(vty, apn);
 
         	vty_out(vty, "!%s", VTY_NEWLINE);
@@ -1238,6 +1279,8 @@ cmd_ext_apn_install(void)
 	install_element(APN_NODE, &no_apn_hplmn_cmd);
 	install_element(APN_NODE, &apn_cdr_spool_cmd);
 	install_element(APN_NODE, &no_apn_cdr_spool_cmd);
+	install_element(APN_NODE, &apn_cpu_sched_cmd);
+	install_element(APN_NODE, &no_apn_cpu_sched_cmd);
 
 	/* Install show commands */
 	install_element(VIEW_NODE, &show_apn_cmd);

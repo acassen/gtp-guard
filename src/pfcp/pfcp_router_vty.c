@@ -35,6 +35,7 @@
 #include "bitops.h"
 #include "logger.h"
 #include "utils.h"
+#include "gtp_cpu_sched.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -849,6 +850,43 @@ DEFUN(show_pfcp_bpf,
 }
 
 
+DEFUN(pfcp_cpu_sched,
+      pfcp_cpu_sched_cmd,
+      "cpu-sched STRING",
+      "Bind CPU scheduling group\n"
+      "Group name")
+{
+	struct pfcp_router *c = vty->index;
+	struct gtp_cpu_sched_group *grp;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	grp = gtp_cpu_sched_get(argv[0]);
+	if (!grp) {
+		vty_out(vty, "%% Unknown cpu-sched-group:'%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	c->cpu_sched = grp;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pfcp_cpu_sched,
+      no_pfcp_cpu_sched_cmd,
+      "no cpu-sched",
+      "Remove CPU scheduling group binding\n")
+{
+	struct pfcp_router *c = vty->index;
+
+	c->cpu_sched = NULL;
+	return CMD_SUCCESS;
+}
+
+
 /*
  *	Configuration writer
  */
@@ -879,6 +917,9 @@ config_pfcp_router_write(struct vty *vty)
 		if (c->peer_list)
 			vty_out(vty, " pfcp-peer-list %s%s"
 				   , c->peer_list->name, VTY_NEWLINE);
+		if (c->cpu_sched)
+			vty_out(vty, " cpu-sched %s%s"
+				   , c->cpu_sched->name, VTY_NEWLINE);
 
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
@@ -953,6 +994,8 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_strict_apn_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_bind_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_cpu_sched_cmd);
+	install_element(PFCP_ROUTER_NODE, &no_pfcp_cpu_sched_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

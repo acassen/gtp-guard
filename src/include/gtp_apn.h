@@ -29,6 +29,8 @@
 #include "gtp_cdr.h"
 #include "gtp_cdr_spool.h"
 
+struct gtp_cpu_sched_group;
+
 /* defines */
 #define GTP_APN_MAX_LEN		256
 #define GTP_REALM_LEN		128
@@ -127,6 +129,8 @@ struct gtp_apn {
 	pthread_cond_t		cache_cond;
 	pthread_mutex_t		cache_mutex;
 	time_t			last_update;
+
+	struct gtp_cpu_sched_group *cpu_sched;
 
 	struct list_head	next;
 

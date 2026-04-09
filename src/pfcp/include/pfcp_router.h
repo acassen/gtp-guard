@@ -26,6 +26,8 @@
 #include "pfcp_bpf.h"
 #include "gtp_bpf_prog.h"
 
+struct gtp_cpu_sched_group;
+
 #define PFCP_ROUTER_DELAYED	2
 #define PFCP_PEER_MAX		16
 
@@ -82,6 +84,8 @@ struct pfcp_router {
 
 
 	uint64_t		seed;
+	struct gtp_cpu_sched_group *cpu_sched;
+
 	unsigned long		flags;
 
 	struct list_head	next;
