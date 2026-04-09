@@ -23,6 +23,7 @@
 #include <string.h>
 #include "cpu.h"
 #include "utils.h"
+#include "vty_gauge.h"
 #include "gtp_cpu.h"
 #include "gtp_cpu_sched.h"
 #include "logger.h"
@@ -69,6 +70,8 @@ static const char *algo_names[] = {
 	[GTP_CPU_SCHED_LL]	= "ll",
 	[GTP_CPU_SCHED_LBW]	= "lbw",
 	[GTP_CPU_SCHED_LPPS]	= "lpps",
+	[GTP_CPU_SCHED_LS]	= "ls",
+	[GTP_CPU_SCHED_EWMA]	= "ewma",
 };
 
 #define NR_ALGOS	(sizeof(algo_names) / sizeof(algo_names[0]))
@@ -340,6 +343,54 @@ cpu_sched_lpps(struct gtp_cpu_sched_group *grp)
 	return best >= 0 ? best : 0;
 }
 
+/* ls: least-slope (lowest load trend over window) */
+static int
+cpu_sched_ls(struct gtp_cpu_sched_group *grp)
+{
+	struct gtp_percpu_metrics *m;
+	float min_slope = 2.0f, oldest, newest, slope;
+	int best = -1, cpu, n;
+
+	cpuset_for_each(cpu, grp->cpumask, nr_cpus_possible) {
+		m = gtp_percpu_metrics_get(cpu);
+		if (!m || m->load < 0.0f || m->load_history.count < 2)
+			continue;
+
+		n = min(grp->window, m->load_history.count);
+		oldest = gauge_history_get(&m->load_history, m->load_history.count - n);
+		newest = gauge_history_get(&m->load_history, m->load_history.count - 1);
+		slope = (newest - oldest) / n;
+
+		if (slope < min_slope) {
+			min_slope = slope;
+			best = cpu;
+		}
+	}
+
+	return best >= 0 ? best : 0;
+}
+
+/* ewma: least EWMA-smoothed load */
+static int
+cpu_sched_ewma(struct gtp_cpu_sched_group *grp)
+{
+	const struct gtp_percpu_metrics *m;
+	float min_ewma = 2.0f;
+	int best = -1, cpu;
+
+	cpuset_for_each(cpu, grp->cpumask, nr_cpus_possible) {
+		m = gtp_percpu_metrics_get(cpu);
+		if (!m || m->load < 0.0f)
+			continue;
+		if (m->load_ewma < min_ewma) {
+			min_ewma = m->load_ewma;
+			best = cpu;
+		}
+	}
+
+	return best >= 0 ? best : 0;
+}
+
 
 /*
  *	Dispatch table and election
@@ -356,6 +407,8 @@ static cpu_sched_fn cpu_sched_tab[] = {
 	[GTP_CPU_SCHED_LL]	= cpu_sched_ll,
 	[GTP_CPU_SCHED_LBW]	= cpu_sched_lbw,
 	[GTP_CPU_SCHED_LPPS]	= cpu_sched_lpps,
+	[GTP_CPU_SCHED_LS]	= cpu_sched_ls,
+	[GTP_CPU_SCHED_EWMA]	= cpu_sched_ewma,
 };
 
 int
@@ -429,6 +482,8 @@ gtp_cpu_sched_alloc(const char *name)
 
 	grp->wrr_gcd = GTP_CPU_SCHED_DEFAULT_WEIGHT;
 	grp->wrr_cw = GTP_CPU_SCHED_DEFAULT_WEIGHT;
+	grp->window = GTP_CPU_SCHED_DEFAULT_WINDOW;
+	grp->ewma_alpha = GTP_CPU_SCHED_DEFAULT_EWMA_ALPHA;
 	list_add_tail(&grp->next, &cpu_sched_list);
 	return grp;
 }

@@ -25,6 +25,8 @@
 #include "gtp_stddef.h"
 
 #define GTP_CPU_SCHED_DEFAULT_WEIGHT	100
+#define GTP_CPU_SCHED_DEFAULT_WINDOW	25	/* 5s at 200ms/sample */
+#define GTP_CPU_SCHED_DEFAULT_EWMA_ALPHA 0.2f
 
 enum gtp_cpu_sched_algo {
 	GTP_CPU_SCHED_RR,
@@ -36,6 +38,8 @@ enum gtp_cpu_sched_algo {
 	GTP_CPU_SCHED_LL,
 	GTP_CPU_SCHED_LBW,
 	GTP_CPU_SCHED_LPPS,
+	GTP_CPU_SCHED_LS,
+	GTP_CPU_SCHED_EWMA,
 };
 
 struct gtp_cpu_sched_group {
@@ -47,6 +51,8 @@ struct gtp_cpu_sched_group {
 	int			rr_idx;
 	int			wrr_cw;
 	int			wrr_gcd;
+	int			window;		/* ls: history samples for slope */
+	float			ewma_alpha;	/* ewma: smoothing factor */
 
 	unsigned long		debug;
 
