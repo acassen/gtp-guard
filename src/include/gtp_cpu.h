@@ -57,6 +57,10 @@ struct gtp_percpu_metrics {
 	double			rx_pps_ewma;
 	double			tx_pps_ewma;
 
+	/* Traffic rate history (fed every ethtool tick, ~3s per sample) */
+	struct gauge_history	bw_history;		/* total_bw_bps normalized */
+	struct gauge_history	pps_history;		/* rx_pps + tx_pps normalized */
+
 	struct ethtool_q_stats	prev_q_stats;
 };
 

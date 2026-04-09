@@ -335,16 +335,9 @@ DEFUN(cpu_sched_constraint,
 		return CMD_WARNING;
 	}
 
-	/* slope only supported for load (has gauge_history) */
-	if (mode == GTP_CPU_SCHED_CBS_SLOPE && metric != GTP_CPU_SCHED_M_LOAD) {
-		vty_out(vty, "%% slope mode only supported for load metric%s"
-			   , VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-
-	/* ewma not available for sessions */
-	if (mode == GTP_CPU_SCHED_CBS_EWMA && metric == GTP_CPU_SCHED_M_SESSIONS) {
-		vty_out(vty, "%% ewma mode not available for sessions metric%s"
+	/* sessions only supports instant (no EWMA, no history) */
+	if (mode != GTP_CPU_SCHED_CBS_INSTANT && metric == GTP_CPU_SCHED_M_SESSIONS) {
+		vty_out(vty, "%% only instant mode available for sessions metric%s"
 			   , VTY_NEWLINE);
 		return CMD_WARNING;
 	}

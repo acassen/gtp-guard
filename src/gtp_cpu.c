@@ -128,6 +128,10 @@ gtp_percpu_rates_update(uint64_t now_ns)
 		m->tx_pps_ewma = EWMA_DEFAULT_ALPHA * m->tx_pps
 			       + (1.0 - EWMA_DEFAULT_ALPHA) * m->tx_pps_ewma;
 
+		/* push into history rings for slope-based scheduling */
+		gauge_history_push(&m->bw_history, (float) m->total_bw_bps);
+		gauge_history_push(&m->pps_history, (float) (m->rx_pps + m->tx_pps));
+
 		m->prev_q_stats = m->q_stats;
 	}
 	percpu_prev_ts_ns = now_ns;

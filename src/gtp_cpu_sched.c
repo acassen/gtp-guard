@@ -509,39 +509,46 @@ cpu_sched_wsc(struct gtp_cpu_sched_group *grp)
 	return best >= 0 ? best : 0;
 }
 
+/* cbs helper: compute slope over window from a gauge_history ring */
+static double
+cbs_history_slope(struct gauge_history *h, int window)
+{
+	int n = min(window, h->count);
+	float oldest, newest;
+
+	if (n < 2)
+		return 0;
+	oldest = gauge_history_get(h, h->count - n);
+	newest = gauge_history_get(h, h->count - 1);
+	return (newest - oldest) / n;
+}
+
 /* cbs helper: read metric value according to constraint mode */
 static double
 cbs_metric_value(struct gtp_percpu_metrics *m,
 		 const struct gtp_cpu_sched_constraint *c,
 		 struct gtp_cpu_sched_group *grp)
 {
-	float oldest, newest;
-	int n;
-
 	switch (c->metric) {
 	case GTP_CPU_SCHED_M_LOAD:
 		if (c->mode == GTP_CPU_SCHED_CBS_EWMA)
 			return m->load_ewma;
-		if (c->mode == GTP_CPU_SCHED_CBS_SLOPE) {
-			n = min(grp->window, m->load_history.count);
-			if (n < 2)
-				return 0;
-			oldest = gauge_history_get(&m->load_history,
-						   m->load_history.count - n);
-			newest = gauge_history_get(&m->load_history,
-						   m->load_history.count - 1);
-			return (newest - oldest) / n;
-		}
+		if (c->mode == GTP_CPU_SCHED_CBS_SLOPE)
+			return cbs_history_slope(&m->load_history, grp->window);
 		return m->load;
 	case GTP_CPU_SCHED_M_SESSIONS:
 		return m->pfcp_sessions;
 	case GTP_CPU_SCHED_M_BW:
 		if (c->mode == GTP_CPU_SCHED_CBS_EWMA)
 			return m->total_bw_bps_ewma;
+		if (c->mode == GTP_CPU_SCHED_CBS_SLOPE)
+			return cbs_history_slope(&m->bw_history, grp->window);
 		return m->total_bw_bps;
 	case GTP_CPU_SCHED_M_PPS:
 		if (c->mode == GTP_CPU_SCHED_CBS_EWMA)
 			return m->rx_pps_ewma + m->tx_pps_ewma;
+		if (c->mode == GTP_CPU_SCHED_CBS_SLOPE)
+			return cbs_history_slope(&m->pps_history, grp->window);
 		return m->rx_pps + m->tx_pps;
 	}
 	return 0;
