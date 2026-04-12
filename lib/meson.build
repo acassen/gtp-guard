@@ -13,6 +13,7 @@ lib_src = files(
   'inet_server.c',
   'inet_utils.c',
   'ip_pool.c',
+  'lease_pool.c',
   'json_reader.c',
   'json_writer.c',
   'list_head.c',

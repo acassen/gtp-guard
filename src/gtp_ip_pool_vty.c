@@ -236,10 +236,10 @@ DEFUN(show_ip_pool,
 				     , p->name
 				     , addr_stringify(&pool->prefix, addr_str, INET6_ADDRSTRLEN)
 				     , pool->prefix_bits
-				     , pool->used
-				     , pool->size
-				     , (pool->used * 100.0) / pool->size
-				     , (pool->next_lease_idx * 100.0) / pool->size);
+				     , pool->pool.used
+				     , pool->pool.size
+				     , (pool->pool.used * 100.0) / pool->pool.size
+				     , (pool->pool.next_lease_idx * 100.0) / pool->pool.size);
 	}
 	table_vty_out(tbl, vty);
 	table_destroy(tbl);

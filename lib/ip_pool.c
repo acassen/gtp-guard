@@ -16,7 +16,7 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <stdlib.h>
@@ -25,178 +25,11 @@
 #include <errno.h>
 
 #include "ip_pool.h"
+#include "lease_pool.h"
 #include "utils.h"
 
 
-/*
- * IP Pool Management with Anti-Fragmentation Design
- * ==================================================
- *
- * This implementation uses a multi-layered strategy to minimize the performance
- * impact of pool fragmentation in high-churn environments (e.g., mobile networks).
- *
- * FRAGMENTATION PROBLEM:
- * ----------------------
- * In traditional linear scanning, as sessions come and go, freed addresses become
- * scattered throughout the pool. Finding a free address requires O(N) scanning,
- * which degrades performance significantly when the pool is 70%+ utilized with
- * fragmentation.
- *
- * SOLUTION - PURE LRU ALLOCATION STRATEGY:
- * -----------------------------------------
- *
- * LRU Ring (O(1) - Optimal for Temporal Locality)
- * - Circular buffer with size equal to pool size (full FIFO tracking)
- * - Phase 1 (Initial): Sequential allocation until all leases used once
- * - Phase 2 (Steady-state): Pure LRU allocation from ring
- *   - Allocates from tail (OLDEST freed address - least recently used)
- *   - Releases to head (most recently available)
- * - Ensures "cool down" period before reuse
- * - Allows CPU caches to naturally evict stale entries
- * - Optimal for high-churn environments (mobile networks)
- *
- * PERFORMANCE CHARACTERISTICS:
- * ----------------------------
- * - Phase 1 (Initial fill): O(1) - Sequential allocation
- * - Phase 2 (Steady state): O(1) - Pure LRU allocation
- *   - Triggered once all leases allocated at least once (next_lease_idx >= size)
- *   - Pop from LRU tail for allocation (least recently used)
- *   - Push to LRU head on release (most recently available)
- * - All operations: O(1) constant time
- *
- * MEMORY OVERHEAD:
- * ----------------
- * - Per address: 1 byte (lease bitmap)
- * - LRU ring: pool_size × 4 bytes (full tracking)
- * - Example /24: 254 bytes + 1016 bytes = 1270 bytes total
- * - Example /20: 4094 bytes + 16376 bytes = 20470 bytes total
- * - Example /12: 1048575 bytes + 4194300 bytes = ~5.0 MB total
- * - Overhead: ~400% but provides perfect LRU behavior
- *
- */
-
-
-/* LRU ring buffer - full pool size FIFO queue */
-static int
-ip_pool_lru_init(struct ip_pool_lru *lru, uint32_t pool_size)
-{
-	lru->ring = calloc(pool_size, sizeof(int));
-	if (!lru->ring)
-		return -1;
-
-	lru->head = 0;
-	lru->tail = 0;
-	lru->count = 0;
-	lru->size = pool_size;
-	return 0;
-}
-
-static void
-ip_pool_lru_push(struct ip_pool_lru *lru, int idx)
-{
-	/* If ring is full, overwrite oldest entry (move tail forward) */
-	if (lru->count == lru->size) {
-		lru->tail = (lru->tail + 1) % lru->size;
-	} else {
-		lru->count++;
-	}
-
-	lru->ring[lru->head] = idx;
-	lru->head = (lru->head + 1) % lru->size;
-}
-
-static int
-ip_pool_lru_pop(struct ip_pool_lru *lru, int *idx)
-{
-	/* No freed leases available in LRU ring */
-	if (lru->count == 0)
-		return -1;
-
-	/* Get oldest entry from tail (least recently used) */
-	*idx = lru->ring[lru->tail];
-	lru->tail = (lru->tail + 1) % lru->size;
-	lru->count--;
-	return 0;
-}
-
-static void
-ip_pool_lru_destroy(struct ip_pool_lru *lru)
-{
-	if (!lru || !lru->ring)
-		return;
-
-	free(lru->ring);
-	lru->ring = NULL;
-	lru->count = 0;
-	lru->size = 0;
-}
-
-
-/*
- * Pure LRU allocation strategy:
- * 0. Sequential allocation during initial pool fill-up (next_lease_idx < size)
- * 1. Once all leases allocated at least once, switch to pure LRU mode:
- *    - Allocate from LRU tail (least recently used freed lease)
- *    - This ensures optimal temporal locality and cache efficiency
- *
- * This provides O(1) performance in all cases.
- */
-static int
-ip_pool_alloc_lease(struct ip_pool *p, int *idx)
-{
-	int lru_idx;
-
-	/* Quick check: pool exhausted? */
-	if (__sync_add_and_fetch(&p->used, 0) >= p->size)
-		return -1;
-
-	/* Path 0: Sequential allocation (only during initial fill-up) */
-	if (p->next_lease_idx < p->size && !p->lease[p->next_lease_idx]) {
-		*idx = p->next_lease_idx;
-		return 0;
-	}
-
-	/* Path 1: Pure LRU allocation (after all leases used at least once) */
-	if (ip_pool_lru_pop(&p->lru, &lru_idx) == 0) {
-		if (lru_idx >= 0 && lru_idx < p->size && !p->lease[lru_idx]) {
-			*idx = lru_idx;
-			return 0;
-		}
-	}
-
-	/* Should not reach here if used < size */
-	return -1;
-}
-
-/* Generic helper to mark lease as allocated */
-static void
-ip_pool_mark_allocated(struct ip_pool *p, int idx)
-{
-	p->lease[idx] = true;
-	if (p->next_lease_idx < p->size)
-		p->next_lease_idx = idx + 1;
-	__sync_add_and_fetch(&p->used, 1);
-}
-
-/* Generic helper to release lease */
-static int
-ip_pool_release_lease(struct ip_pool *p, int idx)
-{
-	if (idx < 0 || idx >= p->size) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	p->lease[idx] = false;
-	__sync_sub_and_fetch(&p->used, 1);
-
-	/* Add to LRU ring for optimal reuse */
-	ip_pool_lru_push(&p->lru, idx);
-
-	return 0;
-}
-
-/* IPv6 helper to add offset to an IPv6 address */
+/* IPv6 helper: add integer offset to upper 64 bits, roll the dices on lower 64 bits */
 static void
 ipv6_addr_add_offset(struct in6_addr *result, const struct in6_addr *base,
 		     size_t offset, uint64_t *seed)
@@ -211,24 +44,23 @@ ipv6_addr_add_offset(struct in6_addr *result, const struct in6_addr *base,
 	*lower = xorshift_prng(seed);
 }
 
-/* IPv6 helper to calculate offset from base address */
+/* IPv6 helper: compute slot index from address offset relative to base */
 static int
-ipv6_addr_offset(const struct in6_addr *base, const struct in6_addr *addr, int *idx)
+ipv6_addr_offset(const struct in6_addr *base, const struct in6_addr *addr,
+		 int *idx)
 {
 	uint64_t base_upper, addr_upper;
 
 	base_upper = be64toh(*((uint64_t *) &base->s6_addr[0]));
 	addr_upper = be64toh(*((uint64_t *) &addr->s6_addr[0]));
 
-	/* Calculate the offset */
-	if (addr_upper < base_upper) {
-		/* Address is not within this pool */
+	if (addr_upper < base_upper)
 		return -1;
-	}
 
 	*idx = addr_upper - base_upper;
 	return 0;
 }
+
 
 int
 ip_pool_get(struct ip_pool *p, void *addr)
@@ -241,12 +73,12 @@ ip_pool_get(struct ip_pool *p, void *addr)
 		return -1;
 	}
 
-	if (ip_pool_alloc_lease(p, &idx) < 0) {
+	if (lease_pool_get(&p->pool, &idx) < 0) {
 		errno = ENOSPC;
 		return -1;
 	}
 
-	ip_pool_mark_allocated(p, idx);
+	lease_pool_mark(&p->pool, idx);
 
 	if (p->prefix.family == AF_INET) {
 		struct in_addr *addr4 = (struct in_addr *) addr;
@@ -284,7 +116,7 @@ ip_pool_put(struct ip_pool *p, void *addr)
 	}
 
 release:
-	return ip_pool_release_lease(p, idx);
+	return lease_pool_release(&p->pool, idx);
 }
 
 struct ip_pool *
@@ -308,28 +140,14 @@ ip_pool_alloc(const char *ip_pool_str)
 	new->seed = time(NULL);
 	size = ((1U << (32 - new->prefix_bits)) - 1);
 
-	/* For IPv6, allocate /64 subnets */
 	if (new->prefix.family == AF_INET6) {
 		if (new->prefix_bits >= 64)
 			goto inval;
 		size = ((1U << (64 - new->prefix_bits)) - 1);
 	}
 
-	new->size = size;
-
-	/* Allocate lease bitmap */
-	new->lease = calloc(new->size, sizeof(bool));
-	if (!new->lease) {
+	if (lease_pool_init(&new->pool, size) < 0) {
 		errno = ENOMEM;
-		free(new);
-		return NULL;
-	}
-
-	/* Initialize LRU ring buffer with full pool size */
-	err = ip_pool_lru_init(&new->lru, new->size);
-	if (err) {
-		errno = ENOMEM;
-		free(new->lease);
 		free(new);
 		return NULL;
 	}
@@ -348,7 +166,6 @@ ip_pool_destroy(struct ip_pool *p)
 	if (!p)
 		return;
 
-	ip_pool_lru_destroy(&p->lru);
-	free(p->lease);
+	lease_pool_destroy(&p->pool);
 	free(p);
 }

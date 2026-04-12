@@ -16,23 +16,34 @@
  *              either version 3.0 of the License, or (at your option) any later
  *              version.
  *
- * Copyright (C) 2023-2024 Alexandre Cassen, <acassen@gmail.com>
+ * Copyright (C) 2023-2026 Alexandre Cassen, <acassen@gmail.com>
  */
 #pragma once
 
 #include <stdint.h>
-#include "addr.h"
-#include "lease_pool.h"
+#include <stdbool.h>
 
-struct ip_pool {
-	union addr		prefix;
-	uint32_t		prefix_bits;
-	struct lease_pool	pool;
-	uint64_t		seed;
+/* Circular buffer of freed indices for O(1) reuse */
+struct lease_lru {
+	int		*ring;
+	uint32_t	head;
+	uint32_t	tail;
+	uint32_t	count;
+	uint32_t	size;
+};
+
+/* Generic index-based lease pool: allocate/release integer slots in O(1) */
+struct lease_pool {
+	bool		*lease;
+	struct lease_lru lru;
+	int		next_lease_idx;
+	uint32_t	size;
+	uint32_t	used;
 };
 
 /* Prototypes */
-int ip_pool_get(struct ip_pool *p, void *addr);
-int ip_pool_put(struct ip_pool *p, void *addr);
-struct ip_pool *ip_pool_alloc(const char *ip_pool_str);
-void ip_pool_destroy(struct ip_pool *p);
+int lease_pool_init(struct lease_pool *lp, uint32_t size);
+int lease_pool_get(struct lease_pool *lp, int *idx);
+void lease_pool_mark(struct lease_pool *lp, int idx);
+int lease_pool_release(struct lease_pool *lp, int idx);
+void lease_pool_destroy(struct lease_pool *lp);
