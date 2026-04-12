@@ -23,6 +23,7 @@
 #include <sched.h>
 #include "list_head.h"
 #include "gtp_stddef.h"
+#include "gtp_range_partition.h"
 
 #define GTP_CPU_SCHED_DEFAULT_WEIGHT	100
 #define GTP_CPU_SCHED_DEFAULT_WINDOW	25	/* 5s at 200ms/sample */
@@ -51,6 +52,12 @@ enum gtp_cpu_sched_metric {
 	GTP_CPU_SCHED_M_BW,
 	GTP_CPU_SCHED_M_PPS,
 	GTP_CPU_SCHED_NR_METRICS,
+};
+
+/* Range-partition binding: maps CPU rank to rp part */
+struct gtp_cpu_sched_rp_map {
+	struct gtp_range_partition	*rp;
+	struct list_head		next;
 };
 
 /* CBS constraint modes */
@@ -87,6 +94,10 @@ struct gtp_cpu_sched_group {
 	int			nr_constraints;
 	int			fallback_algo;
 
+	/* range-partition bindings: CPU rank -> rp part index */
+	struct list_head	rp_maps;
+	int			nr_rp_maps;
+
 	unsigned long		debug;
 
 	struct list_head	next;
@@ -97,6 +108,9 @@ void gtp_cpu_sched_foreach(int (*fn)(struct gtp_cpu_sched_group *, void *), void
 
 /* Prototypes */
 int gtp_cpu_sched_elect(struct gtp_cpu_sched_group *grp);
+struct gtp_range_part *gtp_cpu_sched_get_part(struct gtp_cpu_sched_group *grp,
+					      struct gtp_range_partition *rp,
+					      int cpu);
 struct gtp_cpu_sched_group *gtp_cpu_sched_get(const char *name);
 struct gtp_cpu_sched_group *gtp_cpu_sched_alloc(const char *name);
 void gtp_cpu_sched_group_destroy(struct gtp_cpu_sched_group *grp);

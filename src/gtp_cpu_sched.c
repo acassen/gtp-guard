@@ -676,6 +676,7 @@ gtp_cpu_sched_alloc(const char *name)
 	bsd_strlcpy(grp->name, name, GTP_NAME_MAX_LEN);
 	grp->algo = GTP_CPU_SCHED_WLC;
 	CPU_ZERO(&grp->cpumask);
+	INIT_LIST_HEAD(&grp->rp_maps);
 	INIT_LIST_HEAD(&grp->next);
 
 	grp->weights = calloc(nr_cpus_possible, sizeof(int));
@@ -703,9 +704,31 @@ gtp_cpu_sched_alloc(const char *name)
 	return grp;
 }
 
+struct gtp_range_part *
+gtp_cpu_sched_get_part(struct gtp_cpu_sched_group *grp,
+		       struct gtp_range_partition *rp, int cpu)
+{
+	int c, idx = 0;
+
+	cpuset_for_each(c, grp->cpumask, nr_cpus_possible) {
+		if (c == cpu)
+			return gtp_range_partition_get_part_by_index(rp, idx);
+		idx++;
+	}
+	return NULL;
+}
+
 void
 gtp_cpu_sched_group_destroy(struct gtp_cpu_sched_group *grp)
 {
+	struct gtp_cpu_sched_rp_map *m, *tmp;
+
+	list_for_each_entry_safe(m, tmp, &grp->rp_maps, next) {
+		m->rp->refcnt--;
+		list_del(&m->next);
+		free(m);
+	}
+
 	list_head_del(&grp->next);
 	free(grp->weights);
 	free(grp);

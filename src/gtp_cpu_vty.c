@@ -27,6 +27,7 @@
 #include "cpu.h"
 #include "gtp_cpu.h"
 #include "gtp_cpu_sched.h"
+#include "gtp_range_partition.h"
 
 /* Extern data */
 extern struct cpu_load *cpu_load;
@@ -709,6 +710,84 @@ vty_out_cpumask(struct vty *vty, const cpu_set_t *mask)
 	vty_out(vty, "%s", VTY_NEWLINE);
 }
 
+/*
+ *	Range-partition binding commands
+ */
+DEFUN(cpu_sched_bind_rp,
+      cpu_sched_bind_rp_cmd,
+      "cpumask bind range-partition WORD",
+      "CPU mask operations\n"
+      "Bind keyword\n"
+      "Range partition keyword\n"
+      "Range partition name")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	struct gtp_cpu_sched_rp_map *m;
+	struct gtp_range_partition *rp;
+
+	rp = gtp_range_partition_get(argv[0]);
+	if (!rp) {
+		vty_out(vty, "%% unknown range-partition '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* Reject duplicate */
+	list_for_each_entry(m, &grp->rp_maps, next) {
+		if (m->rp == rp) {
+			vty_out(vty, "%% range-partition '%s' already bound%s"
+				   , argv[0], VTY_NEWLINE);
+			return CMD_WARNING;
+		}
+	}
+
+	if (grp->nr_cpus && rp->nr_parts && grp->nr_cpus != rp->nr_parts)
+		vty_out(vty, "%% Warning: cpumask has %d CPUs but partition has %d parts, "
+			     "only min(%d,%d) mappings active%s"
+			   , grp->nr_cpus, rp->nr_parts
+			   , grp->nr_cpus, rp->nr_parts
+			   , VTY_NEWLINE);
+
+	m = calloc(1, sizeof(*m));
+	if (!m) {
+		vty_out(vty, "%% Out of memory%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	m->rp = rp;
+	rp->refcnt++;
+	list_add_tail(&m->next, &grp->rp_maps);
+	grp->nr_rp_maps++;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_cpu_sched_bind_rp,
+      no_cpu_sched_bind_rp_cmd,
+      "no cpumask bind range-partition WORD",
+      "Remove binding\n"
+      "CPU mask operations\n"
+      "Bind keyword\n"
+      "Range partition keyword\n"
+      "Range partition name")
+{
+	struct gtp_cpu_sched_group *grp = vty->index;
+	struct gtp_cpu_sched_rp_map *m, *tmp;
+
+	list_for_each_entry_safe(m, tmp, &grp->rp_maps, next) {
+		if (strncmp(m->rp->name, argv[0], GTP_NAME_MAX_LEN - 1))
+			continue;
+		m->rp->refcnt--;
+		list_del(&m->next);
+		free(m);
+		grp->nr_rp_maps--;
+		return CMD_SUCCESS;
+	}
+
+	vty_out(vty, "%% range-partition '%s' not bound%s", argv[0], VTY_NEWLINE);
+	return CMD_WARNING;
+}
+
+
 static int
 cpu_sched_config_write_group(struct gtp_cpu_sched_group *grp, void *arg)
 {
@@ -754,6 +833,11 @@ cpu_sched_config_write_group(struct gtp_cpu_sched_group *grp, void *arg)
 			   , cpu, grp->weights[cpu], VTY_NEWLINE);
 	}
 
+	struct gtp_cpu_sched_rp_map *m;
+	list_for_each_entry(m, &grp->rp_maps, next)
+		vty_out(vty, " cpumask bind range-partition %s%s"
+			   , m->rp->name, VTY_NEWLINE);
+
 	vty_out(vty, "!%s", VTY_NEWLINE);
 	return 0;
 }
@@ -791,6 +875,8 @@ cmd_ext_cpu_sched_install(void)
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_constraint_cmd);
 	install_element(CPU_SCHED_NODE, &cpu_sched_fallback_cmd);
 	install_element(CPU_SCHED_NODE, &no_cpu_sched_fallback_cmd);
+	install_element(CPU_SCHED_NODE, &cpu_sched_bind_rp_cmd);
+	install_element(CPU_SCHED_NODE, &no_cpu_sched_bind_rp_cmd);
 
 	/* Show commands */
 	install_element(VIEW_NODE, &show_system_cpu_cmd);
