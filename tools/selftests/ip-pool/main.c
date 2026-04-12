@@ -158,7 +158,7 @@ test_fragmented(struct ip_pool *pool, int num_ops)
 	stats.free_time_usec = end - start;
 
 	printf("Pool after fragmentation: %u used / %u total (%.1f%% full)\n",
-	       pool->used, pool->size, (pool->used * 100.0) / pool->size);
+	       pool->pool.used, pool->pool.size, (pool->pool.used * 100.0) / pool->pool.size);
 
 	/* Reallocate to measure fragmented performance */
 	start = get_usec();
@@ -214,7 +214,7 @@ test_random_churn(struct ip_pool *pool, int num_ops)
 	stats.alloc_time_usec = end - start;
 
 	printf("Pool at 70%% capacity: %u used / %u total\n",
-	       pool->used, pool->size);
+	       pool->pool.used, pool->pool.size);
 
 	/* Randomly free 30% and reallocate to simulate churn */
 	start = get_usec();
@@ -225,7 +225,7 @@ test_random_churn(struct ip_pool *pool, int num_ops)
 	stats.free_time_usec = end - start;
 
 	printf("After partial free: %u used / %u total (%.1f%% full)\n",
-	       pool->used, pool->size, (pool->used * 100.0) / pool->size);
+	       pool->pool.used, pool->pool.size, (pool->pool.used * 100.0) / pool->pool.size);
 
 	/* Reallocate freed slots */
 	start = get_usec();
@@ -327,7 +327,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "error while allocating ip_pool for IPv6\n");
 		exit(-1);
 	}
-	printf("IPv6 ip_pool->size: %d\n", p6->size);
+	printf("IPv6 ip_pool->size: %d\n", p6->pool.size);
 	addr6 = calloc(NR_ALLOC, sizeof(struct in6_addr));
 	for (i = 0; i < NR_ALLOC; i++) {
 		ip_pool_get(p6, &addr6[i]);
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
 			printf("Releasing pfx6 : %s\n",
 			       inet_ntop(AF_INET6, &addr6[i], addr_str, INET6_ADDRSTRLEN));
 	}
-	printf("IPv6 ip_pool->used: %d\n", p6->used);
+	printf("IPv6 ip_pool->used: %d\n", p6->pool.used);
 	ip_pool_destroy(p6);
 
 	/* IPv4 playground */
@@ -362,7 +362,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "error while allocating ip_pool for IPv4\n");
 		exit(-1);
 	}
-	printf("IPv4 ip_pool->size: %d\n", p4->size);
+	printf("IPv4 ip_pool->size: %d\n", p4->pool.size);
 	addr4 = calloc(NR_ALLOC, sizeof(struct in_addr));
 	for (i = 0; i < NR_ALLOC; i++) {
 		ip_pool_get(p4, &addr4[i]);
@@ -376,7 +376,7 @@ int main(int argc, char **argv)
 			printf("Releasing pfx4 : %s\n",
 			       inet_ntop(AF_INET, &addr4[i], addr_str, INET6_ADDRSTRLEN));
 	}
-	printf("IPv4 ip_pool->used: %d\n", p4->used);
+	printf("IPv4 ip_pool->used: %d\n", p4->pool.used);
 	ip_pool_destroy(p4);
 
 	printf("\n\n");
@@ -393,12 +393,12 @@ int main(int argc, char **argv)
 
 	printf("\nTest Pool Configuration:\n");
 	printf("  Prefix: %s\n", ip4_pfx_str);
-	printf("  Total addresses: %u\n", ptest->size);
-	printf("  LRU ring size: %u entries\n", ptest->lru.size);
+	printf("  Total addresses: %u\n", ptest->pool.size);
+	printf("  LRU ring size: %u entries\n", ptest->pool.lru.size);
 	printf("  Memory overhead: %lu bytes (%.2f%%)\n",
-	       ptest->lru.size * sizeof(int),
-	       (ptest->lru.size * sizeof(int) * 100.0) /
-	       (ptest->size * sizeof(bool)));
+	       ptest->pool.lru.size * sizeof(int),
+	       (ptest->pool.lru.size * sizeof(int) * 100.0) /
+	       (ptest->pool.size * sizeof(bool)));
 
 	printf("\n───────────── Test 1: Sequential (baseline) ─────────────────\n");
 	test_sequential(ptest, NR_ALLOC);
