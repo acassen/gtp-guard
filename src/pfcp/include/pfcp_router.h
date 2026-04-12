@@ -25,8 +25,7 @@
 #include "gtp_server.h"
 #include "pfcp_bpf.h"
 #include "gtp_bpf_prog.h"
-
-struct gtp_cpu_sched_group;
+#include "gtp_cpu_sched.h"
 
 #define PFCP_ROUTER_DELAYED	2
 #define PFCP_PEER_MAX		16
@@ -86,6 +85,9 @@ struct pfcp_router {
 	uint64_t		seed;
 	struct gtp_cpu_sched_group *cpu_sched;
 
+	/* indexed by gtp_range_partition_type */
+	struct gtp_range_partition *rp[GTP_RANGE_PARTITION_TYPE_MAX];
+
 	unsigned long		flags;
 
 	struct list_head	next;
@@ -108,5 +110,6 @@ bool pfcp_router_inuse(void);
 void pfcp_router_foreach(int (*hdl) (struct pfcp_router *, void *), void *arg);
 struct pfcp_router *pfcp_router_get(const char *name);
 struct pfcp_router *pfcp_router_alloc(const char *name);
+struct gtp_range_partition *pfcp_router_rp_get(struct pfcp_router *router, int type);
 void pfcp_router_ctx_destroy(struct pfcp_router *ctx);
 void pfcp_router_destroy(void);

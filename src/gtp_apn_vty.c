@@ -25,6 +25,7 @@
 #include "gtp_utils.h"
 #include "gtp_data.h"
 #include "gtp_cpu_sched.h"
+#include "gtp_range_partition.h"
 #include "command.h"
 #include "utils.h"
 #include "bitops.h"
@@ -900,6 +901,72 @@ DEFUN(apn_no_ip_pool,
 	return CMD_SUCCESS;
 }
 
+DEFUN(apn_range_partition,
+      apn_range_partition_cmd,
+      "range-partition WORD",
+      "Bind range partition (one per type)\n"
+      "Range partition name")
+{
+	struct gtp_apn *apn = vty->index;
+	struct gtp_range_partition *rp;
+
+	rp = gtp_range_partition_get(argv[0]);
+	if (!rp) {
+		vty_out(vty, "%% unknown range-partition '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (apn->rp[rp->type]) {
+		vty_out(vty, "%% a range-partition of type '%s' is already bound%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (rp->type == GTP_RANGE_PARTITION_IPV4 &&
+	    gtp_apn_ip_pool_get_by_family(apn, AF_INET)) {
+		vty_out(vty, "%% IPv4 ip-pool already configured, cannot bind IPv4 range-partition%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (rp->type == GTP_RANGE_PARTITION_IPV6 &&
+	    gtp_apn_ip_pool_get_by_family(apn, AF_INET6)) {
+		vty_out(vty, "%% IPv6 ip-pool already configured, cannot bind IPv6 range-partition%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_apn_rp_set(apn, rp);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_apn_range_partition,
+      no_apn_range_partition_cmd,
+      "no range-partition WORD",
+      "Remove range partition binding\n"
+      "Range partition name")
+{
+	struct gtp_apn *apn = vty->index;
+	struct gtp_range_partition *rp;
+
+	rp = gtp_range_partition_get(argv[0]);
+	if (!rp) {
+		vty_out(vty, "%% unknown range-partition '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (apn->rp[rp->type] != rp) {
+		vty_out(vty, "%% range-partition '%s' not bound%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	gtp_apn_rp_clear(apn, rp->type);
+	return CMD_SUCCESS;
+}
+
 DEFUN(apn_ip_vrf_forwarding,
       apn_ip_vrf_forwarding_cmd,
       "ip vrf forwarding STRING",
@@ -1231,6 +1298,7 @@ apn_config_write(struct vty *vty)
 		if (apn->cpu_sched)
 			vty_out(vty, " cpu-sched %s%s"
 				   , apn->cpu_sched->name, VTY_NEWLINE);
+		gtp_range_partition_vty_config_write(vty, apn->rp);
 		gtp_apn_hplmn_vty(vty, apn);
 
         	vty_out(vty, "!%s", VTY_NEWLINE);
@@ -1273,6 +1341,8 @@ cmd_ext_apn_install(void)
 	install_element(APN_NODE, &apn_pco_selected_bearer_control_mode_cmd);
 	install_element(APN_NODE, &apn_ip_pool_cmd);
 	install_element(APN_NODE, &apn_no_ip_pool_cmd);
+	install_element(APN_NODE, &apn_range_partition_cmd);
+	install_element(APN_NODE, &no_apn_range_partition_cmd);
 	install_element(APN_NODE, &apn_ip_vrf_forwarding_cmd);
 	install_element(APN_NODE, &apn_gtp_session_uniq_ptype_cmd);
 	install_element(APN_NODE, &apn_hplmn_cmd);

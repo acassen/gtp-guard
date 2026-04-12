@@ -353,6 +353,18 @@ DEFUN(show_range_partition,
 /*
  *	Configuration writer
  */
+void
+gtp_range_partition_vty_config_write(struct vty *vty, struct gtp_range_partition **rp)
+{
+	int i;
+
+	for (i = 0; i < GTP_RANGE_PARTITION_TYPE_MAX; i++) {
+		if (!rp[i])
+			continue;
+		vty_out(vty, " range-partition %s%s", rp[i]->name, VTY_NEWLINE);
+	}
+}
+
 static void
 range_partition_config_write_parts(struct vty *vty, struct gtp_range_partition *rp)
 {

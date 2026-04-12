@@ -24,6 +24,7 @@
 #include <errno.h>
 
 #include "gtp_data.h"
+#include "gtp_range_partition.h"
 #include "pfcp_router.h"
 #include "pfcp_teid.h"
 #include "pfcp_server.h"
@@ -230,6 +231,7 @@ pfcp_router_alloc(const char *name)
 	INIT_LIST_HEAD(&new->static_fwd_rules);
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
 	new->seed = poor_prng((unsigned int *) &now);
+	memset(new->rp, 0, sizeof(new->rp));
 	new->teid = pfcp_teid_init();
 	pfcp_router_set_up_features(new);
 
@@ -246,9 +248,24 @@ pfcp_router_alloc(const char *name)
 	return new;
 }
 
+struct gtp_range_partition *
+pfcp_router_rp_get(struct pfcp_router *router, int type)
+{
+	if (type < 0 || type >= GTP_RANGE_PARTITION_TYPE_MAX)
+		return NULL;
+	return router->rp[type];
+}
+
 void
 pfcp_router_ctx_destroy(struct pfcp_router *c)
 {
+	int i;
+
+	for (i = 0; i < GTP_RANGE_PARTITION_TYPE_MAX; i++) {
+		if (c->rp[i])
+			c->rp[i]->refcnt--;
+	}
+
 	list_del(&c->bpf_list);
 	list_del(&c->next);
 	pfcp_server_destroy(&c->s);

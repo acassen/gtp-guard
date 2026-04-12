@@ -26,6 +26,7 @@
 #include "id_pool.h"
 #include "ip_pool.h"
 #include "list_head.h"
+#include "vty.h"
 
 enum gtp_range_partition_type {
 	GTP_RANGE_PARTITION_TEID,
@@ -66,3 +67,4 @@ int gtp_range_partition_add_part(struct gtp_range_partition *rp, int part_id, vo
 int gtp_range_partition_del_part(struct gtp_range_partition *rp, int part_id);
 int gtp_range_partition_split(struct gtp_range_partition *rp, const char *range_str, int count);
 int gtp_range_partition_split_clear(struct gtp_range_partition *rp);
+void gtp_range_partition_vty_config_write(struct vty *vty, struct gtp_range_partition **rp);

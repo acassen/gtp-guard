@@ -36,6 +36,7 @@
 #include "logger.h"
 #include "utils.h"
 #include "gtp_cpu_sched.h"
+#include "gtp_range_partition.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -887,6 +888,68 @@ DEFUN(no_pfcp_cpu_sched,
 }
 
 
+DEFUN(pfcp_range_partition,
+      pfcp_range_partition_cmd,
+      "range-partition WORD",
+      "Bind range partition (one per type)\n"
+      "Range partition name")
+{
+	struct pfcp_router *c = vty->index;
+	struct gtp_range_partition *rp;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	rp = gtp_range_partition_get(argv[0]);
+	if (!rp) {
+		vty_out(vty, "%% unknown range-partition '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (c->rp[rp->type]) {
+		vty_out(vty, "%% a range-partition of type '%s' is already bound%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	c->rp[rp->type] = rp;
+	rp->refcnt++;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_pfcp_range_partition,
+      no_pfcp_range_partition_cmd,
+      "no range-partition WORD",
+      "Remove range partition binding\n"
+      "Range partition name")
+{
+	struct pfcp_router *c = vty->index;
+	struct gtp_range_partition *rp;
+
+	if (argc < 1) {
+		vty_out(vty, "%% missing arguments%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	rp = gtp_range_partition_get(argv[0]);
+	if (!rp) {
+		vty_out(vty, "%% unknown range-partition '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (c->rp[rp->type] != rp) {
+		vty_out(vty, "%% range-partition '%s' not bound%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	c->rp[rp->type] = NULL;
+	rp->refcnt--;
+	return CMD_SUCCESS;
+}
+
+
 /*
  *	Configuration writer
  */
@@ -920,6 +983,7 @@ config_pfcp_router_write(struct vty *vty)
 		if (c->cpu_sched)
 			vty_out(vty, " cpu-sched %s%s"
 				   , c->cpu_sched->name, VTY_NEWLINE);
+		gtp_range_partition_vty_config_write(vty, c->rp);
 
 		if (__test_bit(PFCP_ROUTER_FL_STRICT_APN, &c->flags))
 			vty_out(vty, " strict-apn%s", VTY_NEWLINE);
@@ -996,6 +1060,8 @@ cmd_ext_pfcp_router_install(void)
 	install_element(PFCP_ROUTER_NODE, &pfcp_gtpu_tunnel_endpoint_bind_cmd);
 	install_element(PFCP_ROUTER_NODE, &pfcp_cpu_sched_cmd);
 	install_element(PFCP_ROUTER_NODE, &no_pfcp_cpu_sched_cmd);
+	install_element(PFCP_ROUTER_NODE, &pfcp_range_partition_cmd);
+	install_element(PFCP_ROUTER_NODE, &no_pfcp_range_partition_cmd);
 
 	/* Install show commands. */
 	install_element(VIEW_NODE, &show_pfcp_assoc_cmd);

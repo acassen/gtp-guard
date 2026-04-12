@@ -28,8 +28,7 @@
 #include "gtp_ip_pool.h"
 #include "gtp_cdr.h"
 #include "gtp_cdr_spool.h"
-
-struct gtp_cpu_sched_group;
+#include "gtp_cpu_sched.h"
 
 /* defines */
 #define GTP_APN_MAX_LEN		256
@@ -131,6 +130,7 @@ struct gtp_apn {
 	time_t			last_update;
 
 	struct gtp_cpu_sched_group *cpu_sched;
+	struct gtp_range_partition *rp[GTP_RANGE_PARTITION_TYPE_MAX]; /* indexed by gtp_range_partition_type */
 
 	struct list_head	next;
 
@@ -156,6 +156,9 @@ struct gtp_apn_ip_pool *gtp_apn_ip_pool_get_by_family(struct gtp_apn *apn,
 int gtp_apn_ip_pool_alloc(struct gtp_apn *apn, const char *name);
 int gtp_apn_ip_pool_free(struct gtp_apn_ip_pool *ap);
 struct gtp_apn *gtp_apn_alloc(const char *);
+struct gtp_range_partition *gtp_apn_rp_get(struct gtp_apn *apn, int type);
+int gtp_apn_rp_set(struct gtp_apn *apn, struct gtp_range_partition *rp);
+int gtp_apn_rp_clear(struct gtp_apn *apn, int type);
 struct gtp_pco *gtp_apn_pco(struct gtp_apn *);
 int gtp_apn_destroy(void);
 struct gtp_apn *gtp_apn_get(const char *);

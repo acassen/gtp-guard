@@ -34,6 +34,7 @@
 #include "gtp_apn.h"
 #include "gtp_resolv.h"
 #include "gtp_utils.h"
+#include "gtp_range_partition.h"
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -427,7 +428,8 @@ gtp_apn_alloc(const char *name)
 	INIT_LIST_HEAD(&new->hplmn);
 	INIT_LIST_HEAD(&new->ip_pool);
 	INIT_LIST_HEAD(&new->next);
-        pthread_mutex_init(&new->mutex, NULL);
+	memset(new->rp, 0, sizeof(new->rp));
+	pthread_mutex_init(&new->mutex, NULL);
 	bsd_strlcpy(new->name, name, GTP_APN_MAX_LEN - 1);
 
 	/* FIXME: lookup before insert */
@@ -448,13 +450,46 @@ gtp_apn_pco(struct gtp_apn *apn)
 	return apn->pco;
 }
 
+struct gtp_range_partition *
+gtp_apn_rp_get(struct gtp_apn *apn, int type)
+{
+	if (type < 0 || type >= GTP_RANGE_PARTITION_TYPE_MAX)
+		return NULL;
+	return apn->rp[type];
+}
+
+int
+gtp_apn_rp_set(struct gtp_apn *apn, struct gtp_range_partition *rp)
+{
+	if (rp->type < 0 || rp->type >= GTP_RANGE_PARTITION_TYPE_MAX)
+		return -1;
+	apn->rp[rp->type] = rp;
+	rp->refcnt++;
+	return 0;
+}
+
+int
+gtp_apn_rp_clear(struct gtp_apn *apn, int type)
+{
+	if (type < 0 || type >= GTP_RANGE_PARTITION_TYPE_MAX || !apn->rp[type])
+		return -1;
+	apn->rp[type]->refcnt--;
+	apn->rp[type] = NULL;
+	return 0;
+}
+
 int
 gtp_apn_destroy(void)
 {
 	struct list_head *l = &daemon_data->gtp_apn;
 	struct gtp_apn *apn, *_apn;
+	int i;
 
 	list_for_each_entry_safe(apn, _apn, l, next) {
+		for (i = 0; i < GTP_RANGE_PARTITION_TYPE_MAX; i++) {
+			if (apn->rp[i])
+				apn->rp[i]->refcnt--;
+		}
 		gtp_service_destroy(apn);
 		gtp_rewrite_rule_destroy(apn, &apn->imsi_match);
 		gtp_rewrite_rule_destroy(apn, &apn->oi_match);
