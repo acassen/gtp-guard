@@ -24,6 +24,7 @@
 
 #include "gtp_data.h"
 #include "gtp_interface.h"
+#include "gtp_flow_steering.h"
 #include "gtp_netlink.h"
 #include "gtp_bpf_rt.h"
 #include "addr.h"
@@ -404,6 +405,7 @@ gtp_interface_alloc(const char *name, int ifindex)
 
 	snprintf(iface->ifname, sizeof (iface->ifname), "%s", name);
 	iface->ifindex = ifindex;
+	INIT_LIST_HEAD(&iface->flow_steering_list);
 	__set_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags);
 	list_add_tail(&iface->next, &daemon_data->interfaces);
 
@@ -426,6 +428,14 @@ gtp_interface_destroy(struct gtp_interface *iface)
 		if (if_child->link_iface == iface)
 			if_child->link_iface = NULL;
 	}
+	/* Release all flow-steering policy bindings */
+	struct gtp_interface_flow_steering *ifs, *_ifs;
+	list_for_each_entry_safe(ifs, _ifs, &iface->flow_steering_list, next) {
+		ifs->fsp->refcnt--;
+		list_del(&ifs->next);
+		free(ifs);
+	}
+
 	if (iface->bpf_prog)
 		list_del(&iface->bpf_prog_list);
 	FREE_PTR(iface->link_metrics);

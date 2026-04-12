@@ -30,6 +30,7 @@
 #include "gtp_bpf_ifrules.h"
 #include "gtp_interface.h"
 #include "gtp_interface_rxq.h"
+#include "gtp_flow_steering.h"
 #include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
@@ -719,6 +720,116 @@ DEFUN(show_interface_stats,
 }
 
 
+/*
+ *	Flow-steering policy binding commands (INTERFACE_NODE)
+ */
+DEFUN(interface_flow_steering,
+      interface_flow_steering_cmd,
+      "flow-steering-policy WORD",
+      "Bind flow steering policy to interface\n"
+      "Policy name")
+{
+	struct gtp_interface *iface = vty->index;
+	struct gtp_interface_flow_steering *ifs;
+	struct gtp_flow_steering_policy *fsp;
+
+	fsp = gtp_flow_steering_get(argv[0]);
+	if (!fsp) {
+		vty_out(vty, "%% unknown flow-steering-policy '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	/* Check for duplicate */
+	list_for_each_entry(ifs, &iface->flow_steering_list, next) {
+		if (ifs->fsp == fsp) {
+			vty_out(vty, "%% flow-steering-policy '%s' already bound%s"
+				   , argv[0], VTY_NEWLINE);
+			return CMD_WARNING;
+		}
+	}
+
+	if (fsp->nr_queue_ids > (int)iface->nr_rx_queues && iface->nr_rx_queues)
+		vty_out(vty, "%% Warning: policy has %d queue-ids but interface has %u rx queues%s"
+			   , fsp->nr_queue_ids, iface->nr_rx_queues, VTY_NEWLINE);
+
+	/* TODO: to be integrated with netlink flower subsystem */
+
+	ifs = calloc(1, sizeof(*ifs));
+	if (!ifs) {
+		vty_out(vty, "%% out-of-memory%s", VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	ifs->fsp = fsp;
+	fsp->refcnt++;
+	list_add_tail(&ifs->next, &iface->flow_steering_list);
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_interface_flow_steering,
+      no_interface_flow_steering_cmd,
+      "no flow-steering-policy WORD",
+      "Remove flow steering policy binding\n"
+      "Policy name")
+{
+	struct gtp_interface *iface = vty->index;
+	struct gtp_interface_flow_steering *ifs, *_ifs;
+	struct gtp_flow_steering_policy *fsp;
+
+	fsp = gtp_flow_steering_get(argv[0]);
+	if (!fsp) {
+		vty_out(vty, "%% unknown flow-steering-policy '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	list_for_each_entry_safe(ifs, _ifs, &iface->flow_steering_list, next) {
+		if (ifs->fsp != fsp)
+			continue;
+		fsp->refcnt--;
+		list_del(&ifs->next);
+		free(ifs);
+		return CMD_SUCCESS;
+	}
+
+	vty_out(vty, "%% flow-steering-policy '%s' not bound%s"
+		   , argv[0], VTY_NEWLINE);
+	return CMD_WARNING;
+}
+
+DEFUN(show_interface_flow_steering,
+      show_interface_flow_steering_cmd,
+      "show interface WORD flow-steering",
+      SHOW_STR
+      "Interface\n"
+      "Interface name\n"
+      "Bound flow steering policies")
+{
+	struct gtp_interface *iface;
+	struct gtp_interface_flow_steering *ifs;
+
+	iface = gtp_interface_get(argv[0], false);
+	if (!iface) {
+		vty_out(vty, "%% unknown interface '%s'%s"
+			   , argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vty_out(vty, "interface %s  rx-queues=%u%s"
+		   , iface->ifname, iface->nr_rx_queues, VTY_NEWLINE);
+
+	list_for_each_entry(ifs, &iface->flow_steering_list, next)
+		vty_out(vty, "  flow-steering-policy %s  queues=%d  maps=%d%s"
+			   , ifs->fsp->name, ifs->fsp->nr_queue_ids, ifs->fsp->nr_maps
+			   , VTY_NEWLINE);
+
+	/* TODO: display netlink flower channel feedback too */
+
+	return CMD_SUCCESS;
+}
+
+
 /* Configuration writer */
 static int
 interface_config_write(struct vty *vty)
@@ -751,6 +862,10 @@ interface_config_write(struct vty *vty)
 			vty_out(vty, " metrics ipip%s", VTY_NEWLINE);
 		if (__test_bit(GTP_INTERFACE_FL_METRICS_LINK_BIT, &iface->flags))
 			vty_out(vty, " metrics link%s", VTY_NEWLINE);
+		struct gtp_interface_flow_steering *ifs;
+		list_for_each_entry(ifs, &iface->flow_steering_list, next)
+			vty_out(vty, " flow-steering-policy %s%s"
+				   , ifs->fsp->name, VTY_NEWLINE);
   		vty_out(vty, " %sshutdown%s"
 			   , __test_bit(GTP_INTERFACE_FL_SHUTDOWN_BIT, &iface->flags) ? "" : "no "
 			   , VTY_NEWLINE);
@@ -787,6 +902,8 @@ cmd_ext_interface_install(void)
 	install_element(INTERFACE_NODE, &no_interface_metrics_link_cmd);
 	install_element(INTERFACE_NODE, &interface_shutdown_cmd);
 	install_element(INTERFACE_NODE, &interface_no_shutdown_cmd);
+	install_element(INTERFACE_NODE, &interface_flow_steering_cmd);
+	install_element(INTERFACE_NODE, &no_interface_flow_steering_cmd);
 
 	/* Install capture commands */
 	install_element(ENABLE_NODE, &capture_start_interface_cmd);
@@ -803,6 +920,8 @@ cmd_ext_interface_install(void)
 	install_element(ENABLE_NODE, &show_interface_stats_all_cmd);
 	install_element(VIEW_NODE, &show_interface_stats_cmd);
 	install_element(ENABLE_NODE, &show_interface_stats_cmd);
+	install_element(VIEW_NODE, &show_interface_flow_steering_cmd);
+	install_element(ENABLE_NODE, &show_interface_flow_steering_cmd);
 
 	return 0;
 }

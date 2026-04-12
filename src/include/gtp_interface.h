@@ -43,6 +43,12 @@ typedef void (*gtp_interface_event_cb_t)(struct gtp_interface *,
 					 void *arg);
 struct gtp_interface_event_storage;
 struct gtp_bpf_ifrules;
+struct gtp_flow_steering_policy;
+
+struct gtp_interface_flow_steering {
+	struct gtp_flow_steering_policy	*fsp;
+	struct list_head		next;
+};
 
 enum gtp_interface_tunnel_mode {
 	GTP_INTERFACE_TUN_NONE = 0,
@@ -119,6 +125,9 @@ struct gtp_interface {
 
 	/* packet capture */
 	struct gtp_capture_entry	capture_entry;
+
+	/* flow-steering policies bound to this interface */
+	struct list_head		flow_steering_list;
 
 	struct list_head		next;
 	unsigned long			flags;
