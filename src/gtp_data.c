@@ -29,6 +29,7 @@
 #include "gtp_mirror.h"
 #include "gtp_interface.h"
 #include "gtp_cpu.h"
+#include "gtp_range_partition.h"
 #include "cgn.h"
 #include "pfcp.h"
 #include "memory.h"
@@ -61,6 +62,8 @@ alloc_daemon_data(void)
 	INIT_LIST_HEAD(&new->gtp_router_ctx);
 	INIT_LIST_HEAD(&new->pfcp_peers);
 	INIT_LIST_HEAD(&new->pfcp_router_ctx);
+	INIT_LIST_HEAD(&new->range_partition);
+	INIT_LIST_HEAD(&new->flow_steering);
 	gtp_cpu_init();
 	gtp_bpf_progs_init();
 	pppoe_init();
@@ -90,6 +93,7 @@ free_daemon_data(void)
 	gtp_mirrors_destroy();
 	gtp_cdr_spool_destroy(NULL);
 	gtp_apn_destroy();
+	gtp_range_partition_destroy();
 	gtp_ip_pool_destroy();
 	cgn_destroy();
 	gtp_cpu_destroy();

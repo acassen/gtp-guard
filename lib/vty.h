@@ -135,6 +135,19 @@ do {									\
 #define VTY_GET_INTEGER(NAME,V,STR) \
 	VTY_GET_INTEGER_RANGE(NAME,V,STR,0U,UINT32_MAX)
 
+#define VTY_GET_UINT32(NAME,V,STR)					\
+do {									\
+  char *endptr = NULL;							\
+  unsigned long tmpl;							\
+  errno = 0;								\
+  tmpl = strtoul((STR), &endptr, 0);					\
+  if (*(STR) == '-' || *endptr != '\0' || errno || tmpl > UINT32_MAX) { \
+      vty_out(vty, "%% Invalid %s value%s", NAME, VTY_NEWLINE);		\
+      return CMD_WARNING;						\
+    }									\
+  (V) = (uint32_t)tmpl;							\
+} while (0)
+
 #define VTY_GET_IPV4_ADDRESS(NAME,V,STR)				\
 do {									\
   int retv;								\

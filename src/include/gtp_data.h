@@ -54,6 +54,8 @@ struct data {
 	struct list_head	gtp_router_ctx;
 	struct list_head	pfcp_peers;;
 	struct list_head	pfcp_router_ctx;;
+	struct list_head	range_partition;
+	struct list_head	flow_steering;
 
 	unsigned long		flags;
 };

@@ -61,6 +61,8 @@ src += files(
   'gtp_utils_uli.c',
   'gtp_ip_pool.c',
   'gtp_ip_pool_vty.c',
+  'gtp_range_partition.c',
+  'gtp_range_partition_vty.c',
   'gtp_ip_vrf.c',
   'gtp_ip_vrf_vty.c',
   'gtp_vty.c',
