@@ -333,6 +333,8 @@ pfcp_teid_free(struct pfcp_teid *t)
 	if (!t)
 		return;
 
+	if (t->src_pool)
+		id_pool_put(t->src_pool, t->id);
 	pfcp_teid_unhash(t);
 	free(t);
 }

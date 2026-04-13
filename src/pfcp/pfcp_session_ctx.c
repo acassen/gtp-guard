@@ -141,6 +141,9 @@ static struct pfcp_teid *
 pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 {
 	struct pfcp_router *r = s->router;
+	struct gtp_cpu_sched_group *grp;
+	struct gtp_range_partition *rp = NULL;
+	struct gtp_range_part *part = NULL;
 	union addr *gtpu_addr = NULL;
 	struct in_addr *ipv4;
 	struct in6_addr *ipv6;
@@ -155,16 +158,30 @@ pfcp_session_alloc_teid(struct pfcp_session *s, uint8_t interface, uint32_t *id)
 	ipv6 = (gtpu_addr->family == AF_INET6) ? &gtpu_addr->sin6.sin6_addr : NULL;
 
 	/* Try to use same TEID for different IP Address */
-	if (!*id)  {
-		new_id = pfcp_teid_roll_the_dice(r->teid, &r->seed, ipv4, ipv6);
-		if (!new_id)
-			return NULL;
+	if (!*id) {
+		rp = gtp_resolve_rp(s->apn, r, GTP_RANGE_PARTITION_TEID);
+		if (rp) {
+			grp = s->apn->cpu_sched ? : r->cpu_sched;
+			part = gtp_cpu_sched_get_part(grp, rp, s->cpu);
+			if (!part || id_pool_get(part->id_pool, &new_id))
+				return NULL;
+		} else {
+			new_id = pfcp_teid_roll_the_dice(r->teid, &r->seed, ipv4, ipv6);
+			if (!new_id)
+				return NULL;
+		}
 		*id = new_id;
 	}
 
 	t = pfcp_teid_alloc(r->teid, &r->seed, interface, *id, ipv4, ipv6);
-	if (!t)
+	if (!t) {
+		if (part)
+			id_pool_put(part->id_pool, *id);
 		return NULL;
+	}
+
+	if (part)
+		t->src_pool = part->id_pool;
 
 	__sync_add_and_fetch(&s->teid_cnt, 1);
 	return t;

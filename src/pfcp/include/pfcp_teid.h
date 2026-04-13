@@ -24,6 +24,7 @@
 #include <netinet/in.h>
 #include "pfcp_metrics.h"
 #include "pfcp_ie.h"
+#include "id_pool.h"
 #include "list_head.h"
 
 /* Hash table */
@@ -48,6 +49,8 @@ struct pfcp_teid {
 	struct in_addr		ipv4;
 	struct in6_addr		ipv6;
 	struct pfcp_metrics_pkt	metrics;
+
+	struct id_pool		*src_pool;	/* non-NULL when id came from a range-partition */
 
 	struct hlist_node	hlist;
 
