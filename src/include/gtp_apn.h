@@ -130,7 +130,9 @@ struct gtp_apn {
 	time_t			last_update;
 
 	struct gtp_cpu_sched_group *cpu_sched;
-	struct gtp_range_partition *rp[GTP_RANGE_PARTITION_TYPE_MAX]; /* indexed by gtp_range_partition_type */
+
+	/* indexed by gtp_range_partition_type */
+	struct gtp_range_partition *rp[GTP_RANGE_PARTITION_TYPE_MAX];
 
 	struct list_head	next;
 

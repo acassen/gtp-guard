@@ -232,22 +232,42 @@ pfcp_session_alloc(struct gtp_conn *c, struct gtp_apn *apn, struct pfcp_router *
 	return new;
 }
 
+struct gtp_range_partition *
+gtp_resolve_rp(struct gtp_apn *apn, struct pfcp_router *router, int type)
+{
+	if (apn->rp[type])
+		return apn->rp[type];
+	return pfcp_router_rp_get(router, type);
+}
+
 int
 pfcp_session_alloc_ue_ip(struct pfcp_session *s, sa_family_t af)
 {
 	struct gtp_apn *apn = s->apn;
+	struct gtp_cpu_sched_group *grp;
+	struct gtp_range_partition *rp;
+	struct gtp_range_part *part;
 	struct ue_ip_address *ue_ip = &s->ue_ip;
 	struct in_addr *v4 = &ue_ip->v4;
 	struct in6_addr *v6 = &ue_ip->v6;
 	struct gtp_apn_ip_pool *ap;
 	struct ip_pool *p;
-	int err;
+	int type, err;
 
-	ap = gtp_apn_ip_pool_get_by_family(apn, af);
-	if (!ap)
-		goto nospc;
-
-	p = ap->p->pool;
+	type = (af == AF_INET) ? GTP_RANGE_PARTITION_IPV4 : GTP_RANGE_PARTITION_IPV6;
+	rp = gtp_resolve_rp(apn, s->router, type);
+	if (rp) {
+		grp = apn->cpu_sched ? : s->router->cpu_sched;
+		part = gtp_cpu_sched_get_part(grp, rp, s->cpu);
+		if (!part)
+			goto nospc;
+		p = part->ip_pool;
+	} else {
+		ap = gtp_apn_ip_pool_get_by_family(apn, af);
+		if (!ap)
+			goto nospc;
+		p = ap->p->pool;
+	}
 
 	switch (af) {
 	case AF_INET:
