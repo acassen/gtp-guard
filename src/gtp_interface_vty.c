@@ -31,6 +31,7 @@
 #include "gtp_interface.h"
 #include "gtp_interface_rxq.h"
 #include "gtp_flow_steering.h"
+#include "gtp_netlink_fs.h"
 #include "inet_utils.h"
 #include "command.h"
 #include "bitops.h"
@@ -753,7 +754,10 @@ DEFUN(interface_flow_steering,
 		vty_out(vty, "%% Warning: policy has %d queue-ids but interface has %u rx queues%s"
 			   , fsp->nr_queue_ids, iface->nr_rx_queues, VTY_NEWLINE);
 
-	/* TODO: to be integrated with netlink flower subsystem */
+	/* Install tc flower rules for hardware offload */
+	if (gtp_netlink_fs_install(iface, fsp) < 0)
+		vty_out(vty, "%% Warning: tc flower install failed%s"
+			   , VTY_NEWLINE);
 
 	ifs = calloc(1, sizeof(*ifs));
 	if (!ifs) {
@@ -787,6 +791,7 @@ DEFUN(no_interface_flow_steering,
 	list_for_each_entry_safe(ifs, _ifs, &iface->flow_steering_list, next) {
 		if (ifs->fsp != fsp)
 			continue;
+		gtp_netlink_fs_uninstall(iface, fsp);
 		fsp->refcnt--;
 		list_del(&ifs->next);
 		free(ifs);
@@ -819,12 +824,12 @@ DEFUN(show_interface_flow_steering,
 	vty_out(vty, "interface %s  rx-queues=%u%s"
 		   , iface->ifname, iface->nr_rx_queues, VTY_NEWLINE);
 
-	list_for_each_entry(ifs, &iface->flow_steering_list, next)
+	list_for_each_entry(ifs, &iface->flow_steering_list, next) {
 		vty_out(vty, "  flow-steering-policy %s  queues=%d  maps=%d%s"
 			   , ifs->fsp->name, ifs->fsp->nr_queue_ids, ifs->fsp->nr_maps
 			   , VTY_NEWLINE);
-
-	/* TODO: display netlink flower channel feedback too */
+		gtp_netlink_fs_show(vty, iface, ifs);
+	}
 
 	return CMD_SUCCESS;
 }

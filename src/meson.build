@@ -40,6 +40,7 @@ src += files(
   'gtp_mirror_vty.c',
   'gtp_msg.c',
   'gtp_netlink.c',
+  'gtp_netlink_fs.c',
   'gtp_proxy.c',
   'gtp_proxy_hdl.c',
   'gtp_proxy_hdl_v1.c',

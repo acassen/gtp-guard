@@ -26,6 +26,7 @@
 #include "gtp_interface.h"
 #include "gtp_flow_steering.h"
 #include "gtp_netlink.h"
+#include "gtp_netlink_fs.h"
 #include "gtp_bpf_rt.h"
 #include "addr.h"
 #include "ethtool.h"
@@ -431,6 +432,7 @@ gtp_interface_destroy(struct gtp_interface *iface)
 	/* Release all flow-steering policy bindings */
 	struct gtp_interface_flow_steering *ifs, *_ifs;
 	list_for_each_entry_safe(ifs, _ifs, &iface->flow_steering_list, next) {
+		gtp_netlink_fs_uninstall(iface, ifs->fsp);
 		ifs->fsp->refcnt--;
 		list_del(&ifs->next);
 		free(ifs);
