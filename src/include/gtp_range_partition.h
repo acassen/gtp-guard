@@ -29,7 +29,7 @@
 #include "vty.h"
 
 enum gtp_range_partition_type {
-	GTP_RANGE_PARTITION_TEID,
+	GTP_RANGE_PARTITION_TEID = 0,
 	GTP_RANGE_PARTITION_IPV4,
 	GTP_RANGE_PARTITION_IPV6,
 	GTP_RANGE_PARTITION_TYPE_MAX,
@@ -57,6 +57,7 @@ struct gtp_range_partition {
 };
 
 /* Prototypes */
+const char *range_partition_type2str(int type);
 struct gtp_range_partition *gtp_range_partition_get(const char *name);
 struct gtp_range_partition *gtp_range_partition_alloc(const char *name);
 int gtp_range_partition_free(struct gtp_range_partition *rp);

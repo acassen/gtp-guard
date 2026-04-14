@@ -49,6 +49,11 @@ gtp_netlink_if_lookup(int)
 {
 	return -1;
 }
+int
+gtp_netlink_fs_uninstall(void *, void *)
+{
+	return 0;
+}
 
 /* Local data */
 struct data *daemon_data;

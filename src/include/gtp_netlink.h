@@ -46,6 +46,13 @@ struct nl_handle {
 
 #define RTA_TAIL(rta)	(struct rtattr *) (char *)(rta) + RTA_ALIGN((rta)->rta_len)
 
+/* Shared netlink command channel and helpers */
+extern struct nl_handle nl_cmd;
+void *nl_attr_put(struct nlmsghdr *nlh, int type, const void *data, int len);
+struct nlattr *nl_attr_nest_start(struct nlmsghdr *nlh, int type);
+void nl_attr_nest_end(struct nlmsghdr *nlh, struct nlattr *start);
+int nl_send_and_recv_ack(struct nl_handle *nl, struct nlmsghdr *nlh);
+
 /* Prototypes */
 int gtp_netlink_link_create_veth(const char *name, const char *peer_name);
 int gtp_netlink_link_delete(int ifindex);

@@ -37,6 +37,20 @@ extern struct data *daemon_data;
 /*
  *	Part helpers
  */
+static const char *rp_strs[] = {
+	[GTP_RANGE_PARTITION_TEID] = "TEID",
+	[GTP_RANGE_PARTITION_IPV4] = "IPv4",
+	[GTP_RANGE_PARTITION_IPV6] = "IPv6",
+};
+
+const char *
+range_partition_type2str(int type)
+{
+	if (type >= GTP_RANGE_PARTITION_TYPE_MAX)
+		return "unknown";
+	return rp_strs[type];
+}
+
 static void
 part_pool_destroy(struct gtp_range_partition *rp, struct gtp_range_part *p)
 {

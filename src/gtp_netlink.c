@@ -43,7 +43,7 @@ static int netlink_if_link_del(struct nlmsghdr *h);
 
 /* Local data */
 static struct nl_handle nl_kernel = { .fd = -1 };	/* Kernel reflection channel */
-static struct nl_handle nl_cmd = { .fd = -1 };		/* Kernel command channel */
+struct nl_handle nl_cmd = { .fd = -1 };			/* Kernel command channel */
 
 /* Extern data */
 extern struct data *daemon_data;
@@ -359,7 +359,7 @@ netlink_close(struct nl_handle *nl)
  *	Netlink veth creation
  */
 
-static void *
+void *
 nl_attr_put(struct nlmsghdr *nlh, int type, const void *data, int len)
 {
 	struct nlattr *nla;
@@ -373,19 +373,19 @@ nl_attr_put(struct nlmsghdr *nlh, int type, const void *data, int len)
 	return nla;
 }
 
-static inline struct nlattr *
+struct nlattr *
 nl_attr_nest_start(struct nlmsghdr *nlh, int type)
 {
 	return nl_attr_put(nlh, type, NULL, 0);
 }
 
-static inline void
+void
 nl_attr_nest_end(struct nlmsghdr *nlh, struct nlattr *start)
 {
 	start->nla_len = (char *)nlh + nlh->nlmsg_len - (char *)start;
 }
 
-static int
+int
 nl_send_and_recv_ack(struct nl_handle *nl, struct nlmsghdr *nlh)
 {
 	struct sockaddr_nl sa = { .nl_family = AF_NETLINK };
