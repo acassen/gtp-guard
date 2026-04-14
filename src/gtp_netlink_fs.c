@@ -112,7 +112,7 @@ tc_flower_add_teid_keys(struct nlmsghdr *nlh, struct gtp_range_part *part)
 {
 	uint16_t port = htons(GTP_U_PORT);
 	uint32_t key = htonl(part->id_pool->base);
-	uint32_t mask = htonl(~0U << (32 - part->id_pool->mask_bits));
+	uint32_t mask = inet_bits_to_mask(part->id_pool->mask_bits);
 
 	nl_attr_put(nlh, TCA_FLOWER_KEY_ENC_UDP_DST_PORT, &port, sizeof(port));
 	nl_attr_put(nlh, TCA_FLOWER_KEY_ENC_KEY_ID, &key, sizeof(key));
@@ -122,7 +122,7 @@ tc_flower_add_teid_keys(struct nlmsghdr *nlh, struct gtp_range_part *part)
 static void
 tc_flower_add_ipv4_keys(struct nlmsghdr *nlh, struct gtp_range_part *part)
 {
-	uint32_t mask = htonl(~0U << (32 - part->ip_pool->prefix_bits));
+	uint32_t mask = inet_bits_to_mask(part->ip_pool->prefix_bits);
 
 	nl_attr_put(nlh, TCA_FLOWER_KEY_IPV4_DST,
 		    &part->ip_pool->prefix.sin.sin_addr, sizeof(struct in_addr));

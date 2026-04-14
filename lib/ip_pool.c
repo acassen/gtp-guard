@@ -146,7 +146,7 @@ ip_pool_alloc(const char *ip_pool_str)
 		size = ((1U << (64 - new->prefix_bits)) - 1);
 	}
 
-	if (lease_pool_init(&new->pool, size) < 0) {
+	if (lease_pool_init(&new->pool, size, false) < 0) {
 		errno = ENOMEM;
 		free(new);
 		return NULL;

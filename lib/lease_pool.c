@@ -21,8 +21,10 @@
 
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/random.h>
 
 #include "lease_pool.h"
+#include "utils.h"
 
 
 /*
@@ -98,11 +100,34 @@ lease_lru_destroy(struct lease_lru *lru)
 
 
 /*
- *	Public API
+ *	'Inside-out' Fisher-Yates
+ *
+ *	builds a shuffled permutation in one pass. Classic 'Knuth shuffle'
+ *	shuffles an already-initialized array in a backward pass. Our
+ *	Inside-Out version runs the same logic to init and shuffle in
+ *	a single pass.
+ */
+static void
+lease_pool_shuffle(int *order, uint32_t size, uint64_t seed)
+{
+	uint32_t i, j;
+
+	for (i = 1; i < size; i++) {
+		j = (uint32_t)(xorshift_prng(&seed) % (i + 1));
+		order[i] = order[j];
+		order[j] = i;
+	}
+}
+
+
+/*
+ *	Lease helpers
  */
 int
-lease_pool_init(struct lease_pool *lp, uint32_t size)
+lease_pool_init(struct lease_pool *lp, uint32_t size, bool shuffle)
 {
+	uint64_t seed;
+
 	lp->lease = calloc(size, sizeof(bool));
 	if (!lp->lease)
 		return -1;
@@ -113,6 +138,19 @@ lease_pool_init(struct lease_pool *lp, uint32_t size)
 		return -1;
 	}
 
+	if (shuffle) {
+		lp->order = calloc(size, sizeof(int));
+		if (!lp->order) {
+			lease_lru_destroy(&lp->lru);
+			free(lp->lease);
+			lp->lease = NULL;
+			return -1;
+		}
+		if (getrandom(&seed, sizeof(seed), 0) < 0)
+			seed = (uint64_t)(uintptr_t)lp;
+		lease_pool_shuffle(lp->order, size, seed);
+	}
+
 	lp->size = size;
 	return 0;
 }
@@ -121,15 +159,18 @@ lease_pool_init(struct lease_pool *lp, uint32_t size)
 int
 lease_pool_get(struct lease_pool *lp, int *idx)
 {
-	int lru_idx;
+	int lru_idx, slot;
 
 	if (__sync_add_and_fetch(&lp->used, 0) >= lp->size)
 		return -1;
 
-	/* Phase 0: sequential scan during initial fill */
-	if (lp->next_lease_idx < lp->size && !lp->lease[lp->next_lease_idx]) {
-		*idx = lp->next_lease_idx;
-		return 0;
+	/* Phase 0: initial fill (linear or shuffled permutation) */
+	if (lp->next_lease_idx < lp->size) {
+		slot = lp->order ? lp->order[lp->next_lease_idx] : lp->next_lease_idx;
+		if (!lp->lease[slot]) {
+			*idx = slot;
+			return 0;
+		}
 	}
 
 	/* Phase 1: pure LRU — oldest freed slot */
@@ -148,7 +189,7 @@ lease_pool_mark(struct lease_pool *lp, int idx)
 {
 	lp->lease[idx] = true;
 	if (lp->next_lease_idx < lp->size)
-		lp->next_lease_idx = idx + 1;
+		lp->next_lease_idx++;
 	__sync_add_and_fetch(&lp->used, 1);
 }
 
@@ -170,6 +211,8 @@ void
 lease_pool_destroy(struct lease_pool *lp)
 {
 	lease_lru_destroy(&lp->lru);
+	free(lp->order);
+	lp->order = NULL;
 	free(lp->lease);
 	lp->lease = NULL;
 }

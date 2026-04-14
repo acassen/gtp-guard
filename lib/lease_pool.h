@@ -35,6 +35,7 @@ struct lease_lru {
 /* Generic index-based lease pool: allocate/release integer slots in O(1) */
 struct lease_pool {
 	bool		*lease;
+	int		*order;		/* shuffled permutation, NULL if linear */
 	struct lease_lru lru;
 	int		next_lease_idx;
 	uint32_t	size;
@@ -42,7 +43,7 @@ struct lease_pool {
 };
 
 /* Prototypes */
-int lease_pool_init(struct lease_pool *lp, uint32_t size);
+int lease_pool_init(struct lease_pool *lp, uint32_t size, bool shuffle);
 int lease_pool_get(struct lease_pool *lp, int *idx);
 void lease_pool_mark(struct lease_pool *lp, int idx);
 int lease_pool_release(struct lease_pool *lp, int idx);
