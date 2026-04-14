@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <linux/netlink.h>
 #include "thread.h"
@@ -52,6 +53,8 @@ void *nl_attr_put(struct nlmsghdr *nlh, int type, const void *data, int len);
 struct nlattr *nl_attr_nest_start(struct nlmsghdr *nlh, int type);
 void nl_attr_nest_end(struct nlmsghdr *nlh, struct nlattr *start);
 int nl_send_and_recv_ack(struct nl_handle *nl, struct nlmsghdr *nlh);
+int netlink_parse_info(int (*filter)(struct sockaddr_nl *, struct nlmsghdr *, void *),
+		       struct nl_handle *nl, struct nlmsghdr *n, void *filter_arg, bool read_all);
 
 /* Prototypes */
 int gtp_netlink_link_create_veth(const char *name, const char *peer_name);

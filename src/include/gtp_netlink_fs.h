@@ -23,6 +23,11 @@
 #include <linux/pkt_cls.h>
 #include <linux/tc_act/tc_skbedit.h>
 
+#include "gtp_interface.h"
+#include "gtp_flow_steering.h"
+#include "vty.h"
+
+
 /* Compat: older kernels may lack these */
 #ifndef TCA_FLOWER_KEY_ENC_KEY_ID_MASK
 #define TCA_FLOWER_KEY_ENC_KEY_ID_MASK	107
@@ -43,10 +48,6 @@
 /* Flower priority base, reserves 1-99 for other uses */
 #define FS_FLOWER_PRIO_BASE		100
 
-struct gtp_interface;
-struct gtp_flow_steering_policy;
-struct gtp_interface_flow_steering;
-struct vty;
 
 /* Prototypes */
 int gtp_netlink_fs_install(struct gtp_interface *iface,

@@ -162,18 +162,6 @@ inet_fqdn2str(char *dst, size_t dsize, const uint8_t *fqdn, size_t fsize)
 	return dst;
 }
 
-/* IP network to ascii representation */
-char *
-inet_ntop2(uint32_t addr)
-{
-	static char buf[16];
-	unsigned char *bytep;
-
-	bytep = (unsigned char *) &(addr);
-	sprintf(buf, "%d.%d.%d.%d", bytep[0], bytep[1], bytep[2], bytep[3]);
-	return buf;
-}
-
 /*
  * IP network to ascii representation. To use
  * for multiple IP address convertion into the same call.
@@ -187,38 +175,6 @@ inet_ntoa2(uint32_t addr, char *buffer)
 	sprintf(buffer, "%d.%d.%d.%d", bytep[0], bytep[1], bytep[2], bytep[3]);
 	return buffer;
 }
-
-/* IP string to network mask representation. CIDR notation. */
-uint8_t
-inet_stom(char *str)
-{
-	uint8_t mask = 32;
-	char *cp = str;
-
-	if (!strstr(str, "/"))
-		return mask;
-	while (*cp != '/' && *cp != '\0')
-		cp++;
-	if (*cp == '/')
-		return atoi(++cp);
-	return mask;
-}
-
-/* IP string to network range representation. */
-uint8_t
-inet_stor(char *str)
-{
-	char *cp = str;
-
-	if (!strstr(str, "-"))
-		return 0;
-	while (*cp != '-' && *cp != '\0')
-		cp++;
-	if (*cp == '-')
-		return strtoul(++cp, NULL, (strchr(str, ':')) ? 16 : 10);
-	return 0;
-}
-
 
 /* IP string to sockaddr_storage */
 int
@@ -383,22 +339,43 @@ inet_ston(const char *str, uint32_t *addr)
 uint32_t
 inet_broadcast(uint32_t network, uint32_t netmask)
 {
-	return 0xffffffff - netmask + network;
+	return network | ~netmask;
 }
 
 /*
  * Convert CIDR netmask notation to long notation.
  */
 uint32_t
-inet_cidrtomask(uint8_t cidr)
+inet_bits_to_mask(uint8_t cidr)
 {
-	uint32_t mask = 0;
-	int b;
-
-	for (b = 0; b < cidr; b++)
-		mask |= (1 << (31 - b));
-	return ntohl(mask);
+	return cidr ? ntohl(~0U << (32 - cidr)) : 0;
 }
+
+/*
+ * IPv6 mask convertion helpers
+ */
+int
+inet_mask6_to_bits(const struct in6_addr *mask)
+{
+	int bits = 0, i;
+
+	for (i = 0; i < 16; i++)
+		bits += __builtin_popcount(mask->s6_addr[i]);
+	return bits;
+}
+
+void
+inet_bits_to_mask6(int prefix_bits, struct in6_addr *mask)
+{
+	int i;
+
+	memset(mask, 0, sizeof(*mask));
+	for (i = 0; i < prefix_bits / 8; i++)
+		mask->s6_addr[i] = 0xff;
+	if (prefix_bits % 8)
+		mask->s6_addr[i] = (uint8_t)(0xff << (8 - (prefix_bits % 8)));
+}
+
 
 /*
  *	Stringify fd infos

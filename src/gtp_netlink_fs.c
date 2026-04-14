@@ -20,7 +20,6 @@
  */
 
 #include <errno.h>
-#include <string.h>
 #include <arpa/inet.h>
 #include <linux/rtnetlink.h>
 #include <linux/pkt_sched.h>
@@ -30,16 +29,44 @@
 
 #include "gtp_netlink.h"
 #include "gtp_netlink_fs.h"
-#include "gtp_interface.h"
-#include "gtp_flow_steering.h"
 #include "gtp_range_partition.h"
 #include "gtp.h"
 #include "id_pool.h"
 #include "ip_pool.h"
 #include "utils.h"
-#include "vty.h"
+#include "inet_utils.h"
 #include "logger.h"
 
+
+/*
+ *	NLA helpers
+ */
+static inline void *
+nla_data(const struct nlattr *nla)
+{
+	return (char *)nla + NLA_HDRLEN;
+}
+
+static inline int
+nla_len(const struct nlattr *nla)
+{
+	return (int)nla->nla_len - NLA_HDRLEN;
+}
+
+static inline int
+nla_ok(const struct nlattr *nla, int rem)
+{
+	return rem >= (int)NLA_HDRLEN &&
+	       nla->nla_len >= NLA_HDRLEN &&
+	       (int)nla->nla_len <= rem;
+}
+
+static inline struct nlattr *
+nla_next(struct nlattr *nla, int *rem)
+{
+	*rem -= NLA_ALIGN(nla->nla_len);
+	return (struct nlattr *)((char *)nla + NLA_ALIGN(nla->nla_len));
+}
 
 /*
  *	Target resolution
@@ -81,18 +108,6 @@ rp_type_to_ethtype(int rp_type)
  *	Flower key
  */
 static void
-prefix_to_mask6(int prefix_bits, struct in6_addr *mask)
-{
-	int i;
-
-	memset(mask, 0, sizeof(*mask));
-	for (i = 0; i < prefix_bits / 8; i++)
-		mask->s6_addr[i] = 0xff;
-	if (prefix_bits % 8)
-		mask->s6_addr[i] = (uint8_t)(0xff << (8 - (prefix_bits % 8)));
-}
-
-static void
 tc_flower_add_teid_keys(struct nlmsghdr *nlh, struct gtp_range_part *part)
 {
 	uint16_t port = htons(GTP_U_PORT);
@@ -119,7 +134,7 @@ tc_flower_add_ipv6_keys(struct nlmsghdr *nlh, struct gtp_range_part *part)
 {
 	struct in6_addr mask;
 
-	prefix_to_mask6(part->ip_pool->prefix_bits, &mask);
+	inet_bits_to_mask6(part->ip_pool->prefix_bits, &mask);
 	nl_attr_put(nlh, TCA_FLOWER_KEY_IPV6_DST,
 		    &part->ip_pool->prefix.sin6.sin6_addr, sizeof(struct in6_addr));
 	nl_attr_put(nlh, TCA_FLOWER_KEY_IPV6_DST_MASK, &mask, sizeof(mask));
@@ -364,6 +379,166 @@ tc_clsact_install(int ifindex)
 
 
 /*
+ *	Kernel flower dump
+ */
+static int
+tc_flower_action_opts(struct nlattr *opts, uint16_t *queue_id)
+{
+	struct nlattr *a;
+	int rem = nla_len(opts);
+
+	for (a = nla_data(opts); nla_ok(a, rem); a = nla_next(a, &rem)) {
+		if ((a->nla_type & NLA_TYPE_MASK) != TCA_SKBEDIT_QUEUE_MAPPING)
+			continue;
+		*queue_id = *(uint16_t *)nla_data(a);
+		return 0;
+	}
+	return -1;
+}
+
+static int
+tc_flower_action_entry(struct nlattr *entry, uint16_t *queue_id)
+{
+	struct nlattr *a;
+	int rem = nla_len(entry);
+
+	for (a = nla_data(entry); nla_ok(a, rem); a = nla_next(a, &rem)) {
+		if ((a->nla_type & NLA_TYPE_MASK) == TCA_ACT_OPTIONS)
+			return tc_flower_action_opts(a, queue_id);
+	}
+	return -1;
+}
+
+static int
+tc_flower_parse_action(struct nlattr *acts, uint16_t *queue_id)
+{
+	struct nlattr *entry;
+	int rem = nla_len(acts);
+
+	for (entry = nla_data(acts); nla_ok(entry, rem); entry = nla_next(entry, &rem)) {
+		if (!tc_flower_action_entry(entry, queue_id))
+			return 0;
+	}
+	return -1;
+}
+
+static void
+tc_flower_show_opts(struct vty *vty, uint16_t prio, struct nlattr *opts)
+{
+	struct nlattr *nla;
+	int rem = nla_len(opts);
+	uint32_t enc_key_id = 0, enc_key_mask = 0;
+	struct in_addr *dst4, *dst4_mask;
+	struct in6_addr *dst6, *dst6_mask;
+	char addr[INET6_ADDRSTRLEN];
+	uint16_t queue_id = 0;
+	enum gtp_range_partition_type rp_type;
+
+	for (nla = nla_data(opts); nla_ok(nla, rem); nla = nla_next(nla, &rem)) {
+		switch (nla->nla_type & NLA_TYPE_MASK) {
+		case TCA_FLOWER_KEY_ENC_UDP_DST_PORT:
+			rp_type = GTP_RANGE_PARTITION_TEID;
+			break;
+		case TCA_FLOWER_KEY_ENC_KEY_ID:
+			enc_key_id = ntohl(*(uint32_t *)nla_data(nla));
+			break;
+		case TCA_FLOWER_KEY_ENC_KEY_ID_MASK:
+			enc_key_mask = ntohl(*(uint32_t *)nla_data(nla));
+			break;
+		case TCA_FLOWER_KEY_IPV4_DST:
+			dst4 = (struct in_addr *)nla_data(nla);
+			rp_type = GTP_RANGE_PARTITION_IPV4;
+			break;
+		case TCA_FLOWER_KEY_IPV4_DST_MASK:
+			dst4_mask = (struct in_addr *)nla_data(nla);
+			break;
+		case TCA_FLOWER_KEY_IPV6_DST:
+			dst6 = (struct in6_addr *)nla_data(nla);
+			rp_type = GTP_RANGE_PARTITION_IPV6;
+			break;
+		case TCA_FLOWER_KEY_IPV6_DST_MASK:
+			dst6_mask = (struct in6_addr *)nla_data(nla);
+			break;
+		case TCA_FLOWER_ACT:
+			tc_flower_parse_action(nla, &queue_id);
+			break;
+		}
+	}
+
+	switch (rp_type) {
+	case GTP_RANGE_PARTITION_TEID:
+		vty_out(vty, "        prio=%d enc_key_id 0x%08x/%d -> queue %u%s"
+			   , prio, enc_key_id, __builtin_popcount(enc_key_mask)
+			   , queue_id, VTY_NEWLINE);
+		break;
+	case GTP_RANGE_PARTITION_IPV4:
+		inet_ntop(AF_INET, dst4, addr, sizeof(addr));
+		vty_out(vty, "        prio=%d dst_ip %s/%d -> queue %u%s"
+			   , prio, addr, __builtin_popcount(ntohl(dst4_mask->s_addr))
+			   , queue_id, VTY_NEWLINE);
+		break;
+	case GTP_RANGE_PARTITION_IPV6:
+		inet_ntop(AF_INET6, dst6, addr, sizeof(addr));
+		vty_out(vty, "        prio=%d dst_ip %s/%d -> queue %u%s"
+			   , prio, addr, inet_mask6_to_bits(dst6_mask)
+			   , queue_id, VTY_NEWLINE);
+		break;
+	default:
+		break;
+	}
+}
+
+static int
+tc_flower_dump_filter(__attribute__((unused)) struct sockaddr_nl *snl,
+		      struct nlmsghdr *h, void *arg)
+{
+	int hdrlen = NLMSG_HDRLEN + NLMSG_ALIGN(sizeof(struct tcmsg));
+	struct nlattr *nla;
+	uint16_t prio;
+	int rem;
+
+	if (h->nlmsg_type != RTM_NEWTFILTER || (int)h->nlmsg_len < hdrlen)
+		return 0;
+
+	prio = (uint16_t)(TC_H_MAJ(((struct tcmsg *)NLMSG_DATA(h))->tcm_info) >> 16);
+	if (prio < FS_FLOWER_PRIO_BASE)
+		return 0;
+
+	nla = (struct nlattr *)((char *)h + hdrlen);
+	rem = h->nlmsg_len - hdrlen;
+	for (; nla_ok(nla, rem); nla = nla_next(nla, &rem)) {
+		if ((nla->nla_type & NLA_TYPE_MASK) != TCA_OPTIONS)
+			continue;
+		tc_flower_show_opts(arg, prio, nla);
+		break;
+	}
+
+	return 0;
+}
+
+static int
+tc_flower_dump_request(int ifindex)
+{
+	struct {
+		struct nlmsghdr nlh;
+		struct tcmsg tc;
+	} req = {};
+	struct sockaddr_nl snl = { .nl_family = AF_NETLINK };
+
+	req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct tcmsg));
+	req.nlh.nlmsg_type = RTM_GETTFILTER;
+	req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+	req.nlh.nlmsg_seq = ++nl_cmd.seq;
+	req.tc.tcm_family = AF_UNSPEC;
+	req.tc.tcm_ifindex = ifindex;
+	req.tc.tcm_parent = TC_H_MAKE(TC_H_CLSACT, TC_H_MIN_INGRESS);
+
+	return (sendto(nl_cmd.fd, &req, sizeof(req), 0,
+		       (struct sockaddr *)&snl, sizeof(snl)) < 0) ? -1 : 0;
+}
+
+
+/*
  *	Flow Steering main helpers
  */
 int
@@ -418,4 +593,8 @@ gtp_netlink_fs_show(struct vty *vty, struct gtp_interface *iface,
 
 	for (m = 0; m < fsp->nr_maps; m++)
 		fs_show_map(vty, fsp, fsp->maps[m].rp, m);
+
+	vty_out(vty, "      [kernel]%s", VTY_NEWLINE);
+	if (!tc_flower_dump_request(ifindex))
+		netlink_parse_info(tc_flower_dump_filter, &nl_cmd, NULL, vty, false);
 }

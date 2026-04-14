@@ -120,7 +120,7 @@ parse_rtattr(struct rtattr **tb, int max, struct rtattr *rta, size_t len, unsign
 }
 
 /* Parse Netlink message */
-static int
+int
 netlink_parse_info(int (*filter) (struct sockaddr_nl *, struct nlmsghdr *, void *arg),
 		   struct nl_handle *nl, struct nlmsghdr *n, void *filter_arg, bool read_all)
 {
