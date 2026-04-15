@@ -47,6 +47,8 @@ enum node_type {
 	CDRFWD_NODE,					/* CDR-FWD commands. */
 	BPF_PROG_NODE,					/* BPF prog commands. */
 	CGN_NODE,					/* Carrier Grade NAT */
+	RANGE_PARTITION_NODE,				/* Range Partition commands. */
+	FLOW_STEERING_NODE,				/* Flow Steering Policy commands. */
 	INTERFACE_NODE,					/* Interface commands. */
 	MIRROR_NODE,					/* Mirror commands. */
 	PPPOE_NODE,					/* PPPoE commands. */
@@ -61,8 +63,6 @@ enum node_type {
 	PFCP_PROXY_NODE,				/* PFCP Proxy commands. */
 	PFCP_ROUTER_NODE,				/* PFCP Router commands. */
 	MAPE_NODE,					/* MAP-E commands. */
-	RANGE_PARTITION_NODE,				/* Range Partition commands. */
-	FLOW_STEERING_NODE,				/* Flow Steering Policy commands. */
 	CPU_SCHED_NODE,					/* CPU Scheduling commands. */
 
 	VTY_NODE,					/* Vty node. */

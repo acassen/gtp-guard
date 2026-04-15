@@ -81,7 +81,7 @@ id_pool_alloc(uint32_t base, uint32_t mask_bits)
 	new->mask_bits = mask_bits;
 	size = 1U << (32 - mask_bits);
 
-	if (lease_pool_init(&new->pool, size, true) < 0) {
+	if (lease_pool_init(&new->pool, size, false) < 0) {
 		errno = ENOMEM;
 		free(new);
 		return NULL;

@@ -163,7 +163,7 @@ split_teid(struct gtp_range_partition *rp, const char *range_str, int k, int cou
 	if (*slash != '/')
 		return -1;
 	prefix = atoi(slash + 1);
-	if (prefix < 1 || prefix > 31)
+	if (prefix < 0 || prefix > 31)
 		return -1;
 
 	part_prefix = prefix + k;

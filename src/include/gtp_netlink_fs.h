@@ -30,7 +30,7 @@
 
 /* Compat: older kernels may lack these */
 #ifndef TCA_FLOWER_KEY_ENC_KEY_ID_MASK
-#define TCA_FLOWER_KEY_ENC_KEY_ID_MASK	107
+#define TCA_FLOWER_KEY_ENC_KEY_ID_MASK	112
 #endif
 
 #ifndef TCA_CLS_FLAGS_SKIP_SW

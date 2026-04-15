@@ -103,6 +103,15 @@ rp_type_to_ethtype(int rp_type)
 	return ETH_P_IP;
 }
 
+/* Priority offset by type: lower = higher HW precedence.
+ * L3 (IPv4, IPv6) before L4+ (TEID/GTP-U over UDP).
+ */
+static const int rp_type_prio[] = {
+	[GTP_RANGE_PARTITION_IPV4] = 0,
+	[GTP_RANGE_PARTITION_IPV6] = 1,
+	[GTP_RANGE_PARTITION_TEID] = 2,
+};
+
 
 /*
  *	Flower key
@@ -187,6 +196,7 @@ tc_flower_add(int ifindex, uint16_t vlan_id, uint16_t prio,
 	} req = {};
 	struct nlattr *opts;
 	uint32_t flags = TCA_CLS_FLAGS_SKIP_SW;
+	uint16_t eth_type = htons(protocol);
 	uint16_t ethtype = htons(rp_type_to_ethtype(rp->type));
 
 	req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct tcmsg));
@@ -202,6 +212,7 @@ tc_flower_add(int ifindex, uint16_t vlan_id, uint16_t prio,
 
 	opts = nl_attr_nest_start(&req.nlh, TCA_OPTIONS);
 	nl_attr_put(&req.nlh, TCA_FLOWER_FLAGS, &flags, sizeof(flags));
+	nl_attr_put(&req.nlh, TCA_FLOWER_KEY_ETH_TYPE, &eth_type, sizeof(eth_type));
 
 	if (vlan_id) {
 		nl_attr_put(&req.nlh, TCA_FLOWER_KEY_VLAN_ID,
@@ -273,28 +284,30 @@ tc_flower_del(int ifindex, uint16_t prio, uint16_t protocol)
  *	Per-map helpers
  */
 static void
-fs_install_map(int ifindex, uint16_t vlan_id, int m,
+fs_install_map(int ifindex, uint16_t vlan_id,
 	       struct gtp_flow_steering_policy *fsp, struct gtp_range_partition *rp)
 {
 	int active = min(fsp->nr_queue_ids, rp->nr_parts);
 	uint16_t protocol = rp_type_to_protocol(rp->type, vlan_id);
+	int prio_base = FS_FLOWER_PRIO_BASE + rp_type_prio[rp->type] * 256;
 	int i;
 
 	for (i = 0; i < active; i++)
-		tc_flower_add(ifindex, vlan_id, FS_FLOWER_PRIO_BASE + m * 256 + i,
+		tc_flower_add(ifindex, vlan_id, prio_base + i,
 			      protocol, rp, &rp->parts[i], (uint16_t)fsp->queue_ids[i]);
 }
 
 static void
-fs_uninstall_map(int ifindex, uint16_t vlan_id, int m,
+fs_uninstall_map(int ifindex, uint16_t vlan_id,
 		 struct gtp_flow_steering_policy *fsp, struct gtp_range_partition *rp)
 {
 	int active = min(fsp->nr_queue_ids, rp->nr_parts);
 	uint16_t protocol = rp_type_to_protocol(rp->type, vlan_id);
+	int prio_base = FS_FLOWER_PRIO_BASE + rp_type_prio[rp->type] * 256;
 	int i;
 
 	for (i = 0; i < active; i++)
-		tc_flower_del(ifindex, FS_FLOWER_PRIO_BASE + m * 256 + i, protocol);
+		tc_flower_del(ifindex, prio_base + i, protocol);
 }
 
 static void
@@ -326,18 +339,19 @@ fs_show_part(struct vty *vty, struct gtp_range_partition *rp,
 
 static void
 fs_show_map(struct vty *vty, struct gtp_flow_steering_policy *fsp,
-	    struct gtp_range_partition *rp, int m)
+	    struct gtp_range_partition *rp)
 {
 	int active = min(fsp->nr_queue_ids, rp->nr_parts);
+	int prio_base = FS_FLOWER_PRIO_BASE + rp_type_prio[rp->type] * 256;
 	int i;
 
-	vty_out(vty, "      [map=%d rp=%s type=%s] active=%d%s"
-		   , m, rp->name, range_partition_type2str(rp->type)
+	vty_out(vty, "      [rp=%s type=%s] active=%d%s"
+		   , rp->name, range_partition_type2str(rp->type)
 		   , active, VTY_NEWLINE);
 
 	for (i = 0; i < active; i++)
 		fs_show_part(vty, rp, &rp->parts[i],
-			     FS_FLOWER_PRIO_BASE + m * 256 + i,
+			     prio_base + i,
 			     (uint16_t)fsp->queue_ids[i]);
 }
 
@@ -554,7 +568,7 @@ gtp_netlink_fs_install(struct gtp_interface *iface,
 		return -1;
 
 	for (m = 0; m < fsp->nr_maps; m++)
-		fs_install_map(ifindex, vlan_id, m, fsp, fsp->maps[m].rp);
+		fs_install_map(ifindex, vlan_id, fsp, fsp->maps[m].rp);
 
 	return 0;
 }
@@ -569,7 +583,7 @@ gtp_netlink_fs_uninstall(struct gtp_interface *iface,
 	fs_resolve_target(iface, &ifindex, &vlan_id);
 
 	for (m = 0; m < fsp->nr_maps; m++)
-		fs_uninstall_map(ifindex, vlan_id, m, fsp, fsp->maps[m].rp);
+		fs_uninstall_map(ifindex, vlan_id, fsp, fsp->maps[m].rp);
 
 	return 0;
 }
@@ -592,7 +606,7 @@ gtp_netlink_fs_show(struct vty *vty, struct gtp_interface *iface,
 			   , iface->ifname, VTY_NEWLINE);
 
 	for (m = 0; m < fsp->nr_maps; m++)
-		fs_show_map(vty, fsp, fsp->maps[m].rp, m);
+		fs_show_map(vty, fsp, fsp->maps[m].rp);
 
 	vty_out(vty, "      [kernel]%s", VTY_NEWLINE);
 	if (!tc_flower_dump_request(ifindex))
