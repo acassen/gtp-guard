@@ -344,6 +344,7 @@ gtp_range_partition_alloc(const char *name)
 		return NULL;
 
 	bsd_strlcpy(new->name, name, GTP_NAME_MAX_LEN - 1);
+	new->af = AF_INET;
 	INIT_LIST_HEAD(&new->next);
 	list_add_tail(&new->next, &daemon_data->range_partition);
 	return new;

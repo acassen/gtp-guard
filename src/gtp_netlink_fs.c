@@ -86,31 +86,33 @@ fs_resolve_target(struct gtp_interface *iface, int *out_ifindex,
 }
 
 static uint16_t
-rp_type_to_protocol(int rp_type, uint16_t vlan_id)
+rp_ethtype(sa_family_t af)
 {
-	if (vlan_id)
-		return ETH_P_8021Q;
-	if (rp_type == GTP_RANGE_PARTITION_IPV6)
-		return ETH_P_IPV6;
-	return ETH_P_IP;
+	return (af == AF_INET6) ? ETH_P_IPV6 : ETH_P_IP;
 }
 
 static uint16_t
-rp_type_to_ethtype(int rp_type)
+rp_protocol(sa_family_t af, uint16_t vlan_id)
 {
-	if (rp_type == GTP_RANGE_PARTITION_IPV6)
-		return ETH_P_IPV6;
-	return ETH_P_IP;
+	if (vlan_id)
+		return ETH_P_8021Q;
+	return rp_ethtype(af);
 }
 
 /* Priority offset by type: lower = higher HW precedence.
  * L3 (IPv4, IPv6) before L4+ (TEID/GTP-U over UDP).
  */
-static const int rp_type_prio[] = {
+static const int rp_prio[] = {
 	[GTP_RANGE_PARTITION_IPV4] = 0,
 	[GTP_RANGE_PARTITION_IPV6] = 1,
 	[GTP_RANGE_PARTITION_TEID] = 2,
 };
+
+static int
+rp_prio_offset(int type, sa_family_t af)
+{
+	return rp_prio[type] + (type == GTP_RANGE_PARTITION_TEID && af == AF_INET6);
+}
 
 
 /*
@@ -186,7 +188,7 @@ tc_flower_add_skbedit(struct nlmsghdr *nlh, uint16_t queue_id)
  */
 static int
 tc_flower_add(int ifindex, uint16_t vlan_id, uint16_t prio,
-	      uint16_t protocol, struct gtp_range_partition *rp,
+	      sa_family_t af, struct gtp_range_partition *rp,
 	      struct gtp_range_part *part, uint16_t queue_id)
 {
 	struct {
@@ -196,8 +198,9 @@ tc_flower_add(int ifindex, uint16_t vlan_id, uint16_t prio,
 	} req = {};
 	struct nlattr *opts;
 	uint32_t flags = TCA_CLS_FLAGS_SKIP_SW;
+	uint16_t protocol = rp_protocol(af, vlan_id);
 	uint16_t eth_type = htons(protocol);
-	uint16_t ethtype = htons(rp_type_to_ethtype(rp->type));
+	uint16_t ethtype = htons(rp_ethtype(af));
 
 	req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct tcmsg));
 	req.nlh.nlmsg_type = RTM_NEWTFILTER;
@@ -248,13 +251,14 @@ tc_flower_add(int ifindex, uint16_t vlan_id, uint16_t prio,
 }
 
 static int
-tc_flower_del(int ifindex, uint16_t prio, uint16_t protocol)
+tc_flower_del(int ifindex, uint16_t vlan_id, uint16_t prio, sa_family_t af)
 {
 	struct {
 		struct nlmsghdr nlh;
 		struct tcmsg tc;
 		char buf[256];
 	} req = {};
+	uint16_t protocol = rp_protocol(af, vlan_id);
 
 	req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct tcmsg));
 	req.nlh.nlmsg_type = RTM_DELTFILTER;
@@ -284,30 +288,50 @@ tc_flower_del(int ifindex, uint16_t prio, uint16_t protocol)
  *	Per-map helpers
  */
 static void
-fs_install_map(int ifindex, uint16_t vlan_id,
-	       struct gtp_flow_steering_policy *fsp, struct gtp_range_partition *rp)
+fs_install_map_af(int ifindex, uint16_t vlan_id,
+		  struct gtp_flow_steering_policy *fsp,
+		  struct gtp_range_partition *rp, sa_family_t af)
 {
 	int active = min(fsp->nr_queue_ids, rp->nr_parts);
-	uint16_t protocol = rp_type_to_protocol(rp->type, vlan_id);
-	int prio_base = FS_FLOWER_PRIO_BASE + rp_type_prio[rp->type] * 256;
+	int prio_base = FS_FLOWER_PRIO_BASE + rp_prio_offset(rp->type, af) * 256;
 	int i;
 
 	for (i = 0; i < active; i++)
 		tc_flower_add(ifindex, vlan_id, prio_base + i,
-			      protocol, rp, &rp->parts[i], (uint16_t)fsp->queue_ids[i]);
+			      af, rp, &rp->parts[i], (uint16_t)fsp->queue_ids[i]);
+}
+
+static void
+fs_install_map(int ifindex, uint16_t vlan_id,
+	       struct gtp_flow_steering_policy *fsp, struct gtp_range_partition *rp)
+{
+	if (rp->af == AF_INET || rp->af == AF_UNSPEC)
+		fs_install_map_af(ifindex, vlan_id, fsp, rp, AF_INET);
+	if (rp->af == AF_INET6 || rp->af == AF_UNSPEC)
+		fs_install_map_af(ifindex, vlan_id, fsp, rp, AF_INET6);
+}
+
+static void
+fs_uninstall_map_af(int ifindex, uint16_t vlan_id,
+		    struct gtp_flow_steering_policy *fsp,
+		    struct gtp_range_partition *rp, sa_family_t af)
+{
+	int active = min(fsp->nr_queue_ids, rp->nr_parts);
+	int prio_base = FS_FLOWER_PRIO_BASE + rp_prio_offset(rp->type, af) * 256;
+	int i;
+
+	for (i = 0; i < active; i++)
+		tc_flower_del(ifindex, vlan_id, prio_base + i, af);
 }
 
 static void
 fs_uninstall_map(int ifindex, uint16_t vlan_id,
 		 struct gtp_flow_steering_policy *fsp, struct gtp_range_partition *rp)
 {
-	int active = min(fsp->nr_queue_ids, rp->nr_parts);
-	uint16_t protocol = rp_type_to_protocol(rp->type, vlan_id);
-	int prio_base = FS_FLOWER_PRIO_BASE + rp_type_prio[rp->type] * 256;
-	int i;
-
-	for (i = 0; i < active; i++)
-		tc_flower_del(ifindex, prio_base + i, protocol);
+	if (rp->af == AF_INET || rp->af == AF_UNSPEC)
+		fs_uninstall_map_af(ifindex, vlan_id, fsp, rp, AF_INET);
+	if (rp->af == AF_INET6 || rp->af == AF_UNSPEC)
+		fs_uninstall_map_af(ifindex, vlan_id, fsp, rp, AF_INET6);
 }
 
 static void
@@ -338,21 +362,32 @@ fs_show_part(struct vty *vty, struct gtp_range_partition *rp,
 }
 
 static void
+fs_show_map_af(struct vty *vty, struct gtp_flow_steering_policy *fsp,
+	       struct gtp_range_partition *rp, sa_family_t af)
+{
+	int active = min(fsp->nr_queue_ids, rp->nr_parts);
+	int prio_base = FS_FLOWER_PRIO_BASE + rp_prio_offset(rp->type, af) * 256;
+	int i;
+
+	for (i = 0; i < active; i++)
+		fs_show_part(vty, rp, &rp->parts[i],
+			     prio_base + i, (uint16_t)fsp->queue_ids[i]);
+}
+
+static void
 fs_show_map(struct vty *vty, struct gtp_flow_steering_policy *fsp,
 	    struct gtp_range_partition *rp)
 {
 	int active = min(fsp->nr_queue_ids, rp->nr_parts);
-	int prio_base = FS_FLOWER_PRIO_BASE + rp_type_prio[rp->type] * 256;
-	int i;
 
 	vty_out(vty, "      [rp=%s type=%s] active=%d%s"
 		   , rp->name, range_partition_type2str(rp->type)
 		   , active, VTY_NEWLINE);
 
-	for (i = 0; i < active; i++)
-		fs_show_part(vty, rp, &rp->parts[i],
-			     prio_base + i,
-			     (uint16_t)fsp->queue_ids[i]);
+	if (rp->af == AF_INET || rp->af == AF_UNSPEC)
+		fs_show_map_af(vty, fsp, rp, AF_INET);
+	if (rp->af == AF_INET6 || rp->af == AF_UNSPEC)
+		fs_show_map_af(vty, fsp, rp, AF_INET6);
 }
 
 
@@ -446,7 +481,7 @@ tc_flower_show_opts(struct vty *vty, uint16_t prio, struct nlattr *opts)
 	struct in6_addr *dst6, *dst6_mask;
 	char addr[INET6_ADDRSTRLEN];
 	uint16_t queue_id = 0;
-	enum gtp_range_partition_type rp_type;
+	enum gtp_range_partition_type rp_type = GTP_RANGE_PARTITION_TYPE_MAX;
 
 	for (nla = nla_data(opts); nla_ok(nla, rem); nla = nla_next(nla, &rem)) {
 		switch (nla->nla_type & NLA_TYPE_MASK) {

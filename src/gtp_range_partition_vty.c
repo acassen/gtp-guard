@@ -37,6 +37,18 @@ static const char *type_str[] = {
 	[GTP_RANGE_PARTITION_IPV6] = "ipv6",
 };
 
+static const char *
+rp_type_config_str(const struct gtp_range_partition *rp)
+{
+	if (rp->type != GTP_RANGE_PARTITION_TEID)
+		return type_str[rp->type];
+	if (rp->af == AF_INET6)
+		return "teid ipv6";
+	if (rp->af == AF_UNSPEC)
+		return "teid dual";
+	return "teid ipv4";
+}
+
 
 /*
  *	CONFIG_NODE commands
@@ -107,12 +119,43 @@ DEFUN(range_partition_type,
 		return CMD_WARNING;
 	}
 
-	if (!strcmp(argv[0], "teid"))
+	if (!strcmp(argv[0], "teid")) {
 		rp->type = GTP_RANGE_PARTITION_TEID;
-	else if (!strcmp(argv[0], "ipv4"))
+		rp->af = AF_INET;
+	} else if (!strcmp(argv[0], "ipv4")) {
 		rp->type = GTP_RANGE_PARTITION_IPV4;
-	else
+		rp->af = AF_INET;
+	} else {
 		rp->type = GTP_RANGE_PARTITION_IPV6;
+		rp->af = AF_INET6;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(range_partition_type_teid,
+      range_partition_type_teid_cmd,
+      "type teid (ipv4|ipv6|dual)",
+      "Partition type\n"
+      "TEID range\n"
+      "GTP-U over IPv4\n"
+      "GTP-U over IPv6\n"
+      "GTP-U over IPv4 and IPv6")
+{
+	struct gtp_range_partition *rp = vty->index;
+
+	if (rp->nr_parts) {
+		vty_out(vty, "%% Cannot change type: parts already configured%s"
+			   , VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	rp->type = GTP_RANGE_PARTITION_TEID;
+	rp->af = AF_INET;
+	if (!strcmp(argv[0], "ipv6"))
+		rp->af = AF_INET6;
+	else if (!strcmp(argv[0], "dual"))
+		rp->af = AF_UNSPEC;
 
 	return CMD_SUCCESS;
 }
@@ -332,11 +375,8 @@ DEFUN(show_range_partition,
 			continue;
 
 		vty_out(vty, "range-partition %s  type=%s  parts=%d  refcnt=%d%s"
-			   , rp->name
-			   , type_str[rp->type]
-			   , rp->nr_parts
-			   , rp->refcnt
-			   , VTY_NEWLINE);
+			   , rp->name, rp_type_config_str(rp)
+			   , rp->nr_parts, rp->refcnt, VTY_NEWLINE);
 
 		if (rp->auto_split)
 			vty_out(vty, "  split %s count %d%s"
@@ -399,7 +439,7 @@ gtp_range_partition_config_write(struct vty *vty)
 
 	list_for_each_entry(rp, &daemon_data->range_partition, next) {
 		vty_out(vty, "range-partition %s%s", rp->name, VTY_NEWLINE);
-		vty_out(vty, " type %s%s", type_str[rp->type], VTY_NEWLINE);
+		vty_out(vty, " type %s%s", rp_type_config_str(rp), VTY_NEWLINE);
 
 		if (rp->auto_split)
 			vty_out(vty, " split %s count %d%s"
@@ -425,6 +465,7 @@ cmd_ext_range_partition_install(void)
 
 	install_default(RANGE_PARTITION_NODE);
 	install_element(RANGE_PARTITION_NODE, &range_partition_type_cmd);
+	install_element(RANGE_PARTITION_NODE, &range_partition_type_teid_cmd);
 	install_element(RANGE_PARTITION_NODE, &range_partition_part_teid_cmd);
 	install_element(RANGE_PARTITION_NODE, &range_partition_part_ip_cmd);
 	install_element(RANGE_PARTITION_NODE, &no_range_partition_part_cmd);
