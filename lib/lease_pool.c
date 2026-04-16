@@ -24,7 +24,6 @@
 #include <sys/random.h>
 
 #include "lease_pool.h"
-#include "utils.h"
 
 
 /*
@@ -32,15 +31,17 @@
  * ==================================================
  *
  * Shared allocation engine used by ip_pool (IP address ranges) and id_pool
- * (uint32 ID ranges). Manages a flat array of boolean leases with an LRU
- * ring to guarantee O(1) allocation and release in all cases.
+ * (uint32 ID ranges). Manages a bitmap of leases with an LRU ring to
+ * guarantee O(1) allocation and release in all cases.
  *
  * Phase 0 (initial fill): sequential allocation until all slots used once.
  * Phase 1 (steady state): LRU ring — allocate from tail (oldest freed slot),
  *   release to head. Ensures a natural cool-down before reuse, which reduces
  *   collision probability in high-churn environments (mobile networks).
  *
- * Memory: 1 byte per slot (lease bitmap) + 4 bytes per slot (LRU ring).
+ * Memory: 1 bit per slot (lease bitmap) + 4 bytes per slot (LRU ring).
+ * Shuffle mode uses a Feistel permutation (zero extra memory) instead of
+ * a materialized permutation array.
  */
 
 
@@ -100,23 +101,87 @@ lease_lru_destroy(struct lease_lru *lru)
 
 
 /*
- *	'Inside-out' Fisher-Yates
- *
- *	builds a shuffled permutation in one pass. Classic 'Knuth shuffle'
- *	shuffles an already-initialized array in a backward pass. Our
- *	Inside-Out version runs the same logic to init and shuffle in
- *	a single pass.
+ *	Lease bitmap helpers
  */
-static void
-lease_pool_shuffle(int *order, uint32_t size, uint64_t seed)
+static inline bool
+lease_bit_test(const uint8_t *bitmap, uint32_t idx)
 {
-	uint32_t i, j;
+	return bitmap[idx >> 3] & (1U << (idx & 7));
+}
 
-	for (i = 1; i < size; i++) {
-		j = (uint32_t)(xorshift_prng(&seed) % (i + 1));
-		order[i] = order[j];
-		order[j] = i;
+static inline void
+lease_bit_set(uint8_t *bitmap, uint32_t idx)
+{
+	bitmap[idx >> 3] |= (1U << (idx & 7));
+}
+
+static inline void
+lease_bit_clear(uint8_t *bitmap, uint32_t idx)
+{
+	bitmap[idx >> 3] &= ~(1U << (idx & 7));
+}
+
+
+/*
+ *	Feistel permutation
+ *
+ *	Bijective mapping [0, size) -> [0, size) using a 4-round Feistel
+ *	network. Replaces the materialized order[] array with O(1) per-index
+ *	computation and zero memory overhead. Cycle-walking handles non
+ *	power-of-two domains.
+ */
+#define FEISTEL_ROUNDS	4
+
+static uint32_t
+ceil_log2(uint32_t n)
+{
+	if (n <= 1)
+		return 1;
+	return 32 - __builtin_clz(n - 1);
+}
+
+static inline uint32_t
+feistel_round_fn(uint32_t val, uint32_t key)
+{
+	val ^= key;
+	val *= 0x9e3779b9U;
+	val ^= val >> 16;
+	val *= 0x45d9f3bU;
+	val ^= val >> 16;
+	return val;
+}
+
+static uint32_t
+feistel_permute(uint32_t idx, uint32_t bits, uint32_t size, uint64_t seed)
+{
+	uint32_t half = (bits + 1) / 2;
+	uint32_t mask = (1U << half) - 1;
+	uint32_t keys[FEISTEL_ROUNDS];
+	uint32_t i, l, r, f, tmp;
+
+	for (i = 0; i < FEISTEL_ROUNDS; i++) {
+		uint64_t k = seed + (uint64_t)i * 0x517cc1b727220a95ULL;
+		k ^= k >> 30;
+		k *= 0xbf58476d1ce4e5b9ULL;
+		k ^= k >> 27;
+		keys[i] = (uint32_t)k;
 	}
+
+	do {
+		l = (idx >> half) & mask;
+		r = idx & mask;
+
+		for (i = 0; i < FEISTEL_ROUNDS; i++) {
+			f = feistel_round_fn(r, keys[i]) & mask;
+			tmp = r;
+			r = l ^ f;
+			l = tmp;
+		}
+
+		idx = (l << half) | r;
+	} while (idx >= size);
+
+	return idx;
 }
 
 
@@ -128,7 +193,7 @@ lease_pool_init(struct lease_pool *lp, uint32_t size, bool shuffle)
 {
 	uint64_t seed;
 
-	lp->lease = calloc(size, sizeof(bool));
+	lp->lease = calloc((size + 7) / 8, 1);
 	if (!lp->lease)
 		return -1;
 
@@ -139,20 +204,23 @@ lease_pool_init(struct lease_pool *lp, uint32_t size, bool shuffle)
 	}
 
 	if (shuffle) {
-		lp->order = calloc(size, sizeof(int));
-		if (!lp->order) {
-			lease_lru_destroy(&lp->lru);
-			free(lp->lease);
-			lp->lease = NULL;
-			return -1;
-		}
 		if (getrandom(&seed, sizeof(seed), 0) < 0)
 			seed = (uint64_t)(uintptr_t)lp;
-		lease_pool_shuffle(lp->order, size, seed);
+		lp->shuffle_seed = seed;
+		lp->shuffle_bits = ceil_log2(size);
 	}
 
 	lp->size = size;
 	return 0;
+}
+
+/* Return the permuted index for position idx (Feistel or identity) */
+int
+lease_pool_permute(struct lease_pool *lp, uint32_t idx)
+{
+	if (!lp->shuffle_seed || idx >= lp->size)
+		return (int)idx;
+	return (int)feistel_permute(idx, lp->shuffle_bits, lp->size, lp->shuffle_seed);
 }
 
 /* Find a free slot index. Caller must call lease_pool_mark() after use. */
@@ -164,10 +232,13 @@ lease_pool_get(struct lease_pool *lp, int *idx)
 	if (__sync_add_and_fetch(&lp->used, 0) >= lp->size)
 		return -1;
 
-	/* Phase 0: initial fill (linear or shuffled permutation) */
+	/* Phase 0: initial fill (linear or Feistel permutation) */
 	if (lp->next_lease_idx < lp->size) {
-		slot = lp->order ? lp->order[lp->next_lease_idx] : lp->next_lease_idx;
-		if (!lp->lease[slot]) {
+		slot = lp->shuffle_seed
+		     ? (int)feistel_permute(lp->next_lease_idx, lp->shuffle_bits,
+					    lp->size, lp->shuffle_seed)
+		     : lp->next_lease_idx;
+		if (!lease_bit_test(lp->lease, slot)) {
 			*idx = slot;
 			return 0;
 		}
@@ -175,7 +246,8 @@ lease_pool_get(struct lease_pool *lp, int *idx)
 
 	/* Phase 1: pure LRU — oldest freed slot */
 	if (lease_lru_pop(&lp->lru, &lru_idx) == 0) {
-		if (lru_idx >= 0 && lru_idx < lp->size && !lp->lease[lru_idx]) {
+		if (lru_idx >= 0 && lru_idx < lp->size &&
+		    !lease_bit_test(lp->lease, lru_idx)) {
 			*idx = lru_idx;
 			return 0;
 		}
@@ -187,7 +259,7 @@ lease_pool_get(struct lease_pool *lp, int *idx)
 void
 lease_pool_mark(struct lease_pool *lp, int idx)
 {
-	lp->lease[idx] = true;
+	lease_bit_set(lp->lease, idx);
 	if (lp->next_lease_idx < lp->size)
 		lp->next_lease_idx++;
 	__sync_add_and_fetch(&lp->used, 1);
@@ -201,7 +273,7 @@ lease_pool_release(struct lease_pool *lp, int idx)
 		return -1;
 	}
 
-	lp->lease[idx] = false;
+	lease_bit_clear(lp->lease, idx);
 	__sync_sub_and_fetch(&lp->used, 1);
 	lease_lru_push(&lp->lru, idx);
 	return 0;
@@ -211,8 +283,6 @@ void
 lease_pool_destroy(struct lease_pool *lp)
 {
 	lease_lru_destroy(&lp->lru);
-	free(lp->order);
-	lp->order = NULL;
 	free(lp->lease);
 	lp->lease = NULL;
 }

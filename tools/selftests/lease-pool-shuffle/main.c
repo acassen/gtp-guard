@@ -21,7 +21,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
 
 #include "lease_pool.h"
@@ -44,7 +43,7 @@ test_shuffle_permutation(void)
 {
 	struct lease_pool lp = {0};
 	bool *seen;
-	int i, sequential = 0;
+	int i, val, prev, sequential = 0;
 	int ret = 0;
 
 	seen = calloc(POOL_SIZE, sizeof(bool));
@@ -58,27 +57,31 @@ test_shuffle_permutation(void)
 	}
 
 	for (i = 0; i < POOL_SIZE; i++) {
-		if (lp.order[i] < 0 || lp.order[i] >= POOL_SIZE) {
-			fprintf(stderr, "  order[%d]=%d out of range\n", i, lp.order[i]);
+		val = lease_pool_permute(&lp, i);
+		if (val < 0 || val >= POOL_SIZE) {
+			fprintf(stderr, "  permute(%d)=%d out of range\n", i, val);
 			ret = -1;
 			goto out;
 		}
-		if (seen[lp.order[i]]) {
-			fprintf(stderr, "  duplicate value %d at order[%d]\n", lp.order[i], i);
+		if (seen[val]) {
+			fprintf(stderr, "  duplicate value %d at position %d\n", val, i);
 			ret = -1;
 			goto out;
 		}
-		seen[lp.order[i]] = true;
+		seen[val] = true;
 	}
 
-	for (i = 0; i < POOL_SIZE - 1; i++) {
-		if (lp.order[i + 1] == lp.order[i] + 1)
+	prev = lease_pool_permute(&lp, 0);
+	for (i = 1; i < POOL_SIZE; i++) {
+		val = lease_pool_permute(&lp, i);
+		if (val == prev + 1)
 			sequential++;
+		prev = val;
 	}
 
 	/* Identity permutation would have POOL_SIZE-1 sequential pairs */
 	if (sequential == POOL_SIZE - 1) {
-		fprintf(stderr, "  order[] is identity — shuffle did not run\n");
+		fprintf(stderr, "  permutation is identity — shuffle did not run\n");
 		ret = -1;
 		goto out;
 	}
@@ -87,7 +90,7 @@ test_shuffle_permutation(void)
 	       sequential, POOL_SIZE - 1);
 	printf("  first 50 entries:");
 	for (i = 0; i < 50; i++)
-		printf(" %d", lp.order[i]);
+		printf(" %d", lease_pool_permute(&lp, i));
 	printf("\n");
 out:
 	lease_pool_destroy(&lp);
@@ -103,21 +106,13 @@ static int
 test_allocation_follows_order(void)
 {
 	struct lease_pool lp = {0};
-	int *order_copy;
-	int idx, i;
+	int idx, i, expected;
 	int ret = 0;
-
-	order_copy = malloc(POOL_SIZE * sizeof(int));
-	if (!order_copy)
-		return -1;
 
 	if (lease_pool_init(&lp, POOL_SIZE, true) < 0) {
 		fprintf(stderr, "  lease_pool_init failed\n");
-		free(order_copy);
 		return -1;
 	}
-
-	memcpy(order_copy, lp.order, POOL_SIZE * sizeof(int));
 
 	for (i = 0; i < POOL_SIZE; i++) {
 		if (lease_pool_get(&lp, &idx) < 0) {
@@ -125,9 +120,10 @@ test_allocation_follows_order(void)
 			ret = -1;
 			goto out;
 		}
-		if (idx != order_copy[i]) {
-			fprintf(stderr, "  position %d: got idx=%d, expected order[%d]=%d\n",
-				i, idx, i, order_copy[i]);
+		expected = lease_pool_permute(&lp, i);
+		if (idx != expected) {
+			fprintf(stderr, "  position %d: got idx=%d, expected permute(%d)=%d\n",
+				i, idx, i, expected);
 			ret = -1;
 			goto out;
 		}
@@ -143,7 +139,6 @@ test_allocation_follows_order(void)
 	printf("  all %d allocations matched shuffled order\n", POOL_SIZE);
 out:
 	lease_pool_destroy(&lp);
-	free(order_copy);
 	return ret;
 }
 
