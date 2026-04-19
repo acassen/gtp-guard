@@ -39,6 +39,8 @@ nav:
   - Home: index.md
   - Articles:
     - articles/index.md
+    - "5G UPF: Smart Session Placement": articles/5g-upf-smart-session-placement.md
+    - "5G UPF: From Flow Steering to Session Affinity": articles/5g-upf-from-flow-steering-to-session-affinity.md
     - Per-Core CPU Load Measurement: articles/cpu_load_measurement.md
     - "5G UPF: Pump Up the Volume!": articles/5g-upf-pump-up-the-volume.md
 plugins:

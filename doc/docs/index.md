@@ -18,8 +18,7 @@ GTP-Guard is free software distributed under the **GNU Affero General Public Lic
 
 ## Last Updates
 
-**April 2026** - [Per-Core CPU Load Measurement](articles/cpu_load_measurement.md)
-: Standard `/proc` interfaces miss inline NAPI softirq work that XDP runs outside the scheduler. This article explains why `PERF_COUNT_HW_REF_CPU_CYCLES` was selected as the load metric, and describes the two measurement modes (TSC and calibrated) exposed by `lib/cpu.c`.
-
-**March 2026** - [5G UPF: Pump Up the Volume!](articles/5g-upf-pump-up-the-volume.md)
-: Hardware selection, system tuning, and TEID-based flow steering with range partitioning to route each UE session to a dedicated core. The design targets ~800 Gbps on a single 1RU commodity server using ConnectX-7 NICs and XDP.
+- **2026-04-19** · article · [5G UPF: Smart Session Placement](articles/5g-upf-smart-session-placement.md): multi-metric CPU scheduling with constraint-based gating for UE session placement
+- **2026-04-17** · article · [5G UPF: From Flow Steering to Session Affinity](articles/5g-upf-from-flow-steering-to-session-affinity.md): TEID range partitioning, flow steering policy, and CPU scheduling groups
+- **2026-04-02** · article · [Per-Core CPU Load Measurement](articles/cpu_load_measurement.md): why `/proc` misses XDP softirq work and how hardware perf counters fix it
+- **2026-03-27** · article · [5G UPF: Pump Up the Volume!](articles/5g-upf-pump-up-the-volume.md): NIC flow steering and TEID-based range partitioning targeting 800 Gbps on a single server

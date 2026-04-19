@@ -1,4 +1,6 @@
-# Per-Core CPU Load Measurement
+---
+title: "Per-Core CPU Load Measurement"
+---
 
 *Alexandre Cassen*, <<acassen@gmail.com>> - April 2026
 

@@ -567,14 +567,14 @@ show_cpu_sched_group(struct gtp_cpu_sched_group *grp, void *arg)
 		   , grp->name
 		   , gtp_cpu_sched_algo_str(grp->algo)
 		   , VTY_NEWLINE);
-	vty_out(vty, "  CPU   Weight   Sessions   Load   Load~    BW(Mbps)  BW~(Mbps)     PPS     PPS~%s"
+	vty_out(vty, "  CPU   Weight   Sessions   Load   Load~   BW(Mbps)   BW~(Mbps)       PPS      PPS~%s"
 		   , VTY_NEWLINE);
 
 	cpuset_for_each(cpu, grp->cpumask, CPU_SETSIZE) {
 		m = gtp_percpu_metrics_get(cpu);
 		if (!m)
 			continue;
-		vty_out(vty, "  %3d   %5d   %8u   %.2f   %.2f   %8.1f  %8.1f  %7" PRIu64 "  %7.0f%s"
+		vty_out(vty, "  %3d   %6d   %8u   %.2f   %5.2f   %8.1f   %9.1f   %7" PRIu64 "   %7.0f%s"
 			   , cpu
 			   , grp->weights ? grp->weights[cpu] : GTP_CPU_SCHED_DEFAULT_WEIGHT
 			   , m->pfcp_sessions
