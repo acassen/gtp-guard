@@ -1208,10 +1208,8 @@ vty_read(struct thread *t)
 {
 	int i, nbytes;
 	unsigned char buf[VTY_READ_BUFSIZ];
-
 	int vty_sock = THREAD_FD(t);
 	struct vty *vty = THREAD_ARG(t);
-	vty->t_read = NULL;
 
 	/* Read Timeout means idle connection */
 	if (t->type == THREAD_READ_TIMEOUT) {
@@ -1389,7 +1387,6 @@ vty_read(struct thread *t)
 
 	/* Check status. */
 	if (vty->status == VTY_CLOSE) {
-		thread_del(t);
 		vty_close(vty);
 		return;
 	}
