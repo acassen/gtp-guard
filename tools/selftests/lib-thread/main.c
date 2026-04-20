@@ -448,6 +448,30 @@ cleanup:
 	return ok;
 }
 
+/*
+ * Regression: with no I/O registered the scheduler must still drive
+ * timers. Prior to the maxevents=1 fallback, epoll_pwait2() returned
+ * EINVAL on maxevents == 0 and the error path looped forever without
+ * ever calling thread_timer_expired().
+ */
+static bool
+test_timer_only_no_io(void)
+{
+	struct thread_master *m = thread_make_master(true);
+	struct io_ctx ctx = { 0 };
+	bool ok;
+
+	thread_add_timer(m, io_record_cb, &ctx, MS_TO_TIMER(20));
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(200));
+
+	launch_thread_scheduler(m);
+
+	ok = ctx.fire_count == 1 && ctx.last_type == THREAD_READY_TIMER;
+
+	thread_destroy_master(m);
+	return ok;
+}
+
 /* --- existing timer cancellation test ------------------------------------ */
 
 static struct thread *tc_t1, *tc_t2, *tc_t3;
@@ -521,6 +545,7 @@ static const struct test_case sched_tests[] = {
 	{ "read_error_hup",      test_read_error_hup },
 	{ "read_write_same_fd",  test_read_write_same_fd },
 	{ "event_buffer_grow",   test_event_buffer_grow },
+	{ "timer_only_no_io",    test_timer_only_no_io },
 	/* existing timer test */
 	{ "timer_cancellation",  test_timer_cancellation },
 };
