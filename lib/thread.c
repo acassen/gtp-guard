@@ -741,6 +741,24 @@ thread_add_terminate_event(struct thread_master *m)
 }
 
 
+/*
+ * Cancel a ready/timeout/error-state thread. epoll_bit selects the
+ * epoll side to clear (THREAD_FL_EPOLL_READ_BIT / ..._WRITE_BIT) or 0
+ * for the timer variant. Returns false when t is the running thread,
+ * in which case the caller must leave t on the ready list untouched.
+ */
+static bool
+thread_cancel_ready(struct thread_master *m, struct thread *t,
+		    unsigned epoll_bit)
+{
+	if (epoll_bit && t->event)
+		thread_event_del(t, epoll_bit);
+	if (m->current_thread == t)
+		return false;
+	list_del_init(&t->e_list);
+	return true;
+}
+
 /* Remove thread from scheduler. */
 void
 thread_del(struct thread *t)
@@ -767,25 +785,18 @@ thread_del(struct thread *t)
 	case THREAD_READY_READ_FD:
 	case THREAD_READ_TIMEOUT:
 	case THREAD_READ_ERROR:
-		if (t->event)
-			thread_event_del(t, THREAD_FL_EPOLL_READ_BIT);
-		if (m->current_thread == t)
+		if (!thread_cancel_ready(m, t, THREAD_FL_EPOLL_READ_BIT))
 			return;
-		list_del_init(&t->e_list);
 		break;
 	case THREAD_READY_WRITE_FD:
 	case THREAD_WRITE_TIMEOUT:
 	case THREAD_WRITE_ERROR:
-		if (t->event)
-			thread_event_del(t, THREAD_FL_EPOLL_WRITE_BIT);
-		if (m->current_thread == t)
+		if (!thread_cancel_ready(m, t, THREAD_FL_EPOLL_WRITE_BIT))
 			return;
-		list_del_init(&t->e_list);
 		break;
 	case THREAD_READY_TIMER:
-		if (m->current_thread == t)
+		if (!thread_cancel_ready(m, t, 0))
 			return;
-		list_del_init(&t->e_list);
 		break;
 	case THREAD_UNUSED:
 		return;
