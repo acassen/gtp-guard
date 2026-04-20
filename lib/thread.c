@@ -35,7 +35,7 @@
 #include "process.h"
 
 
-/* Move ready thread into ready queue */
+/* Detach a single thread from its rbtree and queue it as ready */
 static void
 thread_move_ready(struct thread_master *m, struct rb_root_cached *root,
 		  struct thread *t, int type)
@@ -47,7 +47,7 @@ thread_move_ready(struct thread_master *m, struct rb_root_cached *root,
 		t->type = type;
 }
 
-/* Move ready thread into ready queue */
+/* Walk the rbtree in time order and move every expired thread to ready */
 static void
 thread_rb_move_ready(struct thread_master *m, struct rb_root_cached *root, int type)
 {
@@ -122,7 +122,7 @@ thread_timer_expired(struct thread_master *m)
 	thread_rb_move_ready(m, &m->timer, THREAD_READY_TIMER);
 }
 
-/* epoll related */
+/* Grow-only epoll event buffer */
 static int
 thread_events_resize(struct thread_master *m, int delta)
 {
@@ -140,6 +140,7 @@ thread_events_resize(struct thread_master *m, int delta)
 	m->epoll_events = MALLOC(new_size * sizeof(struct epoll_event));
 	if (!m->epoll_events) {
 		m->epoll_size = 0;
+		m->epoll_count -= delta;
 		return -1;
 	}
 
@@ -200,7 +201,7 @@ thread_event_clean(struct thread_master *m)
 	struct thread_event *tev, *tev_tmp;
 
 	rbtree_postorder_for_each_entry_safe(tev, tev_tmp, &m->io_events, n) {
-		free(tev);
+		FREE(tev);
 	}
 }
 
@@ -408,6 +409,9 @@ thread_destroy_rb(struct thread_master *m, struct rb_root_cached *root)
 void
 thread_destroy_master(struct thread_master *m)
 {
+	if (!m)
+		return;
+
 	if (m->epoll_fd != -1) {
 		close(m->epoll_fd);
 		m->epoll_fd = -1;
