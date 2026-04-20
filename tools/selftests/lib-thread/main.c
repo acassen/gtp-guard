@@ -20,9 +20,11 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <sys/socket.h>
 
 #include "gtp_data.h"
 #include "thread.h"
@@ -86,10 +88,6 @@ parse_cmdline(int argc, char **argv)
 
 	return 0;
 }
-
-static struct thread_master *m;
-static struct thread *t1, *t2, *t3;
-static int sigint;
 
 static int
 list_size(struct list_head *l)
@@ -182,69 +180,388 @@ test_mpool(void)
 }
 
 
-static void
-sigint_hdl(__attribute__((unused)) void *v, __attribute__((unused)) int sig)
-{
-	if (++sigint > 2) {
-		fprintf(stderr, "ctrl-C pressed too much, dying hard\n");
-		exit(1);
-	}
+/*
+ * Scheduler selftests
+ *
+ * Each test creates its own thread_master, runs a short scenario, and
+ * reports pass/fail. A backstop terminate-timer guards against hangs so
+ * no test runs longer than a few hundred milliseconds.
+ */
 
-	if (sigint == 1) {
-		fprintf(stderr, "shutting down\n");
-		thread_add_terminate_event(m);
-	}
+#define MS_TO_TIMER(ms)	((unsigned long)(ms) * (TIMER_HZ / 1000))
+
+struct io_ctx {
+	int		fd;
+	int		fire_count;
+	int		last_type;
+};
+
+static void
+terminate_cb(struct thread *t)
+{
+	thread_add_terminate_event(t->master);
 }
 
-/* t1 or t2 fired */
 static void
-timer_func(struct thread *t)
+io_record_cb(struct thread *t)
 {
-	struct thread *ot = t == t1 ? t2 : t1;
+	struct io_ctx *c = THREAD_ARG(t);
 
-	printf("t%ld fired\n", (size_t)t->arg);
+	c->fd = THREAD_FD(t);
+	c->fire_count++;
+	c->last_type = t->type;
+}
 
-	/* cancel thread that did not yet fire */
-	assert(t3->type == THREAD_TIMER);
-	thread_del(t3);
+static void
+io_silent_cb(struct thread *t)
+{
+	struct io_ctx *c = THREAD_ARG(t);
 
-	/* cancel thread that fired, in ready list, but not this callback */
-	assert(ot->type == THREAD_READY_TIMER);
-	thread_del(ot);
+	c->fire_count++;
+}
 
-	/* cancel thread that fired (in ready list), and this callback (no-op) */
-	assert(t->type == THREAD_READY_TIMER);
+/* --- Tier 1 -------------------------------------------------------------- */
+
+static bool
+test_read_fires(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+	assert(write(sv[0], "x", 1) == 1);
+
+	thread_add_read(m, io_record_cb, &ctx, sv[1], TIMER_NEVER, 0);
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(100));
+
+	launch_thread_scheduler(m);
+
+	ok = ctx.fire_count == 1 &&
+	     ctx.fd == sv[1] &&
+	     ctx.last_type == THREAD_READY_READ_FD;
+
+	thread_destroy_master(m);
+	close(sv[0]);
+	close(sv[1]);
+	return ok;
+}
+
+static bool
+test_write_fires(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+	thread_add_write(m, io_record_cb, &ctx, sv[0], TIMER_NEVER, 0);
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(100));
+
+	launch_thread_scheduler(m);
+
+	ok = ctx.fire_count == 1 &&
+	     ctx.fd == sv[0] &&
+	     ctx.last_type == THREAD_READY_WRITE_FD;
+
+	thread_destroy_master(m);
+	close(sv[0]);
+	close(sv[1]);
+	return ok;
+}
+
+static bool
+test_read_timeout(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+	/* no data; expect timeout */
+	thread_add_read(m, io_record_cb, &ctx, sv[1], MS_TO_TIMER(50), 0);
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(200));
+
+	launch_thread_scheduler(m);
+
+	ok = ctx.fire_count == 1 &&
+	     ctx.last_type == THREAD_READ_TIMEOUT;
+
+	thread_destroy_master(m);
+	close(sv[0]);
+	close(sv[1]);
+	return ok;
+}
+
+static bool
+test_thread_del_pending(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	struct thread *t;
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+	/* add then immediately delete; callback must not fire */
+	t = thread_add_read(m, io_silent_cb, &ctx, sv[1], TIMER_NEVER, 0);
 	thread_del(t);
 
-	printf("timer test ok\n");
-	thread_add_terminate_event(m);
+	/* make the fd readable; if del left the fd registered we'd see it */
+	assert(write(sv[0], "x", 1) == 1);
+
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(100));
+	launch_thread_scheduler(m);
+
+	ok = ctx.fire_count == 0;
+
+	thread_destroy_master(m);
+	close(sv[0]);
+	close(sv[1]);
+	return ok;
+}
+
+static bool
+test_dup_registration(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	struct thread *t1, *t2;
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+	t1 = thread_add_read(m, io_silent_cb, &ctx, sv[1], TIMER_NEVER, 0);
+	t2 = thread_add_read(m, io_silent_cb, &ctx, sv[1], TIMER_NEVER, 0);
+
+	ok = t1 != NULL && t2 == NULL;
+
+	thread_destroy_master(m);
+	close(sv[0]);
+	close(sv[1]);
+	return ok;
+}
+
+/* --- Tier 2 -------------------------------------------------------------- */
+
+static bool
+test_read_error_hup(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+	thread_add_read(m, io_record_cb, &ctx, sv[1], TIMER_NEVER, 0);
+
+	/* peer close: EPOLLHUP/RDHUP on sv[1] -> THREAD_READ_ERROR */
+	close(sv[0]);
+
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(200));
+	launch_thread_scheduler(m);
+
+	ok = ctx.fire_count == 1 && ctx.last_type == THREAD_READ_ERROR;
+
+	thread_destroy_master(m);
+	close(sv[1]);
+	return ok;
+}
+
+static bool
+test_read_write_same_fd(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx read_ctx = { 0 }, write_ctx = { 0 };
+	int sv[2];
+	bool ok;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+	/* make sv[1] read-ready; it is also write-ready (empty send buffer) */
+	assert(write(sv[0], "x", 1) == 1);
+
+	thread_add_read(m, io_record_cb, &read_ctx, sv[1], TIMER_NEVER, 0);
+	thread_add_write(m, io_record_cb, &write_ctx, sv[1], TIMER_NEVER, 0);
+
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(200));
+	launch_thread_scheduler(m);
+
+	ok = read_ctx.fire_count == 1 &&
+	     read_ctx.last_type == THREAD_READY_READ_FD &&
+	     write_ctx.fire_count == 1 &&
+	     write_ctx.last_type == THREAD_READY_WRITE_FD;
+
+	thread_destroy_master(m);
+	close(sv[0]);
+	close(sv[1]);
+	return ok;
+}
+
+#define GROW_N (THREAD_EPOLL_REALLOC_THRESH + 5)
+
+static bool
+test_event_buffer_grow(void)
+{
+	struct thread_master *m = thread_make_master(false);
+	struct io_ctx ctx = { 0 };
+	int fds[GROW_N];
+	struct thread *ts[GROW_N] = { NULL };
+	int pipe_fd[2];
+	int i, n = 0;
+	bool ok = true;
+
+	while (n + 2 <= GROW_N) {
+		if (pipe(pipe_fd) < 0) {
+			ok = false;
+			goto cleanup;
+		}
+		fds[n++] = pipe_fd[0];
+		fds[n++] = pipe_fd[1];
+	}
+
+	for (i = 0; i < n; i++) {
+		ts[i] = thread_add_read(m, io_silent_cb, &ctx, fds[i],
+					TIMER_NEVER, 0);
+		if (!ts[i]) {
+			ok = false;
+			break;
+		}
+	}
+
+cleanup:
+	for (i = 0; i < GROW_N; i++) {
+		if (ts[i])
+			thread_del(ts[i]);
+	}
+	for (i = 0; i < n; i++)
+		close(fds[i]);
+	thread_destroy_master(m);
+	return ok;
+}
+
+/* --- existing timer cancellation test ------------------------------------ */
+
+static struct thread *tc_t1, *tc_t2, *tc_t3;
+static bool tc_ok;
+
+static void
+tc_timer_func(struct thread *t)
+{
+	struct thread *ot = t == tc_t1 ? tc_t2 : tc_t1;
+
+	/* cancel thread that did not yet fire */
+	if (tc_t3->type != THREAD_TIMER) {
+		tc_ok = false;
+		goto done;
+	}
+	thread_del(tc_t3);
+
+	/* cancel thread that fired, in ready list, but not this callback */
+	if (ot->type != THREAD_READY_TIMER) {
+		tc_ok = false;
+		goto done;
+	}
+	thread_del(ot);
+
+	/* cancel thread that fired and is this callback (no-op) */
+	if (t->type != THREAD_READY_TIMER) {
+		tc_ok = false;
+		goto done;
+	}
+	thread_del(t);
+
+	tc_ok = true;
+done:
+	thread_add_terminate_event(t->master);
+}
+
+static bool
+test_timer_cancellation(void)
+{
+	struct thread_master *m = thread_make_master(false);
+
+	tc_ok = false;
+	tc_t1 = thread_add_timer(m, tc_timer_func, (void *)1, MS_TO_TIMER(20));
+	tc_t2 = thread_add_timer(m, tc_timer_func, (void *)2, MS_TO_TIMER(20));
+	tc_t3 = thread_add_timer(m, tc_timer_func, (void *)3, MS_TO_TIMER(500));
+
+	thread_add_timer(m, terminate_cb, NULL, MS_TO_TIMER(300));
+	launch_thread_scheduler(m);
+
+	thread_destroy_master(m);
+	return tc_ok;
+}
+
+/* --- test runner --------------------------------------------------------- */
+
+typedef bool (*test_fn)(void);
+
+struct test_case {
+	const char	*name;
+	test_fn		fn;
+};
+
+static const struct test_case sched_tests[] = {
+	/* Tier 1 */
+	{ "read_fires",          test_read_fires },
+	{ "write_fires",         test_write_fires },
+	{ "read_timeout",        test_read_timeout },
+	{ "thread_del_pending",  test_thread_del_pending },
+	{ "dup_registration",    test_dup_registration },
+	/* Tier 2 */
+	{ "read_error_hup",      test_read_error_hup },
+	{ "read_write_same_fd",  test_read_write_same_fd },
+	{ "event_buffer_grow",   test_event_buffer_grow },
+	/* existing timer test */
+	{ "timer_cancellation",  test_timer_cancellation },
+};
+
+static int
+run_sched_tests(void)
+{
+	const int n = sizeof(sched_tests) / sizeof(sched_tests[0]);
+	int pass = 0, fail = 0;
+	int i;
+
+	for (i = 0; i < n; i++) {
+		printf("[ RUN      ] %s\n", sched_tests[i].name);
+		fflush(stdout);
+		if (sched_tests[i].fn()) {
+			printf("[       OK ] %s\n", sched_tests[i].name);
+			pass++;
+		} else {
+			printf("[  FAILED  ] %s\n", sched_tests[i].name);
+			fail++;
+		}
+		fflush(stdout);
+	}
+
+	printf("\n%d passed, %d failed\n", pass, fail);
+	return fail;
 }
 
 int main(int argc, char **argv)
 {
 	int err;
 
-	test_mpool();
+	setvbuf(stdout, NULL, _IOLBF, 0);
 
-	m = thread_make_master(false);
-
-	/* Command line parsing */
 	err = parse_cmdline(argc, argv);
 	if (err) {
 		usage(argv[0]);
 		return 1;
 	}
 
-	if (isatty(STDIN_FILENO))
-		signal_set(SIGINT, sigint_hdl, NULL);
+	test_mpool();
 
-	t1 = thread_add_timer(m, timer_func, (void *)1, TIMER_HZ);
-	t2 = thread_add_timer(m, timer_func, (void *)2, TIMER_HZ);
-	t3 = thread_add_timer(m, timer_func, (void *)3, TIMER_HZ + 10000);
-
-	launch_thread_scheduler(m);
-
-	thread_destroy_master(m);
-
-	return 0;
+	return run_sched_tests() ? 1 : 0;
 }
