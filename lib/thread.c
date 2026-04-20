@@ -22,7 +22,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/epoll.h>
-#include <assert.h>
 
 #include "thread.h"
 #include "memory.h"
@@ -262,25 +261,20 @@ static int
 thread_event_del(const struct thread *t, unsigned flag)
 {
 	struct thread_event *event = t->event;
+	bool is_write = (flag == THREAD_FL_EPOLL_WRITE_BIT);
+	unsigned want_bit = is_write ? THREAD_FL_WRITE_BIT : THREAD_FL_READ_BIT;
+	unsigned peer_epoll_bit = is_write ? THREAD_FL_EPOLL_READ_BIT
+					   : THREAD_FL_EPOLL_WRITE_BIT;
+	struct thread **slot = is_write ? &event->write : &event->read;
 
 	if (!__test_bit(flag, &event->flags))
 		return 0;
 
-	if (flag == THREAD_FL_EPOLL_READ_BIT) {
-		__clear_bit(THREAD_FL_READ_BIT, &event->flags);
-		if (!__test_bit(THREAD_FL_EPOLL_WRITE_BIT, &event->flags))
-			return thread_event_cancel(t);
+	__clear_bit(want_bit, &event->flags);
+	if (!__test_bit(peer_epoll_bit, &event->flags))
+		return thread_event_cancel(t);
 
-		event->read = NULL;
-	}
-	else if (flag == THREAD_FL_EPOLL_WRITE_BIT) {
-		__clear_bit(THREAD_FL_WRITE_BIT, &event->flags);
-		if (!__test_bit(THREAD_FL_EPOLL_READ_BIT, &event->flags))
-			return thread_event_cancel(t);
-
-		event->write = NULL;
-	}
-
+	*slot = NULL;
 	if (thread_event_set(t) < 0)
 		return -1;
 
@@ -346,8 +340,6 @@ thread_clean_unuse(struct thread_master *m)
 static void
 thread_add_unuse(struct thread_master *m, struct thread *t)
 {
-	assert(m != NULL);
-
 	t->type = THREAD_UNUSED;
 	t->event = NULL;
 	list_add_tail(&t->e_list, &m->unuse);
@@ -473,35 +465,57 @@ thread_new(struct thread_master *m)
 	return new;
 }
 
-/* Add new read thread. */
-struct thread *
-thread_add_read_sands(struct thread_master *m, void (*func)(struct thread *),
-		      void *arg, int fd, const timeval_t *sands, unsigned flags)
+/* Compute an absolute expiry from a relative timer (TIMER_NEVER → disabled) */
+static void
+thread_compute_sands(timeval_t *sands, uint64_t timer)
 {
+	if (timer == TIMER_NEVER) {
+		sands->tv_sec = TIMER_DISABLED;
+		sands->tv_usec = 0;
+		return;
+	}
+	set_time_now();
+	*sands = timer_add_ll(time_now, timer);
+}
+
+/* Single source of truth for I/O thread registration (read and write). */
+static struct thread *
+thread_add_io(struct thread_master *m, void (*func)(struct thread *),
+	      void *arg, int fd, const timeval_t *sands, unsigned flags,
+	      bool is_write)
+{
+	unsigned fl_bit = is_write ? THREAD_FL_WRITE_BIT : THREAD_FL_READ_BIT;
+	unsigned fl_ep = is_write ? THREAD_FL_EPOLL_WRITE_BIT
+				  : THREAD_FL_EPOLL_READ_BIT;
+	struct rb_root_cached *root = is_write ? &m->write : &m->read;
+	const char *tag = is_write ? "write" : "read";
 	struct thread_event *event;
+	struct thread **slot;
 	struct thread *t;
 
-	assert(m != NULL);
-
-	/* I feel lucky ! :D */
 	if (m->current_event && m->current_event->fd == fd)
 		event = m->current_event;
 	else
 		event = thread_event_get(m, fd);
 
 	if (!event) {
-		if (!(event = thread_event_new(m, fd))) {
-			log_message(LOG_INFO, "scheduler: Cant allocate read event for fd [%d](%m)", fd);
+		event = thread_event_new(m, fd);
+		if (!event) {
+			log_message(LOG_INFO, "scheduler: Cant allocate %s event for fd [%d](%m)",
+				    tag, fd);
 			return NULL;
 		}
 	}
-	else if (__test_bit(THREAD_FL_READ_BIT, &event->flags) && event->read) {
-		log_message(LOG_INFO, "scheduler: There is already read event %p (read %p) registered on fd [%d]", event, event->read, fd);
+
+	slot = is_write ? &event->write : &event->read;
+	if (__test_bit(fl_bit, &event->flags) && *slot) {
+		log_message(LOG_INFO, "scheduler: There is already %s event registered on fd [%d]",
+			    tag, fd);
 		return NULL;
 	}
 
 	t = thread_new(m);
-	t->type = THREAD_READ;
+	t->type = is_write ? THREAD_WRITE : THREAD_READ;
 	t->master = m;
 	t->func = func;
 	t->arg = arg;
@@ -509,24 +523,31 @@ thread_add_read_sands(struct thread_master *m, void (*func)(struct thread *),
 	t->u.f.flags = flags;
 	t->event = event;
 
-	/* Set & flag event */
-	__set_bit(THREAD_FL_READ_BIT, &event->flags);
-	event->read = t;
-	if (!__test_bit(THREAD_FL_EPOLL_READ_BIT, &event->flags)) {
+	__set_bit(fl_bit, &event->flags);
+	*slot = t;
+
+	if (!__test_bit(fl_ep, &event->flags)) {
 		if (thread_event_set(t) < 0) {
-			log_message(LOG_INFO, "scheduler: Cant register read event for fd [%d](%m)", fd);
+			log_message(LOG_INFO, "scheduler: Cant register %s event for fd [%d](%m)",
+				    tag, fd);
 			thread_add_unuse(m, t);
 			return NULL;
 		}
-		__set_bit(THREAD_FL_EPOLL_READ_BIT, &event->flags);
+		__set_bit(fl_ep, &event->flags);
 	}
 
 	t->sands = *sands;
-
-	/* Sort the thread. */
-	rb_add_cached(&t->n, &m->read, thread_timer_less);
+	rb_add_cached(&t->n, root, thread_timer_less);
 
 	return t;
+}
+
+/* Add new read thread. */
+struct thread *
+thread_add_read_sands(struct thread_master *m, void (*func)(struct thread *),
+		      void *arg, int fd, const timeval_t *sands, unsigned flags)
+{
+	return thread_add_io(m, func, arg, fd, sands, flags, false);
 }
 
 struct thread *
@@ -535,15 +556,7 @@ thread_add_read(struct thread_master *m, void (*func)(struct thread *),
 {
 	timeval_t sands;
 
-	/* Compute read timeout value */
-	if (timer == TIMER_NEVER) {
-		sands.tv_sec = TIMER_DISABLED;
-		sands.tv_usec = 0;
-	} else {
-		set_time_now();
-		sands = timer_add_ll(time_now, timer);
-	}
-
+	thread_compute_sands(&sands, timer);
 	return thread_add_read_sands(m, func, arg, fd, &sands, flags);
 }
 
@@ -559,14 +572,10 @@ thread_requeue_read(struct thread_master *m, int fd, const timeval_t *sands)
 		return;
 
 	t = event->read;
-
-	if (t->type != THREAD_READ) {
-		/* If the thread is not on the read list, don't touch it */
+	if (t->type != THREAD_READ)
 		return;
-	}
 
 	t->sands = *sands;
-
 	rb_move_cached(&t->n, &t->master->read, thread_timer_less);
 }
 
@@ -575,61 +584,10 @@ struct thread *
 thread_add_write(struct thread_master *m, void (*func)(struct thread *),
 		 void *arg, int fd, unsigned long timer, unsigned flags)
 {
-	struct thread_event *event;
-	struct thread *t;
+	timeval_t sands;
 
-	assert(m != NULL);
-
-	/* I feel lucky ! :D */
-	if (m->current_event && m->current_event->fd == fd)
-		event = m->current_event;
-	else
-		event = thread_event_get(m, fd);
-
-	if (!event) {
-		if (!(event = thread_event_new(m, fd))) {
-			log_message(LOG_INFO, "scheduler: Cant allocate write event for fd [%d](%m)", fd);
-			return NULL;
-		}
-	}
-	else if (__test_bit(THREAD_FL_WRITE_BIT, &event->flags) && event->write) {
-		log_message(LOG_INFO, "scheduler: There is already write event registered on fd [%d]", fd);
-		return NULL;
-	}
-
-	t = thread_new(m);
-	t->type = THREAD_WRITE;
-	t->master = m;
-	t->func = func;
-	t->arg = arg;
-	t->u.f.fd = fd;
-	t->u.f.flags = flags;
-	t->event = event;
-
-	/* Set & flag event */
-	__set_bit(THREAD_FL_WRITE_BIT, &event->flags);
-	event->write = t;
-	if (!__test_bit(THREAD_FL_EPOLL_WRITE_BIT, &event->flags)) {
-		if (thread_event_set(t) < 0) {
-			log_message(LOG_INFO, "scheduler: Cant register write event for fd [%d](%m)" , fd);
-			thread_add_unuse(m, t);
-			return NULL;
-		}
-		__set_bit(THREAD_FL_EPOLL_WRITE_BIT, &event->flags);
-	}
-
-	/* Compute write timeout value */
-	if (timer == TIMER_NEVER)
-		t->sands.tv_sec = TIMER_DISABLED;
-	else {
-		set_time_now();
-		t->sands = timer_add_ll(time_now, timer);
-	}
-
-	/* Sort the thread. */
-	rb_add_cached(&t->n, &m->write, thread_timer_less);
-
-	return t;
+	thread_compute_sands(&sands, timer);
+	return thread_add_io(m, func, arg, fd, &sands, flags, true);
 }
 
 void
@@ -652,8 +610,6 @@ thread_add_timer_uval(struct thread_master *m, void (*func)(struct thread *),
 {
 	struct thread *t;
 
-	assert(m != NULL);
-
 	t = thread_new(m);
 	t->type = THREAD_TIMER;
 	t->master = m;
@@ -662,12 +618,7 @@ thread_add_timer_uval(struct thread_master *m, void (*func)(struct thread *),
 	t->u.uval = val;
 
 	/* Do we need jitter here? */
-	if (timer == TIMER_NEVER)
-		t->sands.tv_sec = TIMER_DISABLED;
-	else {
-		set_time_now();
-		t->sands = timer_add_ll(time_now, timer);
-	}
+	thread_compute_sands(&t->sands, timer);
 
 	/* Sort by timeval. */
 	rb_add_cached(&t->n, &m->timer, thread_timer_less);
@@ -687,8 +638,7 @@ thread_mod_timer(struct thread *t, uint64_t timer)
 {
 	timeval_t sands;
 
-	set_time_now();
-	sands = timer_add_ll(time_now, timer);
+	thread_compute_sands(&sands, timer);
 
 	if (timercmp(&t->sands, &sands, ==))
 		return;
@@ -704,8 +654,6 @@ thread_add_event(struct thread_master *m, void (*func)(struct thread *),
 		 void *arg, int val)
 {
 	struct thread *t;
-
-	assert(m != NULL);
 
 	t = thread_new(m);
 	t->type = THREAD_EVENT;
@@ -724,8 +672,6 @@ struct thread *
 thread_add_terminate_event(struct thread_master *m)
 {
 	struct thread *t;
-
-	assert(m != NULL);
 
 	t = thread_new(m);
 	t->type = THREAD_TERMINATE;
@@ -800,8 +746,8 @@ thread_del(struct thread *t)
 	case THREAD_UNUSED:
 		return;
 	default:
-		log_message(LOG_WARNING, "ERROR - thread_cancel called for"
-			    "unknown thread type %u", t->type);
+		log_message(LOG_WARNING, "ERROR - thread_cancel called for "
+					 "unknown thread type %u", t->type);
 		return;
 	}
 
@@ -816,8 +762,6 @@ thread_fetch_next_queue(struct thread_master *m)
 	int last_epoll_errno = 0, ret, i;
 	timeval_t earliest_timer;
 	struct timespec ts, *ts_ptr;
-
-	assert(m != NULL);
 
 	/* If there is event process it first. */
 	if (!list_empty(&m->event))
@@ -910,10 +854,10 @@ thread_fetch_next_queue(struct thread_master *m)
 				if (!ev->read) {
 					log_message(LOG_INFO, "scheduler: No read thread bound on fd:%d (fl:0x%.4X)"
 						      , ev->fd, ep_ev->events);
-					continue;
+				} else {
+					thread_move_ready(m, &m->read, ev->read, THREAD_READY_READ_FD);
+					ev->read = NULL;
 				}
-				thread_move_ready(m, &m->read, ev->read, THREAD_READY_READ_FD);
-				ev->read = NULL;
 			}
 
 			/* WRITE */
@@ -921,10 +865,10 @@ thread_fetch_next_queue(struct thread_master *m)
 				if (!ev->write) {
 					log_message(LOG_INFO, "scheduler: No write thread bound on fd:%d (fl:0x%.4X)"
 						      , ev->fd, ep_ev->events);
-					continue;
+				} else {
+					thread_move_ready(m, &m->write, ev->write, THREAD_READY_WRITE_FD);
+					ev->write = NULL;
 				}
-				thread_move_ready(m, &m->write, ev->write, THREAD_READY_WRITE_FD);
-				ev->write = NULL;
 			}
 		}
 
