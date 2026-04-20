@@ -762,6 +762,9 @@ thread_fetch_next_queue(struct thread_master *m)
 	int last_epoll_errno = 0, ret, i;
 	timeval_t earliest_timer;
 	struct timespec ts, *ts_ptr;
+	struct epoll_event dummy_evs[1];
+	struct epoll_event *evs;
+	unsigned n;
 
 	/* If there is event process it first. */
 	if (!list_empty(&m->event))
@@ -775,8 +778,13 @@ thread_fetch_next_queue(struct thread_master *m)
 		/* Compute wait timeout from earliest pending expiry. */
 		ts_ptr = thread_set_timer(m, &ts, &earliest_timer);
 
-		ret = epoll_pwait2(m->epoll_fd, m->epoll_events,
-				   m->epoll_count, ts_ptr, NULL);
+		/* epoll_pwait2() rejects maxevents == 0; when no I/O is
+		 * registered, wait purely on the timeout with a one-slot
+		 * stack buffer the kernel will never write to. */
+		n = max(m->epoll_count, 1u);
+		evs = m->epoll_count ? m->epoll_events : dummy_evs;
+
+		ret = epoll_pwait2(m->epoll_fd, evs, n, ts_ptr, NULL);
 
 		if (ret < 0) {
 			/* epoll_pwait2() will return EINTR if the process is sent SIGSTOP
@@ -829,7 +837,7 @@ thread_fetch_next_queue(struct thread_master *m)
 			struct epoll_event *ep_ev;
 			struct thread_event *ev;
 
-			ep_ev = &m->epoll_events[i];
+			ep_ev = &evs[i];
 			ev = ep_ev->data.ptr;
 
 			/* Error */
