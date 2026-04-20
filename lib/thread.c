@@ -353,6 +353,27 @@ thread_add_unuse(struct thread_master *m, struct thread *t)
 	list_add_tail(&t->e_list, &m->unuse);
 }
 
+/* Release per-thread I/O resources the user asked to own */
+static void
+thread_release_io_resources(struct thread *t)
+{
+	if (t->u.f.flags & THREAD_DESTROY_CLOSE_FD)
+		thread_close_fd(t);
+	if (t->u.f.flags & THREAD_DESTROY_FREE_ARG)
+		FREE(t->arg);
+}
+
+static bool
+thread_type_is_io_ready(enum thread_type type)
+{
+	return type == THREAD_READY_READ_FD ||
+	       type == THREAD_READY_WRITE_FD ||
+	       type == THREAD_READ_TIMEOUT ||
+	       type == THREAD_WRITE_TIMEOUT ||
+	       type == THREAD_READ_ERROR ||
+	       type == THREAD_WRITE_ERROR;
+}
+
 /* Move list element to unuse queue */
 static void
 thread_destroy_list(struct thread_master *m, struct list_head *l)
@@ -360,21 +381,8 @@ thread_destroy_list(struct thread_master *m, struct list_head *l)
 	struct thread *t, *_t;
 
 	list_for_each_entry_safe(t, _t, l, e_list) {
-		/* The following thread types are relevant for the ready list */
-		if (t->type == THREAD_READY_READ_FD ||
-		    t->type == THREAD_READY_WRITE_FD ||
-		    t->type == THREAD_READ_TIMEOUT ||
-		    t->type == THREAD_WRITE_TIMEOUT ||
-		    t->type == THREAD_READ_ERROR ||
-		    t->type == THREAD_WRITE_ERROR) {
-			/* Do we have a file descriptor that needs closing ? */
-			if (t->u.f.flags & THREAD_DESTROY_CLOSE_FD)
-				thread_close_fd(t);
-
-			/* Do we need to free arg? */
-			if (t->u.f.flags & THREAD_DESTROY_FREE_ARG)
-				FREE(t->arg);
-		}
+		if (thread_type_is_io_ready(t->type))
+			thread_release_io_resources(t);
 
 		list_del_init(&t->e_list);
 		thread_add_unuse(m, t);
@@ -387,17 +395,8 @@ thread_destroy_rb(struct thread_master *m, struct rb_root_cached *root)
 	struct thread *t, *_t;
 
 	rbtree_postorder_for_each_entry_safe(t, _t, &root->rb_root, n) {
-		/* The following are relevant for the read and write rb lists */
-		if (t->type == THREAD_READ ||
-		    t->type == THREAD_WRITE) {
-			/* Do we have a file descriptor that needs closing ? */
-			if (t->u.f.flags & THREAD_DESTROY_CLOSE_FD)
-				thread_close_fd(t);
-
-			/* Do we need to free arg? */
-			if (t->u.f.flags & THREAD_DESTROY_FREE_ARG)
-				FREE(t->arg);
-		}
+		if (t->type == THREAD_READ || t->type == THREAD_WRITE)
+			thread_release_io_resources(t);
 
 		thread_add_unuse(m, t);
 	}
