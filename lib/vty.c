@@ -18,6 +18,7 @@
 #include <netinet/tcp.h>
 #include <sys/utsname.h>
 #include <sys/un.h>
+#include <time.h>
 
 #include "utils.h"
 #include "inet_utils.h"

@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <time.h>
 #define PCAP_DONT_INCLUDE_PCAP_BPF_H
 #include <pcap/pcap.h>
 #include <pcap/dlt.h>

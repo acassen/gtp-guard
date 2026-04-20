@@ -89,73 +89,37 @@ thread_update_timer(struct rb_root_cached *root, timeval_t *timer_min)
 		*timer_min = first->sands;
 }
 
-/* Compute the wait timer. Take care of timeouted fd */
-static timeval_t
-thread_set_timer(struct thread_master *m)
+/* Compute the earliest expiry across the three timer trees */
+static struct timespec *
+thread_set_timer(struct thread_master *m, struct timespec *ts,
+		 timeval_t *earliest)
 {
-	timeval_t timer_wait, timer_wait_time;
-	struct itimerspec its;
+	timeval_t wait;
 
-	/* Prepare timer */
-	timerclear(&timer_wait_time);
-	thread_update_timer(&m->timer, &timer_wait_time);
-	thread_update_timer(&m->write, &timer_wait_time);
-	thread_update_timer(&m->read, &timer_wait_time);
+	timerclear(earliest);
+	thread_update_timer(&m->timer, earliest);
+	thread_update_timer(&m->write, earliest);
+	thread_update_timer(&m->read, earliest);
 
-	if (timerisset(&timer_wait_time)) {
-		/* Re-read the current time to get the maximum accuracy */
-		set_time_now();
+	if (!timerisset(earliest))
+		return NULL;
 
-		/* Take care about monotonic clock */
-		timersub(&timer_wait_time, &time_now, &timer_wait);
+	/* Refresh now for maximum accuracy and handle monotonic clock */
+	timerclear(&wait);
+	set_time_now();
+	if (timercmp(earliest, &time_now, >))
+		timersub(earliest, &time_now, &wait);
 
-		if (timer_wait.tv_sec < 0) {
-			/* This will disable the timerfd */
-			timerclear(&timer_wait);
-		}
-	} else {
-		/* set timer to a VERY long time */
-		timer_wait.tv_sec = LONG_MAX;
-		timer_wait.tv_usec = 0;
-	}
-
-	its.it_value.tv_sec = timer_wait.tv_sec;
-	if (!timerisset(&timer_wait)) {
-		/* We could try to avoid doing the epoll_wait since
-		 * testing shows it takes about 4 microseconds
-		 * for the timer to expire. */
-		its.it_value.tv_nsec = 1;
-	}
-	else
-		its.it_value.tv_nsec = timer_wait.tv_usec * 1000;
-
-	/* We don't want periodic timer expiry */
-	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
-
-	if (timerfd_settime(m->timer_fd, 0, &its, NULL))
-		log_message(LOG_INFO, "Setting timer_fd returned errno %d - %m", errno);
-
-	return timer_wait_time;
+	TIMEVAL_TO_TIMESPEC(&wait, ts);
+	return ts;
 }
 
 static void
-thread_timerfd_handler(struct thread *t)
+thread_timer_expired(struct thread_master *m)
 {
-	struct thread_master *m = t->master;
-	uint64_t expired;
-	ssize_t len;
-
-	len = read(m->timer_fd, &expired, sizeof(expired));
-	if (len < 0)
-		log_message(LOG_ERR, "scheduler: Error reading on timerfd fd:%d (%m)", m->timer_fd);
-
-	/* Read, Write, Timer, Child thread. */
 	thread_rb_move_ready(m, &m->read, THREAD_READ_TIMEOUT);
 	thread_rb_move_ready(m, &m->write, THREAD_WRITE_TIMEOUT);
 	thread_rb_move_ready(m, &m->timer, THREAD_READY_TIMER);
-
-	/* Register next timerfd thread */
-	m->timer_thread = thread_add_read(m, thread_timerfd_handler, NULL, m->timer_fd, TIMER_NEVER, 0);
 }
 
 /* epoll related */
@@ -347,21 +311,10 @@ thread_make_master(bool nosignal)
 	INIT_LIST_HEAD(&new->unuse);
 	new->signal_fd = -1;
 
-	/* Register timerfd thread */
-	new->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-	if (new->timer_fd < 0) {
-		log_message(LOG_ERR, "scheduler: Cant create timerfd (%m)");
-		FREE(new);
-		return NULL;
-	}
-
-	if (!nosignal)
+	if (!nosignal) {
 		new->signal_fd = signal_handler_init();
-
-	new->timer_thread = thread_add_read(new, thread_timerfd_handler, NULL, new->timer_fd, TIMER_NEVER, 0);
-
-	if (!nosignal)
 		add_signal_read_thread(new);
+	}
 
 	return new;
 }
@@ -459,9 +412,6 @@ thread_destroy_master(struct thread_master *m)
 		close(m->epoll_fd);
 		m->epoll_fd = -1;
 	}
-
-	if (m->timer_fd != -1)
-		close(m->timer_fd);
 
 	if (m->signal_fd != -1)
 		signal_handler_destroy();
@@ -851,6 +801,7 @@ thread_fetch_next_queue(struct thread_master *m)
 {
 	int last_epoll_errno = 0, ret, i;
 	timeval_t earliest_timer;
+	struct timespec ts, *ts_ptr;
 
 	assert(m != NULL);
 
@@ -863,17 +814,16 @@ thread_fetch_next_queue(struct thread_master *m)
 		return &m->ready;
 
 	do {
-		/* Calculate and set wait timer. Take care of timeouted fd.  */
-		earliest_timer = thread_set_timer(m);
+		/* Compute wait timeout from earliest pending expiry. */
+		ts_ptr = thread_set_timer(m, &ts, &earliest_timer);
 
-
-		/* Call epoll function. */
-		ret = epoll_wait(m->epoll_fd, m->epoll_events, m->epoll_count, -1);
+		ret = epoll_pwait2(m->epoll_fd, m->epoll_events,
+				   m->epoll_count, ts_ptr, NULL);
 
 		if (ret < 0) {
-			/* epoll_wait() will return EINTR if the process is sent SIGSTOP
+			/* epoll_pwait2() will return EINTR if the process is sent SIGSTOP
 			 * (see signal(7) man page for details.
-			 * Although we don't except to receive SIGSTOP, it can happen if,
+			 * Although we don't expect to receive SIGSTOP, it can happen if,
 			 * for example, the system is hibernated. */
 			if (errno == EINTR)
 				continue;
@@ -883,8 +833,7 @@ thread_fetch_next_queue(struct thread_master *m)
 				last_epoll_errno = errno;
 
 				/* Log the error first time only */
-				log_message(LOG_INFO, "scheduler: epoll_wait error: %d (%m)", errno);
-
+				log_message(LOG_INFO, "scheduler: epoll_pwait2 error: %d (%m)", errno);
 			}
 
 			/* Make sure we don't sit it a tight loop */
@@ -895,30 +844,27 @@ thread_fetch_next_queue(struct thread_master *m)
 		} else
 			last_epoll_errno = 0;
 
-		/* Check to see if we are long overdue. This can happen on a very heavily loaded system */
+		/* Refresh time_now once per wake-up. Used by timer expiry
+		 * and by handlers that read it without re-sampling */
+		set_time_now();
+
+		/* Check if we are long overdue on a heavily loaded system */
 		if (min_auto_priority_delay && timerisset(&earliest_timer)) {
-			/* Re-read the current time to get the maximum accuracy */
-			set_time_now();
+			int64_t overdue_us;
 
-			/* Take care about monotonic clock */
-			timersub(&earliest_timer, &time_now, &earliest_timer);
+			overdue_us = (int64_t)(time_now.tv_sec - earliest_timer.tv_sec) * 1000000
+				   + (time_now.tv_usec - earliest_timer.tv_usec);
 
-			/* If it is over min_auto_increment_delay usecs after the timer should have expired,
-			 * we are not running soon enough. */
-			if (earliest_timer.tv_sec < 0) {
-				if (earliest_timer.tv_sec * -1000000 - earliest_timer.tv_usec > min_auto_priority_delay) {
-					if (earliest_timer.tv_usec) {
-						earliest_timer.tv_sec++;
-						earliest_timer.tv_usec = 1000000 - earliest_timer.tv_usec;
-					}
-					log_message(LOG_INFO, "A thread timer expired %ld.%6.6ld seconds ago", -earliest_timer.tv_sec, earliest_timer.tv_usec);
-
-					/* Set realtime scheduling if not already using it, or if already in use,
-					 * increase the priority. */
-					increment_process_priority();
-				}
+			if (overdue_us > min_auto_priority_delay) {
+				log_message(LOG_INFO, "A thread timer expired %ld.%6.6ld seconds ago",
+					    (long)(overdue_us / 1000000), (long)(overdue_us % 1000000));
+				/* Set realtime scheduling, or raise priority if already set */
+				increment_process_priority();
 			}
 		}
+
+		/* Move any expired timers to the ready queue. */
+		thread_timer_expired(m);
 
 		/* Handle epoll events */
 		for (i = 0; i < ret; i++) {
@@ -967,9 +913,6 @@ thread_fetch_next_queue(struct thread_master *m)
 				ev->write = NULL;
 			}
 		}
-
-		/* Update current time */
-		set_time_now();
 
 		/* If there is a ready thread, return it. */
 		if (!list_empty(&m->ready))

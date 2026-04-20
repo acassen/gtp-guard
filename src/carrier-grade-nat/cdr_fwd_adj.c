@@ -15,6 +15,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include <time.h>
 
 #include "tools.h"
 #include "disk.h"

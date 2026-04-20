@@ -24,7 +24,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/timerfd.h>
 #include "timer.h"
 #include "list_head.h"
 #include "rbtree_types.h"
@@ -93,8 +92,6 @@ struct thread {
 		struct rb_node n;
 		struct list_head e_list;
 	};
-
-	struct rb_node rb_data;		/* PID or fd/vrid */
 };
 
 /* Thread Event */
@@ -125,10 +122,6 @@ struct thread_master {
 	unsigned int		epoll_size;
 	unsigned int		epoll_count;
 	int			epoll_fd;
-
-	/* timer related */
-	int			timer_fd;
-	struct thread		*timer_thread;
 
 	/* signal related */
 	int			signal_fd;

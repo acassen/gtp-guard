@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <time.h>
 
 #include "tools.h"
 #include "utils.h"
