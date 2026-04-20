@@ -891,29 +891,21 @@ void
 launch_thread_scheduler(struct thread_master *m)
 {
 	struct thread *t;
-	struct list_head *thread_list;
-	int thread_type;
+	bool terminate = false;
 
-	/*
-	 * Processing the master thread queues,
-	 * return and execute all ready threads.
-	 */
-	while ((thread_list = thread_fetch_next_queue(m))) {
-		if (!(t = thread_trim_head(thread_list)))
+	while (!terminate) {
+		t = thread_trim_head(thread_fetch_next_queue(m));
+		if (!t)
 			continue;
 
+		terminate = (t->type == THREAD_TERMINATE);
 		m->current_thread = t;
 		m->current_event = t->event;
-		thread_type = t->type;
 
 		if (t->func)
-			(*t->func) (t);
+			t->func(t);
 
 		thread_add_unuse(m, t);
 		m->current_thread = NULL;
-
-		/* If daemon hanging event is received stop processing */
-		if (thread_type == THREAD_TERMINATE)
-			break;
 	}
 }
